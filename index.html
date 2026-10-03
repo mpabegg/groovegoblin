@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#141b22">
+  <title>GrooveGoblin — composição & treino</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/src/style.css">
+  <script type="module" src="/src/main.js"></script>
+</head>
+<body>
+<main>
+  <header class="masthead">
+    <div><div class="eyebrow">LABORATÓRIO RÍTMICO · LOCAL & PRIVADO</div><h1>Groove<span>Goblin</span><span class="logo-mark" aria-hidden="true"> ▰</span></h1></div>
+    <div class="signature">Seu ritmo.<br>Infinitas intenções.</div>
+  </header>
+  <section class="panel" aria-labelledby="compose-title">
+    <div class="section-heading"><div><div class="eyebrow">01 / DESENHE A FRASE</div><h2 id="compose-title">Seu groove</h2></div><div class="badge">4/4 <span>·</span> 16 semicolcheias/compasso <span>·</span> mono</div></div>
+    <div class="transport">
+      <button id="play" class="primary">▶ Ouvir em loop</button>
+      <button id="stop" disabled>■ Parar</button>
+      <label class="bpm-label">BPM <input id="bpm" type="number" min="40" max="240" step="1" value="100"></label>
+      <label class="toggle"><input id="metronome" type="checkbox" checked> Metrônomo</label>
+      <label class="bpm-label">Compassos <select id="bars" aria-label="Quantidade de compassos da frase"><option value="1">1</option><option value="2">2</option><option value="4">4</option></select></label>
+      <div id="position-text" class="position-text">Pronto para compor</div>
+    </div>
+    <details class="inspiration" id="inspiration">
+      <summary>Biblioteca de grooves e gerador</summary>
+      <div class="inspiration-tools">
+        <section aria-labelledby="library-title">
+          <h3 id="library-title">Padrões para explorar</h3>
+          <div class="tool-row"><select id="groove-library" aria-label="Groove da biblioteca"><option value="">Escolha um padrão</option></select><button id="load-groove" disabled>Carregar padrão</button></div>
+          <div id="groove-description" class="muted">Escolha um groove para conhecer seus ataques e suas fontes.</div>
+          <p class="tool-hint">Carregar substitui frase, tamanho e BPM. Desfazer recupera o estado anterior.</p>
+        </section>
+        <section aria-labelledby="generator-title">
+          <h3 id="generator-title">Gerador semi-aleatório</h3>
+          <div class="tool-row">
+            <label>Densidade <select id="density"><option value="sparse">2 notas/compasso</option><option value="medium" selected>4 notas/compasso</option><option value="busy">8 notas/compasso</option></select></label>
+            <label>Ataques <select id="syncopation"><option value="straight">Mais nos tempos</option><option value="mixed" selected>Mistos</option><option value="syncopated">Mais sincopados</option></select></label>
+            <label>Durações <select id="lengths"><option value="short">Curtas</option><option value="mixed" selected>Variadas</option><option value="long">Longas</option></select></label>
+            <label>Semente <input id="seed" type="number" min="0" max="4294967295" step="1" aria-label="Semente do gerador"></label>
+          </div>
+          <div class="tool-row"><button id="generate">Gerar com esta semente</button><button id="variation">Nova variação</button></div>
+          <p class="tool-hint">Mantém compassos e BPM atuais. Mesma semente e opções recriam a mesma frase; Desfazer recupera a anterior.</p>
+        </section>
+      </div>
+    </details>
+    <div class="grid-scroll"><div class="grid-shell">
+      <div id="beat-labels" class="beat-labels" aria-hidden="true"></div>
+      <div id="grid" class="grid" aria-label="Frase: clique numa posição vazia para criar uma nota">
+        <div id="cells" class="cells"></div><div id="marks" class="marks" aria-hidden="true"></div><div id="notes" class="notes"></div>
+        <div id="playhead" class="playhead" hidden aria-hidden="true"></div>
+      </div>
+      <div id="subdivision-labels" class="subdivision-labels" aria-hidden="true"></div>
+      <div class="score-heading">Partitura rítmica <span>Sem alturas · ligaduras sustentam, não criam novos ataques</span></div>
+      <div id="rhythm-score" class="rhythm-score"></div>
+    </div></div>
+    <div class="grid-key"><span><i class="bar-mark"></i> compasso</span><span><i class="beat-mark"></i> tempo</span><span><i class="medium"></i> colcheia</span><span><i></i> semicolcheia</span><span class="boundary-hint">Barra final = início do próximo loop; não é um ataque.</span></div>
+    <div class="editor">
+      <span id="selection-text">Clique para criar · arraste para mover · puxe a borda direita para durar.</span>
+      <div class="presets" id="presets" role="group" aria-label="Durações predefinidas para a nota selecionada"></div>
+      <label>Início <input id="note-start" type="number" min="1" max="16" step="1" disabled aria-label="Início da nota selecionada, em semicolcheias"></label>
+      <label>Duração <input id="note-duration" type="number" min="1" max="16" step="1" disabled aria-label="Duração da nota selecionada em semicolcheias"></label>
+      <button id="delete" disabled>Excluir nota</button><button id="clear" disabled>Limpar frase</button>
+      <button id="undo" disabled title="Ctrl+Z">↶ Desfazer</button><button id="redo" disabled title="Ctrl+Y / Ctrl+Shift+Z">↷ Refazer</button>
+      <button id="export" disabled title="Baixa um arquivo JSON com a frase">⇩ Exportar</button>
+      <button id="import" disabled title="Carrega uma frase exportada">⇧ Importar</button>
+      <input type="file" id="import-file" accept=".json,application/json" hidden>
+    </div>
+    <div class="panel-foot"><span id="message" role="status" aria-live="polite">Espaços vazios são pausas. Notas vizinhas têm ataques separados.</span><span id="saved" class="saved">Salvo neste navegador</span></div>
+  </section>
+  <section class="panel training" aria-labelledby="train-title">
+    <div class="section-heading"><div><div class="eyebrow">02 / SINTA O TEMPO</div><h2 id="train-title">Do desenho ao gesto</h2></div><span class="badge">1 entrada + 4 repetições</span></div>
+    <div class="training-controls"><div><p>Ouça a referência, depois reproduza a frase inteira com a <kbd>barra de espaço</kbd>.</p><p class="muted">Pressione no ataque. Solte no final. Durante a avaliação, só o metrônomo toca.</p></div><button id="train" class="primary" disabled>Começar treino</button></div>
+    <div id="train-pad" class="train-pad"><span id="train-state">Prepare o ouvido. A duração importa tanto quanto o ataque.</span><span id="held-state" class="held-state">ESPAÇO · pressionar / soltar</span></div>
+    <p class="timing-note">Feedback relativo, não medição absoluta: teclado, navegador e saída de áudio introduzem latência. Use fones com fio; Bluetooth pode deslocar toda a execução. Sem calibração automática. Trocar de aba ou perder o foco interrompe a sessão.</p>
+  </section>
+  <section class="panel feedback" aria-labelledby="feedback-title">
+    <div class="section-heading"><div><div class="eyebrow">03 / OBSERVE AS DIFERENÇAS</div><h2 id="feedback-title">Ataque & término</h2></div><span class="badge">Sem pontuação única</span></div>
+    <div id="timeline"></div>
+    <div id="feedback"><p class="muted">Ao concluir o treino, cada ataque e cada término aparecerão separados, além de notas omitidas e extras.</p></div>
+  </section>
+  <footer>GrooveGoblin · Seus dados ficam neste navegador. <a href="/README.md" target="_blank" rel="noopener">Guia e método de avaliação ↗</a></footer>
+</main>
+</body>
+</html>

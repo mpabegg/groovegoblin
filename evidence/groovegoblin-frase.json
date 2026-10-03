@@ -1,0 +1,18 @@
+{
+  "format": "groovegoblin-phrase",
+  "version": 1,
+  "bpm": 100,
+  "bars": 2,
+  "notes": [
+    {
+      "id": "nmussmv2p1xc2h",
+      "start": 1,
+      "duration": 6
+    },
+    {
+      "id": "nmussmv3q2ful2",
+      "start": 20,
+      "duration": 1
+    }
+  ]
+}
