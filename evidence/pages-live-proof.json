@@ -1,0 +1,92 @@
+{
+  "stage": "Cycle 4: actual public GitHub Pages browser verification",
+  "site": "https://mpabegg.github.io/groovegoblin/",
+  "tested_commit": "2f739e62cb6172c5a994b1433e2f8278593a571c",
+  "deployment_prerequisite": {
+    "workflow": "https://github.com/mpabegg/groovegoblin/actions/runs/37156679362",
+    "result": "Publication worker reported the actual workflow completed successfully and the public URL returned HTTP 200 before browser navigation. Browser independently observed the deployed HTML and assets returning HTTP 200."
+  },
+  "browser": "Google Chrome for Testing 149.0.7827.54 through agent-browser 0.27.1 and native CDP input",
+  "isolation": "New isolated browser session without an imported profile or saved state. The first public app load had no saved phrase. All subsequent phrase and preference mutations were synthetic; no real user browser storage was accessed.",
+  "commands_and_actions": [
+    "Loaded the agent-browser core skill; opened the actual public Pages URL and obtained an interactive accessibility snapshot.",
+    "Used native browser click, focus, ArrowRight, Enter, dropdown selection, number-input fill and Tab blur to create and edit a synthetic note and select four bars at 137 BPM.",
+    "Changed metronome and generator preferences, reloaded the actual public page, and compared saved data with restored UI values.",
+    "Activated Compartilhar link, opened its generated hash URL against a different synthetic saved baseline, dismissed its preview, reopened it, explicitly applied it, then used Undo, Redo and reload.",
+    "Followed the actual footer link to the hosted guide and its return link to index.html.",
+    "Ran actual Web Audio training with native keyboard press/release events on desktop and native emulated touch press/release events at 390px. Observed oscillator scheduling, completed training, timelines and feedback.",
+    "Captured real full-page desktop and mobile screenshots. Inspected public resource requests, response status/MIME, page exceptions, console output and network failures. Closed the owned browser session and native observer connection."
+  ],
+  "checks": [
+    {
+      "scenario": "Actual project-path app, styles and ES modules",
+      "result": "The public /groovegoblin/ page rendered GrooveGoblin and initialized 16 editable cells. The stylesheet loaded as text/css and all ten runtime modules loaded as application/javascript under /groovegoblin/src/. Computed body background was rgb(16, 22, 27)."
+    },
+    {
+      "scenario": "Synthetic editing, four bars and BPM persistence",
+      "result": "Created a note at zero-based tick 4, focused it and moved it to tick 5 with native ArrowRight. Selected four bars and 137 BPM. Reload restored the exact note ID/start/duration, BPM and four-bar state with 64 editable cells."
+    },
+    {
+      "scenario": "Preferences and reload",
+      "result": "Metronome false, density busy, syncopation syncopated, lengths long and seed 42 survived reload and matched the visible controls. The saved phrase remained unchanged by those preference edits."
+    },
+    {
+      "scenario": "Explicit hash-share application and local preservation",
+      "result": "The hosted app produced a #phrase= link and reported successful clipboard copy. Opening it preserved the exact synthetic receiver baseline bytes: empty phrase, 99 BPM and one bar. Preview dismissal also preserved those bytes. Explicit Apply restored the exact shared note, four bars and 137 BPM. Undo restored the exact receiver bytes; Redo and reload restored the shared state. No application upload/API request occurred."
+    },
+    {
+      "scenario": "Hosted guide navigation and return",
+      "result": "Native footer navigation rendered https://mpabegg.github.io/groovegoblin/guide.html as text/html with its title, stylesheet and seven topic sections. Native Voltar ao app navigation reached https://mpabegg.github.io/groovegoblin/index.html and restored the synthetic four-bar phrase, 137 BPM and 64 cells. The guide was displayed, not downloaded."
+    },
+    {
+      "scenario": "Actual keyboard training and actionable feedback",
+      "synthetic_phrase": { "bars": 1, "bpm": 240, "notes": [{ "start": 5, "duration": 4 }] },
+      "result": "Completed native keyboard training in a running 48000Hz AudioContext with 20 real scheduled oscillators and four feedback timelines. The final output-clock-correlated native keyboard fixture produced four associated notes, zero omissions/extras, attacks 4/4 and endings 4/4 within tolerance, with coordination/repeat advice. Held state cleared on completion. A prior processing-clock fixture produced one association, three omissions/extras and attacks/endings 0/4; the desktop screenshot records that genuine corrective-feedback branch."
+    },
+    {
+      "scenario": "390px native emulated touch/pointer training",
+      "result": "At 390px, completed actual Web Audio training with native CDP touch events. Four trusted touch pointerdown/up pairs acquired and released pointer capture. The running 48000Hz AudioContext scheduled 20 oscillators; four timelines and actionable feedback rendered. Four notes associated, zero omissions/extras, attacks 4/4 and endings 4/4 within tolerance. Held state cleared. Document width and viewport width both remained 390px."
+    }
+  ],
+  "public_network_observation": {
+    "requests": 50,
+    "unique_public_resources": 14,
+    "resource_paths": [
+      "/groovegoblin/",
+      "/groovegoblin/index.html",
+      "/groovegoblin/guide.html",
+      "/groovegoblin/src/style.css",
+      "/groovegoblin/src/main.js",
+      "/groovegoblin/src/model.js",
+      "/groovegoblin/src/feedback.js",
+      "/groovegoblin/src/audio.js",
+      "/groovegoblin/src/history.js",
+      "/groovegoblin/src/portable.js",
+      "/groovegoblin/src/timeline.js",
+      "/groovegoblin/src/library.js",
+      "/groovegoblin/src/generator.js",
+      "/groovegoblin/src/notation.js"
+    ],
+    "all_observed_resource_statuses": 200,
+    "fetch_xhr_websocket_requests": 0,
+    "failed_responses": 0,
+    "network_loading_failures": 0,
+    "page_runtime_exceptions": 0,
+    "page_console_messages": 0,
+    "browser_log_errors": 0,
+    "scope": "Observers attached before initial public navigation and remained active through app reloads, share/apply/undo, guide roundtrip and training. All observed requests were static assets/documents on the public Pages origin."
+  },
+  "screenshots": [
+    { "path": "evidence/pages-live-smoke.png", "description": "Real rendered public desktop app with completed native keyboard training and corrective feedback; 1280px viewport." },
+    { "path": "evidence/pages-live-mobile.png", "description": "Real rendered public mobile-width app with completed trusted emulated touch training, four timelines and 4/4 independent attack/ending feedback; 390px viewport." }
+  ],
+  "limitations": [
+    "Chromium desktop and 390px mobile/touch emulation were exercised, not a physical handset or human finger input.",
+    "Real Web Audio contexts and oscillator scheduling were observed. No independent human acoustic measurement or physical audio-latency calibration was performed.",
+    "Clocked native events exercise input/feedback integration, not human rhythm accuracy. The raw processing-clock keyboard fixture was corrected to use the app's browser output-clock correlation; no source change was made.",
+    "A below-viewport helper click did not activate sharing; native focus/Enter worked. A native Enter fixture did not start training; native pointer start worked. An observer read attempted before oscillator readiness returned a tool-side evaluation error, not a page runtime/console error. Browser doctor reported no failed checks.",
+    "This report covers the first actual deployment at the stated SHA. A later documentation/evidence-only push must have its own successful workflow observed by the publication worker.",
+    "This browser worker did not run local tests, builds or linters and does not repackage earlier local validation as public-site evidence."
+  ],
+  "cleanup": "Owned isolated browser session and native observer connection closed. No temporary helper source files or authentication artifacts created."
+}

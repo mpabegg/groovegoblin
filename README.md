@@ -25,9 +25,9 @@ Abra <http://127.0.0.1:5173/groovegoblin/>. O preview serve o artefato real `dis
 
 ## GitHub Pages
 
-O workflow [`.github/workflows/pages.yml`](./.github/workflows/pages.yml), acionado por push à branch `main` ou manualmente, executa testes e checagem sintática, constrói e envia `dist/` como artefato Pages e então faz o deploy. Ao configurar um repositório GitHub, selecione **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+O workflow [`.github/workflows/pages.yml`](./.github/workflows/pages.yml), acionado por push à branch `main` ou manualmente, executa testes e checagem sintática, constrói e envia `dist/` como artefato Pages e então faz o deploy. Este repositório está configurado em **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 
-O deploy GitHub real ainda está pendente: não há repositório remoto e nenhuma Action/publicação foi executada. A origem publicada terá armazenamento de navegador separado de `localhost` e de outras origens. Phrase/BPM/compassos e preferências ficam no `localStorage` do dispositivo; não há serviço de aplicação nem upload automático. Os links compartilhados carregam os dados da frase no fragmento da própria URL.
+O deploy está ativo em [GrooveGoblin](https://mpabegg.github.io/groovegoblin/); consulte o [guia](https://mpabegg.github.io/groovegoblin/guide.html) e o [repositório](https://github.com/mpabegg/groovegoblin). A origem publicada tem armazenamento de navegador separado de `localhost` e de outras origens. Frases/BPM/compassos e preferências permanecem no `localStorage` do dispositivo; não há serviço de aplicação nem upload automático. Links compartilhados carregam os dados da frase no fragmento da URL.
 
 ## Verificações locais
 
