@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { evaluate } from '../src/feedback.js';
+import { evaluate, summarizeFeedback } from '../src/feedback.js';
 
 // bpm=60 -> tickSeconds=0.25s (valores exatos em binario, evita ruido de
 // ponto flutuante nas asserções). barSeconds = 16*0.25 = 4s.
@@ -198,4 +198,84 @@ test('evaluate: com bars=2, tentativa além da primeira repetição casa com a s
   assert.equal(matched.repetition, 2);
   assert.equal(matched.onset, 'ok');
   assert.equal(rows.filter(r => r.kind === 'extra').length, 0);
+});
+
+test('summarizeFeedback: execução exata conta todos os ataques e términos corretos', () => {
+  const notes = [{id: 'a', start: 4, duration: 2}];
+  const attempts = [0, 4, 8, 12].map(offset => ({start: 1 + offset, end: 1.5 + offset}));
+  const summary = summarizeFeedback(evaluate(notes, attempts, BPM));
+  assert.deepEqual({...summary, advice: []}, {
+    expected: 4, matched: 4, missed: 0, extra: 0, attackOk: 4, endOk: 4, advice: [],
+  });
+});
+
+test('summarizeFeedback: ataque correto e término errado têm contagens independentes', () => {
+  const notes = [{id: 'a', start: 4, duration: 2}];
+  const attempts = [0, 4, 8, 12].map(offset => ({start: 1 + offset, end: 1.625 + offset}));
+  const summary = summarizeFeedback(evaluate(notes, attempts, BPM));
+  assert.equal(summary.expected, 4);
+  assert.equal(summary.matched, 4);
+  assert.equal(summary.attackOk, 4);
+  assert.equal(summary.endOk, 0);
+});
+
+test('summarizeFeedback: ataque errado e término correto têm contagens independentes', () => {
+  const notes = [{id: 'a', start: 4, duration: 2}];
+  const attempts = [0, 4, 8, 12].map(offset => ({start: 1.125 + offset, end: 1.5 + offset}));
+  const summary = summarizeFeedback(evaluate(notes, attempts, BPM));
+  assert.equal(summary.expected, 4);
+  assert.equal(summary.matched, 4);
+  assert.equal(summary.attackOk, 0);
+  assert.equal(summary.endOk, 4);
+});
+
+test('summarizeFeedback: sem tentativas conta todas as notas esperadas como missed', () => {
+  const summary = summarizeFeedback(evaluate([{id: 'a', start: 0, duration: 1}], [], BPM));
+  assert.deepEqual({...summary, advice: []}, {
+    expected: 4, matched: 0, missed: 4, extra: 0, attackOk: 0, endOk: 0, advice: [],
+  });
+});
+
+test('summarizeFeedback: extras e notas sem correspondência não contam como acertos', () => {
+  const notes = [{id: 'a', start: 0, duration: 1}];
+  const summary = summarizeFeedback(evaluate(notes, [
+    {start: 0, end: 0.25},
+    {start: 4.25, end: 4.5},
+  ], BPM));
+  assert.deepEqual({...summary, advice: []}, {
+    expected: 4, matched: 1, missed: 3, extra: 1, attackOk: 1, endOk: 1, advice: [],
+  });
+});
+
+test('summarizeFeedback: referência vazia não conta notas esperadas ou acertos', () => {
+  for (const attempts of [[], [{start: 0.5, end: 0.75}]]) {
+    const summary = summarizeFeedback(evaluate([], attempts, BPM));
+    assert.deepEqual({...summary, advice: []}, {
+      expected: 0, matched: 0, missed: 0, extra: attempts.length, attackOk: 0, endOk: 0, advice: [],
+    });
+  }
+});
+
+test('summarizeFeedback: erros de ataque e término coexistem com extra e missed', () => {
+  const notes = [{id: 'a', start: 4, duration: 2}];
+  const summary = summarizeFeedback(evaluate(notes, [
+    {start: 1.125, end: 1.625},
+    {start: 3, end: 3.5},
+  ], BPM));
+  assert.deepEqual({...summary, advice: []}, {
+    expected: 4, matched: 1, missed: 3, extra: 1, attackOk: 0, endOk: 0, advice: [],
+  });
+});
+
+test('summarizeFeedback: limites inclusivos de tolerância contam ataques e términos corretos', () => {
+  const notes = [{id: 'a', start: 4, duration: 2}];
+  const summary = summarizeFeedback(evaluate(notes, [
+    {start: 1 - 0.0625, end: 1.5 + 0.0625},
+    {start: 5 + 0.0625, end: 5.5 - 0.0625},
+    {start: 9 - 0.125, end: 9.5 + 0.125},
+    {start: 13 + 0.125, end: 13.5 - 0.125},
+  ], BPM));
+  assert.deepEqual({...summary, advice: []}, {
+    expected: 4, matched: 4, missed: 0, extra: 0, attackOk: 2, endOk: 2, advice: [],
+  });
 });

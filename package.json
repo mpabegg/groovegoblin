@@ -7,7 +7,9 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test tests/*.test.js",
-    "check": "node --check src/main.js && node --check src/audio.js && node --check src/model.js && node --check src/feedback.js && node --check src/history.js && node --check src/portable.js && node --check src/timeline.js && node --check src/library.js && node --check src/generator.js && node --check src/notation.js && node --check server.js"
+    "check": "node --check src/main.js && node --check src/audio.js && node --check src/model.js && node --check src/feedback.js && node --check src/history.js && node --check src/portable.js && node --check src/timeline.js && node --check src/library.js && node --check src/generator.js && node --check src/notation.js && node --check server.js && node --check scripts/build.js",
+    "build": "node scripts/build.js",
+    "preview": "STATIC_ROOT=dist BASE_PATH=/groovegoblin/ node server.js"
   },
   "engines": { "node": ">=22" }
 }

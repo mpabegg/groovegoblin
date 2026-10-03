@@ -1,0 +1,24 @@
+GrooveGoblin static-hosting and app integration evidence (2026-10-03)
+
+Cycles spent: 3 of the user's 10 total implementation/validation cycles (cycle 1 static build/Pages wiring and app changes; cycle 2 build safety, base redirect and preferences integration; cycle 3 HTML guide cutover). Initial diagnosis was not a cycle.
+
+Commands and results from the final integrated tree:
+- `npm test` — 281 passed, 0 failed, 0 skipped.
+- `npm run check` — passed syntax checks for all app modules, server.js and scripts/build.js.
+- `npm run build` — passed. Final `dist/` contains exactly `.nojekyll`, `README.md`, `guide.html`, `index.html`, and `src/` (app runtime modules/styles only). Tests, evidence and development scripts are not in the artifact. Build destination is fixed to project `dist/`; no configurable destructive output path remains.
+
+Local Node HTTP checks:
+- With `STATIC_ROOT=dist`, `BASE_PATH=/groovegoblin/`, GET `/groovegoblin/` redirects slashless `/groovegoblin?phrase=abc` with 308 to `/groovegoblin/?phrase=abc`, preserving query. The slash-terminated base responds 200 and relative asset paths resolve.
+- GET `/groovegoblin/guide.html` returns 200 `text/html; charset=utf-8`; CSS returns 200 `text/css`. Guide has relative stylesheet and back-to-app links.
+- Local Node server retains its original `.md` MIME `text/plain`; the app now links to HTML guide rather than Markdown.
+
+Rootless container static-hosting smoke:
+- Podman 5.8.7/crun runs rootless; pulled public `docker.io/library/nginx:alpine` and served read-only `dist/` mounted at the project subpath `/groovegoblin/` via pasta networking (slirp4netns was absent). Bound only to `127.0.0.1:5294`; container was stopped after browser verification.
+- Nginx returned 200 for project index, `guide.html` (`text/html`), CSS (`text/css`) and JS (`application/javascript`). App ESM imports loaded from the subpath. Nginx's default `README.md` type is `application/octet-stream`; this is no longer a user-facing route. The application footer opens `guide.html`, which the browser displayed rather than downloading.
+- Actual browser verified footer → guide navigation, guide title and its seven topic sections, stylesheet/back link and return to `/groovegoblin/index.html`; returned app initialized with 16 cells. No browser page or console errors reported for the guide, app or return navigation.
+- Browser worker additionally reported isolated app scenarios passed: protected invalid/quota storage and recovery, share preview/apply/undo/reload, preference/seed reload reproduction, focus continuity, pointer/keyboard guards, count-in hold ignore, pointer capture/outside release, multipointer, cancellation/Escape/tab blur, independent feedback and a complete mobile touch training session. Evidence images: `evidence/cycle1-recovery.png`, `evidence/cycle2-share.png`, `evidence/cycle2-actionable-feedback.png`, `evidence/cycle3-readable-guide.png`, `evidence/cycle3-final-mobile-feedback.png`. Touch used native CDP pointer/touch emulation in Chrome; it was not a physical mobile-device test.
+
+Workflow:
+- Python PyYAML 6.0.3 parsed `.github/workflows/pages.yml`; local assertions verified build→deploy dependency, artifact path `dist`, and deploy-job-only `pages:write`/`id-token:write`. `actionlint` was not available. No GitHub Action, remote creation or deployment was executed.
+
+Deployment remains pending a real GitHub repository and Pages configuration. No user phrase or existing browser storage was accessed or overwritten by the static smoke. Temporary Node servers and Podman containers were terminated. Checkpoint reported `registered:false`; it was not enabled.

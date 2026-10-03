@@ -5,6 +5,8 @@ export const PORTABLE_VERSION = 1;
 
 const DOCUMENT_KEYS = ['format', 'version', 'bpm', 'bars', 'notes'];
 const NOTE_KEYS = ['id', 'start', 'duration'];
+const SHARE_PREFIX = '#phrase=';
+const SHARE_MAX_LENGTH = 32768;
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -24,21 +26,25 @@ function hasValidNotes(notes, bars) {
   ));
 }
 
-// Exporta somente o estado portátil, sem mutar nem reordenar as notas/IDs.
-// As notas também são estritas na exportação, evitando perda silenciosa de dados.
-export function serializePhrase(state) {
+function portableDocument(state) {
   if (!isObject(state) || !isValidBpm(state.bpm) || !BAR_OPTIONS.includes(state.bars)
       || !hasValidNotes(state.notes, state.bars)) {
     throw new TypeError('A frase deve conter notas válidas, BPM inteiro entre 40 e 240 e 1, 2 ou 4 compassos.');
   }
 
-  return JSON.stringify({
+  return {
     format: PORTABLE_FORMAT,
     version: PORTABLE_VERSION,
     bpm: state.bpm,
     bars: state.bars,
     notes: state.notes.map(({ id, start, duration }) => ({ id, start, duration })),
-  }, null, 2);
+  };
+}
+
+// Exporta somente o estado portátil, sem mutar nem reordenar as notas/IDs.
+// As notas também são estritas na exportação, evitando perda silenciosa de dados.
+export function serializePhrase(state) {
+  return JSON.stringify(portableDocument(state), null, 2);
 }
 
 // Importação atômica: só entrega estado após validar o documento inteiro.
@@ -79,4 +85,33 @@ export function parsePhrase(text) {
   }
 
   return { ok: true, notes: document.notes, bpm: document.bpm, bars };
+}
+
+// O formato/versionamento é o mesmo do arquivo; somente o fragmento muda.
+export function serializeShare(state, baseUrl) {
+  const encoded = encodeURIComponent(JSON.stringify(portableDocument(state)));
+  if (encoded.length > SHARE_MAX_LENGTH) {
+    throw new RangeError('A frase excede o limite de 32768 caracteres do link compartilhado.');
+  }
+  const url = new URL(baseUrl);
+  url.hash = `${SHARE_PREFIX}${encoded}`;
+  return url.href;
+}
+
+// Apenas valida: aplicar a frase e persistir o estado são decisões do consumidor.
+export function parseShare(hash) {
+  if (typeof hash !== 'string' || !hash.startsWith(SHARE_PREFIX)) {
+    return { ok: false, error: 'O fragmento não contém um link de frase reconhecido.' };
+  }
+  const encoded = hash.slice(SHARE_PREFIX.length);
+  if (encoded.length > SHARE_MAX_LENGTH) {
+    return { ok: false, error: 'A frase excede o limite de 32768 caracteres do link compartilhado.' };
+  }
+  let text;
+  try {
+    text = decodeURIComponent(encoded);
+  } catch {
+    return { ok: false, error: 'Não foi possível ler o link: a codificação é inválida.' };
+  }
+  return parsePhrase(text);
 }

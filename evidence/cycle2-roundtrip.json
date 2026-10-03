@@ -1,0 +1,33 @@
+{
+  "format": "groovegoblin-phrase",
+  "version": 1,
+  "bpm": 137,
+  "bars": 4,
+  "notes": [
+    {
+      "id": "share-a",
+      "start": 0,
+      "duration": 4
+    },
+    {
+      "id": "share-b",
+      "start": 4,
+      "duration": 3
+    },
+    {
+      "id": "cross",
+      "start": 13,
+      "duration": 6
+    },
+    {
+      "id": "dotted",
+      "start": 32,
+      "duration": 12
+    },
+    {
+      "id": "last",
+      "start": 63,
+      "duration": 1
+    }
+  ]
+}

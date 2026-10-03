@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#141b22">
+  <title>Guia GrooveGoblin — composição e treino</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+<main>
+  <header class="masthead">
+    <div><div class="eyebrow">GUIA · MÉTODO · PRIVACIDADE</div><h1>Groove<span>Goblin</span></h1></div>
+    <a href="./index.html">Voltar ao app ↗</a>
+  </header>
+  <section class="panel">
+    <h2>Compositor e treinador rítmico</h2>
+    <p>Crie frases monofônicas em 4/4 com <strong>1, 2 ou 4 compassos</strong> e 16 posições de semicolcheia por compasso. O app não tem backend, contas, fontes externas, nem envio automático de dados. Os links externos da biblioteca só acessam a internet quando você os abre.</p>
+    <nav aria-label="Conteúdo do guia"><ul>
+      <li><a href="#compose">Compor e editar</a></li><li><a href="#notation">Partitura rítmica</a></li>
+      <li><a href="#library">Biblioteca e gerador</a></li><li><a href="#training">Ouvir e treinar</a></li>
+      <li><a href="#feedback">Feedback e latência</a></li><li><a href="#files">Arquivos, links e dados locais</a></li>
+    </ul></nav>
+  </section>
+  <section class="panel" id="compose" aria-labelledby="compose-title">
+    <h2 id="compose-title">Compor e editar</h2>
+    <ol>
+      <li>Escolha <strong>Compassos: 1, 2 ou 4</strong>. Reduzir o tamanho é rejeitado se uma nota ultrapassar o novo fim; nenhuma nota é apagada silenciosamente.</li>
+      <li>Clique numa posição vazia para criar uma nota de uma semicolcheia. Clique numa nota para selecionar; arraste o corpo para mover e puxe a borda direita para redimensionar.</li>
+      <li>Use os campos <strong>Início</strong> (posição absoluta na frase, a partir de 1), <strong>Duração</strong> (semicolcheias) ou os botões de duração. Valores 1, 2, 3, 4, 6, 8, 12 e 16 representam semicolcheia, colcheia, colcheia pontuada, semínima, semínima pontuada, mínima, mínima pontuada e semibreve. Outros inteiros também são válidos, até o fim da frase.</li>
+      <li><strong>Excluir nota</strong> apaga a seleção; <strong>Limpar frase</strong> apaga tudo. Desfazer/Refazer recuperam notas, BPM e número de compassos, incluindo padrões, geração e importação. O histórico mantém até 100 estados recentes; uma nova edição após desfazer descarta o ramo de refazer.</li>
+      <li>Frases longas rolam horizontalmente; grid e partitura compartilham a área. Durante reprodução/treino, ela acompanha o cursor; no treino, as ferramentas de inspiração são recolhidas para manter o grid visível.</li>
+    </ol>
+    <p>Ataques e durações são quantizados. Operações inválidas são rejeitadas: não empurram nem sobrepõem notas, e não ultrapassam o fim. Terminar exatamente no limite final é válido; sustentar através de uma barra interna também. Pausas são espaços vazios. Notas adjacentes continuam distintas, com novo ataque. A barra final indica o começo do próximo loop, <strong>não é uma posição adicional</strong>. Cada tempo usa <code>1 e &amp; a</code>: <code>&amp;</code> é o contratempo de colcheia; <code>e</code> e <code>a</code> são subdivisões de semicolcheia.</p>
+    <h3>Atalhos</h3>
+    <div class="table-scroll"><table><thead><tr><th scope="col">Tecla</th><th scope="col">Ação</th></tr></thead><tbody>
+      <tr><td>← / →</td><td>Mover nota selecionada em 1 semicolcheia</td></tr>
+      <tr><td>↑ / ↓</td><td>Aumentar / diminuir duração em 1 semicolcheia</td></tr>
+      <tr><td>Shift + setas</td><td>Passo de 4 semicolcheias</td></tr>
+      <tr><td>1 / 2 / 3 / 4 / 6 / 8</td><td>Definir duração em semicolcheias</td></tr>
+      <tr><td>Delete / Backspace</td><td>Excluir a nota selecionada</td></tr>
+      <tr><td>Ctrl+Z</td><td>Desfazer</td></tr>
+      <tr><td>Ctrl+Y / Ctrl+Shift+Z</td><td>Refazer</td></tr>
+      <tr><td>Escape</td><td>Parar ou cancelar sessão</td></tr>
+      <tr><td>Espaço durante treino</td><td>Pressionar = ataque; soltar = término</td></tr>
+    </tbody></table></div>
+    <p>Atalhos de edição não atuam dentro de campos e seletores, nem durante uma sessão. Tab percorre as posições; Enter/Espaço em uma posição vazia cria uma nota. O histórico termina ao fechar/recarregar; a frase atual permanece salva no navegador.</p>
+  </section>
+  <section class="panel" id="notation" aria-labelledby="notation-title">
+    <h2 id="notation-title">Partitura rítmica</h2>
+    <p>A pauta de uma linha não indica alturas, nomes de notas nem clave. Mostra figuras rítmicas, pausas, pontos de aumento e barras em 4/4; acompanha edição, desfazer/refazer, importação, biblioteca e gerador. A notação SVG é geométrica e local, sem fonte musical ou biblioteca externa. Colcheias e semicolcheias têm bandeirolas individuais, sem agrupamento por feixes.</p>
+    <p>Valores não convencionais e sustentações fora de alinhamento métrico são divididos em figuras convencionais <strong>ligadas</strong>. Por exemplo, 5 ticks começando no tempo viram semínima + semicolcheia ligadas; 6 ticks no tempo viram semínima pontuada. Valores alinhados de 3, 6 e 12 ticks mantêm colcheia, semínima e mínima pontuadas. Sustentações entre compassos recebem ligadura entre as partes. Ligadura <strong>não pede novo ataque</strong>; notas adjacentes distintas não são ligadas.</p>
+    <p>Pausas usam figuras sem ponto e escolhem a maior que cabe no silêncio sem atravessar a barra, respeitando o alinhamento: semibreve no início de compasso completo; mínima nos tempos 1 ou 3; semínima no início de um tempo; colcheia na subdivisão de colcheia; semicolcheia nas demais posições. Um compasso vazio mostra pausa de compasso centralizada. A partitura representa o ritmo quantizado, não alturas nem a execução do treino.</p>
+  </section>
+  <section class="panel" id="library" aria-labelledby="library-title">
+    <h2 id="library-title">Biblioteca e gerador</h2>
+    <p>Abra <strong>Biblioteca de grooves e gerador</strong>, escolha um padrão e carregue-o. Ele substitui frase, tamanho e BPM; Desfazer recupera o estado anterior. As notas carregadas são editáveis.</p>
+    <div class="table-scroll"><table><thead><tr><th scope="col">Padrão</th><th scope="col">Compassos</th><th scope="col">Ataques (ticks desde 0)</th></tr></thead><tbody>
+      <tr><td>Pulso em semínimas</td><td>1</td><td>0, 4, 8, 12</td></tr>
+      <tr><td>Contratempos de colcheia</td><td>1</td><td>2, 6, 10, 14</td></tr>
+      <tr><td>Tresillo — 3+3+2</td><td>1</td><td>0, 6, 12</td></tr>
+      <tr><td>Cinquillo — 2+1+2+1+2</td><td>1</td><td>0, 4, 6, 10, 12</td></tr>
+      <tr><td>Son clave 3–2</td><td>2</td><td>0, 6, 12, 20, 24</td></tr>
+      <tr><td>Son clave 2–3</td><td>2</td><td>4, 8, 16, 22, 28</td></tr>
+    </tbody></table></div>
+    <p>Os dois primeiros padrões são exercícios próprios. Os tradicionais usam fontes da <strong>Berklee PULSE</strong>, também disponíveis na interface:</p>
+    <ul>
+      <li><a href="https://pulse.berklee.edu/?id=4&amp;lesson=376">The Foundational Rhythms of New Orleans</a>: <a href="https://pulse.berklee.edu/content/public/pub_unit_assets/lessons/clave/Bamboula.jpg">Bamboula/Tresillo</a> e <a href="https://pulse.berklee.edu/content/public/pub_unit_assets/lessons/clave/Cinquillo.jpg">Cinquillo</a>.</li>
+      <li><a href="https://pulse.berklee.edu/?id=4&amp;lesson=14">The Clave</a>: <a href="https://pulse.berklee.edu/content/public/pub_unit_assets/lessons/clave/Son-Clave.jpg">Son clave 3–2</a> e <a href="https://pulse.berklee.edu/content/public/pub_unit_assets/lessons/lesson5_banded/2_3_son_graphic.png">Son clave 2–3</a>.</li>
+    </ul>
+    <p>As fontes fundamentam os ataques; BPM e sustentações são escolhas didáticas e não reproduzem o decaimento de claves, uma bateria completa ou uma gravação. Tresillo aqui é 3+3+2 em colcheias, não tercinas. A descrição se refere ao padrão original, não às edições posteriores.</p>
+    <h3>Gerador reproduzível</h3>
+    <ol>
+      <li>Escolha densidade de 2, 4 ou 8 notas por compasso, preferência de ataques mais nos tempos/mistos/mais sincopados e durações curtas/variadas/longas.</li>
+      <li><strong>Nova variação</strong> sorteia uma semente uint32; <strong>Gerar com esta semente</strong> reproduz as mesmas notas para opções iguais.</li>
+    </ol>
+    <p>Geração mantém BPM e tamanho atuais. Preferências são ponderadas, não proibições: “mais nos tempos” ainda pode produzir síncopes. Ataques são sorteados sem reposição em cada compasso; duração é limitada pelo próximo ataque ou pelo fim, sem sobreposição, e pode atravessar barras internas. “Curtas” sempre usa 1 tick; as outras opções incluem sustentações e pausas. Alterar somente duração mantém os ataques para a mesma semente.</p>
+    <p>O PRNG Mulberry32 é determinístico; não usa rede. Pesos de ataque: “mais nos tempos” = 12/3/1 para tempos/contratempos de colcheia/demais ticks; “mais sincopados” = 1 nos tempos e 4 nas outras subdivisões; mistos = pesos iguais. A nova semente vem de <code>crypto.getRandomValues</code>. Na primeira abertura, uma semente aleatória é gerada e salva; opções e semente permanecem após recarregar e podem reproduzir a mesma frase. Não há promessa de composição estilística ou identificação de gênero. Opções/semente não entram no arquivo JSON nem no link compartilhado; as opções atuais são salvas localmente nas preferências.</p>
+  </section>
+  <section class="panel" id="training" aria-labelledby="training-title">
+    <h2 id="training-title">Ouvir e treinar</h2>
+    <p>Ajuste BPM inteiro entre <strong>40 e 240</strong>. Ouvir em loop usa tom triangular sustentado de 440 Hz, ataque de 4 ms e release de 15 ms no limite nominal. Metrônomo pode ser ligado/desligado durante o loop; cliques já agendados podem permanecer por cerca de 100 ms. Parar/Escape interrompem; edição, biblioteca, gerador e BPM ficam bloqueados durante sessão.</p>
+    <p>O áudio usa Web Audio com lookahead de 100 ms, agendado a cada 25 ms. A frase repete a partir de uma origem temporal única, sem pausa extra na emenda; pausas continuam sendo pausas. A animação consulta o relógio, não dispara sons.</p>
+    <ol>
+      <li>Ouça a referência.</li><li>Comece o treino; há <strong>um compasso de entrada</strong>, qualquer que seja o tamanho da frase.</li>
+      <li>Reproduza a frase inteira <strong>quatro vezes</strong>. Pressione Espaço ou toque/mantenha o botão grande de treino no ataque; solte no término.</li>
+      <li>Grid e partitura permanecem visíveis; durante a avaliação toca somente o metrônomo. Referência e pressões não são sonificadas.</li>
+      <li>Veja timeline, contagens separadas de ataque/término e feedback de cada repetição.</li>
+    </ol>
+    <p>Pressões iniciadas na entrada são ignoradas, mesmo se mantidas até a avaliação. Repetição automática de teclado não cria ataques; segurar através de uma fronteira não divide uma tentativa. Ponteiro/tela de toque e teclado usam a mesma entrada. Cancelamento de toque, perder foco, trocar de aba, parar ou Escape interrompem e descartam resultados parciais. Uma pressão mantida no fim é encerrada nessa borda.</p>
+  </section>
+  <section class="panel" id="feedback" aria-labelledby="feedback-title">
+    <h2 id="feedback-title">Feedback: método e latência</h2>
+    <p>Não há pontuação única. Timeline sobrepõe referência e execução, separa ataques/términos e distingue notas omitidas/extras; tabela mantém desvios exatos em milissegundos. Valores negativos significam antes, positivos depois. A geometria que ultrapassa a janela de uma repetição é recortada e sinalizada; o desvio numérico não é corrigido pelo recorte. Editar frase, BPM ou tamanho invalida feedback anterior.</p>
+    <p>A referência contém <strong>quatro frases completas</strong>. Matching ordena por ataque e associa a primeira tentativa dentro da janela de um ataque esperado, sem usar duração para escolher. Tentativas antes da janela são extras; ataques esperados ultrapassados são omitidos. Finais só são comparados depois da associação.</p>
+    <ul>
+      <li><code>tickMs = 15000 / BPM</code>.</li><li>Janela de associação: ±meio tick, <code>7500 / BPM</code> ms.</li>
+      <li>Tolerância independente de ataque e término: ±um quarto de tick, <code>3750 / BPM</code> ms; limites inclusivos.</li>
+      <li>A 100 BPM: associação ±75 ms e tolerância ±37,5 ms (exibida arredondada para 38 ms).</li>
+      <li>A 240 BPM: tolerância ±15,625 ms; a latência pesa mais.</li>
+    </ul>
+    <p>A contagem indica separadamente ataques e términos associados dentro da tolerância; as sugestões de prática partem dessas diferenças e não são uma nota. Duração correta não apaga deslocamento: uma nota inteira atrasada pode ter ataque e término atrasados. Fora da janela, aparece como omitida + extra. No meio exato entre ataques adjacentes, o desempate favorece o esperado anterior. Tentativas duplicadas numa janela não revelam a intenção com certeza. Não há realinhamento global nem calibração.</p>
+    <p>Scheduler usa <code>AudioContext.currentTime</code>. Indicador, limites de captura e fim do treino usam <code>getOutputTimestamp()</code> quando válido; timestamps de teclado são convertidos pelo par <code>contextTime/performanceTime</code>. É uma estimativa do navegador, não medição independente da chegada do som ao ouvido. Sem essa API, usa um par fresco <code>currentTime/performance.now()</code>, sem compensar latência de saída.</p>
+    <p>Teclado, sistema operacional, navegador, driver, hardware, Bluetooth e percepção afetam resultados. Prefira fones com fio e use o feedback para comparar padrões, não para alegar precisão absoluta. Travamentos maiores que o horizonte do scheduler podem causar falha de áudio; não há promessa de tempo real rígido.</p>
+  </section>
+  <section class="panel" id="files" aria-labelledby="files-title">
+    <h2 id="files-title">Arquivos, compartilhamento e dados locais</h2>
+    <h3>JSON de frase</h3>
+    <p><strong>Exportar</strong> baixa <code>groovegoblin-frase.json</code>; <strong>Importar</strong> valida o documento inteiro antes de alterar a frase. JSON malformado, formato/versão desconhecidos, campos desconhecidos, IDs duplicados, BPM inválido, sobreposição ou notas fora do limite são rejeitados sem mudança. A importação pode ser desfeita.</p>
+    <p>Formato: <code>format: "groovegoblin-phrase"</code>, <code>version: 1</code>, <code>bpm</code>, <code>bars</code> e <code>notes</code> com <code>id</code>, <code>start</code>, <code>duration</code>; ticks começam em 0 no arquivo. Arquivos antigos sem <code>bars</code> significam um compasso; arquivos novos sempre incluem o campo. JSON contém frase/BPM/tamanho, não treino, histórico, biblioteca ou opções do gerador.</p>
+    <h3>Link de frase</h3>
+    <p><strong>Compartilhar link</strong> grava os mesmos dados portáteis no fragmento da URL (<code>#phrase=...</code>), sem servidor. Qualquer pessoa com o link pode ler a frase, BPM e tamanho nele. Abrir o link mostra uma prévia: só <strong>Aplicar frase recebida</strong> substitui o estado em edição; Desfazer recupera o anterior. <strong>Dispensar</strong> fecha a prévia sem aplicar. Preferências e resultados de treino não são compartilhados. Se a área de transferência não puder ser usada, o link aparece selecionado para cópia manual.</p>
+    <h3>Persistência e recuperação</h3>
+    <p>Frase/BPM/tamanho são salvos na chave <code>groovegoblin.v1</code>; preferências do metrônomo/gerador (densidade, síncope, durações e semente) ficam separadas em <code>groovegoblin.preferences.v1</code>. Os valores padrão para estados antigos continuam um compasso, BPM 100, metrônomo ligado, densidade 4, opções mistas. Dados ficam nesta origem no navegador: <code>localhost</code>, <code>127.0.0.1</code>, portas diferentes e o domínio publicado têm armazenamentos separados. Limpar dados do site apaga as cópias locais.</p>
+    <p>Se o estado salvo da frase for inválido, o app conserva os bytes originais, não os sobrescreve automaticamente e permite editar em memória. Baixe os dados originais para recuperação antes de decidir; o botão <strong>Substituir dados salvos pela frase atual</strong> é a ação explícita que os troca. Se o navegador bloquear armazenamento, o app funciona em memória sem salvar. O app não envia frase nem preferências para servidor: GitHub Pages hospeda apenas arquivos estáticos.</p>
+  </section>
+  <footer><span>GrooveGoblin · guia estático</span><a href="./index.html">Voltar ao app</a></footer>
+</main>
+</body>
+</html>

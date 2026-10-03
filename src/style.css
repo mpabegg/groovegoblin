@@ -38,3 +38,13 @@ p { font-size: 14px; line-height: 1.6; margin: 4px 0 9px; }.muted { color: var(-
 .rhythm-score { margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; background: #111b20; color: var(--text); }
 .rhythm-score svg { display: block; }
 .rhythm-note ellipse[fill="none"] { fill: #111b20; }
+.notice { margin-top: 18px; border: 1px solid var(--blue); border-radius: 8px; padding: 16px; }
+.notice[hidden] { display: none; }
+.notice h3, .practice-advice h3 { margin: 0 0 8px; font-size: 14px; }
+.notice button { margin: 6px 6px 0 0; }
+.notice label { display: block; font-size: 13px; margin-bottom: 8px; }
+#share-url { width: 100%; min-width: 0; box-sizing: border-box; padding: 10px; color: var(--text); background: #111b20; border: 1px solid #526269; border-radius: 6px; }
+.train-pad { width: 100%; min-height: 88px; text-align: left; touch-action: none; user-select: none; }
+.train-pad:disabled { opacity: 1; }
+.timing-counts { color: var(--accent); font-size: 14px; }
+.practice-advice { border-left: 3px solid var(--blue); padding: 12px 16px; background: #111b20; margin: 14px 0 20px; }

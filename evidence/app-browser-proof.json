@@ -1,0 +1,41 @@
+{
+  "cycles": [1, 2, 3],
+  "browser": "Google Chrome for Testing 149.0.7827.54 via isolated agent-browser sessions and native CDP input",
+  "isolation": "All mutation fixtures used isolated sessions on localhost ports 5276, 5294 or 5278. No existing user browser profile or stored user phrase was modified.",
+  "checks": [
+    {"scenario":"Keyboard focus","result":"Before fix, native Enter selection left activeElement BODY. After fix, Enter, arrows, preset, undo and redo retained selected-note focus; Delete focused the vacated cell."},
+    {"scenario":"Invalid saved state","result":"Malformed JSON, overlap, explicit invalid bars and invalid BPM preserved exact original storage bytes while editing. Recovery Blob contained exact original bytes. Explicit replacement saved current valid state and restored it on reload."},
+    {"scenario":"Blocked or quota storage","result":"Denied read allowed in-memory editing with unsaved status. Failed normal save preserved old valid stored state. Failed explicit replacement preserved invalid original and kept recovery protection."},
+    {"scenario":"Legacy saved state","result":"Saved phrase without bars restored notes and BPM as one bar without recovery warning."},
+    {"scenario":"Preferences","result":"Metronome false, density busy, syncopation syncopated, lengths long and seed 42 survived reload without modifying phrase. Regeneration after reload reproduced exact starts and durations."},
+    {"scenario":"Portable file roundtrip","result":"Exported four-bar phrase with adjacent notes, rests, cross-bar duration, dotted duration and final-tick note at 137 BPM; native file-input upload restored exact notes/IDs/BPM/bars. Undo recovered changed empty phrase at 99 BPM; redo and reload restored exported phrase."},
+    {"scenario":"Shared link","result":"Different isolated receiver kept existing local phrase on preview and dismissal. Explicit Apply loaded exact shared state; undo, redo and reload worked. Applying while saved state was protected remained memory-only and preserved original bytes."},
+    {"scenario":"Invalid shared link","result":"Malformed encoding, unknown fragment, oversized payload, unsupported version, overlap and out-of-range notes rejected without changing stored phrase or showing an applicable preview."},
+    {"scenario":"Clipboard fallback","result":"Denied clipboard write produced a visible selected read-only URL and actionable copy instruction."},
+    {"scenario":"Native emulated touch","result":"At 390px, real Web Audio training completed with a running 48000Hz AudioContext and 20 scheduled oscillators. Count-in hold was ignored. Native pointer capture allowed release outside pad. Keyboard and pointer could not release each other's held input. Native multitouch produced exactly one captured attempt. touchCancel, Escape and actual tab focus loss discarded partial results without held state."},
+    {"scenario":"Teaching feedback","result":"Clocked native keyboard events in real completed Web Audio sessions produced independently 3/4 attacks and 3/4 endings within tolerance, with attack-counting and release-boundary advice. Another completed session produced 4/4 independent counts and repeat/coordination advice. No-match sessions showed listening/subdivision guidance without false success."},
+    {"scenario":"Final built root app","result":"Fresh isolated browser at port 5278 initialized 16 cells and stylesheet with relative guide.html URL; page errors and console output empty."},
+    {"scenario":"Final actual nginx project app and guide","result":"Fresh final dist at port 5294 /groovegoblin/ initialized UI. Native footer navigation rendered guide.html as text/html with operational/method/persistence sections, not a download. Native return link initialized /groovegoblin/index.html. App, guide and returned app page errors and console output were empty."},
+    {"scenario":"Final mobile screenshot","result":"Final built nginx app completed native emulated touch training at 390px; document width remained 390px, feedback and actionable advice rendered without horizontal page overflow."}
+  ],
+  "evidence": [
+    "evidence/cycle1-recovery.png",
+    "evidence/cycle2-share.png",
+    "evidence/cycle2-mobile-feedback.png",
+    "evidence/cycle2-actionable-feedback.png",
+    "evidence/cycle2-roundtrip.json",
+    "evidence/cycle3-readable-guide.png",
+    "evidence/cycle3-final-mobile-feedback.png"
+  ],
+  "limitations": [
+    "Touch was native CDP touchscreen emulation in Chromium, not testing on a physical handset.",
+    "Clocked native keyboard fixtures establish consumer feedback branches, not physical human accuracy or independent audio-latency calibration.",
+    "Real Web Audio graphs ran; physical acoustic output was not measured.",
+    "Export/recovery Blob payloads were verified; default filesystem downloads were intercepted to avoid writes outside the project. The synthetic exported phrase artifact was saved inside evidence for native upload.",
+    "GitHub authorization, workflow execution and publication remain deferred to the parent objective.",
+    "Browser helper lacked documented addinitscript and had unreliable Space key shorthand/below-viewport click behavior; doctor found installed Chrome with no failed checks, and native CDP/focus-Enter alternatives exercised the intended behavior.",
+    "One final nginx navigation encountered connection refusal during a documented rebuild. After readiness, the final built app and guide navigation succeeded. Fixture setup mistakes were corrected by explicit reload/Page.enable rather than changing app behavior."
+  ],
+  "cleanup": "Isolated app-cycle1, app-share-receiver and app-final sessions closed; native CDP sockets closed; owned source servers 5276/5277 and built-root server 5278 stopped. No throwaway app scripts created. Static worker was released to stop its nginx container.",
+  "unit_build_checks": "This worker did not run npm tests/check/build. Static-deployment reported final npm test 281 passed, npm run check passed and npm run build passed; parent owns integrated validation evidence."
+}

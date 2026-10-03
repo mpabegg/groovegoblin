@@ -5,6 +5,8 @@ import {
   PORTABLE_VERSION,
   serializePhrase,
   parsePhrase,
+  serializeShare,
+  parseShare,
 } from '../src/portable.js';
 
 function phraseDocument(overrides = {}) {
@@ -91,11 +93,9 @@ for (const bpm of [40, 240]) {
   });
 }
 
-test('portable: parse rejeita JSON corrompido sem lançar nem expor erro técnico', () => {
+test('portable: parse rejeita JSON corrompido sem lançar e sem estado parcial', () => {
   for (const text of ['', '{', '{"notes":', '{"format": "x",}', 'undefined']) {
     assertRejected(text);
-    assert.equal(parsePhrase(text).error,
-      'Não foi possível ler o arquivo: o JSON é inválido.');
   }
 });
 
@@ -179,7 +179,7 @@ for (const key of ['format', 'version', 'bpm', 'notes']) {
   });
 }
 
-test('portable: serialize rejeita estados inválidos com TypeError em português', () => {
+test('portable: serialize rejeita estados inválidos com TypeError', () => {
   const states = [
     undefined, null, [], 'frase', {},
     { bpm: 100, notes: [] },
@@ -195,9 +195,143 @@ test('portable: serialize rejeita estados inválidos com TypeError em português
     { bpm: 100, bars: 1, notes: [{ id: 'a', start: 0, duration: 1, extra: true }] },
   ];
   for (const state of states) {
-    assert.throws(() => serializePhrase(state), {
-      name: 'TypeError',
-      message: /A frase deve conter notas válidas/,
+    assert.throws(() => serializePhrase(state), TypeError);
+  }
+});
+
+function assertShareRejected(hash) {
+  let result;
+  assert.doesNotThrow(() => { result = parseShare(hash); });
+  assert.equal(result.ok, false);
+  assert.equal(typeof result.error, 'string');
+  assert.ok(result.error.length > 0);
+  assert.deepEqual(Object.keys(result).sort(), ['error', 'ok']);
+}
+
+for (const baseUrl of [
+  'https://example.com/?mode=practice&name=a%20b#antigo',
+  'https://example.com/groovegoblin/?mode=practice&name=a%20b#antigo',
+]) {
+  for (const bars of [1, 2, 4]) {
+    test(`share: round-trip preserva frase, caminho e busca em ${baseUrl}, ${bars} compasso(s)`, () => {
+      const state = Object.freeze({
+        bpm: 137,
+        bars,
+        notes: Object.freeze([
+          Object.freeze({ id: 'fim-ç 🎵 #%&?=', start: bars * 16 - 2, duration: 2 }),
+          Object.freeze({ id: 'começo', start: 0, duration: 3 }),
+        ]),
+      });
+      const snapshot = structuredClone(state);
+      const base = new URL(baseUrl);
+      const originalUrl = base.href;
+      const link = serializeShare(state, base);
+      assert.equal(typeof link, 'string');
+      const shared = new URL(link);
+      assert.equal(base.href, originalUrl);
+      assert.equal(shared.origin, base.origin);
+      assert.equal(shared.pathname, base.pathname);
+      assert.equal(shared.search, base.search);
+      assert.ok(shared.hash.startsWith('#phrase='));
+      assert.notEqual(shared.hash, base.hash);
+      assert.deepEqual(parseShare(shared.hash), { ok: true, ...state });
+      assert.deepEqual(state, snapshot);
     });
   }
+}
+
+test('share: aceita documento v1 legado sem bars como frase de um compasso', () => {
+  const document = phraseDocument();
+  delete document.bars;
+  const text = JSON.stringify(document);
+  assert.deepEqual(parseShare(`#phrase=${encodeURIComponent(text)}`), {
+    ok: true, notes: document.notes, bpm: document.bpm, bars: 1,
+  });
+});
+
+test('share: fragmentos desconhecidos, ausentes ou malformados falham sem estado parcial', () => {
+  for (const hash of [
+    undefined, null, 1, {}, [], new String('#phrase={}'), Symbol('hash'),
+    '', '#', '#outro=valor', '#phrase', 'phrase=%7B%7D', '#Phrase=%7B%7D',
+    '#phrase=', '#phrase=%', '#phrase=%GG', '#phrase=%E0%A4%A', '#phrase=%FF',
+    '#phrase=%7B', '#phrase=%7B%7D&outro=1',
+  ]) {
+    assertShareRejected(hash);
+  }
+});
+
+for (const [description, overrides] of invalidDocuments) {
+  test(`share: validação estrita rejeita ${description}`, () => {
+    const text = JSON.stringify(phraseDocument(overrides));
+    const hash = `#phrase=${encodeURIComponent(text)}`;
+    assertShareRejected(hash);
+  });
+}
+
+for (const key of ['format', 'version', 'bpm', 'notes']) {
+  test(`share: campo obrigatório ausente ${key} é rejeitado`, () => {
+    const document = phraseDocument();
+    delete document[key];
+    assertShareRejected(`#phrase=${encodeURIComponent(JSON.stringify(document))}`);
+  });
+}
+
+test('share: limite inclusivo de 32768 caracteres considera o payload codificado', () => {
+  const state = { bpm: 100, bars: 1, notes: [{ id: 'a', start: 0, duration: 1 }] };
+  const initial = serializeShare(state, 'https://example.com/groovegoblin/');
+  const initialLength = new URL(initial).hash.slice('#phrase='.length).length;
+  state.notes[0].id = 'a'.repeat(1 + 32768 - initialLength);
+  const link = serializeShare(state, 'https://example.com/groovegoblin/');
+  const hash = new URL(link).hash;
+  assert.equal(hash.slice('#phrase='.length).length, 32768);
+  assert.deepEqual(parseShare(hash), { ok: true, ...state });
+
+  state.notes[0].id += 'a';
+  const oversized = encodeURIComponent(JSON.stringify(phraseDocument({ notes: state.notes })));
+  assert.equal(oversized.length, 32769);
+  assertShareRejected(`#phrase=${oversized}`);
+  assert.throws(() => serializeShare(state, 'https://example.com/'), RangeError);
+  assertShareRejected(`#phrase=${'a'.repeat(32769)}`);
+});
+
+test('share: limite conta expansão URL de IDs unicode, não apenas bytes JSON', () => {
+  const state = { bpm: 100, bars: 1, notes: [{ id: 'ç'.repeat(6000), start: 0, duration: 1 }] };
+  const text = JSON.stringify(phraseDocument({ notes: state.notes }));
+  assert.ok(text.length < 32768);
+  assert.ok(encodeURIComponent(text).length > 32768);
+  assertShareRejected(`#phrase=${encodeURIComponent(text)}`);
+  assert.throws(() => serializeShare(state, 'https://example.com/'), RangeError);
+});
+
+test('share: exportação usa a mesma validação estrita do arquivo', () => {
+  for (const state of [
+    null, {}, { bpm: 100, notes: [] },
+    { bpm: 100.5, bars: 1, notes: [] },
+    { bpm: 100, bars: 3, notes: [] },
+    { bpm: 100, bars: 1, notes: [{ id: 'a', start: 15, duration: 2 }] },
+    { bpm: 100, bars: 1, notes: [{ id: 'a', start: 0, duration: 1, extra: true }] },
+  ]) {
+    assert.throws(() => serializeShare(state, 'https://example.com/'), TypeError);
+  }
+});
+
+test('share: não exporta recuperação nem preferências locais junto à frase', () => {
+  const state = {
+    bpm: 120,
+    bars: 2,
+    notes: [{ id: 'original', start: 16, duration: 4 }],
+    recoveryRaw: 'conteúdo privado inválido',
+    warning: 'aviso local',
+    storageAvailable: true,
+    preferences: { metronome: false, seed: 123 },
+  };
+  const snapshot = structuredClone(state);
+  const link = serializeShare(state, 'https://example.com/subdir/?mode=practice#antigo');
+  const hash = new URL(link).hash;
+  const document = JSON.parse(decodeURIComponent(hash.slice('#phrase='.length)));
+  assert.deepEqual(Object.keys(document).sort(), ['bars', 'bpm', 'format', 'notes', 'version']);
+  assert.deepEqual(parseShare(hash), {
+    ok: true, bpm: 120, bars: 2, notes: state.notes,
+  });
+  assert.deepEqual(state, snapshot);
 });

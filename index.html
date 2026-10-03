@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#141b22">
   <title>GrooveGoblin — composição & treino</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/src/style.css">
-  <script type="module" src="/src/main.js"></script>
+  <link rel="stylesheet" href="./src/style.css">
+  <script type="module" src="./src/main.js"></script>
 </head>
 <body>
 <main>
@@ -67,14 +67,33 @@
       <button id="undo" disabled title="Ctrl+Z">↶ Desfazer</button><button id="redo" disabled title="Ctrl+Y / Ctrl+Shift+Z">↷ Refazer</button>
       <button id="export" disabled title="Baixa um arquivo JSON com a frase">⇩ Exportar</button>
       <button id="import" disabled title="Carrega uma frase exportada">⇧ Importar</button>
+      <button id="share" title="Gera um link com a frase, sem servidor">Compartilhar link</button>
       <input type="file" id="import-file" accept=".json,application/json" hidden>
     </div>
     <div class="panel-foot"><span id="message" role="status" aria-live="polite">Espaços vazios são pausas. Notas vizinhas têm ataques separados.</span><span id="saved" class="saved">Salvo neste navegador</span></div>
+    <section id="recovery" class="notice" aria-labelledby="recovery-title" hidden>
+      <h3 id="recovery-title">Dados salvos protegidos</h3>
+      <p>Os dados anteriores não puderam ser restaurados integralmente. Suas edições ficam só na memória até você decidir substituí-los. Baixe os dados originais antes de continuar.</p>
+      <button id="download-recovery">Baixar dados originais</button>
+      <button id="replace-recovery">Substituir dados salvos pela frase atual</button>
+    </section>
+    <section id="share-preview" class="notice" aria-labelledby="share-title" hidden>
+      <h3 id="share-title">Frase recebida por link</h3>
+      <p id="share-description"></p>
+      <p>Abrir este link não altera sua frase. Aplicar substitui frase, BPM e compassos; Desfazer recupera a anterior.</p>
+      <button id="apply-share">Aplicar frase recebida</button>
+      <button id="dismiss-share">Dispensar</button>
+    </section>
+    <div id="share-output" class="notice" hidden>
+      <label for="share-url">Link da frase — selecione e copie se necessário</label>
+      <input id="share-url" type="text" readonly>
+      <p>O link contém a frase, BPM e compassos. Quem receber o link pode lê-los; nenhum serviço armazena a frase.</p>
+    </div>
   </section>
   <section class="panel training" aria-labelledby="train-title">
     <div class="section-heading"><div><div class="eyebrow">02 / SINTA O TEMPO</div><h2 id="train-title">Do desenho ao gesto</h2></div><span class="badge">1 entrada + 4 repetições</span></div>
-    <div class="training-controls"><div><p>Ouça a referência, depois reproduza a frase inteira com a <kbd>barra de espaço</kbd>.</p><p class="muted">Pressione no ataque. Solte no final. Durante a avaliação, só o metrônomo toca.</p></div><button id="train" class="primary" disabled>Começar treino</button></div>
-    <div id="train-pad" class="train-pad"><span id="train-state">Prepare o ouvido. A duração importa tanto quanto o ataque.</span><span id="held-state" class="held-state">ESPAÇO · pressionar / soltar</span></div>
+    <div class="training-controls"><div><p>Ouça a referência, depois reproduza a frase inteira com a <kbd>barra de espaço</kbd> ou segurando o botão abaixo.</p><p class="muted">Pressione no ataque. Solte no final. Durante a avaliação, só o metrônomo toca.</p></div><button id="train" class="primary" disabled>Começar treino</button></div>
+    <button type="button" id="train-pad" class="train-pad" aria-label="Tocar treino: pressione e segure no ataque, solte no término" disabled><span id="train-state">Prepare o ouvido. A duração importa tanto quanto o ataque.</span><span id="held-state" class="held-state">ESPAÇO ou toque · pressionar / soltar</span></button>
     <p class="timing-note">Feedback relativo, não medição absoluta: teclado, navegador e saída de áudio introduzem latência. Use fones com fio; Bluetooth pode deslocar toda a execução. Sem calibração automática. Trocar de aba ou perder o foco interrompe a sessão.</p>
   </section>
   <section class="panel feedback" aria-labelledby="feedback-title">
@@ -82,7 +101,7 @@
     <div id="timeline"></div>
     <div id="feedback"><p class="muted">Ao concluir o treino, cada ataque e cada término aparecerão separados, além de notas omitidas e extras.</p></div>
   </section>
-  <footer>GrooveGoblin · Seus dados ficam neste navegador. <a href="/README.md" target="_blank" rel="noopener">Guia e método de avaliação ↗</a></footer>
+  <footer>GrooveGoblin · Seus dados ficam neste navegador. <a href="./guide.html">Guia e método de avaliação ↗</a></footer>
 </main>
 </body>
 </html>

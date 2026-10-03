@@ -15,6 +15,24 @@ const STORAGE_KEY = 'groovegoblin.v1';
 const BPM_MIN = 40;
 const BPM_MAX = 240;
 const DEFAULT_BPM = 100;
+const PREFERENCES_KEY = 'groovegoblin.preferences.v1';
+const DEFAULT_PREFERENCES = {
+  metronome: true,
+  density: 'medium',
+  syncopation: 'mixed',
+  lengths: 'mixed',
+  seed: null,
+};
+const DENSITY_OPTIONS = ['sparse', 'medium', 'busy'];
+const SYNCOPATION_OPTIONS = ['straight', 'mixed', 'syncopated'];
+const LENGTH_OPTIONS = ['short', 'mixed', 'long'];
+const PREFERENCE_VALIDATORS = {
+  metronome: (value) => typeof value === 'boolean',
+  density: (value) => DENSITY_OPTIONS.includes(value),
+  syncopation: (value) => SYNCOPATION_OPTIONS.includes(value),
+  lengths: (value) => LENGTH_OPTIONS.includes(value),
+  seed: (value) => isInt(value) && value >= 0 && value <= 0xffffffff,
+};
 
 function isInt(value) {
   return typeof value === 'number' && Number.isInteger(value);
@@ -128,11 +146,16 @@ export function loadState(storage) {
       bpm: DEFAULT_BPM,
       bars: DEFAULT_BARS,
       warning: 'Nao foi possivel acessar o armazenamento local; usando padroes.',
+      recoveryRaw: null,
+      storageAvailable: false,
     };
   }
 
   if (raw == null) {
-    return { notes: [], bpm: DEFAULT_BPM, bars: DEFAULT_BARS, warning: null };
+    return {
+      notes: [], bpm: DEFAULT_BPM, bars: DEFAULT_BARS,
+      warning: null, recoveryRaw: null, storageAvailable: true,
+    };
   }
 
   let parsed;
@@ -143,14 +166,25 @@ export function loadState(storage) {
   }
 
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    return { notes: [], bpm: DEFAULT_BPM, bars: DEFAULT_BARS, warning: 'Dados salvos corrompidos; usando padroes.' };
+    return {
+      notes: [], bpm: DEFAULT_BPM, bars: DEFAULT_BARS,
+      warning: 'Dados salvos corrompidos; usando padroes.',
+      recoveryRaw: raw, storageAvailable: true,
+    };
   }
 
   const warnings = [];
 
   // Estados salvos antes do suporte a multiplos compassos nao trazem "bars":
   // frases de um compasso continuam validas, então o padrao e retrocompativel.
-  const bars = isValidBars(parsed.bars) ? parsed.bars : DEFAULT_BARS;
+  let bars = DEFAULT_BARS;
+  if (Object.hasOwn(parsed, 'bars')) {
+    if (isValidBars(parsed.bars)) {
+      bars = parsed.bars;
+    } else {
+      warnings.push('Numero de compassos salvo invalido; usando 1.');
+    }
+  }
 
   let notes = [];
   if (validPhrase(parsed.notes, bars)) {
@@ -166,7 +200,12 @@ export function loadState(storage) {
     warnings.push('BPM salvo invalido; usando 100.');
   }
 
-  return { notes, bpm, bars, warning: warnings.length > 0 ? warnings.join(' ') : null };
+  return {
+    notes, bpm, bars,
+    warning: warnings.length > 0 ? warnings.join(' ') : null,
+    recoveryRaw: warnings.length > 0 ? raw : null,
+    storageAvailable: true,
+  };
 }
 
 export function saveState(notes, bpm, bars, storage) {
@@ -174,6 +213,45 @@ export function saveState(notes, bpm, bars, storage) {
   try {
     storage ??= globalThis.localStorage;
     storage.setItem(STORAGE_KEY, JSON.stringify({ notes, bpm, bars }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Preferências não alteram a frase salva, nem requerem escrita ao carregar.
+export function loadPreferences(storage) {
+  let parsed;
+  try {
+    storage ??= globalThis.localStorage;
+    parsed = JSON.parse(storage.getItem(PREFERENCES_KEY));
+  } catch {
+    return { ...DEFAULT_PREFERENCES };
+  }
+  const preferences = { ...DEFAULT_PREFERENCES };
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return preferences;
+  }
+  for (const [key, validate] of Object.entries(PREFERENCE_VALIDATORS)) {
+    if (Object.hasOwn(parsed, key) && validate(parsed[key])) {
+      preferences[key] = parsed[key];
+    }
+  }
+  return preferences;
+}
+
+export function savePreferences(preferences, storage) {
+  if (typeof preferences !== 'object' || preferences === null || Array.isArray(preferences)) {
+    return false;
+  }
+  const saved = {};
+  for (const [key, validate] of Object.entries(PREFERENCE_VALIDATORS)) {
+    if (!Object.hasOwn(preferences, key) || !validate(preferences[key])) return false;
+    saved[key] = preferences[key];
+  }
+  try {
+    storage ??= globalThis.localStorage;
+    storage.setItem(PREFERENCES_KEY, JSON.stringify(saved));
     return true;
   } catch {
     return false;

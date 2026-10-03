@@ -150,3 +150,45 @@ export function evaluate(notes, attempts, bpm, bars = DEFAULT_BARS) {
 
   return { rows, toleranceMs, matchWindowMs };
 }
+
+export function summarizeFeedback(result) {
+  let matched = 0;
+  let missed = 0;
+  let extra = 0;
+  let attackOk = 0;
+  let endOk = 0;
+  for (const row of result.rows) {
+    if (row.kind === 'matched') {
+      matched += 1;
+      if (row.onset === 'ok') attackOk += 1;
+      if (row.ending === 'ok') endOk += 1;
+    } else if (row.kind === 'missed') {
+      missed += 1;
+    } else if (row.kind === 'extra') {
+      extra += 1;
+    }
+  }
+
+  const expected = matched + missed;
+  const advice = [];
+  if (expected === 0) {
+    advice.push('Adicione notas à frase para ter uma referência, ouça essa referência e conte as subdivisões antes de tocar.');
+  } else if (matched === 0) {
+    advice.push('Ouça a referência e conte as subdivisões em voz alta antes de tentar tocar novamente.');
+  } else {
+    if (attackOk < matched) {
+      advice.push('Conte as subdivisões em voz alta e pratique pressionar nos ataques da referência.');
+    }
+    if (endOk < matched) {
+      advice.push('Pratique os limites de cada nota: pressione no início e solte no término indicado pela referência.');
+    }
+    if (matched === expected && attackOk === matched && endOk === matched) {
+      advice.push('Os ataques e términos das notas esperadas ficaram dentro da tolerância; mantenha essa coordenação e repita a frase.');
+    }
+  }
+  if (missed > 0 || extra > 0) {
+    advice.push('Notas sem correspondência ou tentativas extras podem resultar de ataques fora da janela de correspondência; compare com a referência antes de repetir.');
+  }
+
+  return { expected, matched, missed, extra, attackOk, endOk, advice };
+}
