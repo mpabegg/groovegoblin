@@ -5,7 +5,8 @@ import { buildRhythmNotation } from '../src/notation.js';
 // SVG geometry is exercised with the app's real-browser integration smoke.
 // These tests verify musical intervals and attacks, independently of the DOM.
 const VALUE_TICKS = { whole: 16, half: 8, quarter: 4, eighth: 2, sixteenth: 1 };
-const VALUE_ALIGNMENT = { whole: 16, half: 4, quarter: 4, eighth: 2, sixteenth: 1 };
+const NOTE_ALIGNMENT = { whole: 16, half: 4, quarter: 4, eighth: 2, sixteenth: 1 };
+const REST_ALIGNMENT = { whole: 16, half: 8, quarter: 4, eighth: 2, sixteenth: 1 };
 
 function eventsOf(model) {
   return model.measures.flatMap(measure => measure.events);
@@ -23,7 +24,8 @@ function assertExactPhrase(notes, bars) {
       assert.equal(event.start, cursor, 'events cover the phrase without gaps or overlaps');
       assert.ok(Number.isInteger(event.duration) && event.duration > 0);
       assert.equal(event.duration, VALUE_TICKS[event.value] * (event.dotted ? 1.5 : 1));
-      assert.equal(event.start % VALUE_ALIGNMENT[event.value], 0, 'metrical alignment');
+      const alignment = event.kind === 'rest' ? REST_ALIGNMENT : NOTE_ALIGNMENT;
+      assert.equal(event.start % alignment[event.value], 0, 'metrical alignment');
       assert.ok(event.start >= index * 16);
       assert.ok(event.start + event.duration <= (index + 1) * 16, 'a symbol cannot cross a barline');
       assert.equal(typeof event.dotted, 'boolean');
@@ -35,6 +37,7 @@ function assertExactPhrase(notes, bars) {
         assert.equal(event.noteId, original ? original.id : null, `identity at tick ${tick}`);
       }
       if (event.kind === 'rest') {
+        assert.equal(event.dotted, false, 'rests use only undotted values');
         assert.equal(event.tieFromPrevious, false);
         assert.equal(event.tieToNext, false);
       }
@@ -157,10 +160,73 @@ test('omissions before, between and after notes become aligned, untied rests', (
   const rests = eventsOf(model).filter(event => event.kind === 'rest');
   assert.equal(rests.reduce((sum, rest) => sum + rest.duration, 0), 27);
   assert.equal(rests[0].start, 0);
-  assert.equal(rests[0].duration, 3);
-  assert.equal(rests[0].value, 'eighth');
-  assert.equal(rests[0].dotted, true);
   assert.equal(rests.at(-1).start + rests.at(-1).duration, 32);
+});
+
+test('sparse two-bar eighth-note phrase uses metric rests, ending with eighth plus quarter', () => {
+  const notes = [
+    { id: 'a', start: 0, duration: 2 },
+    { id: 'b', start: 20, duration: 2 },
+    { id: 'c', start: 24, duration: 2 },
+  ];
+  const model = assertExactPhrase(notes, 2);
+  const events = eventsOf(model);
+  const rests = events.filter(event => event.kind === 'rest');
+  assert.deepEqual(rests.map(({ start, duration, value }) => [start, duration, value]), [
+    [2, 2, 'eighth'],
+    [4, 4, 'quarter'],
+    [8, 8, 'half'],
+    [16, 4, 'quarter'],
+    [22, 2, 'eighth'],
+    [26, 2, 'eighth'],
+    [28, 4, 'quarter'],
+  ]);
+  assert.equal(rests.reduce((sum, rest) => sum + rest.duration, 0), 26);
+  assert.deepEqual(
+    events.filter(event => event.kind === 'note').map(({ noteId, start, duration }) => [noteId, start, duration]),
+    [['a', 0, 2], ['b', 20, 2], ['c', 24, 2]],
+  );
+});
+
+for (const [start, duration, expected] of [
+  [3, 1, [[3, 1, 'sixteenth']]],
+  [1, 3, [[1, 1, 'sixteenth'], [2, 2, 'eighth']]],
+  [2, 6, [[2, 2, 'eighth'], [4, 4, 'quarter']]],
+  [4, 12, [[4, 4, 'quarter'], [8, 8, 'half']]],
+  [0, 12, [[0, 8, 'half'], [8, 4, 'quarter']]],
+]) {
+  test(`${duration}-tick silent interval at tick ${start} uses aligned undotted rests`, () => {
+    const end = start + duration;
+    const notes = [{ id: 'after', start: end, duration: 32 - end }];
+    if (start > 0) notes.unshift({ id: 'before', start: 0, duration: start });
+    const model = assertExactPhrase(notes, 2);
+    const rests = eventsOf(model).filter(event => event.kind === 'rest');
+    assert.deepEqual(rests.map(({ start, duration, value }) => [start, duration, value]), expected);
+    assert.equal(rests.reduce((sum, rest) => sum + rest.duration, 0), duration);
+  });
+}
+
+test('long crossbar silence uses whole-bar rests and preserves sparse dotted notes', () => {
+  const notes = [
+    { id: 'before', start: 0, duration: 2 },
+    { id: 'after', start: 50, duration: 3 },
+  ];
+  const model = assertExactPhrase(notes, 4);
+  const rests = eventsOf(model).filter(event => event.kind === 'rest');
+  const gap = rests.filter(event => event.start < 50);
+  assert.deepEqual(gap.map(({ start, duration, value }) => [start, duration, value]), [
+    [2, 2, 'eighth'],
+    [4, 4, 'quarter'],
+    [8, 8, 'half'],
+    [16, 16, 'whole'],
+    [32, 16, 'whole'],
+    [48, 2, 'eighth'],
+  ]);
+  assert.equal(gap.reduce((sum, rest) => sum + rest.duration, 0), 48);
+  assert.equal(rests.reduce((sum, rest) => sum + rest.duration, 0), 59);
+  const after = eventsOf(model).filter(event => event.noteId === 'after');
+  assert.equal(after.length, 1);
+  assert.equal(after[0].dotted, true);
 });
 
 test('sorting an immutable phrase preserves its original order and objects', () => {

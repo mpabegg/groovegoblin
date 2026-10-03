@@ -1,8 +1,8 @@
 import { TICKS_PER_BAR, validPhrase } from './model.js';
 
-// Durations are semiquaver ticks. Alignment keeps beat boundaries legible
-// without changing the onset or release of any original note.
-const VALUES = [
+// Durations are semiquaver ticks. Notes retain dotted values and their
+// alignment without changing the onset or release of any original note.
+const NOTE_VALUES = [
   { duration: 16, value: 'whole', dotted: false, alignment: 16 },
   { duration: 12, value: 'half', dotted: true, alignment: 4 },
   { duration: 8, value: 'half', dotted: false, alignment: 4 },
@@ -13,16 +13,26 @@ const VALUES = [
   { duration: 1, value: 'sixteenth', dotted: false, alignment: 1 },
 ];
 
+// Undotted rests expose beats and half-bars, even when silence starts offbeat.
+const REST_VALUES = [
+  { duration: 16, value: 'whole', dotted: false, alignment: 16 },
+  { duration: 8, value: 'half', dotted: false, alignment: 8 },
+  { duration: 4, value: 'quarter', dotted: false, alignment: 4 },
+  { duration: 2, value: 'eighth', dotted: false, alignment: 2 },
+  { duration: 1, value: 'sixteenth', dotted: false, alignment: 1 },
+];
+
 export function buildRhythmNotation(notes, bars = 1) {
   if (!validPhrase(notes, bars)) throw new TypeError('Frase rítmica inválida.');
   const measures = Array.from({ length: bars }, (_, index) => ({ index: index + 1, events: [] }));
 
   function appendInterval(start, end, noteId = null) {
     const intervalStart = start;
+    const values = noteId === null ? REST_VALUES : NOTE_VALUES;
     while (start < end) {
       const measureIndex = Math.floor(start / TICKS_PER_BAR);
       const available = Math.min(end, (measureIndex + 1) * TICKS_PER_BAR) - start;
-      const symbol = VALUES.find(candidate => candidate.duration <= available && start % candidate.alignment === 0);
+      const symbol = values.find(candidate => candidate.duration <= available && start % candidate.alignment === 0);
       const segmentEnd = start + symbol.duration;
       measures[measureIndex].events.push({
         kind: noteId === null ? 'rest' : 'note',
