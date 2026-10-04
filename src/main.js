@@ -14,6 +14,7 @@ import { mergeSession, readSessionLibrary, SESSION_LIBRARY_KEY } from './studio-
 import { History } from './history.js';
 import { addNote, updateNote, deleteNote, quantizeTick as snapTick } from './model.js';
 import { generateGroove } from './generator.js';
+import { generateDrums, DRUM_VOICES } from './drums.js';
 
 const $ = id => document.getElementById(id);
 const restored = loadSession();
@@ -90,7 +91,7 @@ function replaceSession(value, { record = true, stopPlayback = true } = {}) {
   return true;
 }
 function renderAll() {
-  renderControls(); renderGrid(); renderNotes(); renderProgression(); renderFeedback();
+  renderControls(); renderGrid(); renderDrums(); renderNotes(); renderProgression(); renderFeedback();
   practice?.render(); playground?.render(); journey?.render(); repertoire?.render();
 }
 function cancelDrag() {
@@ -292,6 +293,38 @@ function renderGrid() {
   for (let bar = 0; bar < session.bars; bar++) for (let beat = 0; beat < session.meter.beats; beat++) {
     const label = document.createElement('span'); label.textContent = beat === 0 ? `${bar + 1} · 1` : String(beat + 1);
     label.style.left = `${(bar * measure + beat * 16 / session.meter.unit) / total * 100}%`; $('beat-labels').append(label);
+  }
+}
+function renderDrums() {
+  const names = { kick: 'Bumbo', snare: 'Caixa', hihat: 'Chimbal', openhat: 'Chimbal aberto', rim: 'Aro', ride: 'Prato de condução', shaker: 'Ganzá', tom: 'Tom', triangle: 'Triângulo' };
+  const pattern = generateDrums(session);
+  const total = totalTicks(session);
+  const rows = $('drum-rows');
+  rows.replaceChildren();
+  $('drum-lanes').classList.toggle('drums-off', !session.drums.enabled || session.band.role === 'drums');
+  for (const voice of DRUM_VOICES) {
+    const hits = pattern.hits.filter(hit => hit.instrument === voice);
+    if (!hits.length && !['kick', 'snare', 'hihat'].includes(voice)) continue;
+    const row = document.createElement('div');
+    row.className = `drum-line drum-${voice}`;
+    const label = document.createElement('div');
+    label.className = 'drum-label';
+    label.textContent = `${names[voice] ?? voice} · ${hits.length} ataques`;
+    const lane = document.createElement('div');
+    lane.className = 'drum-steps';
+    lane.setAttribute('role', 'img');
+    lane.setAttribute('aria-label', `${names[voice] ?? voice}: ataques nos ticks ${hits.map(hit => format(hit.start)).join(', ') || 'nenhum'}. Padrão de referência da banda.`);
+    for (const hit of hits) {
+      const mark = document.createElement('span');
+      mark.className = 'drum-hit';
+      mark.style.left = `${hit.start / total * 100}%`;
+      mark.style.opacity = String(Math.max(0.25, hit.velocity));
+      mark.title = `${names[voice] ?? voice} · tick ${format(hit.start)} · intensidade ${Math.round(hit.velocity * 100)}%`;
+      mark.setAttribute('aria-hidden', 'true');
+      lane.append(mark);
+    }
+    row.append(label, lane);
+    rows.append(row);
   }
 }
 function renderNotes(previewNotes = session.notes) {

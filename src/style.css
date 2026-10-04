@@ -111,6 +111,9 @@ input[type=text], textarea { background: #111b20; border: 1px solid #4b5c63; bor
 .performance-focus .performance { min-height: 55vh; display: flex; flex-direction: column; justify-content: center; }
 .drum-steps { position: relative; display: block; }
 .drum-hit { position: absolute; top: 3px; height: 18px; width: 4px; background: var(--blue); border-radius: 2px; }
+.drum-kick .drum-hit { background: var(--accent); }
+.drum-snare .drum-hit { background: #ffba9d; }
+.drums-off .drum-hit { background: var(--muted); }
 @media(max-width: 900px) { .mixer-channels { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media(max-width: 540px) {
   .intentions { gap: 3px; padding: 4px; overflow-x: auto; }
