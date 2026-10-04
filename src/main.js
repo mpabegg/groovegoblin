@@ -35,6 +35,7 @@ let playground;
 let journey;
 let chordMarkers = [];
 let activeChordIndex = -1;
+let lastRepertoireBusy = false;
 const history = new History();
 const library = readSessionLibrary(undefined, parseSession);
 const audio = new GrooveAudio({ onState: () => renderControls(), onFinish: (attempts, detail) => {
@@ -230,7 +231,7 @@ function renderControls() {
   $('session-badge').textContent = `${session.meter.beats}/${session.meter.unit} · ${session.bars} comp. · loop ${session.loop.startBar + 1}–${session.loop.endBar}`;
   $('play').disabled = pending !== null;
   $('train').disabled = pending !== null || !session.notes.some(note => note.start >= session.loop.startBar * barTicks(session) && note.start < session.loop.endBar * barTicks(session));
-  $('stop').disabled = !locked;
+  $('stop').disabled = !locked && !repertoire?.isBusy();
   $('train-pad').disabled = !['countin', 'train'].includes(audio.position.mode);
   $('undo').disabled = locked || !history.canUndo;
   $('redo').disabled = locked || !history.canRedo;
@@ -634,6 +635,8 @@ function renderFeedback() {
 function frame() {
   const position = audio.position;
   if (position.mode !== lastMode) { lastMode = position.mode; renderControls(); }
+  const repertoireBusy = repertoire.isBusy();
+  if (repertoireBusy !== lastRepertoireBusy) { lastRepertoireBusy = repertoireBusy; renderControls(); }
   $('playhead').hidden = position.mode === 'idle' || position.mode === 'countin';
   $('playhead').style.left = `${Math.max(0, Math.min(totalTicks(session), position.tick ?? 0)) / totalTicks(session) * 100}%`;
   if ($('studio-editor').open && ['loop', 'train'].includes(position.mode)) {
@@ -661,7 +664,7 @@ repertoire = mountRepertoire($('repertoire-mount'), host);
 practice = mountPractice($('practice-mount'), host);
 playground = mountPlayground($('playground-mount'), host);
 journey = mountJourney($('journey-mount'), host);
-setupOffline({ isBusy: busy, notify: message });
+setupOffline({ isBusy: () => busy() || repertoire.isBusy(), notify: message });
 history.push(session); audio.setMixer(session.mixer); renderLibrary(); renderAll();
 $('recovery').hidden = recoveryRaw === null; persist();
 if (restored.warnings?.length) message(restored.warnings.join(' '), true);
