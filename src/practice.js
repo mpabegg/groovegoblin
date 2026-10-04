@@ -1616,17 +1616,38 @@ export function mountPractice(container, host, options = {}) {
     return section;
   }
 
-  function earSeedControl(game, onNew) {
-    const wrap = createEl('div', { className: 'practice-inline-controls' });
-    const seedInput = createEl('input', { type: 'number', min: '0', max: '4294967295', value: String(earGames[game].seed), 'aria-label': 'Semente do jogo de ouvido' });
-    seedInput.addEventListener('change', () => {
-      earGames[game].seed = normalizeSeed(seedInput.value, earGames[game].seed);
-      seedInput.value = String(earGames[game].seed);
+  function earSeedControl(gameId, onNew) {
+    const game = earGames[gameId];
+    const wrap = createEl('div', { className: 'practice-ear-navigation' });
+    const newButton = createEl('button', {
+      type: 'button',
+      className: !game.question || game.answered ? 'practice-primary' : '',
+      text: game.answered ? 'Próxima questão' : game.question ? 'Trocar questão' : 'Começar',
+      dataset: { focusKey: 'ear-next' },
     });
-    wrap.appendChild(createEl('label', {}, [createEl('span', { text: 'Semente: ' }), seedInput]));
-    const newButton = createEl('button', { type: 'button', text: 'Nova questão' });
-    newButton.addEventListener('click', onNew);
+    newButton.addEventListener('click', () => {
+      host.stop();
+      game.seed = (game.seed + 1) >>> 0;
+      onNew();
+      root.querySelector('.practice-ear-game .practice-inline-controls button')?.focus();
+    });
     wrap.appendChild(newButton);
+    const advanced = createEl('details', { className: 'practice-disclosure', dataset: { disclosure: `ear-seed-${gameId}` } });
+    advanced.appendChild(createEl('summary', { text: 'Opções avançadas', dataset: { focusKey: `ear-seed-${gameId}` } }));
+    const controls = createEl('div', { className: 'practice-inline-controls' });
+    const seedInput = createEl('input', { type: 'number', min: '0', max: '4294967295', step: '1', value: String(game.seed), 'aria-label': 'Semente do jogo de ouvido' });
+    controls.appendChild(createEl('label', {}, [createEl('span', { text: 'Semente: ' }), seedInput]));
+    const reproduce = createEl('button', { type: 'button', text: 'Gerar com esta semente' });
+    reproduce.addEventListener('click', () => {
+      if (!seedInput.reportValidity()) return;
+      host.stop();
+      game.seed = normalizeSeed(seedInput.value, game.seed);
+      onNew();
+    });
+    controls.appendChild(reproduce);
+    advanced.appendChild(createEl('p', { className: 'practice-hint', text: 'Use a mesma semente para reproduzir uma questão. Próxima questão escolhe outra automaticamente.' }));
+    advanced.appendChild(controls);
+    wrap.appendChild(advanced);
     return wrap;
   }
 
@@ -1640,7 +1661,10 @@ export function mountPractice(container, host, options = {}) {
         else if (answered.choice === option) className += ' practice-ear-answer-wrong';
       }
       const button = createEl('button', { type: 'button', className, text: option, disabled: !!answered });
-      button.addEventListener('click', () => onAnswer(option));
+      button.addEventListener('click', () => {
+        onAnswer(option);
+        root.querySelector('[data-focus-key="ear-next"]')?.focus();
+      });
       wrap.appendChild(button);
     }
     return wrap;
@@ -1671,14 +1695,14 @@ export function mountPractice(container, host, options = {}) {
     const box = createEl('div', { className: 'practice-ear-game', 'aria-label': 'Jogo de intervalos' });
     box.appendChild(createEl('h4', { text: 'Intervalos' }));
     if (!game.question) box.appendChild(createEl('p', { className: 'practice-hint', text: 'Ouça duas notas e diga o intervalo entre a primeira e a segunda.' }));
-    box.appendChild(earSeedControl('interval', () => {
+    const navigation = earSeedControl('interval', () => {
       game.question = generateIntervalQuestion(game.seed);
       game.answered = null;
       rerender();
-    }));
+    });
     if (game.question) {
       const controls = createEl('div', { className: 'practice-inline-controls' });
-      const play = createEl('button', { type: 'button', className: 'practice-primary', text: 'Ouvir referência (ascendente)' });
+      const play = createEl('button', { type: 'button', className: game.answered ? '' : 'practice-primary', text: 'Ouvir referência (ascendente)' });
       play.addEventListener('click', () => previewPhrase(host, game.question.referenceNotes, { bpm: 90 }).catch(error => host.notify(error.message, true)));
       controls.appendChild(play);
       const together = createEl('button', { type: 'button', text: 'Ouvir as duas juntas' });
@@ -1692,9 +1716,10 @@ export function mountPractice(container, host, options = {}) {
       }));
       if (game.answered) {
         const ok = game.answered.choice === game.question.answer;
-        box.appendChild(createEl('p', { className: 'practice-ear-feedback', role: 'status', text: ok ? `Correto: ${game.question.answer} (${game.question.interval.semitones} semitons).` : `Era ${game.question.answer} (${game.question.interval.semitones} semitons); você escolheu ${game.answered.choice}. Ouça de novo com a mesma semente.` }));
+        box.appendChild(createEl('p', { className: 'practice-ear-feedback', role: 'status', text: ok ? `Correto: ${game.question.answer} (${game.question.interval.semitones} semitons).` : `Era ${game.question.answer} (${game.question.interval.semitones} semitons); você escolheu ${game.answered.choice}. Ouça a referência novamente para comparar.` }));
       }
     }
+    box.appendChild(navigation);
     return box;
   }
 
@@ -1703,14 +1728,14 @@ export function mountPractice(container, host, options = {}) {
     const box = createEl('div', { className: 'practice-ear-game', 'aria-label': 'Jogo de função de acorde' });
     box.appendChild(createEl('h4', { text: 'Função do acorde' }));
     if (!game.question) box.appendChild(createEl('p', { className: 'practice-hint', text: 'Ouça a tônica e depois um segundo acorde; diga a função dele.' }));
-    box.appendChild(earSeedControl('chord', () => {
+    const navigation = earSeedControl('chord', () => {
       game.question = generateChordFunctionQuestion(game.seed);
       game.answered = null;
       rerender();
-    }));
+    });
     if (game.question) {
       const controls = createEl('div', { className: 'practice-inline-controls' });
-      const play = createEl('button', { type: 'button', className: 'practice-primary', text: 'Ouvir tônica e acorde' });
+      const play = createEl('button', { type: 'button', className: game.answered ? '' : 'practice-primary', text: 'Ouvir tônica e acorde' });
       play.addEventListener('click', () => previewPhrase(host, game.question.referenceNotes, { bpm: 90 }).catch(error => host.notify(error.message, true)));
       controls.appendChild(play);
       box.appendChild(controls);
@@ -1721,9 +1746,10 @@ export function mountPractice(container, host, options = {}) {
       }));
       if (game.answered) {
         const ok = game.answered.choice === game.question.answer;
-        box.appendChild(createEl('p', { className: 'practice-ear-feedback', role: 'status', text: ok ? `Correto: ${game.question.answer}.` : `Era ${game.question.answer}; você escolheu ${game.answered.choice}. Compare as duas funções com a mesma semente.` }));
+        box.appendChild(createEl('p', { className: 'practice-ear-feedback', role: 'status', text: ok ? `Correto: ${game.question.answer}.` : `Era ${game.question.answer}; você escolheu ${game.answered.choice}. Ouça a referência novamente para comparar.` }));
       }
     }
+    box.appendChild(navigation);
     return box;
   }
 
@@ -1732,15 +1758,15 @@ export function mountPractice(container, host, options = {}) {
     const box = createEl('div', { className: 'practice-ear-game', 'aria-label': 'Jogo de reconhecimento de ritmo' });
     box.appendChild(createEl('h4', { text: 'Reconhecimento de ritmo' }));
     if (!game.question) box.appendChild(createEl('p', { className: 'practice-hint', text: 'Ouça o ritmo e marque na grade os ticks onde há ataques; depois confira.' }));
-    box.appendChild(earSeedControl('rhythm', () => {
+    const navigation = earSeedControl('rhythm', () => {
       game.question = generateRhythmQuestion(game.seed);
       game.marked = new Set();
       game.answered = null;
       rerender();
-    }));
+    });
     if (game.question) {
       const controls = createEl('div', { className: 'practice-inline-controls' });
-      const play = createEl('button', { type: 'button', className: 'practice-primary', text: 'Ouvir ritmo' });
+      const play = createEl('button', { type: 'button', className: game.answered ? '' : 'practice-primary', text: 'Ouvir ritmo' });
       play.addEventListener('click', () => previewPhrase(host, game.question.notes, { bpm: 90 }).catch(error => host.notify(error.message, true)));
       controls.appendChild(play);
       const check = createEl('button', { type: 'button', text: 'Conferir resposta' });
@@ -1748,6 +1774,7 @@ export function mountPractice(container, host, options = {}) {
         game.answered = checkRhythmAnswer(game.question, [...game.marked]);
         recordEar('ear-rhythm', game.answered.correct);
         rerender();
+        root.querySelector('[data-focus-key="ear-next"]')?.focus();
       });
       check.disabled = !!game.answered;
       controls.appendChild(check);
@@ -1773,6 +1800,7 @@ export function mountPractice(container, host, options = {}) {
         }));
       }
     }
+    box.appendChild(navigation);
     return box;
   }
 
