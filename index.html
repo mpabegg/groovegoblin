@@ -47,6 +47,15 @@
         </section>
       </div>
     </details>
+    <section class="drum-controls" aria-labelledby="drums-title">
+      <div class="tool-row">
+        <h3 id="drums-title">Bateria complementar</h3>
+        <label class="toggle"><input id="drums-enabled" type="checkbox"> Ativar bateria</label>
+        <button id="generate-drums" type="button">Gerar / variar bateria</button>
+        <span id="drums-state" role="status" aria-live="polite">Desligada</span>
+      </div>
+      <p class="tool-hint">Bumbo apoia a frase, caixa marca os tempos 2 e 4, chimbal deixa espaço. Samples CC0 · mesmo BPM e loop da frase · não acompanha a progressão · no treino, só o metrônomo. A bateria não altera nem é exportada com a frase.</p>
+    </section>
     <div class="grid-scroll"><div class="grid-shell">
       <div id="beat-labels" class="beat-labels" aria-hidden="true"></div>
       <div id="grid" class="grid" aria-label="Frase: clique numa posição vazia para criar uma nota">
@@ -54,6 +63,10 @@
         <div id="playhead" class="playhead" hidden aria-hidden="true"></div>
       </div>
       <div id="subdivision-labels" class="subdivision-labels" aria-hidden="true"></div>
+      <div id="drum-lanes" class="drum-lanes" aria-label="Padrão de bateria">
+        <div id="drum-rows"></div>
+        <div id="drum-playhead" class="playhead" hidden aria-hidden="true"></div>
+      </div>
       <div class="score-heading">Partitura rítmica <span>Sem alturas · ligaduras sustentam, não criam novos ataques</span></div>
       <div id="rhythm-score" class="rhythm-score"></div>
     </div></div>

@@ -21,6 +21,7 @@
     <nav aria-label="Conteúdo do guia"><ul>
       <li><a href="#compose">Compor e editar</a></li><li><a href="#notation">Partitura rítmica</a></li>
       <li><a href="#library">Biblioteca e gerador</a></li><li><a href="#progressions">Progressões diatônicas</a></li><li><a href="#training">Ouvir e treinar</a></li>
+      <li><a href="#drums">Bateria complementar</a></li>
       <li><a href="#feedback">Feedback e latência</a></li><li><a href="#files">Arquivos, links e dados locais</a></li>
     </ul></nav>
   </section>
@@ -91,6 +92,14 @@
     <p>Trocar tonalidade ou gerar novamente durante a reprodução para o grafo de áudio anterior e reinicia a nova sequência no primeiro acorde. <strong>Parar progressão</strong> ou o controle geral <strong>Parar</strong> interrompem o áudio. Escape fora de campos, perder o foco e trocar de aba também interrompem. O metrônomo é o mesmo controle da frase e pode ser alterado durante o loop.</p>
     <p>Reprodução harmônica, referência rítmica e treino são <strong>mutuamente exclusivos</strong>: iniciar outra sessão interrompe a anterior; interromper um treino descarta o resultado parcial. A progressão usa o mesmo scheduler Web Audio e não modifica notas rítmicas, partitura, histórico ou avaliação. Durante sua reprodução, a edição da frase e o BPM ficam bloqueados; tonalidade e regeneração continuam disponíveis.</p>
     <p>O sorteio harmônico usa <code>Math.random</code>, sem semente ou promessa de reproduzir uma sequência. Tonalidade e progressão ficam <strong>somente nesta sessão</strong>; recarregar cria uma nova progressão em C maior. Não entram em Desfazer/Refazer, arquivos JSON, links compartilhados ou preferências salvas. Não há samples, dependências ou consultas de rede para gerar e tocar acordes.</p>
+  </section>
+  <section class="panel" id="drums" aria-labelledby="drums-title">
+    <h2 id="drums-title">Bateria complementar</h2>
+    <p><strong>Gerar / variar bateria</strong> cria e ativa um padrão próprio, mostrado nas linhas de bumbo, caixa e chimbal abaixo do grid. O bumbo marca o início do compasso e apoia alguns ataques da frase; a caixa marca os tempos 2 e 4; o chimbal sustenta a subdivisão com espaços e intensidades diferentes. Não é uma cópia do grid nem uma identificação automática de estilo musical. Cada variação escolhe uma semente; frase, compassos e semente iguais produzem o mesmo padrão.</p>
+    <p>Editar a frase ou trocar o número de compassos atualiza o acompanhamento, mantendo a semente atual. A bateria compartilha BPM, início e duração de loop com a frase. <strong>Ativar bateria</strong> liga/desliga os samples durante a reprodução sem reiniciar o grid. Para mudar BPM ou compassos, pare primeiro. A bateria acompanha somente a referência rítmica; fica silenciada durante a progressão harmônica separada, com seus controles bloqueados. O treino permanece com metrônomo apenas.</p>
+    <p>Os WAVs reais da <a href="https://github.com/sgossner/VCSL">Versilian Community Sample Library (VCSL)</a> são empacotados localmente: não há download de serviços externos durante o uso. A fonte declara dedicação CC0 1.0; consulte a <a href="./assets/drums/README.md">proveniência com revisão, URLs e hashes</a> e a <a href="./assets/drums/LICENSE.txt">licença integral</a>. Trata-se do registro da licença declarada pela fonte, não de garantia jurídica geral.</p>
+    <p>Na primeira reprodução com bateria, o navegador carrega e decodifica os arquivos locais antes de iniciar ambos os padrões. Se falhar, o app informa o erro e não inicia a sessão; tente novamente ou desligue a bateria para ouvir só a frase. Se a ativação falhar quando o grid já estiver tocando, a frase continua sem bateria. Parar cancela um início pendente.</p>
+    <p>A bateria e sua semente existem somente na sessão: não modificam as notas da frase, não entram no histórico, não são persistidas e não acompanham o JSON ou link compartilhado.</p>
   </section>
   <section class="panel" id="training" aria-labelledby="training-title">
     <h2 id="training-title">Ouvir e treinar</h2>

@@ -53,3 +53,18 @@ p { font-size: 14px; line-height: 1.6; margin: 4px 0 9px; }.muted { color: var(-
 .progression-chord strong { display: block; color: var(--accent); font-size: 22px; margin: 6px 0; }
 .progression-chord span { display: block; color: var(--muted); font-size: 12px; }
 .progression-chord.current { border-color: var(--accent); background: #26392a; }
+.drum-controls { margin: 0 0 18px; padding: 14px 0; border-top: 1px solid var(--line); }
+.drum-controls h3 { margin: 0 8px 0 0; font-size: 14px; }
+.drum-controls .tool-row { align-items: center; }
+.drum-controls label.toggle { flex-direction: row; align-items: center; color: var(--text); font-size: 13px; }
+#drums-state { color: var(--blue); font-size: 12px; }
+.drum-lanes { position: relative; margin-top: 14px; padding-bottom: 4px; }
+.drum-label { color: var(--muted); font-size: 11px; padding: 7px 0 4px; }
+.drum-steps { display: grid; height: 26px; background: #111a20; border: 1px solid var(--line); }
+.drum-step { display: flex; align-items: center; justify-content: center; font-size: 11px; color: #657780; border-left: 1px solid #35434b66; }
+.drum-step.bar-start { border-left-color: var(--muted); }
+.drum-step.hit { color: var(--blue); background: #8bcced15; }
+.drum-step.accent { font-size: 15px; }
+.drum-kick .hit { color: var(--accent); background: #b9ef8015; }
+.drum-snare .hit { color: #ffba9d; background: #ffba9d15; }
+.drums-off .drum-step.hit { color: var(--muted); background: #9eaea90c; }

@@ -8,6 +8,7 @@ import { GROOVES, loadGroove } from './library.js';
 import { generateGroove } from './generator.js';
 import { buildRhythmNotation, renderRhythmNotation } from './notation.js';
 import { PROGRESSION_KEYS, generateProgression } from './progression.js';
+import { generateDrums, DRUM_INSTRUMENTS } from './drums.js';
 
 const $ = id => document.getElementById(id);
 const restored = loadState();
@@ -30,6 +31,10 @@ let sharedPhrase = null;
 let activeInput = null;
 let progression = generateProgression({ keyId: 'c-major' });
 let activeChord = -1;
+let drumSeed = 0;
+let drumPattern = generateDrums({ notes, bars, seed: drumSeed });
+let drumLoading = false;
+let drumRequest = 0;
 const history = new History(100);
 
 // Durações predefinidas (em semicolcheias) e seus nomes musicais.
@@ -101,6 +106,7 @@ function commit(next, invalidText = 'Sem sobreposição e sem ultrapassar a barr
   invalidateFeedback();
   message('Frase atualizada. Notas vizinhas têm ataques separados.');
   renderNotes();
+  refreshDrums();
   return true;
 }
 function applyState(state) {
@@ -111,6 +117,7 @@ function applyState(state) {
   notes = state.notes;
   bpm = state.bpm;
   bars = state.bars;
+  refreshDrums();
   $('bpm').value = bpm;
   $('bars').value = bars;
   if (!notes.some(n => n.id === selected)) selected = null;
@@ -181,6 +188,39 @@ function renderGrid() {
     const span = document.createElement('span');
     span.textContent = `${beat} e & a`;
     subdivisions.append(span);
+  }
+}
+
+function refreshDrums() {
+  drumPattern = generateDrums({ notes, bars, seed: drumSeed });
+  renderDrums();
+}
+function renderDrums() {
+  const labels = { kick: 'Bumbo', snare: 'Caixa', hihat: 'Chimbal' };
+  const total = totalTicks();
+  $('drum-rows').replaceChildren();
+  for (const instrument of DRUM_INSTRUMENTS) {
+    const hits = drumPattern.hits.filter(hit => hit.instrument === instrument);
+    const row = document.createElement('div');
+    row.className = `drum-lane drum-${instrument}`;
+    const label = document.createElement('div');
+    label.className = 'drum-label';
+    label.textContent = labels[instrument];
+    const steps = document.createElement('div');
+    steps.className = 'drum-steps';
+    steps.style.gridTemplateColumns = `repeat(${total}, 1fr)`;
+    steps.setAttribute('role', 'img');
+    steps.setAttribute('aria-label', `${labels[instrument]}: ${hits.map(hit => `compasso ${Math.floor(hit.start / TICKS_PER_BAR) + 1}, posição ${hit.start % TICKS_PER_BAR + 1}`).join('; ')}`);
+    for (let tick = 0; tick < total; tick += 1) {
+      const hit = hits.find(hit => hit.start === tick);
+      const step = document.createElement('span');
+      step.className = `drum-step${hit ? ' hit' : ''}${hit?.velocity >= 0.5 ? ' accent' : ''}${tick % TICKS_PER_BAR === 0 ? ' bar-start' : ''}`;
+      step.textContent = hit ? '●' : '·';
+      step.setAttribute('aria-hidden', 'true');
+      steps.append(step);
+    }
+    row.append(label, steps);
+    $('drum-rows').append(row);
   }
 }
 
@@ -260,6 +300,17 @@ function renderControls() {
   $('bpm').disabled = locked;
   $('bars').disabled = locked;
   $('metronome').disabled = importing || starting || ['train','countin'].includes(audio.position.mode);
+  const training = ['train', 'countin'].includes(audio.position.mode);
+  $('drums-enabled').disabled = importing || starting || training || playingProgression;
+  $('generate-drums').disabled = locked || drumLoading;
+  const drumsEnabled = $('drums-enabled').checked;
+  $('drum-lanes').classList.toggle('drums-off', !drumsEnabled || training || playingProgression);
+  $('drums-state').textContent = drumLoading
+    ? 'Carregando samples…'
+    : training ? 'Silenciada durante o treino'
+      : playingProgression ? 'Silenciada durante a progressão'
+        : !drumsEnabled ? 'Desligada · frase continua sem bateria'
+          : audio.position.mode === 'play' ? 'Ligada · tocando no mesmo loop' : 'Ligada · pronta para ouvir';
   $('clear').disabled = locked || notes.length === 0;
   $('delete').disabled = locked || !note;
   $('undo').disabled = locked || !history.canUndo;
@@ -331,6 +382,7 @@ $('bars').addEventListener('change', event => {
     return;
   }
   bars = value;
+  refreshDrums();
   history.push({ notes, bpm, bars });
   persist(); invalidateFeedback();
   renderGrid(); renderNotes();
@@ -422,6 +474,30 @@ function persistPreferences() {
 }
 $('metronome').addEventListener('change', event => { audio.setMetronome(event.target.checked); persistPreferences(); });
 for (const id of ['density', 'syncopation', 'lengths', 'seed']) $(id).addEventListener('change', persistPreferences);
+$('generate-drums').addEventListener('click', () => {
+  if (busy() || drumLoading) return;
+  drumSeed = newSeed();
+  refreshDrums();
+  $('drums-enabled').checked = true;
+  renderControls();
+  message('Bateria gerada. Sua frase, BPM e compassos foram preservados.');
+});
+$('drums-enabled').addEventListener('change', async event => {
+  const enabled = event.target.checked;
+  const request = ++drumRequest;
+  drumLoading = enabled && audio.position.mode === 'play';
+  renderControls();
+  try {
+    await audio.setDrumsEnabled(enabled);
+  } catch (error) {
+    if (request === drumRequest) {
+      $('drums-enabled').checked = false;
+      message(`${error.message}. A frase continua tocando sem bateria; tente ativar novamente.`, true);
+    }
+  } finally {
+    if (request === drumRequest) { drumLoading = false; renderControls(); }
+  }
+});
 function replacePhrase(state) {
   history.push(state);
   selected = null;
@@ -525,15 +601,16 @@ async function begin(mode) {
     $('grid').scrollIntoView({ block: 'start' });
   }
   startingMode = mode;
+  drumLoading = mode === 'play' && $('drums-enabled').checked;
   starting = true; renderNotes();
   try {
     if (mode === 'train') { invalidateFeedback(); await audio.train(notes, bpm, bars); }
     else if (mode === 'progression') await audio.playProgression(progression, bpm, $('metronome').checked);
-    else await audio.play(notes, bpm, $('metronome').checked, bars);
+    else await audio.play(notes, bpm, $('metronome').checked, bars, { hits: drumPattern.hits, enabled: $('drums-enabled').checked });
   } catch (error) {
     if (generation === startGeneration) { audio.stop(); message(`Não foi possível iniciar o áudio: ${error.message}`, true); }
   } finally {
-    if (generation === startGeneration) { starting = false; startingMode = null; renderControls(); }
+    if (generation === startGeneration) { starting = false; startingMode = null; drumLoading = false; renderControls(); }
   }
 }
 $('play').addEventListener('click', () => begin('play'));
@@ -543,6 +620,8 @@ function stop(reason) {
   ++startGeneration;
   starting = false;
   startingMode = null;
+  ++drumRequest;
+  drumLoading = false;
   cancelDrag();
   audio.stop();
   clearInput();
@@ -669,6 +748,8 @@ function frame() {
   const total = totalTicks();
   $('playhead').hidden = position.mode === 'idle' || position.mode === 'progression';
   $('playhead').style.left = `${Math.max(0, Math.min(position.mode === 'countin' ? TICKS_PER_BAR : total, position.tick)) / total * 100}%`;
+  $('drum-playhead').hidden = position.mode !== 'play';
+  $('drum-playhead').style.left = $('playhead').style.left;
   if (position.mode !== 'idle' && position.mode !== 'progression') {
     const scroll = document.querySelector('.grid-scroll');
     const x = position.tick / total * $('grid').clientWidth;
@@ -697,6 +778,7 @@ function frame() {
 }
 history.push({ notes, bpm, bars });
 renderProgression();
+renderDrums();
 renderGrid(); renderNotes(); renderFeedback();
 if (restored.warning) message(restored.warning, true);
 $('recovery').hidden = recoveryRaw === null;
