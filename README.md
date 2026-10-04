@@ -1,6 +1,6 @@
 # GrooveGoblin
 
-Aplicação web estática para compor e treinar frases rítmicas em 4/4 e explorar progressões diatônicas. Usa JavaScript ESM, CSS e SVG nativos: sem framework, dependências de runtime ou backend. Guia completo da interface, notação, biblioteca, geração rítmica, bateria complementar, harmonia, avaliação e privacidade: [guide.html](./guide.html) — também acessível pelo app.
+Aplicação web estática para compor e treinar frases rítmicas em 4/4 e explorar progressões diatônicas. Usa JavaScript ESM, CSS e SVG nativos: sem framework, dependências de runtime ou backend. Guia completo da interface, notação, biblioteca, geração rítmica, bateria complementar, mixer, harmonia, avaliação e privacidade: [guide.html](./guide.html) — também acessível pelo app.
 
 ## Progressões diatônicas
 
@@ -43,7 +43,15 @@ O deploy está ativo em [GrooveGoblin](https://mpabegg.github.io/groovegoblin/);
 
 Os samples reais da [VCSL](https://github.com/sgossner/VCSL) são distribuídos localmente sob a dedicação CC0 1.0 declarada pela fonte. [Proveniência, revisão e hashes](./assets/drums/README.md) e [licença integral](./assets/drums/LICENSE.txt) acompanham os arquivos. Não há download de serviços externos durante o uso. Falha ao carregar/decodificar samples impede o início conjunto e mostra um erro; é possível tentar novamente ou desligar a bateria para ouvir só a frase. Se a ativação falhar com a frase já tocando, ela continua sem bateria.
 
-A bateria e sua semente são próprias da sessão: não entram no histórico, armazenamento local, JSON ou link compartilhado. A frase original permanece intacta.
+O padrão de bateria e sua semente são próprios da sessão: não entram no histórico, armazenamento local, JSON ou link compartilhado. Seu volume e mute são ajustes separados do mixer, persistidos localmente. A frase original permanece intacta.
+
+## Mixer
+
+O painel **Mixer** oferece volume de **0 a 100%** e **Silenciar** independentes para **Frase / ritmo** (referência), **Metrônomo** (incluindo a contagem de entrada do treino), **Bateria** e **Acordes** (progressão). Os controles continuam disponíveis durante reprodução e treino; mudanças afetam o áudio em andamento sem reiniciar o loop. Silenciar preserva o volume escolhido: desmarcar restaura esse nível. Os controles não alteram timbres, notas ou padrões.
+
+O mixer não ativa fontes desligadas. Para ouvir bateria, **Ativar bateria** deve estar marcado, o canal deve estar sem mute e seu volume deve ser maior que zero. Desmutar o canal não liga a bateria nem faz com que ela acompanhe progressões ou treino. Silenciar o metrônomo também silencia a contagem de entrada.
+
+Volume e mute começam em 100% e desmarcado, respectivamente, e são salvos em `groovegoblin.mixer.v1`, separados da frase e das preferências. Recarregar restaura esses ajustes; Desfazer/Refazer, importar frases, JSON e links compartilhados não os incluem nem os modificam. Dados de mixer inválidos geram aviso e não são sobrescritos ao abrir: somente uma interação com seus controles tenta salvar o estado atual. Se o armazenamento estiver indisponível, o mixer funciona em memória e informa que não foi salvo.
 
 ## Verificações locais
 

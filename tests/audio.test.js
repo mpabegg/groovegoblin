@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GrooveAudio } from '../src/audio.js';
 import { generateDrums } from '../src/drums.js';
+import { MIXER_CHANNELS } from '../src/model.js';
 
 const notes = [{ id: 'reference', start: 0, duration: 4 }];
 const deferred = () => {
@@ -81,6 +82,8 @@ function harness(t, { loadGate = null, resumeGate = null, samplePeaks = [0.141, 
       return buffer;
     },
   };
+  // Freeze both clock-domain reads between explicit advances of the harness.
+  t.mock.method(globalThis.performance, 'now', () => ctx.currentTime * 1000);
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'AudioContext');
   Object.defineProperty(globalThis, 'AudioContext', { configurable: true, value: class { constructor() { return ctx; } } });
   t.after(() => {
@@ -115,6 +118,20 @@ function harness(t, { loadGate = null, resumeGate = null, samplePeaks = [0.141, 
 
 function assertTime(actual, expected) {
   assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
+}
+
+function mixer(overrides = {}) {
+  return Object.fromEntries(MIXER_CHANNELS.map(channel => [channel, { volume: 1, muted: false, ...overrides[channel] }]));
+}
+
+const progression = {
+  chords: [{ notes: [{ midi: 60 }, { midi: 64 }, { midi: 67 }, { midi: 71 }] }],
+};
+
+function assertChannelGain(h, source, time, volume) {
+  const envelope = source.connections[0].gain.at(time);
+  assert.ok(envelope > 0, 'a fonte está dentro do envelope audível');
+  assertTime(h.downstreamGain(source, time), envelope * volume);
 }
 
 test('samples e notas compartilham início, BPM e loop de 1, 2 e 4 compassos', async t => {
@@ -328,4 +345,186 @@ test('buffer silencioso não produz ganho infinito', async t => {
   await h.audio.play(notes, 120, false, 1, { hits: generateDrums({ notes, bars: 1, seed: 0 }).hits, enabled: true });
   assert.ok(h.samples.length > 0);
   assert.ok(h.samples.every(source => h.downstreamGain(source, source.startTime + 0.01) === 0));
+});
+
+test('mixer antes do AudioContext aplica quatro volumes sem alterar envelopes ou samples', async t => {
+  const h = harness(t);
+  const settings = mixer({
+    phrase: { volume: 0.25 },
+    metronome: { volume: 0.5 },
+    drums: { volume: 0.75 },
+    chords: { volume: 0.125 },
+  });
+  h.audio.setMixer(settings);
+  assert.equal(h.audio.context, null, 'o mixer não abre um contexto antes de gesto/play');
+  settings.phrase.volume = 0.9;
+  settings.drums.muted = true;
+  await h.audio.play(notes, 120, true, 1, { hits: [{ instrument: 'kick', start: 0, velocity: 0.8 }], enabled: true });
+  const reference = h.oscillators.find(source => source.type === 'triangle');
+  const click = h.oscillators.find(source => source.type === 'square');
+  assertChannelGain(h, reference, 0.07, 0.25);
+  assertChannelGain(h, click, 0.07, 0.5);
+  assertChannelGain(h, h.samples[0], 0.07, 0.75);
+  const firstChord = h.oscillators.length;
+  await h.audio.playProgression(progression, 120);
+  const voices = h.oscillators.slice(firstChord);
+  assert.equal(voices.length, 4);
+  for (const voice of voices) {
+    assertChannelGain(h, voice, 0.07, 0.125);
+    assertTime(voice.connections[0].gain.at(0.064), 0.55 * 0.25);
+  }
+  assert.equal(h.requests.length, 3, 'mixer não recarrega samples');
+});
+
+for (const channel of ['phrase', 'metronome', 'drums']) {
+  test(`mixer: mute e volume ao vivo de ${channel} isolam fontes já agendadas sem reiniciar`, async t => {
+    const h = harness(t);
+    const settings = mixer();
+    await h.audio.play([{ id: 'long', start: 0, duration: 16 }], 120, true, 1, {
+      hits: [{ instrument: 'kick', start: 0, velocity: 1 }], enabled: true,
+    });
+    const sources = {
+      phrase: h.oscillators.find(source => source.type === 'triangle'),
+      metronome: h.oscillators.find(source => source.type === 'square'),
+      drums: h.samples[0],
+    };
+    h.ctx.currentTime = 0.065;
+    const position = h.audio.position;
+    const scheduler = [...h.intervals][0];
+    const stops = h.oscillators.map(source => [...source.stops]);
+    settings[channel].muted = true;
+    h.audio.setMixer(settings);
+    assert.deepEqual(h.audio.position, position);
+    assert.deepEqual(h.oscillators.map(source => source.stops), stops);
+    assert.equal(h.intervals.size, 1);
+    assert.equal([...h.intervals][0], scheduler);
+    assertChannelGain(h, sources[channel], 0.07, 0.5);
+    assertChannelGain(h, sources[channel], 0.075, 0);
+    for (const other of Object.keys(sources).filter(other => other !== channel)) {
+      assertChannelGain(h, sources[other], 0.075, 1);
+    }
+    h.ctx.currentTime = 0.08;
+    settings[channel].volume = 0.35;
+    h.audio.setMixer(settings);
+    assertChannelGain(h, sources.phrase, 0.09, channel === 'phrase' ? 0 : 1);
+    assertChannelGain(h, sources.drums, 0.09, channel === 'drums' ? 0 : 1);
+    h.ctx.currentTime = 0.09;
+    settings[channel].muted = false;
+    h.audio.setMixer(settings);
+    assert.equal(settings[channel].volume, 0.35, 'mute preserva o fader');
+    h.advance(2.01);
+    const next = {
+      phrase: h.oscillators.filter(source => source.type === 'triangle').at(-1),
+      metronome: h.oscillators.filter(source => source.type === 'square').at(-1),
+      drums: h.samples.at(-1),
+    };
+    for (const [id, source] of Object.entries(next)) {
+      assertTime(source.startTime, 2.06);
+      assertChannelGain(h, source, 2.07, id === channel ? 0.35 : 1);
+    }
+    assert.equal([...h.intervals][0], scheduler);
+    assert.equal(h.requests.length, 3);
+  });
+}
+
+test('mixer: volume zero e mute da frase não silenciam os acordes, nem o inverso', async t => {
+  const h = harness(t);
+  const settings = mixer({ phrase: { volume: 0, muted: true }, chords: { volume: 0.6 } });
+  h.audio.setMixer(settings);
+  await h.audio.playProgression(progression, 120, true);
+  const voices = h.oscillators.filter(source => source.type === 'triangle');
+  const click = h.oscillators.find(source => source.type === 'square');
+  assert.equal(voices.length, 4);
+  for (const voice of voices) assertChannelGain(h, voice, 0.07, 0.6);
+  assertChannelGain(h, click, 0.07, 1);
+  h.ctx.currentTime = 0.065;
+  const scheduler = [...h.intervals][0];
+  settings.chords.muted = true;
+  h.audio.setMixer(settings);
+  for (const voice of voices) assertChannelGain(h, voice, 0.075, 0);
+  assertChannelGain(h, click, 0.075, 1);
+  assert.equal([...h.intervals][0], scheduler);
+  h.ctx.currentTime = 0.08;
+  settings.chords.volume = 0.4;
+  settings.chords.muted = false;
+  h.audio.setMixer(settings);
+  for (const voice of voices) assertChannelGain(h, voice, 0.09, 0.4);
+  settings.phrase = { volume: 0.7, muted: false };
+  settings.chords = { volume: 0, muted: true };
+  h.audio.setMixer(settings);
+  const firstNote = h.oscillators.length;
+  await h.audio.play(notes, 120, false);
+  assertChannelGain(h, h.oscillators[firstNote], 0.15, 0.7);
+});
+
+test('mixer: metrônomo controla tanto a contagem quanto as repetições de treino', async t => {
+  const h = harness(t);
+  const settings = mixer({ metronome: { volume: 0.3, muted: true } });
+  h.audio.setMixer(settings);
+  await h.audio.train(notes, 120, 2);
+  assertTime(h.oscillators[0].startTime, 0.06);
+  assertChannelGain(h, h.oscillators[0], 0.07, 0);
+  h.advance(2.01);
+  assert.equal(h.oscillators.length, 5);
+  assertTime(h.oscillators[4].startTime, 2.06);
+  assertChannelGain(h, h.oscillators[4], 2.07, 0);
+  settings.metronome.muted = false;
+  h.audio.setMixer(settings);
+  assertChannelGain(h, h.oscillators[4], 2.07, 0.3);
+  assert.equal(h.samples.length, 0);
+  assert.equal(h.requests.length, 0);
+  h.advance(2.5);
+  assertTime(h.oscillators.at(-1).startTime, 2.56);
+  assertChannelGain(h, h.oscillators.at(-1), 2.57, 0.3);
+});
+
+test('mixer: ativar bateria não desfaz mute e fader não desfaz gate desligado', async t => {
+  const h = harness(t);
+  const settings = mixer({ drums: { volume: 0.3, muted: true } });
+  h.audio.setMixer(settings);
+  await h.audio.play(notes, 120, false, 1, {
+    hits: [{ instrument: 'kick', start: 0, velocity: 1 }], enabled: true,
+  });
+  const sample = h.samples[0];
+  assertChannelGain(h, sample, 0.07, 0);
+  h.ctx.currentTime = 0.07;
+  await h.audio.setDrumsEnabled(false);
+  h.ctx.currentTime = 0.08;
+  await h.audio.setDrumsEnabled(true);
+  assertChannelGain(h, sample, 0.09, 0);
+  h.ctx.currentTime = 0.09;
+  settings.drums.muted = false;
+  h.audio.setMixer(settings);
+  assertChannelGain(h, sample, 0.1, 0.3);
+  h.ctx.currentTime = 0.1;
+  await h.audio.setDrumsEnabled(false);
+  settings.drums.volume = 0.8;
+  h.audio.setMixer(settings);
+  assertChannelGain(h, sample, 0.11, 0);
+  h.ctx.currentTime = 0.12;
+  await h.audio.setDrumsEnabled(true);
+  assertChannelGain(h, sample, 0.13, 0.8);
+});
+
+test('mixer: mudança durante resume pendente e Stop/Play conserva o último estado', async t => {
+  const gate = deferred();
+  const h = harness(t, { resumeGate: gate });
+  const settings = mixer({ phrase: { volume: 0.2 } });
+  h.audio.setMixer(settings);
+  const pending = h.audio.play(notes, 120, true);
+  settings.phrase = { volume: 0.45, muted: true };
+  settings.metronome.volume = 0;
+  h.audio.setMixer(settings);
+  gate.resolve();
+  await pending;
+  const reference = h.oscillators.find(source => source.type === 'triangle');
+  const click = h.oscillators.find(source => source.type === 'square');
+  assertChannelGain(h, reference, 0.07, 0);
+  assertChannelGain(h, click, 0.07, 0);
+  h.audio.stop();
+  settings.phrase.muted = false;
+  h.audio.setMixer(settings);
+  const firstNote = h.oscillators.length;
+  await h.audio.play(notes, 120, false);
+  assertChannelGain(h, h.oscillators[firstNote], 0.07, 0.45);
 });

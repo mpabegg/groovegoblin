@@ -1,4 +1,4 @@
-import { TICKS_PER_BAR, addNote, moveNote, resizeNote, deleteNote, loadState, saveState, validPhrase, loadPreferences, savePreferences } from './model.js';
+import { TICKS_PER_BAR, addNote, moveNote, resizeNote, deleteNote, loadState, saveState, validPhrase, loadPreferences, savePreferences, MIXER_CHANNELS, loadMixer, saveMixer } from './model.js';
 import { evaluate, summarizeFeedback } from './feedback.js';
 import { GrooveAudio } from './audio.js';
 import { History } from './history.js';
@@ -13,6 +13,8 @@ import { generateDrums, DRUM_INSTRUMENTS } from './drums.js';
 const $ = id => document.getElementById(id);
 const restored = loadState();
 const preferences = loadPreferences();
+const restoredMixer = loadMixer();
+const mixer = restoredMixer.mixer;
 let notes = restored.notes;
 let bpm = restored.bpm;
 let bars = restored.bars;
@@ -57,6 +59,41 @@ const audio = new GrooveAudio({ onState: () => renderControls(), onFinish: attem
   $('train-state').textContent = 'Treino concluído. Compare ataque e término abaixo; ouça a referência novamente.';
   renderControls();
 } });
+audio.setMixer(mixer);
+function renderMixerChannel(channel) {
+  const state = mixer[channel];
+  const percent = Math.round(state.volume * 100);
+  const volume = $(`mixer-${channel}-volume`);
+  volume.value = percent;
+  volume.setAttribute('aria-valuetext', `${percent}%`);
+  $(`mixer-${channel}-value`).value = `${percent}%`;
+  $(`mixer-${channel}-muted`).checked = state.muted;
+  volume.closest('.mixer-channel').classList.toggle('is-muted', state.muted);
+}
+function updateMixer(channel) {
+  renderMixerChannel(channel);
+  audio.setMixer(mixer);
+  const saved = saveMixer(mixer);
+  $('mixer-status').textContent = saved
+    ? 'Mixer salvo neste navegador · separado da frase.'
+    : 'Mixer só na memória · não foi possível salvar neste navegador.';
+  $('mixer-status').classList.toggle('error', !saved);
+}
+for (const channel of MIXER_CHANNELS) {
+  renderMixerChannel(channel);
+  $(`mixer-${channel}-volume`).addEventListener('input', event => {
+    mixer[channel].volume = Number(event.target.value) / 100;
+    updateMixer(channel);
+  });
+  $(`mixer-${channel}-muted`).addEventListener('change', event => {
+    mixer[channel].muted = event.target.checked;
+    updateMixer(channel);
+  });
+}
+if (restoredMixer.warnings.length) {
+  $('mixer-status').textContent = restoredMixer.warnings.join(' ');
+  $('mixer-status').classList.add('error');
+}
 
 function busy() { return starting || importing || audio.position.mode !== 'idle'; }
 function progressionSession() { return audio.position.mode === 'progression' || (starting && startingMode === 'progression'); }
@@ -653,6 +690,7 @@ for (const type of ['pointercancel', 'lostpointercapture']) $('train-pad').addEv
 });
 const editingTarget = event => event.target instanceof Element && !!event.target.closest('input, textarea, select, [contenteditable=true]');
 window.addEventListener('keydown', event => {
+  if (event.target instanceof Element && event.target.closest('#mixer')) return;
   const trainingKey = event.code === 'Space' || (event.code === 'Enter' && event.target === $('train-pad'));
   if (trainingKey && ['countin','train'].includes(audio.position.mode)) {
     event.preventDefault();

@@ -10,6 +10,9 @@ import {
   saveState,
   loadPreferences,
   savePreferences,
+  MIXER_CHANNELS,
+  loadMixer,
+  saveMixer,
 } from '../src/model.js';
 
 function createStorage(initial = {}) {
@@ -589,4 +592,146 @@ test('preferências: getter global bloqueado não lança e mantém padrões', t 
   });
   assert.deepEqual(loadPreferences(), defaultPreferences);
   assert.equal(savePreferences(validPreferences), false);
+});
+
+const defaultMixer = () => Object.fromEntries(MIXER_CHANNELS.map(channel => [channel, { volume: 1, muted: false }]));
+const validMixer = {
+  phrase: { volume: 0.25, muted: true },
+  metronome: { volume: 0, muted: false },
+  drums: { volume: 0.75, muted: false },
+  chords: { volume: 1, muted: true },
+};
+
+test('mixer: canais atuais e padrões independentes sem ler ou alterar frase/preferências', () => {
+  assert.deepEqual(MIXER_CHANNELS, ['phrase', 'metronome', 'drums', 'chords']);
+  const storage = createStorage({
+    'groovegoblin.v1': 'frase preservada',
+    'groovegoblin.preferences.v1': 'preferências preservadas',
+  });
+  const getItem = storage.getItem;
+  storage.getItem = key => {
+    assert.equal(key, 'groovegoblin.mixer.v1');
+    return getItem(key);
+  };
+  storage.setItem = () => assert.fail('loadMixer não deve escrever');
+  storage.removeItem = () => assert.fail('loadMixer não deve remover');
+  const loaded = loadMixer(storage);
+  assert.deepEqual(loaded, { mixer: defaultMixer(), warnings: [] });
+  loaded.mixer.phrase.volume = 0;
+  loaded.mixer.metronome.muted = true;
+  assert.deepEqual(loaded.mixer.drums, { volume: 1, muted: false });
+  assert.deepEqual(loadMixer(storage), { mixer: defaultMixer(), warnings: [] });
+  assert.equal(getItem('groovegoblin.v1'), 'frase preservada');
+  assert.equal(getItem('groovegoblin.preferences.v1'), 'preferências preservadas');
+});
+
+test('mixer: round-trip conserva volume de canais mutados e não escreve outras chaves', () => {
+  const storage = createStorage();
+  const mixer = Object.freeze(Object.fromEntries(Object.entries(validMixer).map(([channel, settings]) => [channel, Object.freeze({ ...settings })])));
+  const setItem = storage.setItem;
+  storage.setItem = (key, value) => {
+    assert.equal(key, 'groovegoblin.mixer.v1');
+    setItem(key, value);
+  };
+  assert.equal(saveMixer(mixer, storage), true);
+  assert.deepEqual(loadMixer(storage), { mixer, warnings: [] });
+  assert.deepEqual(JSON.parse(storage.getItem('groovegoblin.mixer.v1')), mixer);
+  for (const volume of [0, 0.001, 0.5, 1]) {
+    for (const muted of [false, true]) {
+      const settings = Object.fromEntries(MIXER_CHANNELS.map(channel => [channel, { volume, muted }]));
+      assert.equal(saveMixer(settings, storage), true);
+      assert.deepEqual(loadMixer(storage), { mixer: settings, warnings: [] });
+    }
+  }
+});
+
+test('mixer: JSON inválido e não-objetos geram aviso e preservam bytes sem reescrever', () => {
+  for (const raw of ['', '{inválido', 'null', '[]', 'true', '42', '"mixer"']) {
+    const storage = createStorage({ 'groovegoblin.mixer.v1': raw });
+    storage.setItem = () => assert.fail('loadMixer não deve escrever');
+    const loaded = loadMixer(storage);
+    assert.deepEqual(loaded.mixer, defaultMixer());
+    assert.ok(loaded.warnings.length > 0);
+    assert.equal(storage.getItem('groovegoblin.mixer.v1'), raw);
+  }
+});
+
+for (const channel of MIXER_CHANNELS) {
+  test(`mixer: ${channel} inválido ou ausente recupera somente esse canal`, () => {
+    for (const value of [undefined, null, [], false, 1, 'canal']) {
+      const mixer = structuredClone(validMixer);
+      if (value === undefined) delete mixer[channel];
+      else mixer[channel] = value;
+      const raw = JSON.stringify(mixer);
+      const storage = createStorage({ 'groovegoblin.mixer.v1': raw });
+      const loaded = loadMixer(storage);
+      assert.deepEqual(loaded.mixer, { ...validMixer, [channel]: { volume: 1, muted: false } });
+      assert.ok(loaded.warnings.some(warning => warning.includes(channel)));
+      assert.equal(saveMixer(mixer, storage), false);
+      assert.equal(storage.getItem('groovegoblin.mixer.v1'), raw);
+    }
+  });
+  for (const [field, values] of Object.entries({
+    volume: [undefined, null, -0.1, 1.1, '0.5', true, [], {}, NaN, Infinity, -Infinity],
+    muted: [undefined, null, 0, 1, 'false', [], {}],
+  })) {
+    test(`mixer: ${channel}.${field} inválido recupera só o campo e rejeita gravação`, () => {
+      for (const value of values) {
+        const mixer = structuredClone(validMixer);
+        if (value === undefined) delete mixer[channel][field];
+        else mixer[channel][field] = value;
+        const raw = JSON.stringify(mixer);
+        const storage = createStorage({ 'groovegoblin.mixer.v1': raw });
+        const loaded = loadMixer(storage);
+        assert.deepEqual(loaded.mixer, {
+          ...validMixer,
+          [channel]: { ...validMixer[channel], [field]: defaultMixer()[channel][field] },
+        });
+        assert.ok(loaded.warnings.some(warning => warning.includes(`${channel}.${field}`)));
+        assert.equal(saveMixer(mixer, storage), false);
+        assert.equal(storage.getItem('groovegoblin.mixer.v1'), raw);
+      }
+    });
+  }
+}
+
+test('mixer: gravação rejeita não-objetos e campos herdados sem escrita parcial', () => {
+  const storage = createStorage({ 'groovegoblin.mixer.v1': 'original' });
+  for (const mixer of [
+    undefined, null, [], true, 1, 'mixer', Object.create(validMixer),
+    { ...validMixer, phrase: Object.create(validMixer.phrase) },
+  ]) {
+    assert.equal(saveMixer(mixer, storage), false);
+    assert.equal(storage.getItem('groovegoblin.mixer.v1'), 'original');
+  }
+});
+
+test('mixer: armazenamento bloqueado ou quota excedida retorna padrões com aviso/false', () => {
+  const storage = {
+    getItem() { throw new Error('bloqueado'); },
+    setItem() { throw new Error('quota excedida'); },
+  };
+  const loaded = loadMixer(storage);
+  assert.deepEqual(loaded.mixer, defaultMixer());
+  assert.ok(loaded.warnings.length > 0);
+  assert.equal(saveMixer(validMixer, storage), false);
+});
+
+test('mixer: getter global bloqueado ou armazenamento ausente não lança', t => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  t.after(() => {
+    if (descriptor) Object.defineProperty(globalThis, 'localStorage', descriptor);
+    else delete globalThis.localStorage;
+  });
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    get() { throw new DOMException('Bloqueado', 'SecurityError'); },
+  });
+  for (const blocked of [true, false]) {
+    if (!blocked) delete globalThis.localStorage;
+    const loaded = loadMixer();
+    assert.deepEqual(loaded.mixer, defaultMixer());
+    assert.ok(loaded.warnings.length > 0);
+    assert.equal(saveMixer(validMixer), false);
+  }
 });

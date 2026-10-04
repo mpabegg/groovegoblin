@@ -68,3 +68,16 @@ p { font-size: 14px; line-height: 1.6; margin: 4px 0 9px; }.muted { color: var(-
 .drum-kick .hit { color: var(--accent); background: #b9ef8015; }
 .drum-snare .hit { color: #ffba9d; background: #ffba9d15; }
 .drums-off .drum-step.hit { color: var(--muted); background: #9eaea90c; }
+.mixer .section-heading { margin-bottom: 14px; }
+.mixer-channels { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 20px 0 14px; }
+.mixer-channel { min-width: 0; margin: 0; border: 1px solid var(--line); border-radius: 8px; padding: 14px; background: #111b20; }
+.mixer-channel legend { padding: 0 5px; color: var(--accent); font-size: 14px; font-weight: 600; }
+.mixer-volume-heading { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 12px; }
+.mixer-volume-heading output { color: var(--blue); font-variant-numeric: tabular-nums; }
+.mixer-channel input[type=range] { display: block; width: 100%; min-width: 0; margin: 8px 0; min-height: 32px; accent-color: var(--accent); cursor: pointer; }
+.mixer-channel .toggle { min-height: 36px; cursor: pointer; }
+.mixer-channel.is-muted { border-color: var(--blue); }
+#mixer-status { margin-bottom: 0; }
+#mixer-status.error { color: #ffb6a2; }
+@media(max-width: 900px) { .mixer-channels { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media(max-width: 480px) { .mixer-channels { grid-template-columns: 1fr; } }

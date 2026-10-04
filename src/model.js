@@ -16,6 +16,8 @@ const BPM_MIN = 40;
 const BPM_MAX = 240;
 const DEFAULT_BPM = 100;
 const PREFERENCES_KEY = 'groovegoblin.preferences.v1';
+const MIXER_KEY = 'groovegoblin.mixer.v1';
+export const MIXER_CHANNELS = ['phrase', 'metronome', 'drums', 'chords'];
 const DEFAULT_PREFERENCES = {
   metronome: true,
   density: 'medium',
@@ -252,6 +254,76 @@ export function savePreferences(preferences, storage) {
   try {
     storage ??= globalThis.localStorage;
     storage.setItem(PREFERENCES_KEY, JSON.stringify(saved));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function defaultMixer() {
+  return Object.fromEntries(MIXER_CHANNELS.map(channel => [channel, { volume: 1, muted: false }]));
+}
+
+const MIXER_VALIDATORS = {
+  volume: value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1,
+  muted: value => typeof value === 'boolean',
+};
+
+// O mixer tem armazenamento próprio; carregar nunca reescreve dados inválidos.
+export function loadMixer(storage) {
+  const mixer = defaultMixer();
+  const warnings = [];
+  let raw;
+  try {
+    storage ??= globalThis.localStorage;
+    raw = storage.getItem(MIXER_KEY);
+  } catch {
+    return { mixer, warnings: ['Nao foi possivel acessar o mixer salvo; usando padroes.'] };
+  }
+  if (raw == null) return { mixer, warnings };
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = undefined;
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return { mixer, warnings: ['Mixer salvo invalido; usando padroes.'] };
+  }
+  for (const channel of MIXER_CHANNELS) {
+    const saved = Object.hasOwn(parsed, channel) ? parsed[channel] : null;
+    if (typeof saved !== 'object' || saved === null || Array.isArray(saved)) {
+      warnings.push(`Canal ${channel} salvo invalido; usando padroes.`);
+      continue;
+    }
+    for (const [field, validate] of Object.entries(MIXER_VALIDATORS)) {
+      if (Object.hasOwn(saved, field) && validate(saved[field])) {
+        mixer[channel][field] = saved[field];
+      } else {
+        warnings.push(`Mixer ${channel}.${field} salvo invalido; usando padrao.`);
+      }
+    }
+  }
+  return { mixer, warnings };
+}
+
+export function saveMixer(mixer, storage) {
+  if (typeof mixer !== 'object' || mixer === null || Array.isArray(mixer)) return false;
+  const saved = {};
+  for (const channel of MIXER_CHANNELS) {
+    if (!Object.hasOwn(mixer, channel)) return false;
+    const settings = mixer[channel];
+    if (typeof settings !== 'object' || settings === null || Array.isArray(settings)) return false;
+    saved[channel] = {};
+    for (const [field, validate] of Object.entries(MIXER_VALIDATORS)) {
+      if (!Object.hasOwn(settings, field) || !validate(settings[field])) return false;
+      saved[channel][field] = settings[field];
+    }
+  }
+  try {
+    storage ??= globalThis.localStorage;
+    storage.setItem(MIXER_KEY, JSON.stringify(saved));
     return true;
   } catch {
     return false;

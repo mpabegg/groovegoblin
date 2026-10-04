@@ -103,6 +103,37 @@
       <p>O link contém a frase, BPM e compassos. Quem receber o link pode lê-los; nenhum serviço armazena a frase.</p>
     </div>
   </section>
+  <section id="mixer" class="panel mixer" aria-labelledby="mixer-title" aria-describedby="mixer-hint">
+    <div class="section-heading"><div><div class="eyebrow">EQUILIBRE O SOM</div><h2 id="mixer-title">Mixer</h2></div><span class="badge">Volume e mute por canal</span></div>
+    <p id="mixer-hint" class="tool-hint muted">Ajuste mesmo durante a reprodução ou o treino. Silenciar preserva o volume escolhido. O canal do metrônomo inclui a contagem de entrada; a bateria continua respeitando o botão Ativar bateria.</p>
+    <div class="mixer-channels">
+      <fieldset class="mixer-channel" data-channel="phrase">
+        <legend id="mixer-phrase-label">Frase / ritmo</legend>
+        <div class="mixer-volume-heading"><label id="mixer-phrase-volume-label" for="mixer-phrase-volume">Volume</label><output id="mixer-phrase-value" for="mixer-phrase-volume" aria-hidden="true">100%</output></div>
+        <input id="mixer-phrase-volume" type="range" min="0" max="100" step="1" value="100" aria-labelledby="mixer-phrase-label mixer-phrase-volume-label" aria-valuetext="100%">
+        <label class="toggle"><input id="mixer-phrase-muted" type="checkbox" aria-label="Silenciar frase / ritmo"> Silenciar</label>
+      </fieldset>
+      <fieldset class="mixer-channel" data-channel="metronome">
+        <legend id="mixer-metronome-label">Metrônomo</legend>
+        <div class="mixer-volume-heading"><label id="mixer-metronome-volume-label" for="mixer-metronome-volume">Volume</label><output id="mixer-metronome-value" for="mixer-metronome-volume" aria-hidden="true">100%</output></div>
+        <input id="mixer-metronome-volume" type="range" min="0" max="100" step="1" value="100" aria-labelledby="mixer-metronome-label mixer-metronome-volume-label" aria-valuetext="100%">
+        <label class="toggle"><input id="mixer-metronome-muted" type="checkbox" aria-label="Silenciar metrônomo"> Silenciar</label>
+      </fieldset>
+      <fieldset class="mixer-channel" data-channel="drums">
+        <legend id="mixer-drums-label">Bateria</legend>
+        <div class="mixer-volume-heading"><label id="mixer-drums-volume-label" for="mixer-drums-volume">Volume</label><output id="mixer-drums-value" for="mixer-drums-volume" aria-hidden="true">100%</output></div>
+        <input id="mixer-drums-volume" type="range" min="0" max="100" step="1" value="100" aria-labelledby="mixer-drums-label mixer-drums-volume-label" aria-valuetext="100%">
+        <label class="toggle"><input id="mixer-drums-muted" type="checkbox" aria-label="Silenciar bateria"> Silenciar</label>
+      </fieldset>
+      <fieldset class="mixer-channel" data-channel="chords">
+        <legend id="mixer-chords-label">Acordes</legend>
+        <div class="mixer-volume-heading"><label id="mixer-chords-volume-label" for="mixer-chords-volume">Volume</label><output id="mixer-chords-value" for="mixer-chords-volume" aria-hidden="true">100%</output></div>
+        <input id="mixer-chords-volume" type="range" min="0" max="100" step="1" value="100" aria-labelledby="mixer-chords-label mixer-chords-volume-label" aria-valuetext="100%">
+        <label class="toggle"><input id="mixer-chords-muted" type="checkbox" aria-label="Silenciar acordes"> Silenciar</label>
+      </fieldset>
+    </div>
+    <p id="mixer-status" class="tool-hint muted" role="status" aria-live="polite">Ajustes do mixer ficam neste navegador, separados da frase.</p>
+  </section>
   <section class="panel progression" aria-labelledby="progression-title">
     <div class="section-heading"><div><div class="eyebrow">EXPLORE A HARMONIA</div><h2 id="progression-title">Progressões diatônicas</h2></div><span class="badge">2–5 tétrades · 4 notas/acorde</span></div>
     <div class="tool-row">

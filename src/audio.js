@@ -81,7 +81,7 @@
  * stages ordered and leave a held sustain before release.
  */
 
-import { TICKS_PER_BAR, BAR_OPTIONS } from './model.js';
+import { TICKS_PER_BAR, BAR_OPTIONS, MIXER_CHANNELS } from './model.js';
 import { DRUM_INSTRUMENTS } from './drums.js';
 
 const TICKS_PER_BEAT = 4;
@@ -110,7 +110,7 @@ const DRUM_SAMPLE_URLS = Object.freeze({
 });
 // Peaks leave room for the reference; original decoded samples stay untouched.
 const DRUM_PEAK_GAINS = Object.freeze({ kick: 0.24, snare: 0.2, hihat: 0.1 });
-const DRUM_FADE_SEC = 0.01;
+const GAIN_FADE_SEC = 0.01;
 
 export class GrooveAudio {
   #onStateCb;
@@ -118,6 +118,8 @@ export class GrooveAudio {
 
   #ctx = null;
   #masterGain = null;
+  #channelGains = {};
+  #mixer = Object.fromEntries(MIXER_CHANNELS.map(channel => [channel, { volume: 1, muted: false }]));
 
   #generation = 0;
   #timerId = null;
@@ -148,6 +150,14 @@ export class GrooveAudio {
   constructor({ onState = () => {}, onFinish = () => {} } = {}) {
     this.#onStateCb = onState;
     this.#onFinishCb = onFinish;
+  }
+
+  setMixer(mixer) {
+    for (const channel of MIXER_CHANNELS) {
+      const { volume, muted } = mixer[channel];
+      this.#mixer[channel] = { volume, muted };
+      this.#setGain(this.#channelGains[channel], muted ? 0 : volume);
+    }
   }
 
   play(notes, bpm, metronome, bars = 1, drums = {}) {
@@ -366,16 +376,27 @@ export class GrooveAudio {
       this.#masterGain = ctx.createGain();
       this.#masterGain.gain.value = 1;
       this.#masterGain.connect(ctx.destination);
+      for (const channel of MIXER_CHANNELS) {
+        const bus = ctx.createGain();
+        const { volume, muted } = this.#mixer[channel];
+        bus.gain.value = muted ? 0 : volume;
+        bus.connect(this.#masterGain);
+        this.#channelGains[channel] = bus;
+      }
       this.#drumGain = ctx.createGain();
       this.#drumGain.gain.value = 0;
-      this.#drumGain.connect(this.#masterGain);
+      this.#drumGain.connect(this.#channelGains.drums);
     }
     return this.#ctx;
   }
 
   #setDrumGain(value, immediate = false) {
-    if (!this.#drumGain) return;
-    const gain = this.#drumGain.gain;
+    this.#setGain(this.#drumGain, value, immediate);
+  }
+
+  #setGain(node, value, immediate = false) {
+    if (!node) return;
+    const gain = node.gain;
     const now = this.#ctx.currentTime;
     if (!immediate && typeof gain.cancelAndHoldAtTime === 'function') {
       gain.cancelAndHoldAtTime(now);
@@ -385,7 +406,7 @@ export class GrooveAudio {
       gain.setValueAtTime(current, now);
     }
     if (immediate) gain.setValueAtTime(value, now);
-    else gain.linearRampToValueAtTime(value, now + DRUM_FADE_SEC);
+    else gain.linearRampToValueAtTime(value, now + GAIN_FADE_SEC);
   }
 
   async #loadDrums() {
@@ -494,7 +515,8 @@ export class GrooveAudio {
     }
     for (const note of this.#notes) {
       if (note.start === tick) {
-        this.#scheduleNote(time, note.duration * this.#secPerTick, note.frequency, note.gainScale);
+        const channel = this.#sessionKind === 'progression' ? 'chords' : 'phrase';
+        this.#scheduleNote(time, note.duration * this.#secPerTick, note.frequency, note.gainScale, channel);
       }
     }
     if (this.#drumsEnabled && this.#drumBuffers) {
@@ -505,9 +527,8 @@ export class GrooveAudio {
   }
 
   #scheduleMetronomeTick(tickIndex, time) {
-    // Count-in and the four evaluated repetitions share one uninterrupted
-    // click pattern; evaluation is always audible and cannot be muted.
-    // Accents mark the start of every bar of the phrase.
+    // Count-in and the four evaluated repetitions share the metronome bus
+    // and one uninterrupted click pattern. Accents mark every bar start.
     if (tickIndex % TICKS_PER_BEAT === 0) {
       this.#scheduleClick(time, tickIndex % TICKS_PER_BAR === 0);
     }
@@ -567,13 +588,13 @@ export class GrooveAudio {
     gain.gain.linearRampToValueAtTime(peak, time + 0.002);
     gain.gain.linearRampToValueAtTime(0, time + CLICK_DURATION_SEC);
 
-    osc.connect(gain).connect(this.#masterGain);
+    osc.connect(gain).connect(this.#channelGains.metronome);
     osc.start(time);
     osc.stop(time + CLICK_DURATION_SEC + 0.005);
     this.#trackNode(osc, gain);
   }
 
-  #scheduleNote(time, durationSec, frequency = NOTE_FREQUENCY_HZ, gainScale = 1) {
+  #scheduleNote(time, durationSec, frequency = NOTE_FREQUENCY_HZ, gainScale = 1, channel = 'phrase') {
     const ctx = this.#ctx;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -591,7 +612,7 @@ export class GrooveAudio {
     gain.gain.setValueAtTime(NOTE_SUSTAIN_GAIN * gainScale, sustainEnd);
     gain.gain.linearRampToValueAtTime(0, time + durationSec);
 
-    osc.connect(gain).connect(this.#masterGain);
+    osc.connect(gain).connect(this.#channelGains[channel]);
     osc.start(time);
     osc.stop(time + durationSec + 0.01);
     this.#trackNode(osc, gain);
