@@ -82,11 +82,13 @@ test('loop selecionado, meter, swing e offset expressivo definem os dois extremo
 
 test('microtempo cruzando a emenda não produz janela negativa nem quebra a ordem dos eventos', () => {
   const session = createSession({ bpm: 300, meter: { beats: 1, unit: 16 }, subdivision: 8, training: { repetitions: 3 }, notes: [{ id: 'early', start: 0, duration: 0.1, offsetMs: -80 }, { id: 'late', start: 0.9, duration: 0.1, offsetMs: 80 }] });
-  const expected = [-0.08, -0.03, 0.02].map(start => ({ start, end: start + 0.005 }));
-  const result = evaluateSession(session, expected);
+  const result = evaluateSession(session, [{ start: 0.02, end: 0.025 }]);
   assert.ok(result.matchWindowMs >= 0);
-  assert.equal(result.rows.filter(row => row.kind === 'matched').length, 3);
-  assert.deepEqual(result.rows.filter(row => row.kind === 'matched').map(row => row.repetition), [1, 2, 3]);
+  assert.equal(result.rows.filter(row => row.kind === 'matched').length, 1);
+  assert.equal(result.rows.find(row => row.kind === 'matched').repetition, 3);
+  const expected = result.rows.filter(row => row.kind !== 'extra');
+  assert.ok(expected.every(row => row.expectedStart >= 0 && row.expectedEnd <= 0.15 + 1e-9));
+  assert.ok(expected.every((row, index) => index === 0 || row.expectedStart >= expected[index - 1].expectedStart));
 });
 
 test('estilo relata deslocamento pessoal, mas classifica consistência relativa sem apagar desvios absolutos', () => {
@@ -147,4 +149,30 @@ test('é possível avaliar uma frase explícita com opções musicais sem sessã
   const result = evaluate(notes, [{ start: 3.5, end: 4 }], 60, 2, { meter: { beats: 7, unit: 8 }, repetitions: 1 });
   assert.equal(result.rows[0].kind, 'matched');
   assert.equal(result.repetitionSeconds, 7);
+});
+
+test('extremos capturáveis aparam primeiro ataque e último término, mas preservam emendas internas', () => {
+  const session = createSession({ bpm: 60, training: { repetitions: 2 }, notes: [{ id: 'early', start: 0, duration: 2, offsetMs: -80 }, { id: 'late', start: 15, duration: 1, offsetMs: 80 }] });
+  const attempts = [{ start: 0, end: 0.42 }, { start: 3.83, end: 4.08 }, { start: 3.92, end: 4.42 }, { start: 7.83, end: 8 }];
+  const result = evaluateSession(session, attempts);
+  assert.equal(result.rows.length, 4);
+  assert.ok(result.rows.every(row => row.kind === 'matched' && row.onset === 'ok' && row.ending === 'ok'));
+  const early = result.rows.filter(row => row.noteId === 'early');
+  close(early[0].expectedStart, 0);
+  close(early[0].expectedEnd, 0.42);
+  close(early[1].expectedStart, 3.92);
+  close(early[1].expectedEnd, 4.42);
+  const late = result.rows.filter(row => row.noteId === 'late');
+  close(late[0].expectedEnd, 4.08);
+  close(late[1].expectedEnd, 8);
+  const after = createSession({ bpm: 60, training: { repetitions: 2 }, notes: [{ id: 'outside', start: 15.9, duration: 0.1, offsetMs: 80 }] });
+  const omitted = evaluateSession(after, []);
+  assert.equal(omitted.rows.length, 1);
+  assert.equal(omitted.rows[0].repetition, 1);
+  close(omitted.rows[0].expectedStart, 4.055);
+  close(omitted.rows[0].expectedEnd, 4.08);
+  const atEnd = createSession({ bpm: 60, training: { repetitions: 2 }, notes: [{ id: 'boundary', start: 15.68, duration: 0.32, offsetMs: 80 }] });
+  const exactEnd = evaluateSession(atEnd, []);
+  assert.equal(exactEnd.rows.length, 1);
+  close(exactEnd.rows[0].expectedStart, 4);
 });

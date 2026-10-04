@@ -116,3 +116,20 @@ test('projeção é imutável e usa geometria da sessão quando metadados do res
   assert.equal(fallback.barSeconds, 3.5);
   assert.equal(fallback.repetitions[0].windowSeconds, 7);
 });
+
+test('linha do tempo mostra extremos capturáveis aparados sem esconder cruzamentos internos', () => {
+  const reference = createSession({ bpm: 60, training: { repetitions: 2 }, notes: [{ id: 'early', start: 0, duration: 2, offsetMs: -80 }, { id: 'late', start: 15, duration: 1, offsetMs: 80 }] });
+  const results = evaluateSession(reference, [{ start: 0, end: 0.42 }, { start: 3.83, end: 4.08 }, { start: 3.92, end: 4.42 }, { start: 7.83, end: 8 }]);
+  const data = buildTimelineData(results, { session: reference });
+  const first = data.repetitions[0].expected.find(block => block.noteId === 'early');
+  close(first.start, 0);
+  close(first.end, 0.42);
+  const internal = data.repetitions[1].expected.find(block => block.noteId === 'early');
+  close(internal.start, -0.08);
+  close(internal.end, 0.42);
+  const last = data.repetitions[1].expected.find(block => block.noteId === 'late');
+  close(last.end, 4);
+  const finalActual = data.repetitions[1].actual.find(block => block.noteId === 'late');
+  assert.equal(finalActual.clamped, undefined);
+  close(finalActual.endMs, 0);
+});

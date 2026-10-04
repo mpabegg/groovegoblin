@@ -3,6 +3,9 @@
 // sem particionar por compasso. A repetição r começa em (r-1)*repetitionSeconds.
 // Tempo: BPM em semínimas; 1 tick = 1/4 de semínima; swing e microtempo
 // (offsetMs) fazem parte do tempo ESPERADO de cada nota.
+// O treino captura [0, duração total]: antecipações no início são aparadas
+// a zero, términos ao fim do treino, e ataques no/após o fim são omitidos.
+// Nas emendas internas preservamos integralmente swing e microtempo.
 //
 // Janelas (derivadas, nunca constantes absolutas):
 //   gridSeconds   = passo da subdivisão da sessão (4/subdivision ticks)
@@ -34,8 +37,8 @@ import { validateSession, createSession, GOALS } from './session.js';
 export const REPETITIONS = 4;
 
 function classify(diffMs, toleranceMs) {
-  if (diffMs < -toleranceMs) return 'early';
-  if (diffMs > toleranceMs) return 'late';
+  if (diffMs < -toleranceMs - EPSILON) return 'early';
+  if (diffMs > toleranceMs + EPSILON) return 'late';
   return 'ok';
 }
 
@@ -108,17 +111,25 @@ function referenceRows(session, attempts, options) {
     const next = index + 1 < phases.length ? phases[index + 1] : phases[0] + repetitionSeconds;
     spacing = Math.min(spacing, next - phases[index]);
   }
-  const matchWindowMs = (Math.min(gridSeconds, spacing) * 1000) / 2;
-  const toleranceMs = matchWindowMs / 2;
 
   const expected = [];
+  const totalSeconds = repetitions * repetitionSeconds;
   for (let rep = 1; rep <= repetitions; rep += 1) {
     const offset = (rep - 1) * repetitionSeconds;
     for (const { note, start, end } of local) {
-      expected.push({ noteId: note.id, pitch: note.pitch, repetition: rep, expectedStart: offset + start, expectedEnd: offset + end });
+      const rawStart = offset + start;
+      if (rawStart >= totalSeconds) continue;
+      const expectedStart = Math.max(0, rawStart);
+      const expectedEnd = Math.max(expectedStart, Math.min(totalSeconds, offset + end));
+      expected.push({ noteId: note.id, pitch: note.pitch, repetition: rep, expectedStart, expectedEnd });
     }
   }
   expected.sort((a, b) => a.expectedStart - b.expectedStart);
+  for (let index = 1; index < expected.length; index += 1) {
+    spacing = Math.min(spacing, expected[index].expectedStart - expected[index - 1].expectedStart);
+  }
+  const matchWindowMs = (Math.min(gridSeconds, spacing) * 1000) / 2;
+  const toleranceMs = matchWindowMs / 2;
   const actual = [...attempts].sort((a, b) => a.start - b.start);
   const rows = [];
   const extra = att => ({
@@ -135,10 +146,10 @@ function referenceRows(session, attempts, options) {
     const exp = expected[i];
     const att = actual[j];
     const onsetMs = (att.start - exp.expectedStart) * 1000;
-    if (onsetMs < -matchWindowMs) {
+    if (onsetMs < -matchWindowMs - EPSILON) {
       rows.push(extra(att));
       j += 1;
-    } else if (onsetMs > matchWindowMs) {
+    } else if (onsetMs > matchWindowMs + EPSILON) {
       rows.push(missed(exp));
       i += 1;
     } else {
