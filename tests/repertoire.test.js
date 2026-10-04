@@ -17,6 +17,8 @@ import {
   exerciseSchedule,
   recordPractice,
   regionNotesToSessionPatch,
+  analysisTempo,
+  itemLabel,
   createSetlist,
   addSetlistEntry,
   moveSetlistEntry,
@@ -30,6 +32,10 @@ import {
 } from '../src/repertoire.js';
 import { openRepertoireStore, describeStorageError, formatBytes } from '../src/repertoire-store.js';
 import { createJobRunner, JobCancelledError } from '../src/repertoire-jobs.js';
+import { createSession, validateSession } from '../src/session.js';
+import { validPhrase } from '../src/model.js';
+import { ticksPerBar } from '../src/meter.js';
+import { renderSession } from '../src/audio.js';
 
 function item(overrides = {}) {
   return createItem({ kind: 'reference', source: 'import', name: 'Faixa', duration: 60, sampleRate: 44100, channels: 2, media: { id: 'md', mimeType: 'audio/wav', size: 10, fileName: 'f.wav' }, ...overrides });
@@ -110,7 +116,7 @@ test('repertoire: notas do trecho ancoram no pulso, quantizam e ficam monofônic
     { start: 11.1, end: 11.6, midi: 65, confidence: 0.8 },
   ];
   const { patch, warnings } = regionNotesToSessionPatch(notes, { start: 10.1, end: 12.1, bpm: 120, beatOffset: 0.1, beatsPerBar: 4, minConfidence: 0.5, semitones: 2, idPrefix: 'x' });
-  assert.deepEqual(patch.notes.map(note => [note.start, note.duration, note.pitch]), [[0, 2, 62], [2, 4, 66], [8, 4, 67]]);
+  assert.deepEqual(patch.notes.map(note => [note.start, note.duration, note.pitch]), [[0, 2, 62], [2, 4.4, 66], [8, 4, 67]]);
   assert.deepEqual(patch.meter, { beats: 4, unit: 4 });
   assert.equal(patch.bars, 1);
   assert.equal(patch.bpm, 120);
@@ -252,4 +258,72 @@ test('worker: executa DSP real e responde com progresso e resultado', async () =
   globalThis.self.onmessage({ data: { id: 9, type: 'process', payload: { channels: [channel], sampleRate: rate, speed: 9 } } });
   assert.equal(messages.at(-1).message.type, 'error');
   delete globalThis.self;
+});
+
+test('repertoire: análise herda 7/8 sem atribuir detecção de compasso ao algoritmo', () => {
+  const tempo = analysisTempo({ bpm: 120.1, offset: 0.1 }, null, { beats: 7, unit: 8 });
+  assert.deepEqual(tempo, { bpm: 120.1, offset: 0.1, beatsPerBar: 7, beatUnit: 8, meterSource: 'studio', source: 'analysis' });
+  const selected = analysisTempo({ bpm: 90, offset: 0 }, { ...tempo, beatsPerBar: 5, meterSource: 'manual' }, { beats: 4, unit: 4 });
+  assert.equal(selected.beatsPerBar, 5);
+  assert.equal(selected.beatUnit, 8);
+  assert.equal(selected.meterSource, 'manual');
+  const restored = normalizeItem({ ...item(), tempo }).tempo;
+  assert.deepEqual(restored, tempo);
+  const grid = beatGrid({ ...tempo, bpm: 120, offset: 0 }, 0, 1.75);
+  assert.deepEqual(grid.map(beat => beat.time), [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75]);
+  assert.deepEqual(grid.filter(beat => beat.downbeat).map(beat => beat.time), [0, 1.75]);
+});
+
+test('repertoire: exercício limita hipóteses às bordas, inclusive após persistência', () => {
+  const notes = [
+    { start: -1, end: 0.6, midi: 60, confidence: 0.8 },
+    { start: 1.8, end: 5, midi: 62, confidence: 0.9 },
+    { start: 2, end: 2, midi: 64, confidence: 1 },
+    { start: NaN, end: 1, midi: 65, confidence: 1 },
+  ];
+  const exercise = createExercise(item(), { start: 0.5, end: 2 }, { notes });
+  assert.deepEqual(exercise.notes.map(note => [note.start, note.end]), [[0.5, 0.6], [1.8, 2]]);
+  assert.deepEqual(normalizeExercise({ ...exercise, notes }).notes, exercise.notes);
+});
+
+test('repertoire: 7/8 e notas fracionárias produzem uma sessão canônica limitada', () => {
+  const notes = [
+    { start: 0.35, end: 0.7, midi: 60.1, confidence: 0.9 },
+    { start: 1.57, end: 1.58, midi: 62, confidence: 0.9 },
+    { start: 2, end: 2.54, midi: 64, confidence: 0.9 },
+  ];
+  const { patch } = regionNotesToSessionPatch(notes, { start: 0.4, end: 2.51, bpm: 120, beatOffset: 0, beatsPerBar: 7, beatUnit: 8, subdivision: 3 });
+  assert.deepEqual(patch.meter, { beats: 7, unit: 8 });
+  assert.equal(patch.bars, 2);
+  assert.equal(patch.notes.length, 3);
+  assert.equal(patch.notes[0].start, 1.2);
+  assert.ok(patch.notes.some(note => !Number.isInteger(note.duration)));
+  assert.ok(patch.notes.every(note => note.start >= 1.2 && note.start + note.duration <= 18.08 + 1e-9));
+  assert.equal(patch.notes[1].duration, 0.08);
+  assert.ok(validPhrase(patch.notes, patch));
+  const session = createSession(patch);
+  assert.ok(validateSession(session).ok);
+  assert.equal(ticksPerBar(session), 14);
+  assert.throws(() => regionNotesToSessionPatch(notes, { start: 0, end: 3, bpm: 20 }), /andamento/);
+  assert.throws(() => regionNotesToSessionPatch([{ start: 0, end: 100, midi: 60, confidence: 1 }], { start: 0, end: 100, bpm: 120, beatsPerBar: 7, beatUnit: 8 }), /limites/);
+});
+
+test('repertoire: sessão extraída chega ao render real e falha de áudio não vira silêncio', async () => {
+  const { patch } = regionNotesToSessionPatch([{ start: 0, end: 2.1, midi: 60, confidence: 1 }], { start: 0, end: 2.1, bpm: 120, beatsPerBar: 7, beatUnit: 8 });
+  const session = createSession(patch);
+  let allocation;
+  await assert.rejects(renderSession(session, {
+    loops: 2, sampleRate: 8000, attempts: [{ start: 0.1, end: 0.2, pitch: 60 }], tailSeconds: 0,
+    contextFactory(options) { allocation = options; throw new Error('áudio indisponível'); },
+  }), /áudio indisponível/);
+  assert.deepEqual(allocation, { numberOfChannels: 2, length: 70000, sampleRate: 8000 });
+  const metadata = createItem({ kind: 'take', source: 'attempt', name: 'Tentativa', duration: 0, attempts: [], session, summary: { repetitions: 2 }, renderError: 'áudio indisponível' });
+  assert.ok(metadata);
+  assert.equal(metadata.media, null);
+  assert.equal(metadata.sampleRate, 0);
+  assert.equal(metadata.channels, 0);
+  assert.equal(metadata.duration, 0);
+  assert.deepEqual(normalizeItem(metadata), metadata);
+  assert.notEqual(itemLabel(metadata), itemLabel({ ...metadata, media: { id: 'audio' } }));
+  assert.equal(normalizeItem({ ...metadata, source: 'session-render' }), null);
 });

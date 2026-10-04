@@ -20,17 +20,17 @@ const handlers = {
     });
     return { result: { harmonic, percussive }, transfer: [...harmonic, ...percussive].map(channel => channel.buffer) };
   },
-  analyze({ mono, sampleRate, offset, sensitivity, stages }, progress) {
+  analyze({ mono, sampleRate, offset, duration, sensitivity, stages }, progress) {
     const result = analyzeAudio(mono, sampleRate, {
-      offset, sensitivity, stages,
+      offset, duration, sensitivity, stages,
       onProgress: ({ stage, fraction }) => progress(stage, fraction),
     });
     const transfer = [result.envelope, result.pitch?.f0, result.pitch?.confidence].filter(Boolean).map(array => array.buffer);
     return { result, transfer };
   },
-  beats({ envelope, envelopeRate, bpm }, progress) {
+  beats({ envelope, envelopeRate, bpm, duration }, progress) {
     progress('Reacompanhando pulsos', 0);
-    return { result: { beats: trackBeats(envelope, envelopeRate, bpm) }, transfer: [] };
+    return { result: { beats: trackBeats(envelope, envelopeRate, bpm, { duration }) }, transfer: [] };
   },
 };
 

@@ -6,6 +6,10 @@
 
 export { mountRepertoire } from './repertoire-view.js';
 
+import { EPSILON, ticksPerBar, secondsPerTick, quantizeTick, roundTick } from './meter.js';
+import { MIN_DURATION, MAX_BARS, completeNote } from './model.js';
+import { BPM_MIN, BPM_MAX, METER_UNITS, SUBDIVISIONS } from './session.js';
+
 export const ITEM_KINDS = Object.freeze(['reference', 'take', 'derived']);
 export const ITEM_SOURCES = Object.freeze({
   import: 'Arquivo importado',
@@ -22,8 +26,6 @@ export const SECTION_PRESETS = Object.freeze(['Intro', 'Verso', 'Pré-refrão', 
 export const MIN_REGION_SECONDS = 0.05;
 export const MAX_MARKERS = 500;
 export const DEFAULT_PROCESSING = Object.freeze({ speed: 1, semitones: 0, cents: 0, algorithm: 'vocoder' });
-
-const TICKS_PER_QUARTER = 4;
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -136,6 +138,17 @@ export function speedLadder(from, to, step) {
   return steps;
 }
 
+// Hipóteses guardadas pelo exercício usam segundos absolutos, limitados ao A–B.
+function boundedNotes(notes, start, end) {
+  return (Array.isArray(notes) ? notes : [])
+    .filter(note => isObject(note) && [note.start, note.end, note.midi, note.confidence].every(Number.isFinite)
+      && note.end > note.start && note.end > start && note.start < end)
+    .map(note => ({
+      start: Math.max(start, note.start), end: Math.min(end, note.end),
+      midi: note.midi, confidence: clamp(note.confidence, 0, 1),
+    }));
+}
+
 export function createExercise(item, region, { name = '', objective = '', speedFrom = 0.7, speedTo = 1, speedStep = 0.05, loopsPerStep = 2, semitones = 0, cents = 0, algorithm = 'vocoder', notes = [] } = {}) {
   if (!isObject(item) || typeof item.id !== 'string') throw new TypeError('Escolha um item para extrair o exercício.');
   const bounds = normalizeRegion(region, item.duration);
@@ -158,9 +171,7 @@ export function createExercise(item, region, { name = '', objective = '', speedF
     semitones,
     cents,
     algorithm,
-    notes: notes
-      .filter(note => note.end > bounds.start && note.start < bounds.end)
-      .map(note => ({ start: note.start, end: note.end, midi: note.midi, confidence: note.confidence })),
+    notes: boundedNotes(notes, bounds.start, bounds.end),
     createdAt: new Date().toISOString(),
     practice: { sessions: 0, bestSpeed: 0, lastPracticed: null },
   };
@@ -181,45 +192,59 @@ export function recordPractice(exercise, reachedSpeed) {
   };
 }
 
-// Converte hipóteses de altura (segundos) do trecho em notas de sessão, ancoradas
-// no pulso da grade de andamento mais próximo do início do trecho.
-export function regionNotesToSessionPatch(notes, { start, end, bpm, beatOffset = 0, beatsPerBar = 4, minConfidence = 0.5, semitones = 0, idPrefix = 'rep' }) {
-  if (!Number.isFinite(bpm) || bpm < 20 || bpm > 400) throw new RangeError('Defina um andamento entre 20 e 400 BPM antes de extrair notas.');
-  if (!Number.isInteger(beatsPerBar) || beatsPerBar < 1 || beatsPerBar > 16) throw new RangeError('Tempos por compasso: de 1 a 16.');
-  const period = 60 / bpm;
-  const anchor = beatOffset + Math.round((start - beatOffset) / period) * period;
-  const secondsPerTick = period / TICKS_PER_QUARTER;
+// Converte hipóteses do A–B em notas canônicas: 4 ticks = semínima,
+// independentemente do denominador. Quantiza ataques, preserva durações
+// fracionárias e limita bordas sem alongar notas curtas artificialmente.
+export function regionNotesToSessionPatch(notes, { start, end, bpm, beatOffset = 0, beatsPerBar = 4, beatUnit = 4, subdivision = 4, minConfidence = 0.5, semitones = 0, idPrefix = 'rep' }) {
+  if (!Number.isFinite(bpm) || bpm < BPM_MIN || bpm > BPM_MAX) throw new RangeError(`Defina um andamento entre ${BPM_MIN} e ${BPM_MAX} BPM antes de extrair notas.`);
+  if (![start, end, beatOffset, semitones].every(Number.isFinite) || start < 0 || end <= start) throw new RangeError('Selecione um trecho A–B válido antes de extrair notas.');
+  if (!Number.isInteger(beatsPerBar) || beatsPerBar < 1 || beatsPerBar > 16 || !METER_UNITS.includes(beatUnit)) throw new RangeError('Defina uma fórmula de compasso válida antes de extrair notas.');
+  if (!SUBDIVISIONS.includes(subdivision)) throw new RangeError('Defina uma subdivisão válida antes de extrair notas.');
+  const meter = { beats: beatsPerBar, unit: beatUnit };
+  const period = 60 / bpm * 4 / beatUnit;
+  // O pulso anterior evita descartar o começo quando o mais próximo vem depois.
+  const anchor = beatOffset + Math.floor((start - beatOffset) / period + EPSILON) * period;
+  const tickSeconds = secondsPerTick(bpm);
+  const firstTick = Math.max(0, (start - anchor) / tickSeconds);
+  const lastTick = (end - anchor) / tickSeconds;
+  const candidates = boundedNotes(notes, start, end);
   const warnings = [];
-  const accepted = notes
-    .filter(note => note.end > start && note.start < end && note.confidence >= minConfidence)
-    .map(note => ({
-      start: Math.round((Math.max(note.start, start) - anchor) / secondsPerTick),
-      end: Math.round((Math.min(note.end, end) - anchor) / secondsPerTick),
-      pitch: clamp(note.midi + semitones, 0, 127),
-      velocity: Math.round((0.5 + 0.4 * note.confidence) * 1000) / 1000,
-    }))
-    .filter(note => note.start >= 0 && note.end > note.start)
+  const accepted = candidates
+    .filter(note => note.confidence >= minConfidence)
+    .map(note => {
+      const begin = roundTick((note.start - anchor) / tickSeconds);
+      const finish = roundTick(Math.min(lastTick, (note.end - anchor) / tickSeconds));
+      const snapped = roundTick(note.start === start ? firstTick : clamp(quantizeTick(begin, subdivision), firstTick, lastTick));
+      // Não perde uma nota curta que terminaria antes do ataque quantizado.
+      return {
+        start: finish - snapped >= MIN_DURATION - EPSILON ? snapped : Math.max(0, begin),
+        end: finish,
+        pitch: clamp(Math.round(note.midi + semitones), 0, 127),
+        velocity: Math.round((0.5 + 0.4 * note.confidence) * 1000) / 1000,
+      };
+    })
+    .filter(note => note.end - note.start >= MIN_DURATION - EPSILON)
     .sort((a, b) => a.start - b.start);
   const monophonic = [];
   for (const note of accepted) {
     const previous = monophonic[monophonic.length - 1];
-    if (previous && note.start < previous.end) {
-      if (note.start <= previous.start) continue;
+    if (previous && note.start < previous.end - EPSILON) {
+      if (note.start <= previous.start + EPSILON) continue;
       previous.end = note.start;
+      if (previous.end - previous.start < MIN_DURATION - EPSILON) monophonic.pop();
     }
-    monophonic.push({ ...note });
+    monophonic.push(note);
   }
-  const skipped = notes.filter(note => note.end > start && note.start < end).length - monophonic.length;
+  const skipped = candidates.length - monophonic.length;
   if (skipped > 0) warnings.push(`${skipped} hipótese(s) foram descartadas (baixa confiança, sobreposição ou fora da grade).`);
   if (!monophonic.length) throw new RangeError('Nenhuma hipótese de altura confiável neste trecho; reduza a confiança mínima ou escolha outro trecho.');
-  const ticksPerBar = beatsPerBar * TICKS_PER_QUARTER;
-  const lastEnd = monophonic.reduce((max, note) => Math.max(max, note.end), 0);
+  const lastEnd = monophonic[monophonic.length - 1].end;
+  const bars = Math.max(1, Math.ceil((lastEnd - EPSILON) / ticksPerBar(meter)));
+  if (bars > MAX_BARS || monophonic.length > 512) throw new RangeError(`O trecho excede os limites do estúdio (${MAX_BARS} compassos ou 512 notas); escolha um trecho menor.`);
   return {
     patch: {
-      bpm: Math.round(bpm),
-      meter: { beats: beatsPerBar, unit: 4 },
-      bars: Math.max(1, Math.ceil(lastEnd / ticksPerBar)),
-      notes: monophonic.map((note, index) => ({ id: `${idPrefix}-${index + 1}`, start: note.start, duration: note.end - note.start, pitch: note.pitch, velocity: note.velocity })),
+      bpm: Math.round(bpm), meter, bars,
+      notes: monophonic.map((note, index) => completeNote({ id: `${String(idPrefix).slice(0, 50)}-${index + 1}`, start: note.start, duration: roundTick(note.end - note.start), pitch: note.pitch, velocity: note.velocity })),
     },
     warnings,
   };
@@ -304,7 +329,7 @@ export function tapTempo(taps) {
 
 export function beatGrid(tempo, from, to, limit = 4000) {
   if (!isObject(tempo) || !(tempo.bpm > 0)) return [];
-  const period = 60 / tempo.bpm;
+  const period = 60 / tempo.bpm * 4 / (tempo.beatUnit ?? 4);
   const beats = [];
   const first = Math.ceil((from - tempo.offset) / period);
   for (let index = first; ; index++) {
@@ -325,12 +350,24 @@ function normalizeProcessing(raw) {
   };
 }
 
+// Separa a origem do BPM da fórmula escolhida: a análise não detecta compasso.
+export function analysisTempo(candidate, previous, studioMeter) {
+  const meter = previous
+    ? { beatsPerBar: previous.beatsPerBar, beatUnit: previous.beatUnit ?? 4, meterSource: previous.meterSource ?? 'manual' }
+    : studioMeter
+      ? { beatsPerBar: studioMeter.beats, beatUnit: studioMeter.unit, meterSource: 'studio' }
+      : { beatsPerBar: 4, beatUnit: 4, meterSource: 'default' };
+  return normalizeTempo({ ...meter, bpm: candidate.bpm, offset: candidate.offset, source: 'analysis' });
+}
+
 function normalizeTempo(raw) {
   if (!isObject(raw) || !(raw.bpm >= 20 && raw.bpm <= 400)) return null;
   return {
     bpm: raw.bpm,
     offset: finite(raw.offset, 0),
     beatsPerBar: Number.isInteger(raw.beatsPerBar) && raw.beatsPerBar >= 1 && raw.beatsPerBar <= 16 ? raw.beatsPerBar : 4,
+    beatUnit: METER_UNITS.includes(raw.beatUnit) ? raw.beatUnit : 4,
+    meterSource: ['studio', 'manual', 'default'].includes(raw.meterSource) ? raw.meterSource : 'manual',
     source: ['analysis', 'manual', 'tap'].includes(raw.source) ? raw.source : 'manual',
   };
 }
@@ -338,11 +375,11 @@ function normalizeTempo(raw) {
 function normalizeChords(raw, duration) {
   if (!Array.isArray(raw)) return [];
   return raw
-    .filter(chord => isObject(chord) && Number.isFinite(chord.start) && Number.isFinite(chord.end) && chord.end > chord.start && chord.start <= duration)
+    .filter(chord => isObject(chord) && Number.isFinite(chord.start) && Number.isFinite(chord.end) && chord.end > chord.start && chord.end > 0 && chord.start < duration)
     .slice(0, 5000)
     .map(chord => ({
-      start: chord.start,
-      end: chord.end,
+      start: Math.max(0, chord.start),
+      end: Math.min(duration, chord.end),
       label: text(chord.label, 24) || 'N',
       confidence: clamp(finite(chord.confidence, 0), 0, 1),
       alternatives: Array.isArray(chord.alternatives)
@@ -372,7 +409,8 @@ export function createItem({ kind = 'reference', source = 'import', name, durati
 export function normalizeItem(raw) {
   if (!isObject(raw) || typeof raw.id !== 'string' || !raw.id) return null;
   if (!ITEM_KINDS.includes(raw.kind) || !Object.hasOwn(ITEM_SOURCES, raw.source)) return null;
-  if (!Number.isFinite(raw.duration) || raw.duration <= 0 || raw.duration > 6 * 3600) return null;
+  const metadataOnly = raw.kind === 'take' && raw.source === 'attempt' && !raw.media && Array.isArray(raw.attempts);
+  if (!Number.isFinite(raw.duration) || raw.duration < 0 || (raw.duration === 0 && !metadataOnly) || raw.duration > 6 * 3600) return null;
   const duration = raw.duration;
   const media = isObject(raw.media) && typeof raw.media.id === 'string'
     ? { id: raw.media.id, mimeType: text(raw.media.mimeType, 100), size: finite(raw.media.size, 0), fileName: text(raw.media.fileName, 200) }
@@ -432,7 +470,7 @@ export function normalizeExercise(raw) {
     semitones: processing.semitones,
     cents: processing.cents,
     algorithm: processing.algorithm,
-    notes: Array.isArray(raw.notes) ? raw.notes.filter(note => isObject(note) && Number.isFinite(note.start) && Number.isFinite(note.end) && Number.isFinite(note.midi)).slice(0, 5000) : [],
+    notes: boundedNotes(raw.notes, raw.start, raw.end).slice(0, 5000),
     createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : new Date(0).toISOString(),
     practice: {
       sessions: Number.isInteger(raw.practice?.sessions) ? raw.practice.sessions : 0,
@@ -456,5 +494,6 @@ export function normalizeSetlist(raw) {
 }
 
 export function itemLabel(item) {
-  return `${ITEM_SOURCES[item.source] ?? 'Item'} · ${formatTime(item.duration, { precise: false })}`;
+  const source = item.source === 'attempt' && !item.media ? 'Tentativa de teclado/toque (sem áudio)' : ITEM_SOURCES[item.source] ?? 'Item';
+  return `${source} · ${formatTime(item.duration, { precise: false })}`;
 }

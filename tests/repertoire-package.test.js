@@ -17,7 +17,7 @@ function reference() {
     ...item,
     region: { start: 10, end: 20 },
     markers: [createMarker({ kind: 'section', time: 8, label: 'Refrão' }), createMarker({ kind: 'comment', time: 12, end: 14, label: 'Atenção', text: 'segure a nota' })],
-    tempo: { bpm: 100, offset: 0.2, beatsPerBar: 4, source: 'analysis' },
+    tempo: { bpm: 100, offset: 0.2, beatsPerBar: 7, beatUnit: 8, meterSource: 'studio', source: 'analysis' },
     chords: [{ start: 10, end: 12, label: 'Am', confidence: 0.9, alternatives: [], edited: false }, { start: 12, end: 14, label: 'F', confidence: 0.2, alternatives: [], edited: true }, { start: 14, end: 16, label: 'G', confidence: 0.1, alternatives: [], edited: false }],
   };
 }
@@ -39,7 +39,7 @@ test('package: ida e volta com sessão, referência, exercícios e áudio embuti
   assert.deepEqual(value.reference.region, { start: 10, end: 20 });
   assert.deepEqual(value.reference.markers.map(marker => marker.label), ['Refrão', 'Atenção']);
   assert.deepEqual(value.reference.chords.map(chord => chord.label), ['Am', 'F'], 'acordes de baixa confiança não editados ficam fora');
-  assert.equal(value.reference.tempo.bpm, 100);
+  assert.deepEqual(value.reference.tempo, item.tempo);
   assert.equal(value.exercises.length, 1);
   assert.equal(value.exercises[0].name, 'Refrão lento');
   assert.deepEqual(value.exercises[0].practice, { sessions: 0, bestSpeed: 0, lastPracticed: null });

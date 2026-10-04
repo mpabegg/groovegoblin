@@ -4,7 +4,7 @@ import { evaluateSession, summarizeFeedback } from './feedback.js';
 import { buildTimelineData, renderTimeline } from './timeline.js';
 import { GROOVES, loadGroove } from './library.js';
 import { buildRhythmNotation, renderRhythmNotation } from './notation.js';
-import { PROGRESSION_KEYS, getDiatonicChords, getBorrowedChords, getSecondaryDominants, parseChordSymbol, generateProgression, invertChord, chordTimeline } from './progression.js';
+import { PROGRESSION_KEYS, CHORD_QUALITIES, getDiatonicChords, getBorrowedChords, getSecondaryDominants, parseChordSymbol, generateProgression, invertChord, chordTimeline } from './progression.js';
 import { mountPractice } from './practice.js';
 import { mountPlayground } from './playground.js';
 import { mountJourney } from './practice-view.js';
@@ -12,7 +12,8 @@ import { mountRepertoire } from './repertoire-view.js';
 import { setupOffline } from './offline.js';
 import { mergeSession, readSessionLibrary, SESSION_LIBRARY_KEY } from './studio-state.js';
 import { History } from './history.js';
-import { addNote, updateNote, deleteNote, quantizeTick as snapTick } from './model.js';
+import { addNote, updateNote, deleteNote } from './model.js';
+import { quantizeTick as snapTick } from './meter.js';
 import { generateGroove } from './generator.js';
 import { generateDrums, DRUM_VOICES } from './drums.js';
 
@@ -496,12 +497,16 @@ function renderProgression() {
       try { replaceChord(index, { ...parseChordSymbol(symbol.value), durationBars: chord.durationBars }); }
       catch (error) { message(error.message, true); symbol.value = chord.symbol; }
     });
-    const duration = document.createElement('input'); duration.type = 'number'; duration.min = '0.25'; duration.max = '16'; duration.step = '0.25'; duration.value = chord.durationBars; duration.setAttribute('aria-label', `Duração do acorde ${index + 1} em compassos`);
+    const duration = document.createElement('input'); duration.type = 'number'; duration.min = String(1 / session.meter.beats); duration.max = '16'; duration.step = String(1 / session.meter.beats); duration.value = chord.durationBars; duration.setAttribute('aria-label', `Duração do acorde ${index + 1} em compassos`);
     duration.addEventListener('change', () => replaceChord(index, { ...chord, durationBars: Number(duration.value) }));
     const inversion = document.createElement('select'); inversion.setAttribute('aria-label', `Inversão do acorde ${index + 1}`);
-    for (let value = 0; value < 4; value++) { const option = document.createElement('option'); option.value = value; option.textContent = value === 0 ? 'Fundamental' : `${value}ª inversão`; inversion.append(option); }
+    const inversionCount = CHORD_QUALITIES[chord.quality]?.length ?? chord.notes.length;
+    for (let value = 0; value < inversionCount; value++) { const option = document.createElement('option'); option.value = value; option.textContent = value === 0 ? 'Fundamental' : `${value}ª inversão`; inversion.append(option); }
     inversion.value = chord.inversion ?? 0;
-    inversion.addEventListener('change', () => replaceChord(index, invertChord(chord, Number(inversion.value))));
+    inversion.addEventListener('change', () => {
+      try { replaceChord(index, invertChord(chord, Number(inversion.value))); }
+      catch (error) { message(error.message, true); renderProgression(); }
+    });
     const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Remover'; remove.addEventListener('click', () => updateSession({ progression: { chords: session.progression.chords.filter((_, position) => position !== index) } }));
     item.append(where, title, select, symbol, duration, inversion, remove); $('progression-chords').append(item);
   });
@@ -516,8 +521,16 @@ $('generate-progression').addEventListener('click', () => {
   const diatonic = getDiatonicChords(keyId);
   const degrees = mode === 'cadence' ? [1, 4, 5, 1] : [1, 6, 2, 5];
   const base = mode === 'random' ? generateProgression({ keyId }).chords : degrees.map(degree => diatonic[degree - 1]);
-  const chords = base.map(chord => ({ ...chord, durationBars: session.bars / base.length, inversion: 0 }));
-  updateSession({ progression: { enabled: true, chords } });
+  // Fit the harmonic cycle using whole denominator beats, including 7/8 and
+  // progressions with an odd chord count. Extend only when each chord would
+  // otherwise get less than one beat; existing phrase notes remain unchanged.
+  const bars = Math.max(session.bars, Math.ceil(base.length / session.meter.beats));
+  const beats = bars * session.meter.beats;
+  const perChord = Math.floor(beats / base.length);
+  const remainder = beats % base.length;
+  const chords = base.map((chord, index) => ({ ...chord, durationBars: (perChord + (index < remainder ? 1 : 0)) / session.meter.beats }));
+  const loop = { ...session.loop, endBar: session.loop.endBar === session.bars ? bars : session.loop.endBar };
+  updateSession({ bars, loop, progression: { enabled: true, chords } });
 });
 
 const channelNames = { phrase: 'Frase', metronome: 'Metrônomo', drums: 'Bateria', chords: 'Harmonia', bass: 'Baixo' };
@@ -618,9 +631,18 @@ function renderFeedback() {
   if (!results) { const p = document.createElement('p'); p.className = 'muted'; p.textContent = 'Conclua um treino para comparar cada ataque e término, notas omitidas e extras.'; $('feedback').append(p); return; }
   renderTimeline($('timeline'), buildTimelineData(results, { session: reference }));
   const summary = summarizeFeedback(results);
-  const heading = document.createElement('p'); heading.className = 'timing-counts'; heading.textContent = `Ataques: ${summary.attackOk}/${summary.expected} · términos: ${summary.endOk}/${summary.expected} · alturas: ${summary.pitchOk}/${summary.expected} · ${summary.mode === 'free' ? 'execução livre' : summary.mode === 'style' ? 'estilo expressivo' : 'avaliação estrita'} · referência ${reference.bpm} BPM, ${reference.meter.beats}/${reference.meter.unit}.`;
+  const heading = document.createElement('p');
+  heading.className = 'timing-counts';
+  const counts = summary.mode === 'free'
+    ? `${summary.free} ataque(s) observado(s) · execução livre, sem acertos ou erros`
+    : `Ataques: ${summary.attackOk}/${summary.expected} · términos: ${summary.endOk}/${summary.expected}${summary.pitchChecked > 0 ? ` · alturas: ${summary.pitchOk}/${summary.pitchChecked}` : ' · alturas não avaliadas'} · ${summary.mode === 'style' ? 'estilo expressivo' : 'avaliação estrita'}`;
+  heading.textContent = `${counts} · referência ${reference.bpm} BPM, ${reference.meter.beats}/${reference.meter.unit}.`;
   $('feedback').append(heading);
-  const tolerance = document.createElement('p'); tolerance.className = 'tool-hint muted'; tolerance.textContent = `Tolerância: ±${Math.round(results.toleranceMs)} ms. Negativo = antes; positivo = depois. Feedback baseado na sessão executada, mesmo após editar o arranjo.`; $('feedback').append(tolerance);
+  const tolerance = document.createElement('p'); tolerance.className = 'tool-hint muted';
+  tolerance.textContent = summary.mode === 'free'
+    ? 'Os desvios indicam distância à subdivisão mais próxima, não erros de interpretação. Valores negativos = antes; positivos = depois.'
+    : `Tolerância: ±${Math.round(results.toleranceMs)} ms. Negativo = antes; positivo = depois. Feedback baseado na sessão executada, mesmo após editar o arranjo.`;
+  $('feedback').append(tolerance);
   for (const text of summary.advice) { const p = document.createElement('p'); p.textContent = text; $('feedback').append(p); }
   const scroll = document.createElement('div'); scroll.className = 'table-scroll'; const table = document.createElement('table');
   const head = document.createElement('thead'); const tr = document.createElement('tr');
@@ -631,6 +653,13 @@ function renderFeedback() {
     for (const type of ['onset', 'end']) {
       const cell = document.createElement('td');
       if (row.kind === 'matched') { const ms = Math.round(type === 'onset' ? row.onsetMs : row.endMs); cell.textContent = `${ms > 0 ? '+' : ''}${ms} ms`; cell.className = Math.abs(ms) <= results.toleranceMs ? 'ok' : 'error-timing'; }
+      else if (row.kind === 'free') {
+        const ms = Math.round(row.onsetMs);
+        cell.textContent = type === 'onset'
+          ? `${row.actualStart.toFixed(3)} s · ${ms > 0 ? '+' : ''}${ms} ms da grade`
+          : `${Math.round((row.actualEnd - row.actualStart) * 1000)} ms sustentados`;
+        cell.className = 'free-observation';
+      }
       else { cell.textContent = row.kind === 'missed' ? 'Omitida' : type === 'onset' ? 'Ataque extra' : `${Math.round((row.actualEnd - row.actualStart) * 1000)} ms`; cell.className = row.kind === 'missed' ? 'missing' : 'extra'; }
       line.append(cell);
     }
@@ -643,6 +672,10 @@ function frame() {
   if (position.mode !== lastMode) { lastMode = position.mode; renderControls(); }
   const repertoireBusy = repertoire.isBusy();
   if (repertoireBusy !== lastRepertoireBusy) { lastRepertoireBusy = repertoireBusy; renderControls(); }
+  // host.stop() may refresh controls during the idle gap between worker
+  // processing and media playback while the cached busy state stays true.
+  const stopDisabled = !busy() && !repertoireBusy;
+  if ($('stop').disabled !== stopDisabled) $('stop').disabled = stopDisabled;
   $('playhead').hidden = position.mode === 'idle' || position.mode === 'countin';
   $('playhead').style.left = `${Math.max(0, Math.min(totalTicks(session), position.tick ?? 0)) / totalTicks(session) * 100}%`;
   if ($('studio-editor').open && ['loop', 'train'].includes(position.mode)) {

@@ -91,7 +91,9 @@ function validReference(raw) {
     bpm: raw.tempo.bpm,
     offset: Number.isFinite(raw.tempo.offset) ? raw.tempo.offset : 0,
     beatsPerBar: Number.isInteger(raw.tempo.beatsPerBar) ? raw.tempo.beatsPerBar : 4,
-    source: 'manual',
+    beatUnit: [2, 4, 8, 16].includes(raw.tempo.beatUnit) ? raw.tempo.beatUnit : 4,
+    meterSource: ['studio', 'manual', 'default'].includes(raw.tempo.meterSource) ? raw.tempo.meterSource : 'manual',
+    source: ['analysis', 'manual', 'tap'].includes(raw.tempo.source) ? raw.tempo.source : 'manual',
   } : null;
   return {
     ok: true,

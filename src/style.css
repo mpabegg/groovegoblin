@@ -35,7 +35,7 @@ p { font-size: 14px; line-height: 1.6; margin: 4px 0 9px; }.muted { color: var(-
 @media(max-width: 740px) { .inspiration-tools { grid-template-columns: 1fr; } }
 .score-heading { display: flex; align-items: center; gap: 16px; margin-top: 20px; color: var(--accent); font-size: 12px; }
 .score-heading span { color: var(--muted); font-size: 10px; }
-.rhythm-score { margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; background: #111b20; color: var(--text); }
+.rhythm-score { margin-top: 8px; min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: #111b20; color: var(--text); }
 .rhythm-score svg { display: block; }
 .rhythm-note ellipse[fill="none"] { fill: #111b20; }
 .notice { margin-top: 18px; border: 1px solid var(--blue); border-radius: 8px; padding: 16px; }

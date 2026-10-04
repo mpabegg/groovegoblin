@@ -17,7 +17,7 @@ import {
   ITEM_SOURCES, MARKER_KINDS, SECTION_PRESETS, createItem, normalizeItem, createId, formatTime, parseTime,
   normalizeRegion, createMarker, upsertMarker, removeMarker, sectionList, createExercise, exerciseSchedule,
   recordPractice, regionNotesToSessionPatch, createSetlist, addSetlistEntry, moveSetlistEntry, removeSetlistEntry,
-  pruneSetlist, compareOnsets, tapTempo, beatGrid, itemLabel, DEFAULT_PROCESSING,
+  pruneSetlist, compareOnsets, tapTempo, beatGrid, analysisTempo, itemLabel, DEFAULT_PROCESSING,
 } from './repertoire.js';
 import { openRepertoireStore, describeStorageError, formatBytes } from './repertoire-store.js';
 import { createJobRunner, JobCancelledError } from './repertoire-jobs.js';
@@ -60,6 +60,13 @@ const EMPTY_TEXT = {
 };
 let mountCount = 0;
 
+// append/replaceChildren transformam valores omitidos em texto sem este filtro.
+function domChildren(children) {
+  return children.flat(Infinity)
+    .filter(child => child !== null && child !== undefined && typeof child !== 'boolean')
+    .map(child => (typeof child === 'string' || typeof child === 'number' ? String(child) : child));
+}
+
 function h(tag, props = {}, ...children) {
   const element = document.createElement(tag);
   let value;
@@ -74,9 +81,7 @@ function h(tag, props = {}, ...children) {
     else if (key === 'list' || key === 'for' || !(key in element)) element.setAttribute(key, val === true ? '' : String(val));
     else element[key] = val;
   }
-  element.append(...children.flat(Infinity)
-    .filter(child => child !== null && child !== undefined && child !== false)
-    .map(child => (typeof child === 'string' || typeof child === 'number' ? String(child) : child)));
+  element.append(...domChildren(children));
   if (value !== undefined) element.value = value;
   return element;
 }
@@ -374,16 +379,13 @@ export function mountRepertoire(container, host) {
     return module.validateSession(session);
   }
 
-  // Mescla um patch na sessão atual; se o número de compassos for recusado,
-  // tenta o próximo tamanho comum antes de desistir com o erro do validador.
+  // A validação canônica é definitiva; aumentar a frase não corrige
+  // compasso, progressão ou notas inválidas.
   async function applySessionPatch(patch, warnings = []) {
     const base = host.getSession();
-    const attempt = bars => ({ ...base, ...patch, bars, loop: { ...(base.loop ?? {}), startBar: 0, endBar: bars } });
-    let result = await validated(attempt(patch.bars));
-    for (const bars of [1, 2, 4, 8, 16, 32, 64]) {
-      if (result.ok) break;
-      if (bars > patch.bars) result = await validated(attempt(bars));
-    }
+    const session = { ...base, ...patch, name: String(patch.name ?? base.name).slice(0, 80),
+      loop: { ...(base.loop ?? {}), startBar: 0, endBar: patch.bars } };
+    const result = await validated(session);
     if (!result.ok) throw new Error(`A sessão resultante foi recusada: ${result.error}`);
     host.replaceSession(result.session);
     const message = `Sessão do estúdio atualizada (${result.session.notes.length} notas, ${result.session.bars} compasso(s), ${result.session.bpm} BPM).${warnings.length ? ` Avisos: ${warnings.join(' ')}` : ''}`;
@@ -613,7 +615,8 @@ export function mountRepertoire(container, host) {
     state.view = { start: 0, end: item?.duration ?? 1 };
     renderAll();
     if (!item) return;
-    const results = await Promise.allSettled([loadBuffer(item), loadAnalysis(item)]);
+    const metadataOnly = item.source === 'attempt' && !item.media;
+    const results = await Promise.allSettled([metadataOnly ? Promise.resolve(null) : loadBuffer(item), loadAnalysis(item)]);
     if (state.selectedId !== id || destroyed) return;
     if (results[0].status === 'rejected') reportError(results[0].reason);
     renderAll();
@@ -777,14 +780,15 @@ export function mountRepertoire(container, host) {
       return;
     }
     setValue(titleInput, item.name);
-    const details = [ITEM_SOURCES[item.source], formatTime(item.duration)];
+    playButton.disabled = !item.media;
+    const details = [item.source === 'attempt' && !item.media ? 'Tentativa de teclado/toque (sem áudio)' : ITEM_SOURCES[item.source], formatTime(item.duration)];
     if (item.sampleRate) details.push(`${(item.sampleRate / 1000).toLocaleString('pt-BR')} kHz`);
     if (item.channels) details.push(item.channels === 1 ? 'mono' : `${item.channels} canais`);
     if (item.media?.size) details.push(formatBytes(item.media.size));
     metaLine.textContent = details.join(' · ');
     const extras = [];
     if (item.source === 'attempt') {
-      extras.push(h('p', { class: 'rep-hint', text: `Tentativa real de teclado/toque: ${item.attempts?.length ?? 0} ataque(s) registrados no estúdio${item.session ? `, sessão a ${item.session.bpm} BPM` : ''}. O áudio é um render do arranjo com as tentativas, não uma gravação de microfone.` }));
+      extras.push(h('p', { class: 'rep-hint', text: `Tentativa real de teclado/toque: ${item.attempts?.length ?? 0} ataque(s) registrados no estúdio${item.session ? `, sessão a ${item.session.bpm} BPM` : ''}. ${item.media ? 'O áudio é um render do arranjo com as tentativas, não uma gravação de microfone.' : 'Somente metadados: nenhum áudio foi renderizado.'}` }));
     }
     if (item.session) {
       extras.push(h('button', { type: 'button', onclick: async () => {
@@ -802,7 +806,7 @@ export function mountRepertoire(container, host) {
       const parent = state.items.find(entry => entry.id === item.parentId);
       if (parent) extras.push(h('p', { class: 'rep-hint', text: `Derivado de “${parent.name}”.` }));
     }
-    extraBox.replaceChildren(...extras);
+    extraBox.replaceChildren(...domChildren(extras));
     loopInput.checked = item.loop;
     setValue(aInput, item.region ? formatTime(item.region.start) : '');
     setValue(bInput, item.region ? formatTime(item.region.end) : '');
@@ -851,7 +855,7 @@ export function mountRepertoire(container, host) {
       chords: state.show.chords ? item?.chords ?? [] : [],
       notes: state.show.notes ? analysis?.notes ?? [] : [],
       minConfidence: state.minNoteConfidence,
-      placeholder: !item ? 'Importe ou selecione um áudio na biblioteca.' : state.missingMedia.has(item.id) || !item.media ? 'Mídia ausente: vincule o arquivo original.' : 'Carregando áudio…',
+      placeholder: !item ? 'Importe ou selecione um áudio na biblioteca.' : item.source === 'attempt' && !item.media ? 'Tentativa sem áudio: use “Renderizar de novo”.' : state.missingMedia.has(item.id) || !item.media ? 'Mídia ausente: vincule o arquivo original.' : 'Carregando áudio…',
     });
     canvas.setAttribute('aria-valuemax', String(Math.round((item?.duration ?? 0) * 10) / 10));
     canvas.setAttribute('aria-valuenow', String(Math.round(state.cursor * 10) / 10));
@@ -1219,7 +1223,7 @@ export function mountRepertoire(container, host) {
     });
     tabPanel.setAttribute('aria-labelledby', uid(`tab-${state.tab}`));
     const builders = { markers: markersTab, analysis: analysisTab, takes: takesTab, exercises: exercisesTab, setlists: setlistsTab, share: shareTab };
-    tabPanel.replaceChildren(...[builders[state.tab]()].flat());
+    tabPanel.replaceChildren(...domChildren([builders[state.tab]()]));
     refreshBusy();
   }
 
@@ -1333,7 +1337,7 @@ export function mountRepertoire(container, host) {
     if (span.end - span.start > MAX_DURATION_SECONDS) throw new RangeError(`A análise aceita até ${MAX_DURATION_SECONDS / 60} min por vez; selecione um trecho.`);
     showJob(`${label}: preparando sinal mono a ${ANALYSIS_SAMPLE_RATE} Hz`, 0);
     const { mono, sampleRate } = await analysisSignal(buffer, span);
-    const result = await runJob('analyze', { mono, sampleRate, offset: 0, sensitivity: 0.5, stages }, { transfer: [mono.buffer], label: `${label} “${item.name}”` });
+    const result = await runJob('analyze', { mono, sampleRate, duration: span.end - span.start, offset: 0, sensitivity: 0.5, stages }, { transfer: [mono.buffer], label: `${label} “${item.name}”` });
     return shiftAnalysis(result, span.start, span);
   }
 
@@ -1347,7 +1351,7 @@ export function mountRepertoire(container, host) {
       const chords = [...keepEdited, ...(analysis.chords ?? []).map(chord => ({ ...chord, edited: false }))].sort((a, b) => a.start - b.start);
       const best = analysis.tempo?.[0];
       const tempo = best && (!item.tempo || item.tempo.source === 'analysis')
-        ? { bpm: best.bpm, offset: best.offset, beatsPerBar: item.tempo?.beatsPerBar ?? host.getSession()?.meter?.beats ?? 4, source: 'analysis' }
+        ? analysisTempo(best, item.tempo, host.getSession()?.meter)
         : item.tempo;
       updateItem({ chords, tempo });
       setStatus(`Análise concluída: ${analysis.onsets?.length ?? 0} ataques, ${analysis.tempo?.length ?? 0} candidatos de andamento, ${analysis.notes?.length ?? 0} notas e ${analysis.chords?.length ?? 0} segmentos de acorde estimados.`);
@@ -1362,8 +1366,9 @@ export function mountRepertoire(container, host) {
   function setTempo(patch) {
     const item = current();
     if (!item) return;
-    const base = item.tempo ?? { bpm: 120, offset: 0, beatsPerBar: 4, source: 'manual' };
-    updateItem({ tempo: { ...base, source: 'manual', ...patch } });
+    const base = item.tempo ?? { bpm: 120, offset: 0, beatsPerBar: 4, beatUnit: 4, source: 'manual', meterSource: 'default' };
+    const meterOnly = Object.hasOwn(patch, 'beatsPerBar') || Object.hasOwn(patch, 'beatUnit');
+    updateItem({ tempo: { ...base, ...(meterOnly ? { meterSource: 'manual' } : { source: 'manual' }), ...patch } });
     renderTabs();
   }
 
@@ -1373,7 +1378,7 @@ export function mountRepertoire(container, host) {
     if (!analysis?.envelope || !item.tempo) return;
     try {
       const envelope = analysis.envelope.slice();
-      const { beats } = await runJob('beats', { envelope, envelopeRate: analysis.envelopeRate, bpm: item.tempo.bpm }, { transfer: [envelope.buffer], label: 'Pulsos' });
+      const { beats } = await runJob('beats', { envelope, envelopeRate: analysis.envelopeRate, bpm: item.tempo.bpm, duration: analysis.duration }, { transfer: [envelope.buffer], label: 'Pulsos' });
       await saveAnalysis(item.id, { ...analysis, beats: beats.map(time => time + analysis.offset) });
       state.show.beats = true;
       setStatus(`${beats.length} pulsos rastreados a partir de ${item.tempo.bpm} BPM.`);
@@ -1388,7 +1393,7 @@ export function mountRepertoire(container, host) {
     const item = current();
     const analysis = item && analyses.get(item.id);
     if (!analysis?.envelope) return;
-    const onsets = pickOnsets(analysis.envelope, analysis.envelopeRate, { sensitivity }).map(onset => ({ ...onset, time: onset.time + analysis.offset }));
+    const onsets = pickOnsets(analysis.envelope, analysis.envelopeRate, { sensitivity, duration: analysis.duration }).map(onset => ({ ...onset, time: onset.time + analysis.offset }));
     analyses.set(item.id, { ...analysis, onsets, sensitivity });
     draw();
     return onsets.length;
@@ -1454,7 +1459,7 @@ export function mountRepertoire(container, host) {
           const relation = index > 0 ? relationTo(candidate.bpm, analysis.tempo[0].bpm) : '';
           return h('label', { class: 'toggle' },
             h('input', { type: 'radio', name: uid('tempo'), checked: tempo && Math.abs(tempo.bpm - candidate.bpm) < 0.05, onchange: () => {
-              updateItem({ tempo: { bpm: candidate.bpm, offset: candidate.offset, beatsPerBar: tempo?.beatsPerBar ?? 4, source: 'analysis' } });
+              updateItem({ tempo: analysisTempo(candidate, tempo, host.getSession()?.meter) });
               renderTabs();
             } }),
             `${candidate.bpm.toLocaleString('pt-BR')} BPM — confiança ${pct(candidate.confidence)}${relation}`);
@@ -1463,10 +1468,12 @@ export function mountRepertoire(container, host) {
         field('BPM', h('input', { type: 'number', min: 20, max: 400, step: 0.1, value: tempo?.bpm ?? '', onchange: event => { const bpm = Number(event.target.value); if (bpm >= 20 && bpm <= 400) setTempo({ bpm }); } })),
         field('Primeiro tempo forte (s)', h('input', { type: 'number', step: 0.01, value: tempo ? Math.round(tempo.offset * 1000) / 1000 : '', onchange: event => setTempo({ offset: Number(event.target.value) || 0 }) })),
         field('Tempos por compasso', h('input', { type: 'number', min: 1, max: 16, step: 1, value: tempo?.beatsPerBar ?? 4, onchange: event => { const beats = Math.round(Number(event.target.value)); if (beats >= 1 && beats <= 16) setTempo({ beatsPerBar: beats }); } })),
+        field('Unidade do compasso', h('select', { value: tempo?.beatUnit ?? 4, onchange: event => setTempo({ beatUnit: Number(event.target.value) }) },
+          [2, 4, 8, 16].map(unit => h('option', { value: unit, text: `/${unit}` })))),
         h('button', { type: 'button', onclick: () => setTempo({ offset: state.cursor }), text: 'Tempo forte = cursor' }),
         tapButton,
         h('button', { type: 'button', 'data-job': 'true', disabled: !analysis?.envelope || !tempo, onclick: retrackBeats, text: 'Reacompanhar pulsos com este BPM' })),
-      tempo ? h('p', { class: 'rep-hint', text: `Grade atual: ${tempo.bpm.toLocaleString('pt-BR')} BPM, ${tempo.beatsPerBar} tempos por compasso (${{ analysis: 'da análise', manual: 'manual', tap: 'por toque' }[tempo.source]}).` }) : null));
+      tempo ? h('p', { class: 'rep-hint', text: `Grade atual: ${tempo.bpm.toLocaleString('pt-BR')} BPM (${{ analysis: 'estimado pela análise', manual: 'manual', tap: 'por toque' }[tempo.source]}), compasso ${tempo.beatsPerBar}/${tempo.beatUnit ?? 4} (${{ studio: 'herdado do estúdio', manual: 'escolhido manualmente', default: 'padrão' }[tempo.meterSource] ?? 'escolhido manualmente'}). A análise não detecta fórmula de compasso; BPM conta semínimas por minuto.` }) : null));
 
     if (analysis) {
       const range = analysis.range ? `${formatTime(analysis.range.start)}–${formatTime(analysis.range.end)}` : 'item inteiro';
@@ -1515,7 +1522,7 @@ export function mountRepertoire(container, host) {
   function setTempoQuietly(patch) {
     const item = current();
     if (!item) return;
-    const base = item.tempo ?? { bpm: 120, offset: state.cursor, beatsPerBar: 4 };
+    const base = item.tempo ?? { bpm: 120, offset: state.cursor, beatsPerBar: 4, beatUnit: 4, meterSource: 'default' };
     updateItem({ tempo: { ...base, ...patch } });
     draw();
   }
@@ -1555,7 +1562,7 @@ export function mountRepertoire(container, host) {
   async function sendRegionToStudio(item, analysis) {
     try {
       const { patch, warnings } = regionNotesToSessionPatch(analysis.notes, {
-        start: item.region.start, end: item.region.end, bpm: item.tempo.bpm, beatOffset: item.tempo.offset, beatsPerBar: item.tempo.beatsPerBar,
+        start: item.region.start, end: item.region.end, bpm: item.tempo.bpm, beatOffset: item.tempo.offset, beatsPerBar: item.tempo.beatsPerBar, beatUnit: item.tempo.beatUnit, subdivision: host.getSession().subdivision,
         minConfidence: state.minNoteConfidence, semitones: item.processing.semitones, idPrefix: `rep-${Date.now().toString(36)}`,
       });
       await applySessionPatch({ ...patch, name: `${item.name} ${formatTime(item.region.start)}` }, warnings);
@@ -1625,7 +1632,7 @@ export function mountRepertoire(container, host) {
       item = await storeRendered({ kind: 'take', source: 'attempt', name, channels: channelsOf(rendered), sampleRate: rendered.sampleRate, extra: { attempts: clean, session, summary } });
     } catch (error) {
       const lastEnd = clean.reduce((max, attempt) => Math.max(max, attempt.end ?? attempt.start), 0);
-      item = createItem({ kind: 'take', source: 'attempt', name, duration: Math.max(1, lastEnd), attempts: clean, session, summary, renderError: error?.message || 'falha ao renderizar' });
+      item = createItem({ kind: 'take', source: 'attempt', name, duration: Math.max(0, lastEnd), loop: false, attempts: clean, session, summary, renderError: error?.message || 'falha ao renderizar' });
       await saveItem(item);
     }
     const message = item.renderError
@@ -1806,7 +1813,7 @@ export function mountRepertoire(container, host) {
     if (!item?.tempo) { setStatus('Defina o andamento do item (aba Análise) para ancorar as notas.', true); return; }
     try {
       const { patch, warnings } = regionNotesToSessionPatch(exercise.notes, {
-        start: exercise.start, end: exercise.end, bpm: item.tempo.bpm, beatOffset: item.tempo.offset, beatsPerBar: item.tempo.beatsPerBar,
+        start: exercise.start, end: exercise.end, bpm: item.tempo.bpm, beatOffset: item.tempo.offset, beatsPerBar: item.tempo.beatsPerBar, beatUnit: item.tempo.beatUnit, subdivision: host.getSession().subdivision,
         minConfidence: state.minNoteConfidence, semitones: exercise.semitones, idPrefix: `ex-${Date.now().toString(36)}`,
       });
       await applySessionPatch({ ...patch, name: exercise.name }, warnings);

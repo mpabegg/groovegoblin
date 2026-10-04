@@ -96,11 +96,11 @@ export function onsetEnvelope(mono, sampleRate, { onProgress } = {}) {
     if (frame % 512 === 0) progress(frame / frameCount);
   }
   progress(1);
-  return { envelope, frameRate: sampleRate / hop };
+  return { envelope, frameRate: sampleRate / hop, duration: mono.length / sampleRate };
 }
 
 // sensitivity 0..1: valores maiores aceitam ataques mais fracos.
-export function pickOnsets(envelope, frameRate, { sensitivity = 0.5, minInterval = 0.05 } = {}) {
+export function pickOnsets(envelope, frameRate, { sensitivity = 0.5, minInterval = 0.05, duration = Infinity } = {}) {
   if (!(envelope instanceof Float32Array) || !(frameRate > 0)) return [];
   const level = Math.min(1, Math.max(0, sensitivity));
   const average = mean(envelope);
@@ -113,7 +113,7 @@ export function pickOnsets(envelope, frameRate, { sensitivity = 0.5, minInterval
   for (let i = 0; i < envelope.length; i++) prefix[i + 1] = prefix[i] + envelope[i];
   const onsets = [];
   let last = -Infinity;
-  for (let i = 0; i < envelope.length; i++) {
+  for (let i = 0; i < envelope.length && i / frameRate < duration; i++) {
     const value = envelope[i];
     const from = Math.max(0, i - localReach);
     const to = Math.min(envelope.length, i + localReach + 1);
@@ -208,7 +208,7 @@ export function beatPhase(envelope, frameRate, bpm) {
   return bestPhase / frameRate;
 }
 
-export function trackBeats(envelope, frameRate, bpm, { tightness = 100 } = {}) {
+export function trackBeats(envelope, frameRate, bpm, { tightness = 100, duration = Infinity } = {}) {
   if (!(envelope instanceof Float32Array) || envelope.length < 4 || !(bpm > 0)) return [];
   const period = 60 * frameRate / bpm;
   if (!(period >= 2)) return [];
@@ -247,7 +247,7 @@ export function trackBeats(envelope, frameRate, bpm, { tightness = 100 } = {}) {
     if (cumulative[t] > bestEnd) { bestEnd = cumulative[t]; end = t; }
   }
   const beats = [];
-  for (let t = end; t >= 0; t = backlink[t]) beats.push(t / frameRate);
+  for (let t = end; t >= 0; t = backlink[t]) if (t / frameRate < duration) beats.push(t / frameRate);
   return beats.reverse();
 }
 
@@ -338,10 +338,10 @@ export function pitchTrack(mono, sampleRate, { minHz = 55, maxHz = 1000, hopSeco
     confidence[frame] = Math.max(0, Math.min(1, 1 - normalized[tau]));
   }
   progress(1);
-  return { f0, confidence, energy, frameRate: sampleRate / hop, offset: windowLength / 2 / sampleRate };
+  return { f0, confidence, energy, frameRate: sampleRate / hop, offset: windowLength / 2 / sampleRate, duration: mono.length / sampleRate };
 }
 
-export function segmentNotes(track, { minConfidence = 0.75, minDuration = 0.07 } = {}) {
+export function segmentNotes(track, { minConfidence = 0.75, minDuration = 0.07, duration = track.duration ?? Infinity } = {}) {
   const { f0, confidence, frameRate, offset = 0 } = track;
   const midi = new Float64Array(f0.length).fill(NaN);
   for (let i = 0; i < f0.length; i++) {
@@ -367,11 +367,14 @@ export function segmentNotes(track, { minConfidence = 0.75, minDuration = 0.07 }
     const median = values[Math.floor(values.length / 2)];
     const rounded = Math.round(median);
     const stable = values.filter(value => Math.abs(value - rounded) <= 0.5).length / values.length;
-    const duration = (end - start) / frameRate;
-    if (duration >= minDuration) {
+    const span = (end - start) / frameRate;
+    const begin = Math.max(0, Math.min(duration, start / frameRate + offset));
+    const finish = Math.max(0, Math.min(duration, end / frameRate + offset));
+    // Filtrar antes de limitar preserva uma terminação curta, mas válida.
+    if (span >= minDuration && finish > begin) {
       notes.push({
-        start: start / frameRate + offset,
-        end: end / frameRate + offset,
+        start: begin,
+        end: finish,
         midi: rounded,
         cents: Math.round((median - rounded) * 100),
         confidence: Math.round(confidenceSum / (end - start) * stable * 1000) / 1000,
@@ -430,7 +433,7 @@ export function chromagram(mono, sampleRate, { minHz = 55, maxHz = 2100, onProgr
     if (frame % 128 === 0) progress(frame / frameCount);
   }
   progress(1);
-  return { frames, energy, frameRate: sampleRate / hop, frameCount };
+  return { frames, energy, frameRate: sampleRate / hop, frameCount, duration: mono.length / sampleRate };
 }
 
 function chordTemplates() {
@@ -449,7 +452,7 @@ function chordTemplates() {
   return templates;
 }
 
-export function chordHypotheses(chroma, { switchPenalty = 3, sharpness = 12, minDuration = 0.35 } = {}) {
+export function chordHypotheses(chroma, { switchPenalty = 3, sharpness = 12, minDuration = 0.35, duration = chroma.duration ?? Infinity } = {}) {
   const { frames, energy, frameRate, frameCount } = chroma;
   if (!frameCount) return [];
   const templates = chordTemplates();
@@ -511,7 +514,7 @@ export function chordHypotheses(chroma, { switchPenalty = 3, sharpness = 12, min
     merged[1].startFrame = merged[0].startFrame;
     merged.shift();
   }
-  return merged.map(segment => {
+  return merged.filter(segment => segment.startFrame / frameRate < duration).map(segment => {
     const averages = new Float64Array(states);
     for (let frame = segment.startFrame; frame < segment.endFrame; frame++) {
       for (let s = 0; s < states; s++) averages[s] += similarity[frame * states + s];
@@ -526,8 +529,8 @@ export function chordHypotheses(chroma, { switchPenalty = 3, sharpness = 12, min
     const chosen = describe(segment.state);
     const chosenIndex = ranked.findIndex(item => item.s === segment.state);
     return {
-      start: segment.startFrame / frameRate,
-      end: segment.endFrame / frameRate,
+      start: Math.max(0, Math.min(duration, segment.startFrame / frameRate)),
+      end: Math.max(0, Math.min(duration, segment.endFrame / frameRate)),
       ...chosen,
       confidence: Math.round(exps[chosenIndex] / total * 1000) / 1000,
       alternatives: ranked.slice(0, 4).map((item, index) => ({ ...describe(item.s), probability: Math.round(exps[index] / total * 1000) / 1000 })),
@@ -565,8 +568,11 @@ export function estimateKey(chroma, { count = 3 } = {}) {
 }
 
 // Análise completa. `stages` limita o trabalho (ex.: só 'rhythm' para comparar takes).
-export function analyzeAudio(input, sampleRate, { offset = 0, sensitivity = 0.5, stages = ['rhythm', 'pitch', 'harmony'], onProgress } = {}) {
+export function analyzeAudio(input, sampleRate, { offset = 0, duration = input.length / sampleRate, sensitivity = 0.5, stages = ['rhythm', 'pitch', 'harmony'], onProgress } = {}) {
   assertMono(input, sampleRate);
+  if (!Number.isFinite(duration) || duration <= 0 || duration > input.length / sampleRate + 1 / sampleRate) {
+    throw new RangeError('A duração analisada deve estar dentro do sinal de origem.');
+  }
   const progress = reporter(onProgress);
   let mono = input;
   let rate = sampleRate;
@@ -575,7 +581,6 @@ export function analyzeAudio(input, sampleRate, { offset = 0, sensitivity = 0.5,
     [mono] = resample([input], sampleRate / ANALYSIS_SAMPLE_RATE, { onProgress: value => progress({ stage: 'Reamostrando', fraction: value * 0.1 }) });
     rate = sampleRate / (sampleRate / ANALYSIS_SAMPLE_RATE);
   }
-  const duration = mono.length / rate;
   if (duration < 1) warnings.push('Trecho com menos de 1 s: as estimativas de andamento e acordes são pouco confiáveis.');
   const result = { version: ANALYSIS_VERSION, offset, duration, sampleRate: rate, sensitivity, warnings };
   const span = (from, to, stage) => value => progress({ stage, fraction: from + (to - from) * value });
@@ -584,21 +589,21 @@ export function analyzeAudio(input, sampleRate, { offset = 0, sensitivity = 0.5,
     const { envelope, frameRate } = onsetEnvelope(mono, rate, { onProgress: span(0.1, 0.25, 'Ataques') });
     result.envelope = envelope;
     result.envelopeRate = frameRate;
-    result.onsets = pickOnsets(envelope, frameRate, { sensitivity });
+    result.onsets = pickOnsets(envelope, frameRate, { sensitivity, duration });
     progress({ stage: 'Andamento', fraction: 0.27 });
     result.tempo = tempoCandidates(envelope, frameRate);
     progress({ stage: 'Pulsos', fraction: 0.3 });
-    result.beats = result.tempo.length ? trackBeats(envelope, frameRate, result.tempo[0].bpm) : [];
+    result.beats = result.tempo.length ? trackBeats(envelope, frameRate, result.tempo[0].bpm, { duration }) : [];
     if (!result.tempo.length) warnings.push('Nenhuma periodicidade clara de ataques foi encontrada.');
   }
   if (stages.includes('pitch')) {
     const track = pitchTrack(mono, rate, { onProgress: span(0.32, 0.72, 'Altura') });
     result.pitch = { frameRate: track.frameRate, offset: track.offset, f0: track.f0, confidence: track.confidence };
-    result.notes = segmentNotes(track, { minConfidence: 0.6 });
+    result.notes = segmentNotes(track, { minConfidence: 0.6, duration });
   }
   if (stages.includes('harmony')) {
     const chroma = chromagram(mono, rate, { onProgress: span(0.72, 0.95, 'Acordes') });
-    result.chords = chordHypotheses(chroma);
+    result.chords = chordHypotheses(chroma, { duration });
     result.key = estimateKey(chroma);
   }
   progress({ stage: 'Concluído', fraction: 1 });

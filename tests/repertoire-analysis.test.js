@@ -145,3 +145,60 @@ test('analysis: analyzeAudio reamostra entradas de 44,1 kHz e informa progresso 
   const short = analyzeAudio(noise(RATE / 2), RATE, { stages: ['rhythm'] });
   assert.ok(short.warnings.some(warning => /menos de 1 s/.test(warning)));
 });
+
+test('analysis: coordenadas limitadas à duração de origem, sem segmentos vazios', () => {
+  const signal = tones([{ seconds: 4, midis: [60, 64, 67] }]);
+  const result = analyzeAudio(signal, RATE);
+  assert.equal(result.duration, signal.length / RATE);
+  assert.ok(result.chords.length > 0);
+  assert.equal(result.chords.at(-1).end, result.duration);
+  for (const segment of [...result.chords, ...result.notes]) {
+    assert.ok(segment.start >= 0 && segment.end <= result.duration);
+    assert.ok(segment.end > segment.start);
+  }
+  assert.ok(result.onsets.every(onset => onset.time >= 0 && onset.time < result.duration));
+  assert.ok(result.beats.every(time => time >= 0 && time < result.duration));
+  assert.equal(new Set(result.beats).size, result.beats.length);
+});
+
+test('analysis: terminação curta continua válida depois de limitar as bordas', () => {
+  const f0 = new Float32Array(10);
+  const confidence = new Float32Array(10);
+  f0[9] = 440;
+  confidence[9] = 1;
+  const track = { f0, confidence, frameRate: 10, offset: 0, duration: 0.91 };
+  const notes = segmentNotes(track);
+  assert.equal(notes.length, 1);
+  assert.equal(notes[0].start, 0.9);
+  assert.equal(notes[0].end, 0.91);
+  assert.deepEqual(segmentNotes({ ...track, duration: 0.9 }), []);
+  const chroma = chromagram(tones([{ seconds: 0.03, midis: [60, 64, 67] }]), RATE);
+  const chords = chordHypotheses(chroma);
+  assert.equal(chords.length, 1);
+  assert.equal(chords[0].end, chroma.duration);
+  assert.ok(chords[0].end > chords[0].start);
+  assert.deepEqual(chordHypotheses(chroma, { duration: 0 }), []);
+});
+
+test('analysis: recalcular ataques e pulsos respeita o intervalo de origem', () => {
+  const envelope = new Float32Array(20);
+  for (const frame of [3, 8, 13, 18]) envelope[frame] = 10;
+  const onsets = pickOnsets(envelope, 10, { duration: 1 });
+  assert.ok(onsets.length > 0);
+  assert.ok(onsets.every(onset => onset.time < 1));
+  const beats = trackBeats(envelope, 10, 120, { duration: 1 });
+  assert.ok(beats.length > 0);
+  assert.ok(beats.every(time => time < 1));
+  assert.equal(new Set(beats).size, beats.length);
+});
+
+test('analysis: reamostragem não aumenta a duração do intervalo solicitado', () => {
+  const signal = new Float32Array(10001);
+  const duration = signal.length / 44100;
+  const result = analyzeAudio(signal, 44100);
+  assert.equal(result.duration, duration);
+  assert.ok(result.chords.every(chord => chord.end <= duration && chord.end > chord.start));
+  const selected = analyzeAudio(signal, 44100, { duration: duration - 0.001 });
+  assert.equal(selected.duration, duration - 0.001);
+  assert.ok(selected.chords.every(chord => chord.end <= selected.duration));
+});
