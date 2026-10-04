@@ -19,11 +19,17 @@ export async function createAssetManifest(root) {
   await walk('assets');
   files.sort();
   const hash = createHash('sha256');
+  const integrity = {};
   let bytes = 0;
   for (const file of files) {
     const content = await readFile(join(root, file));
     hash.update(file).update('\0').update(content).update('\0');
-    bytes += content.length;
+    if (file !== 'sw.js') {
+      integrity[file] = `sha256-${createHash('sha256').update(content).digest('base64')}`;
+      bytes += content.length;
+    }
   }
-  return { version: hash.digest('hex').slice(0, 24), files, bytes };
+  // The worker embeds the revision at build/serve time and is updated through
+  // the browser's worker lifecycle, never through the application cache.
+  return { version: hash.digest('hex').slice(0, 24), files: files.filter(file => file !== 'sw.js'), integrity, bytes };
 }

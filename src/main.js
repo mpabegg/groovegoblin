@@ -20,6 +20,7 @@ const $ = id => document.getElementById(id);
 const restored = loadSession();
 let session = withStudioChoices(restored.session);
 let recoveryRaw = restored.recoveryRaw;
+let sessionSaved = false;
 let selected = null;
 let drag = null;
 let activeInput = null;
@@ -57,8 +58,9 @@ function message(text, error = false) {
 }
 function busy() { return pending !== null || audio.position.mode !== 'idle'; }
 function persist() {
+  sessionSaved = recoveryRaw === null && saveSession(session);
   $('saved').textContent = recoveryRaw !== null ? 'Só na memória · originais protegidos'
-    : saveSession(session) ? 'Sessão salva neste navegador' : 'Só na memória · exporte para guardar';
+    : sessionSaved ? 'Sessão salva neste navegador' : 'Só na memória · exporte para guardar';
 }
 function withStudioChoices(value) {
   const studio = value.extensions?.studio ?? {};
@@ -236,7 +238,7 @@ function renderControls() {
   $('undo').disabled = locked || !history.canUndo;
   $('redo').disabled = locked || !history.canRedo;
   $('clear').disabled = locked || session.notes.length === 0;
-  for (const id of ['generate', 'variation', 'load-groove', 'generate-drums', 'generate-progression', 'add-chord', 'save-session', 'restore-session', 'delete-session', 'replace-recovery', 'apply-share']) $(id).disabled = locked;
+  for (const id of ['generate', 'variation', 'load-groove', 'generate-drums', 'generate-progression', 'add-chord', 'save-session', 'restore-session', 'delete-session', 'replace-recovery', 'replace-library-recovery', 'apply-share']) $(id).disabled = locked;
   $('load-groove').disabled ||= !$('groove-library').value;
   $('restore-session').disabled ||= !$('session-library').value;
   $('delete-session').disabled ||= !$('session-library').value;
@@ -602,6 +604,7 @@ $('restore-session').addEventListener('click', () => { const item = library.entr
 $('delete-session').addEventListener('click', () => writeLibrary(library.entries.filter(entry => entry.id !== $('session-library').value)));
 $('download-library-recovery').addEventListener('click', () => { if (library.recoveryRaw !== null) download(library.recoveryRaw, 'groovegoblin-biblioteca-original.json'); });
 $('replace-library-recovery').addEventListener('click', () => {
+  if (busy()) return;
   const original = library.recoveryRaw; library.recoveryRaw = null;
   if (!writeLibrary([{ id: crypto.randomUUID(), savedAt: new Date().toISOString(), session: structuredClone(session) }])) library.recoveryRaw = original;
   renderLibrary();
@@ -664,7 +667,7 @@ repertoire = mountRepertoire($('repertoire-mount'), host);
 practice = mountPractice($('practice-mount'), host);
 playground = mountPlayground($('playground-mount'), host);
 journey = mountJourney($('journey-mount'), host);
-setupOffline({ isBusy: () => busy() || repertoire.isBusy(), notify: message });
+setupOffline({ isBusy: () => busy() || repertoire.isBusy(), canReload: () => sessionSaved, notify: message });
 history.push(session); audio.setMixer(session.mixer); renderLibrary(); renderAll();
 $('recovery').hidden = recoveryRaw === null; persist();
 if (restored.warnings?.length) message(restored.warnings.join(' '), true);

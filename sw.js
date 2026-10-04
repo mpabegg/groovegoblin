@@ -9,15 +9,17 @@ self.addEventListener('install', event => {
     if (!response.ok) throw new Error('Não foi possível obter a lista de recursos offline.');
     const manifest = await response.json();
     if (manifest.version !== REVISION || !Array.isArray(manifest.files)) throw new Error('A versão mudou durante a instalação. Tente novamente.');
-    const urls = manifest.files.map(file => {
+    const requests = manifest.files.map(file => {
       const url = new URL(file, self.registration.scope);
       if (!url.href.startsWith(self.registration.scope) || url.origin !== self.location.origin) throw new Error('Recurso offline fora da aplicação.');
-      return url.href;
+      const integrity = manifest.integrity?.[file];
+      if (typeof integrity !== 'string' || !/^sha256-[A-Za-z0-9+/]{43}=$/.test(integrity)) throw new Error('Recurso offline sem integridade verificável.');
+      return new Request(url, { cache: 'reload', integrity });
     });
     const cache = await caches.open(CACHE);
     try {
-      // addAll is atomic: an interrupted download never replaces a working version.
-      await cache.addAll(urls.map(url => new Request(url, { cache: 'reload' })));
+      // SRI rejects assets changed by a concurrent deployment; addAll is atomic.
+      await cache.addAll(requests);
     } catch (error) {
       await caches.delete(CACHE);
       throw error;
