@@ -12,6 +12,8 @@ O botão **Como usar**, no topo, abre um tour animado de 10 passos pelos control
 - **Repertório**: importe arquivos de áudio e trabalhe trechos, marcadores, análises estimadas, takes, exercícios, setlists e intercâmbio por arquivos.
 - **Percurso**: histórico local, progresso por objetivo e agenda de revisões espaçadas.
 
+Para começar, escolha um objetivo em **Praticar**, ajuste o **Andamento do exercício** e siga a ação destacada: ouvir, tocar e conferir o resultado. Configuração da rotina, variações e jogos de ouvido ficam sob demanda. O editor e o transporte da frase do estúdio aparecem apenas em Praticar e Banda; **Parar som** continua acessível durante a reprodução em qualquer aba. Explorar apresenta uma atividade por vez; Repertório começa pela escolha de um arquivo. Os painéis abertos e os campos em edição são preservados durante as atualizações da interface.
+
 As sessões têm 1–16 compassos, de 1–16 tempos com unidade 2, 4, 8 ou 16, e andamento de 30–300 BPM em semínimas. A frase usa coordenadas em ticks (4 ticks por semínima), admite 1–8 divisões por semínima, swing e atributos expressivos; a pauta rítmica representa durações e pausas, não altura. O histórico de desfazer/refazer cobre a sessão completa. As cinco abas são operadas por teclado ou toque; o estúdio **não** captura microfone, não recebe MIDI ao vivo e não mede velocidade/força física do toque.
 
 Em **Banda**, a forma musical ordena até 32 seções com trechos da frase, repetições e alterações de BPM, compasso e densidade. Introdução, A/B, virada, pausa e final têm comportamentos audíveis; a forma pode repetir ou terminar. Reprodução e renderização de arranjo compartilham o mesmo plano musical. Treino e tomadas de execução usam o loop-fonte no andamento principal, não a forma variável.
@@ -57,4 +59,4 @@ Esses são comandos disponíveis para a verificação local; este README não de
 
 ## Uso offline e atualizações
 
-Em HTTPS ou `localhost`, escolha **Preparar uso offline** enquanto conectado. A aplicação prepara os arquivos publicados para esta origem e pode então abrir sem rede. A opção de atualização só recarrega quando você a aplicar; reprodução, treino e trabalho em andamento adiam a atualização. Se a sessão ainda estiver somente na memória, salve-a ou exporte uma cópia antes de recarregar. Mídias importadas no Repertório não fazem parte do cache offline do app.
+Em HTTPS ou `localhost`, abra **Offline** no topo e escolha **Preparar uso offline** enquanto conectado. A aplicação prepara os arquivos publicados para esta origem e pode então abrir sem rede. A opção de atualização só recarrega quando você a aplicar; reprodução, treino e trabalho em andamento adiam a atualização. Se a sessão ainda estiver somente na memória, salve-a ou exporte uma cópia antes de recarregar. Mídias importadas no Repertório não fazem parte do cache offline do app.

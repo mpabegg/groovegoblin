@@ -160,18 +160,38 @@ export function formatDaysFromNow(dueMs, now = Date.now()) {
   return `em ${Math.round(days)} dia(s)`;
 }
 
-// Keep the focused control when a response grid is regenerated.
+const disclosureStates = new WeakMap();
+
+// Preserve disclosure state and semantic focus, even when the current action changes.
 export function renderKeepingFocus(root, renderContent) {
+  const selector = 'button, input, select, textarea, summary, a[href], [tabindex]';
   const focused = document.activeElement;
-  const controls = Array.from(root.querySelectorAll('button, input, select'));
-  const index = controls.indexOf(focused);
+  const hadFocus = root.contains(focused);
+  const region = hadFocus ? focused.closest('section[aria-labelledby], section[aria-label], [role="region"][aria-label], .practice-ear-game, .playground-passage') : null;
+  const regionLabel = region?.getAttribute('aria-labelledby') ?? region?.getAttribute('aria-label');
+  const key = node => node.id || node.dataset.focusKey
+    || (node.dataset.tick !== undefined ? `tick:${node.dataset.grid}:${node.dataset.tick}` : null)
+    || `${node.tagName}:${node.getAttribute('type') ?? ''}:${node.getAttribute('aria-label') ?? ''}:${node.textContent}`;
+  const focusKey = hadFocus ? key(focused) : null;
+  const matches = hadFocus ? Array.from(root.querySelectorAll(selector)).filter(node => key(node) === focusKey) : [];
+  const occurrence = matches.indexOf(focused);
+  const disclosures = disclosureStates.get(root) ?? new Map();
+  disclosureStates.set(root, disclosures);
+  for (const node of root.querySelectorAll('details[data-disclosure]')) disclosures.set(node.dataset.disclosure, node.open);
   renderContent();
-  if (index < 0) return;
-  const next = Array.from(root.querySelectorAll('button, input, select'));
-  const replacement = focused.dataset.tick !== undefined
-    ? next.find(node => node.dataset.tick === focused.dataset.tick && node.dataset.grid === focused.dataset.grid)
-    : next.find(node => node.getAttribute('aria-label') === focused.getAttribute('aria-label') && node.textContent === focused.textContent);
-  (replacement ?? next[index])?.focus({ preventScroll: true });
+  for (const node of root.querySelectorAll('details[data-disclosure]')) {
+    if (disclosures.has(node.dataset.disclosure)) node.open = disclosures.get(node.dataset.disclosure);
+  }
+  if (!hadFocus) return;
+  const visible = node => !node.disabled && !node.closest('[hidden]')
+    && !Array.from(root.querySelectorAll('details:not([open])')).some(details => details.contains(node) && node !== details.querySelector('summary'));
+  const controls = Array.from(root.querySelectorAll(selector)).filter(visible);
+  const replacement = controls.filter(node => key(node) === focusKey)[occurrence];
+  const nextRegion = regionLabel ? Array.from(root.querySelectorAll('[aria-labelledby], [aria-label]'))
+    .find(node => (node.getAttribute('aria-labelledby') ?? node.getAttribute('aria-label')) === regionLabel) : null;
+  const fallback = nextRegion ? controls.find(node => nextRegion.contains(node) && node.classList.contains('practice-primary'))
+    ?? controls.find(node => nextRegion.contains(node)) : null;
+  (replacement ?? fallback ?? controls.find(node => node.classList.contains('practice-primary')) ?? controls[0])?.focus({ preventScroll: true });
 }
 
 // Grade de ticks acessível: cada célula é um <button> quando interativa.
@@ -1014,6 +1034,8 @@ export function mountPractice(container, host, options = {}) {
   const completedRuns = new WeakMap();
   let pendingStage = null;
   let improvisation = null;
+  let variantDimension = VARIANT_DIMENSIONS[0].id;
+  let earActivity = 'interval';
   const earGames = {
     interval: { question: null, answered: null, seed: 1 },
     chord: { question: null, answered: null, seed: 1 },
@@ -1133,57 +1155,50 @@ export function mountPractice(container, host, options = {}) {
       root.appendChild(warningBox);
     }
     root.appendChild(renderObjectivesSection());
-    root.appendChild(renderRoutineSection());
-    root.appendChild(renderExerciseSection());
-    root.appendChild(renderStagesSection());
-    root.appendChild(renderResultsSection());
-    root.appendChild(renderEarSection());
-    root.appendChild(renderHistorySection());
+    const current = renderExerciseSection();
+    current.classList.add('practice-current');
+    current.appendChild(renderStagesSection());
+    current.appendChild(disclosure('exercise', 'Ajustar exercício', renderExerciseControls()));
+    root.appendChild(current);
+    if (lastRun) root.appendChild(renderResultsSection());
+    root.appendChild(disclosure('routine', 'Configurar rotina', renderRoutineSection()));
+    root.appendChild(disclosure('ear', 'Jogos de ouvido', renderEarSection()));
+    root.appendChild(disclosure('history', 'Histórico e revisões', renderHistorySection()));
+  }
+
+  function disclosure(id, label, content) {
+    return createEl('details', { className: 'practice-disclosure', dataset: { disclosure: id } }, [
+      createEl('summary', { text: label, dataset: { focusKey: `disclosure-${id}` } }),
+      content,
+    ]);
   }
 
   function renderObjectivesSection() {
     const section = createEl('section', { className: 'practice-section', 'aria-labelledby': 'practice-objectives-title' });
     section.appendChild(createEl('h3', { id: 'practice-objectives-title', text: 'Objetivo' }));
-    const list = createEl('div', { className: 'practice-objectives', role: 'group', 'aria-label': 'Objetivo de prática' });
+    const list = createEl('select', { id: 'practice-objective', 'aria-label': 'Objetivo de prática' });
     for (const objective of OBJECTIVES) {
       const skill = state.skills[objective.id] ?? null;
-      const level = levelFromSkill(skill);
-      const isSelected = state.objective === objective.id;
-      const button = createEl('button', {
-        type: 'button',
-        className: `practice-objective${isSelected ? ' practice-objective-selected' : ''}`,
-        'aria-pressed': isSelected ? 'true' : 'false',
-        title: objective.focus,
-      }, [
-        createEl('span', { className: 'practice-objective-name', text: objective.name }),
-        createEl('span', { className: 'practice-objective-level', text: `nível ${level + 1}` }),
-        skill ? createEl('span', { className: 'practice-objective-due', text: `revisão ${formatDaysFromNow(skill.dueAt)}` }) : null,
-      ]);
-      button.addEventListener('click', () => {
-        state.objective = objective.id;
-        save();
-        rebuildExercise({ preserveBpm: true });
-        stageIndex = 0;
-        routineDone = false;
-        rerender();
-      });
-      list.appendChild(button);
+      list.appendChild(createEl('option', {
+        value: objective.id,
+        selected: state.objective === objective.id,
+        text: `${objective.name} · nível ${levelFromSkill(skill) + 1}`,
+      }));
     }
-    section.appendChild(list);
-    const review = createEl('button', { type: 'button', text: 'Revisar próximo objetivo' });
-    review.addEventListener('click', () => {
-      const due = reviewQueue(state.skills).find(entry => entry.due);
-      if (!due) { host.notify('Todas as revisões estão em dia. Escolha um objetivo para praticar.'); return; }
-      state.objective = due.objective.id;
+    list.addEventListener('change', () => {
+      state.objective = list.value;
       save();
-      rebuildExercise();
+      rebuildExercise({ preserveBpm: true });
       stageIndex = 0;
+      listens = 0;
       routineDone = false;
       rerender();
     });
-    section.appendChild(review);
+    section.appendChild(list);
     const focus = OBJECTIVES.find(o => o.id === state.objective);
     section.appendChild(createEl('p', { className: 'practice-focus', role: 'status', text: focus?.focus ?? '' }));
+    const skill = state.skills[state.objective];
+    if (skill) section.appendChild(createEl('p', { className: 'practice-hint', text: `Próxima revisão: ${formatDaysFromNow(skill.dueAt)}.` }));
     return section;
   }
 
@@ -1246,11 +1261,40 @@ export function mountPractice(container, host, options = {}) {
 
   function renderExerciseSection() {
     const section = createEl('section', { className: 'practice-section', 'aria-labelledby': 'practice-exercise-title' });
-    section.appendChild(createEl('h3', { id: 'practice-exercise-title', text: 'Exercício' }));
+    section.appendChild(createEl('h3', { id: 'practice-exercise-title', text: 'Sua frase' }));
     const meta = createEl('p', { className: 'practice-exercise-meta' });
-    meta.appendChild(createEl('span', { text: `${exercise.objectiveName} · ${exercise.bpm} bpm · ${exercise.bars} compasso(s) · ${exercise.notes.length} nota(s)` }));
+    meta.appendChild(createEl('span', { text: `${exercise.objectiveName} · ${exercise.bars} compasso(s) · ${exercise.notes.length} nota(s)` }));
     if (exercise.changed) meta.appendChild(createEl('span', { className: 'practice-changed', text: ` · variação: ${VARIANT_DIMENSIONS.find(d => d.id === exercise.changed)?.name ?? exercise.changed}` }));
     section.appendChild(meta);
+    const tempoInput = createEl('input', {
+      id: 'practice-exercise-bpm',
+      type: 'number',
+      min: '30',
+      max: '300',
+      step: '1',
+      value: String(exercise.bpm),
+      'aria-label': 'Andamento do exercício (BPM)',
+    });
+    tempoInput.addEventListener('change', () => {
+      exercise.bpm = clamp(Math.round(numOr(tempoInput.valueAsNumber, exercise.bpm)), 30, 300);
+      rerender();
+    });
+    section.appendChild(createEl('div', { className: 'practice-inline-controls' }, [
+      createEl('label', { for: 'practice-exercise-bpm' }, [
+        createEl('span', { text: 'Andamento do exercício (BPM)' }),
+        tempoInput,
+      ]),
+    ]));
+    section.appendChild(renderTickGrid(exercise.notes, exercise.bars, exercise.ticksPerBar, {
+      ticksPerBeat: exercise.ticksPerBeat,
+      ariaLabel: 'Frase do exercício',
+      className: exercise.notes.some(note => note.velocity >= 0.9) ? 'practice-grid-accents' : '',
+    }));
+    return section;
+  }
+
+  function renderExerciseControls() {
+    const section = createEl('div', { className: 'practice-exercise-controls' });
 
     const sourceControls = createEl('div', { className: 'practice-inline-controls' });
     for (const [value, label] of [['generated', 'Frase gerada'], ['session', 'Frase atual do estúdio']]) {
@@ -1289,6 +1333,8 @@ export function mountPractice(container, host, options = {}) {
     for (const dimension of VARIANT_DIMENSIONS) {
       dimensionSelect.appendChild(createEl('option', { value: dimension.id, text: dimension.name }));
     }
+    dimensionSelect.value = variantDimension;
+    dimensionSelect.addEventListener('change', () => { variantDimension = dimensionSelect.value; });
     const variantButton = createEl('button', { type: 'button', text: 'Variar uma dimensão' });
     variantButton.addEventListener('click', () => {
       exercise = partialVariant(exercise, dimensionSelect.value);
@@ -1298,20 +1344,21 @@ export function mountPractice(container, host, options = {}) {
     generatorControls.appendChild(createEl('label', {}, [createEl('span', { text: 'Variar: ' }), dimensionSelect, variantButton]));
     section.appendChild(generatorControls);
 
-    const grid = renderTickGrid(exercise.notes, exercise.bars, exercise.ticksPerBar, {
-      ticksPerBeat: exercise.ticksPerBeat,
-      ariaLabel: 'Frase do exercício',
-      className: exercise.notes.some(note => note.velocity >= 0.9) ? 'practice-grid-accents' : '',
-    });
-    section.appendChild(grid);
 
     const playControls = createEl('div', { className: 'practice-inline-controls' });
-    const applyButton = createEl('button', { type: 'button', className: 'practice-primary', text: 'Usar esta frase na sessão' });
+    const applyButton = createEl('button', { type: 'button', text: 'Usar esta frase na sessão' });
     applyButton.addEventListener('click', () => {
       applyExerciseToSession();
       host.notify('Frase do exercício aplicada à sessão do estúdio.');
     });
     playControls.appendChild(applyButton);
+    if (state.routine.stages.length > 0) section.appendChild(renderFreeControls());
+    section.appendChild(playControls);
+    return section;
+  }
+
+  function renderFreeControls() {
+    const playControls = createEl('div', { className: 'practice-inline-controls', 'aria-label': 'Pratique sem seguir a rotina' });
     const listenOnce = createEl('button', { type: 'button', text: 'Ouvir referência' });
     listenOnce.addEventListener('click', async () => {
       try {
@@ -1321,46 +1368,53 @@ export function mountPractice(container, host, options = {}) {
       }
     });
     playControls.appendChild(listenOnce);
-    const train = createEl('button', { type: 'button', text: 'Treinar exercício' });
+    const train = createEl('button', { type: 'button', className: 'practice-primary', text: 'Treinar sem seguir a rotina' });
     train.addEventListener('click', () => {
       pendingStage = null;
       applyExerciseToSession();
       host.play('train').catch(error => host.notify(error.message, true));
     });
     playControls.appendChild(train);
-    const stopButton = createEl('button', { type: 'button', text: 'Parar' });
-    stopButton.addEventListener('click', () => {
-      pendingStage = null;
-      host.stop();
-      if (improvisation) host.updateSession(improvisation.restore);
-      improvisation = null;
-      rerender();
-    });
+    const stopButton = createEl('button', { type: 'button', text: 'Cancelar', dataset: { focusKey: 'practice-cancel' } });
+    stopButton.addEventListener('click', cancel);
     playControls.appendChild(stopButton);
-    section.appendChild(playControls);
-    return section;
+    return playControls;
+  }
+
+  function cancel() {
+    pendingStage = null;
+    host.stop();
+    if (improvisation) host.updateSession(improvisation.restore);
+    improvisation = null;
+    rerender();
   }
 
   function renderStagesSection() {
-    const section = createEl('section', { className: 'practice-section', 'aria-labelledby': 'practice-stages-title' });
-    section.appendChild(createEl('h3', { id: 'practice-stages-title', text: 'Rotina guiada' }));
+    const section = createEl('section', { className: 'practice-section practice-routine-current', 'aria-labelledby': 'practice-stages-title' });
+    section.appendChild(createEl('h3', { id: 'practice-stages-title', text: 'Agora' }));
     if (state.routine.stages.length === 0) {
-      section.appendChild(createEl('p', { text: 'Nenhuma etapa selecionada; selecione etapas acima ou pratique livre com o botão de treino.' }));
+      section.appendChild(createEl('p', { text: 'Prática livre: ouça a frase e toque quando estiver pronto. Configure a rotina abaixo para seguir etapas.' }));
+      section.appendChild(renderFreeControls());
       return section;
     }
     const steps = createEl('ol', { className: 'practice-steps' });
     state.routine.stages.forEach((stageId, index) => {
       const stage = STAGES.find(s => s.id === stageId);
       const li = createEl('li', { className: `practice-step${index === stageIndex && !routineDone ? ' practice-step-active' : ''}${index < stageIndex || routineDone ? ' practice-step-done' : ''}` });
-      li.appendChild(createEl('span', { className: 'practice-step-name', text: stage.name }));
-      li.appendChild(createEl('span', { className: 'practice-step-state', text: index < stageIndex || routineDone ? 'concluída' : index === stageIndex ? 'em andamento' : 'pendente' }));
+      li.appendChild(createEl('span', {
+        className: 'practice-step-name',
+        text: stage.name,
+        'aria-current': index === stageIndex && !routineDone ? 'step' : null,
+      }));
       steps.appendChild(li);
     });
     section.appendChild(steps);
 
+    const stopButton = createEl('button', { type: 'button', text: 'Cancelar', dataset: { focusKey: 'practice-cancel' } });
+    stopButton.addEventListener('click', cancel);
     if (routineDone) {
       section.appendChild(createEl('p', { className: 'practice-done', role: 'status', text: 'Rotina concluída! A revisão espaçada agenda os próximos objetivos; veja a aba Percurso.' }));
-      const restart = createEl('button', { type: 'button', text: 'Recomeçar rotina' });
+      const restart = createEl('button', { type: 'button', className: 'practice-primary', dataset: { focusKey: 'routine-action' }, text: 'Recomeçar rotina' });
       restart.addEventListener('click', () => {
         stageIndex = 0;
         listens = 0;
@@ -1368,17 +1422,18 @@ export function mountPractice(container, host, options = {}) {
         rerender();
       });
       section.appendChild(restart);
+      section.appendChild(stopButton);
       return section;
     }
 
     const stage = activeStage();
     if (!stage) return section;
     const panel = createEl('div', { className: 'practice-stage-panel' });
-    panel.appendChild(createEl('p', { className: 'practice-stage-description', text: `${stage.name}: ${stage.description}` }));
+    panel.appendChild(createEl('p', { className: 'practice-stage-description', text: `Etapa ${stageIndex + 1}/${state.routine.stages.length} · ${stage.name}: ${stage.description}` }));
     const controls = createEl('div', { className: 'practice-inline-controls' });
 
     if (stage.id === 'listen') {
-      const listenButton = createEl('button', { type: 'button', className: 'practice-primary', text: `Ouvir referência (${listens}/${state.routine.listenRepetitions})` });
+      const listenButton = createEl('button', { type: 'button', className: 'practice-primary', dataset: { focusKey: 'routine-action' }, text: `Ouvir referência (${listens}/${state.routine.listenRepetitions})` });
       listenButton.addEventListener('click', async () => {
         try {
           const completed = await previewPhrase(host, exercise.notes, { bpm: exercise.bpm });
@@ -1392,7 +1447,7 @@ export function mountPractice(container, host, options = {}) {
       });
       controls.appendChild(listenButton);
     } else if (stage.id === 'imitate' || stage.id === 'memorize') {
-      const trainButton = createEl('button', { type: 'button', className: 'practice-primary', text: stage.id === 'imitate' ? 'Treinar com a referência' : 'Treinar com clique parcial' });
+      const trainButton = createEl('button', { type: 'button', className: 'practice-primary', dataset: { focusKey: 'routine-action' }, text: stage.id === 'imitate' ? 'Treinar com a referência' : 'Treinar com clique parcial' });
       trainButton.addEventListener('click', () => {
         pendingStage = stageIndex;
         applyExerciseToSession();
@@ -1406,15 +1461,15 @@ export function mountPractice(container, host, options = {}) {
         host.notify('Treino iniciado: toque no teclado ou superfície do estúdio quando o clique contar 1.');
       });
       controls.appendChild(trainButton);
-      controls.appendChild(createEl('span', { className: 'practice-hint', text: 'A execução termina sozinha após as repetições; os resultados chegam em Resultados.' }));
+      controls.appendChild(createEl('span', { className: 'practice-hint', text: 'Toque no teclado ou na superfície. Ao terminar, veja o resultado abaixo.' }));
     } else if (stage.id === 'read') {
       const counts = createEl('p', { className: 'practice-counts', text: 'Conte em voz alta: 1 · e · e · a, 2 · e · e · a… (um ataque por nota na grade acima).' });
       panel.appendChild(counts);
-      const readDone = createEl('button', { type: 'button', className: 'practice-primary', text: 'Concluir leitura' });
+      const readDone = createEl('button', { type: 'button', className: 'practice-primary', dataset: { focusKey: 'routine-action' }, text: 'Concluir leitura' });
       readDone.addEventListener('click', () => stageComplete());
       controls.appendChild(readDone);
     } else if (stage.id === 'improvise') {
-      const improviseStart = createEl('button', { type: 'button', className: 'practice-primary', text: 'Tocar acompanhamento e improvisar' });
+      const improviseStart = createEl('button', { type: 'button', className: 'practice-primary', dataset: { focusKey: 'routine-action' }, disabled: !!improvisation, text: 'Tocar acompanhamento e improvisar' });
       improviseStart.addEventListener('click', async () => {
         if (improvisation) return;
         applyExerciseToSession();
@@ -1432,7 +1487,7 @@ export function mountPractice(container, host, options = {}) {
         }
       });
       controls.appendChild(improviseStart);
-      const finish = createEl('button', { type: 'button', text: 'Concluir improvisação', disabled: !improvisation });
+      const finish = createEl('button', { type: 'button', className: improvisation ? 'practice-primary' : '', text: 'Concluir improvisação', disabled: !improvisation });
       finish.addEventListener('click', () => {
         if (!improvisation) return;
         const durationSec = (performance.now() - improvisation.startAt) / 1000;
@@ -1453,13 +1508,14 @@ export function mountPractice(container, host, options = {}) {
           metrics: { expected: 0, matched: 0, missed: 0, extra: 0, attackOk: 0, endOk: 0, objectiveScore: 0 },
           tempoDelta: 0,
         };
-        recordRun(state, creative);
+        lastRun = recordRun(state, creative).entry ?? creative;
         save();
         stageComplete();
         host.notify('Improvisação registrada como escolha criativa (sem nota).');
       });
       controls.appendChild(finish);
     }
+    controls.appendChild(stopButton);
 
     const skip = createEl('button', { type: 'button', text: 'Pular etapa' });
     skip.addEventListener('click', () => stageComplete());
@@ -1470,14 +1526,10 @@ export function mountPractice(container, host, options = {}) {
   }
 
   function renderResultsSection() {
-    const section = createEl('section', { className: 'practice-section', 'aria-labelledby': 'practice-results-title' });
+    const section = createEl('section', { id: 'practice-results', tabindex: '-1', className: 'practice-section', 'aria-labelledby': 'practice-results-title' });
     section.appendChild(createEl('h3', { id: 'practice-results-title', text: 'Resultados' }));
-    if (!lastRun) {
-      section.appendChild(createEl('p', { className: 'practice-hint', text: 'Conclua um treino (etapa Imitar ou Memorizar, ou o botão de treino) para ver métricas por dimensão, sem nota única.' }));
-      return section;
-    }
     if (lastRun.kind === 'creative') {
-      section.appendChild(createEl('p', { role: 'status', text: 'Execução livre registrada como material criativo: sem cobertura, nota ou revisão por acerto. O take está no Repertório.' }));
+      section.appendChild(createEl('p', { role: 'status', text: 'Execução livre registrada no histórico como material criativo, sem nota ou revisão por acerto.' }));
       return section;
     }
     const m = lastRun.metrics;
@@ -1553,10 +1605,14 @@ export function mountPractice(container, host, options = {}) {
   function renderEarSection() {
     const section = createEl('section', { className: 'practice-section', 'aria-labelledby': 'practice-ear-title' });
     section.appendChild(createEl('h3', { id: 'practice-ear-title', text: 'Jogos de ouvido' }));
-    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Referência gerada localmente e tocada pelo motor; responda com os botões. Sem nota única e sem punição: erros mostram a resposta correta.' }));
-    section.appendChild(renderIntervalGame());
-    section.appendChild(renderChordGame());
-    section.appendChild(renderRhythmGame());
+    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Ouça, responda e confira. Cada jogo revela a resposta, sem punição.' }));
+    const chooser = createEl('select', { id: 'practice-ear-activity', 'aria-label': 'Jogo de ouvido' });
+    for (const [id, label] of [['interval', 'Intervalos'], ['chord', 'Função do acorde'], ['rhythm', 'Reconhecimento de ritmo']]) {
+      chooser.appendChild(createEl('option', { value: id, selected: earActivity === id, text: label }));
+    }
+    chooser.addEventListener('change', () => { earActivity = chooser.value; rerender(); });
+    section.appendChild(chooser);
+    section.appendChild(({ interval: renderIntervalGame, chord: renderChordGame, rhythm: renderRhythmGame })[earActivity]());
     return section;
   }
 
@@ -1723,6 +1779,18 @@ export function mountPractice(container, host, options = {}) {
   function renderHistorySection() {
     const section = createEl('section', { className: 'practice-section', 'aria-labelledby': 'practice-history-title' });
     section.appendChild(createEl('h3', { id: 'practice-history-title', text: 'Histórico local' }));
+    const review = createEl('button', { type: 'button', text: 'Revisar próximo objetivo' });
+    review.addEventListener('click', () => {
+      const due = reviewQueue(state.skills).find(entry => entry.due);
+      if (!due) { host.notify('Todas as revisões estão em dia. Escolha um objetivo para praticar.'); return; }
+      state.objective = due.objective.id;
+      save();
+      rebuildExercise();
+      stageIndex = 0;
+      routineDone = false;
+      rerender();
+    });
+    section.appendChild(review);
     const recent = state.history.slice(-8).reverse();
     if (recent.length === 0) {
       section.appendChild(createEl('p', { className: 'practice-hint', text: 'Nenhuma execução registrada ainda. O histórico fica neste navegador e pode ser exportado na aba Percurso.' }));
@@ -1773,6 +1841,6 @@ export function mountPractice(container, host, options = {}) {
     root.remove();
   }
 
-  const api = { render, onFinish, destroy };
+  const api = { render, onFinish, cancel, destroy };
   return api;
 }

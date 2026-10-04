@@ -631,6 +631,17 @@ export function mountPlayground(container, host, options = {}) {
   let passages = { silence: { phase: 'idle', bpm: session0.bpm, bars: 2, softClicks: false, attempts: [], startAt: 0, beat: 0 }, portal: { a: 3, b: 2 } };
   let choir = { selected: new Set(['copo', 'livro', 'garfo']), seed: 1, last: null };
   let fertile = { selectedId: null, quantize: 'strict', conversion: null };
+  let activity = 'duet';
+  let passageActivity = 'silence';
+  const activities = [
+    { id: 'duet', name: 'Dueto', render: renderGoblinSection },
+    { id: 'dungeon', name: 'Masmorra', render: renderDungeonSection },
+    { id: 'boss', name: 'Chefe', render: renderBossSection },
+    { id: 'cultivate', name: 'Cultivar capturas', render: renderFertileSection },
+    { id: 'alchemy', name: 'Alquimia', render: renderAlchemySection },
+    { id: 'passages', name: 'Passagens', render: renderPassagesSection },
+    { id: 'choir', name: 'Coral dos objetos', render: renderChoirSection },
+  ];
   const timers = new Set();
 
   const root = createEl('section', { className: 'playground-root', 'aria-label': 'Playground musical' });
@@ -700,26 +711,34 @@ export function mountPlayground(container, host, options = {}) {
       }
       root.appendChild(box);
     }
-    root.appendChild(renderEffectsSection());
-    root.appendChild(renderGoblinSection());
-    root.appendChild(renderDungeonSection());
-    root.appendChild(renderBossSection());
-    root.appendChild(renderFertileSection());
-    root.appendChild(renderAlchemySection());
-    root.appendChild(renderPassagesSection());
-    root.appendChild(renderChoirSection());
+    const toolbar = createEl('section', { className: 'playground-toolbar', 'aria-label': 'Escolha uma atividade' });
+    const chooser = createEl('select', { id: 'playground-activity', 'aria-label': 'Atividade do playground' });
+    for (const item of activities) {
+      chooser.appendChild(createEl('option', { value: item.id, selected: activity === item.id, text: item.name }));
+    }
+    chooser.addEventListener('change', () => {
+      activity = chooser.value;
+      rerender();
+    });
+    toolbar.appendChild(createEl('label', {}, [createEl('span', { text: 'Explorar: ' }), chooser]));
+    toolbar.appendChild(renderEffectsSection());
+    root.appendChild(toolbar);
+    const current = activities.find(item => item.id === activity).render();
+    current.dataset.activity = activity;
+    root.appendChild(current);
   }
 
   function renderEffectsSection() {
-    const section = createEl('section', { className: 'playground-section', 'aria-labelledby': 'playground-effects-title' });
-    section.appendChild(createEl('h3', { id: 'playground-effects-title', text: 'Efeitos opcionais' }));
+    const section = createEl('div', { className: 'playground-effects', 'aria-label': 'Volume e parada' });
     const row = createEl('div', { className: 'practice-inline-controls' });
     const slider = createEl('input', { type: 'range', min: '5', max: '100', value: String(Math.round(volume() * 100)), 'aria-label': 'Volume das prévias do playground' });
     slider.addEventListener('input', () => {
       state.effects.volume = clamp(Number(slider.value) / 100, 0.05, 1);
       save();
     });
-    row.appendChild(createEl('label', {}, [createEl('span', { text: `Volume das prévias: ${Math.round(volume() * 100)}% ` }), slider]));
+    const volumeLabel = createEl('span', { id: 'playground-effects-title', text: `Volume: ${Math.round(volume() * 100)}% ` });
+    slider.addEventListener('input', () => { volumeLabel.textContent = `Volume: ${Math.round(volume() * 100)}% `; });
+    row.appendChild(createEl('label', {}, [volumeLabel, slider]));
     const stop = createEl('button', { type: 'button', text: 'Parar sons' });
     stop.addEventListener('click', () => {
       host.stop();
@@ -730,7 +749,7 @@ export function mountPlayground(container, host, options = {}) {
     });
     row.appendChild(stop);
     section.appendChild(row);
-    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Nada toca sozinho aqui: todo som começa de um botão seu, no volume acima.' }));
+    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Escolher uma atividade não toca som.' }));
     return section;
   }
 
@@ -748,13 +767,16 @@ export function mountPlayground(container, host, options = {}) {
     });
     const wrap = createEl('div', { className: 'practice-inline-controls' });
     wrap.appendChild(createEl('label', {}, [createEl('span', { text: 'Semente: ' }), input, button]));
-    return wrap;
+    return createEl('details', { className: 'practice-disclosure playground-seed', dataset: { disclosure: `seed-${label}` } }, [
+      createEl('summary', { text: 'Ajustar semente' }),
+      wrap,
+    ]);
   }
 
   function renderGoblinSection() {
     const section = createEl('section', { className: 'playground-section', 'aria-labelledby': 'playground-goblin-title' });
-    section.appendChild(createEl('h3', { id: 'playground-goblin-title', text: 'Dueto com o duende (chamado e resposta)' }));
-    section.appendChild(createEl('p', { className: 'practice-hint', text: 'O duende toca um chamado; responda marcando seus ataques na grade. Comparar é honesto: mostra acertos, faltas e sobras — é um dueto, não uma prova.' }));
+    section.appendChild(createEl('h3', { id: 'playground-goblin-title', text: 'Dueto com o duende' }));
+    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Ouça o chamado, marque sua resposta e compare os ritmos. Sua resposta é uma escolha criativa.' }));
     const seedRow = seedControl(value => {
       if (value === undefined) return goblin.seed;
       goblin.seed = value;
@@ -859,7 +881,7 @@ export function mountPlayground(container, host, options = {}) {
   function renderDungeonSection() {
     const section = createEl('section', { className: 'playground-section', 'aria-labelledby': 'playground-dungeon-title' });
     section.appendChild(createEl('h3', { id: 'playground-dungeon-title', text: 'Masmorra do clique sumido' }));
-    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Em cada sala, um clique some da referência: ouça e marque na grade onde a nota desapareceu. Errar só revela a resposta — nada de punição.' }));
+    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Ouça a frase completa e encontre os cliques que sumiram. Cada sala revela a resposta.' }));
     section.appendChild(seedControl(value => {
       if (value === undefined) return dungeon.seed;
       dungeon.seed = value;
@@ -1008,7 +1030,7 @@ export function mountPlayground(container, host, options = {}) {
   function renderBossSection() {
     const section = createEl('section', { className: 'playground-section', 'aria-labelledby': 'playground-boss-title' });
     section.appendChild(createEl('h3', { id: 'playground-boss-title', text: 'Chefe devorador de espaço' }));
-    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Objetivo explícito: o Chefe come os espaços da frase — os ataques dele caem exatamente nos silêncios da original. Marque TODOS os ataques dele nos buracos da frase original. Errar revela o mapa, sem punição.' }));
+    section.appendChild(createEl('p', { className: 'practice-hint', text: 'O chefe toca nos silêncios da frase original. Ouça e marque todos os ataques dele; depois confira o mapa.' }));
     section.appendChild(seedControl(value => {
       if (value === undefined) return boss.seed;
       boss.seed = value;
@@ -1115,7 +1137,7 @@ export function mountPlayground(container, host, options = {}) {
   function renderFertileSection() {
     const section = createEl('section', { className: 'playground-section', 'aria-labelledby': 'playground-fertile-title' });
     section.appendChild(createEl('h3', { id: 'playground-fertile-title', text: 'Erros férteis' }));
-    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Tentativas do treino e respostas guardadas viram material criativo: escolha uma, cultive-a em frase (endireitada ou com o microtiming preservado em ticks fracionários), ouça, aplique na sessão ou exporte. É escolha criativa, não acerto.' }));
+    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Transforme uma tentativa ou resposta guardada em frase. Preserve o microtiming ou endireite; ouça, aplique ou exporte.' }));
     if (state.captures.length === 0) {
       section.appendChild(createEl('p', { className: 'practice-hint', text: 'Nenhuma captura ainda: responda ao duende, limpe salas, derrote o chefe ou termine um treino (as tentativas do motor chegam aqui sozinhas).' }));
       return section;
@@ -1246,7 +1268,7 @@ export function mountPlayground(container, host, options = {}) {
   function renderAlchemySection() {
     const section = createEl('section', { className: 'playground-section', 'aria-labelledby': 'playground-alchemy-title' });
     section.appendChild(createEl('h3', { id: 'playground-alchemy-title', text: 'Alquimia do motivo' }));
-    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Transforme a frase atual da sessão: escala rítmica, acentos deslocados, retrógrado, inversão, rearmonização nos acordes da sessão, endireitar, balançar ou sincopar. Prévia, aplicar na sessão ou exportar.' }));
+    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Escolha uma transformação para a frase da sessão. Confira o resultado antes de ouvir, aplicar ou exportar.' }));
     const session = normalizeSession(host.getSession());
     const select = createEl('select', { 'aria-label': 'Transformação alquímica' });
     for (const transform of TRANSFORMS) {
@@ -1308,10 +1330,14 @@ export function mountPlayground(container, host, options = {}) {
   function renderPassagesSection() {
     const section = createEl('section', { className: `playground-section${state.eggs.portal || state.eggs.mirror || state.eggs.silence ? ' playground-passages-open' : ''}`, 'aria-labelledby': 'playground-passages-title' });
     section.appendChild(createEl('h3', { id: 'playground-passages-title', text: 'Passagens' }));
-    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Passagens escondidas aparecem por interações significativas (limpar a masmorra, devorar o chefe, três cultivos) — e ficam sempre abertas aqui, por convite, sem depender de sorte.' }));
-    section.appendChild(renderSilenceRoom(section));
-    section.appendChild(renderMirror(section));
-    section.appendChild(renderPortal(section));
+    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Explore o pulso interno, a frase ao contrário ou dois ritmos juntos. Todas as passagens estão disponíveis.' }));
+    const chooser = createEl('select', { id: 'playground-passage', 'aria-label': 'Passagem musical' });
+    for (const [id, label] of [['silence', 'Sala do silêncio'], ['mirror', 'Espelho reverso'], ['portal', 'Portal polirrítmico']]) {
+      chooser.appendChild(createEl('option', { value: id, selected: passageActivity === id, text: label }));
+    }
+    chooser.addEventListener('change', () => { passageActivity = chooser.value; rerender(); });
+    section.appendChild(chooser);
+    section.appendChild(({ silence: renderSilenceRoom, mirror: renderMirror, portal: renderPortal })[passageActivity](section));
     return section;
   }
 
@@ -1537,7 +1563,7 @@ export function mountPlayground(container, host, options = {}) {
   function renderChoirSection() {
     const section = createEl('section', { className: 'playground-section', 'aria-labelledby': 'playground-choir-title' });
     section.appendChild(createEl('h3', { id: 'playground-choir-title', text: 'Coral dos objetos' }));
-    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Objetos da casa cantam juntos: cada um vira uma voz com timbre sintetizado (altura própria) e padrão rítmico da semente. Sem microfone — os sons são gerados, não gravados da sua mesa.' }));
+    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Escolha objetos para criar vozes e ritmos sintetizados. Ouça o coral e guarde a ideia; nenhum microfone é usado.' }));
     const controls = createEl('div', { className: 'practice-inline-controls' });
     for (const object of CHOIR_OBJECTS) {
       const label = createEl('label', { className: 'practice-stage-toggle' });

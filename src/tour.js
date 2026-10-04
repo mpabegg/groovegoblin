@@ -13,10 +13,10 @@ const STEPS = [
   {
     tab: 'tab-practice', target: '.performance .transport',
     title: 'Transporte e andamento',
-    body: '“Ouvir em loop” toca o arranjo completo; “Começar treino” faz a contagem de entrada e repete o loop da frase para você tocar junto. Ajuste o BPM (em semínimas) e o metrônomo. “Parar” ou Esc interrompem.',
+    body: 'O exercício guiado aparece primeiro. Abaixo, a frase do estúdio permite ouvir o arranjo ou treinar uma frase editada. Ajuste BPM e metrônomo aqui; “Parar som”, no topo, ou Esc interrompem de qualquer aba.',
   },
   {
-    tab: 'tab-practice', target: '#train-pad',
+    tab: 'tab-practice', open: ['performance-input'], target: '#train-pad',
     title: 'Área de toque do treino',
     body: 'Durante o treino, pressione no ataque e solte no término de cada nota — com a barra de espaço ou segurando aqui. O GrooveGoblin não grava microfone nem instrumento: avalia só esses toques de teclado ou tela.',
   },
@@ -26,17 +26,17 @@ const STEPS = [
     body: 'Em “Editar frase e organizar sessões”: clique numa célula para criar uma nota, arraste para mover e puxe a borda direita para mudar a duração. Abaixo, bateria e partitura rítmica acompanham cada mudança; Ctrl+Z desfaz.',
   },
   {
-    tab: 'tab-practice', open: ['studio-editor'], target: '#studio-editor .session-library',
+    tab: 'tab-practice', open: ['studio-editor', 'session-storage'], target: '#studio-editor .session-library',
     title: 'Guardar, exportar e compartilhar',
     body: 'Guarde sessões completas na biblioteca local, exporte ou importe um arquivo .json, ou gere um link que carrega a sessão inteira sem servidor. Quem recebe vê uma prévia antes de aplicar.',
   },
   {
-    tab: 'tab-band', target: '#panel-band > .panel:first-child',
+    tab: 'tab-band', target: '#panel-band > .band-setup',
     title: 'Banda e harmonia',
     body: 'Escolha seu papel e a banda deixa esse instrumento para você. Baixo e bateria seguem estilos e densidades; a harmonia aceita progressões funcionais geradas ou acordes escritos à mão, com inversões.',
   },
   {
-    tab: 'tab-band', target: '#mixer',
+    tab: 'tab-band', open: ['mixer'], target: '#mixer',
     title: 'Mixer da sessão',
     body: 'Volume e silenciamento de frase, metrônomo, bateria, harmonia e baixo. Dá para ajustar durante a reprodução, e o mixer viaja junto com a sessão e o link.',
   },

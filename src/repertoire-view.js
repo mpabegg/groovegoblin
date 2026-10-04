@@ -53,11 +53,6 @@ const QUANTIZE_LABELS = {
   'thirty-second': 'Fusa (1/32)',
   none: 'Sem quantização',
 };
-const EMPTY_TEXT = {
-  reference: 'Nenhuma referência. Importe um arquivo de áudio ou abra um pacote.',
-  take: 'Nenhum take. Renderize o arranjo ou conclua um treino no estúdio.',
-  derived: 'Nenhum derivado. Separações HPSS aparecem aqui.',
-};
 let mountCount = 0;
 
 // append/replaceChildren transformam valores omitidos em texto sem este filtro.
@@ -194,6 +189,85 @@ export function mountRepertoire(container, host) {
   let drag = null;
   let deleteTimer = 0;
   let pendingWork = 0; // importações, renders e gravações ainda em andamento
+  const disclosureState = new Map();
+  const panelDrafts = new Map();
+  let panelContext = '';
+
+  function disclosure(key, label, ...content) {
+    return h('details', {
+      class: 'rep-disclosure', 'data-disclosure': key, open: disclosureState.get(key) ?? false,
+      ontoggle: event => {
+        if (event.target.isConnected) disclosureState.set(key, event.target.open);
+      },
+    }, h('summary', { text: label }), h('div', { class: 'rep-disclosure-content' }, content));
+  }
+  function identifyControls(scope) {
+    const counts = new Map();
+    for (const control of scope.querySelectorAll('input, textarea, select, button, summary')) {
+      const owner = control.closest('[data-marker], [data-item]')?.dataset;
+      const label = control.dataset.draft || control.dataset.focus || control.getAttribute('aria-label')
+        || control.closest('label')?.querySelector('span')?.textContent
+        || control.closest('label')?.textContent || control.textContent || control.type;
+      const base = `${owner?.marker || owner?.item || ''}:${control.tagName}:${label}`;
+      const count = counts.get(base) ?? 0;
+      counts.set(base, count + 1);
+      control.dataset.uiKey = `${base}:${count}`;
+    }
+  }
+
+  function captureUI(scope, context) {
+    const drafts = panelDrafts.get(context) ?? new Map();
+    panelDrafts.set(context, drafts);
+    for (const details of scope.querySelectorAll('[data-disclosure]')) {
+      disclosureState.set(details.dataset.disclosure, details.open);
+    }
+    for (const control of scope.querySelectorAll('input, textarea, select')) {
+      if (control.dataset.draft || control.dataset.uiDirty) {
+        drafts.set(control.dataset.uiKey, { value: control.value, checked: control.checked, dirty: Boolean(control.dataset.uiDirty) });
+      } else {
+        drafts.delete(control.dataset.uiKey);
+      }
+    }
+    const active = document.activeElement;
+    return scope.contains(active) ? {
+      key: active.dataset.uiKey,
+      start: active.selectionStart,
+      end: active.selectionEnd,
+      direction: active.selectionDirection,
+    } : null;
+  }
+
+  function restoreUI(scope, context, focus) {
+    identifyControls(scope);
+    const drafts = panelDrafts.get(context);
+    for (const control of scope.querySelectorAll('input, textarea, select')) {
+      const draft = drafts?.get(control.dataset.uiKey);
+      if (!draft) continue;
+      if (control.tagName !== 'SELECT' || [...control.options].some(option => option.value === draft.value)) control.value = draft.value;
+      if (control.type === 'checkbox' || control.type === 'radio') control.checked = draft.checked;
+      if (draft.dirty) control.dataset.uiDirty = 'true';
+    }
+    if (!focus) return;
+    let active = [...scope.querySelectorAll('[data-ui-key]')].find(control => control.dataset.uiKey === focus.key);
+    if (!active || active.disabled) active = scope.tabIndex >= 0 ? scope : scope.querySelector('button:not(:disabled), summary');
+    if (!active) return;
+    active.focus({ preventScroll: true });
+    if (focus.start !== null && focus.start !== undefined && typeof active.setSelectionRange === 'function') {
+      try { active.setSelectionRange(focus.start, focus.end, focus.direction); } catch { /* Campos numéricos não têm seleção de texto. */ }
+    }
+  }
+
+  function compactSections(content) {
+    return domChildren([content]).map(node => {
+      if (!(node instanceof HTMLElement) || !node.matches('.rep-subsection') || node.matches('.rep-package')) return node;
+      const heading = node.querySelector('h4');
+      if (!heading) return node;
+      const label = heading.textContent;
+      heading.remove();
+      const details = disclosure(`tool:${state.tab}:${label}`, label, ...node.childNodes);
+      return details;
+    });
+  }
 
   function track(promise) {
     pendingWork++;
@@ -219,12 +293,13 @@ export function mountRepertoire(container, host) {
     onchange: event => { const [file] = event.target.files; event.target.value = ''; const id = relinkInput.dataset.item; if (file && id) track(relinkMedia(id, file)); } });
   const libraryList = h('div', { class: 'rep-library-list' });
   const corruptBox = h('div', { class: 'rep-corrupt', hidden: true });
-  const library = h('aside', { class: 'rep-library', 'aria-label': 'Biblioteca do repertório' },
+  const library = h('aside', { class: 'rep-library', hidden: true, 'aria-label': 'Biblioteca do repertório' },
     h('h3', { text: 'Biblioteca' }),
     h('div', { class: 'rep-import' },
       h('button', { type: 'button', class: 'primary', onclick: () => audioInput.click(), text: 'Importar áudio…' }),
       h('button', { type: 'button', onclick: () => packageInput.click(), text: 'Abrir pacote…' })),
-    h('p', { class: 'rep-hint', text: `Formatos conforme o navegador (WAV, MP3, OGG, FLAC, M4A/AAC). Até ${formatBytes(MAX_IMPORT_BYTES)} e ${MAX_DURATION_SECONDS / 60} min por arquivo. Também é possível arrastar arquivos para cá.` }),
+    disclosure('import-help', 'Formatos e limites',
+      h('p', { class: 'rep-hint', text: `WAV, MP3, OGG, FLAC e M4A/AAC, conforme o navegador. Até ${formatBytes(MAX_IMPORT_BYTES)} e ${MAX_DURATION_SECONDS / 60} min por arquivo. Você também pode arrastar arquivos para cá.` })),
     libraryList, corruptBox, audioInput, packageInput, midiInput, relinkInput);
 
   const titleInput = h('input', { type: 'text', class: 'rep-title-input', maxLength: 200, 'aria-label': 'Nome do item selecionado', onchange: event => renameItem(event.target.value) });
@@ -253,43 +328,65 @@ export function mountRepertoire(container, host) {
   const tabButtons = TABS.map(([id, label]) => h('button', { type: 'button', role: 'tab', id: uid(`tab-${id}`), 'aria-controls': uid('panel'), onclick: () => setTab(id) }, label));
   const tabPanel = h('div', { role: 'tabpanel', id: uid('panel'), class: 'rep-panel', tabindex: '0' });
 
-  const lab = h('div', { class: 'rep-lab' },
-    h('div', { class: 'rep-lab-head' }, titleInput, metaLine, extraBox),
+  const itemDetails = disclosure('item-details', 'Sobre este item', extraBox);
+  const itemWorkspace = h('div', { class: 'rep-item-workspace', hidden: true },
+    h('div', { class: 'rep-lab-head' }, titleInput, metaLine, itemDetails),
     h('div', { class: 'rep-wave-shell' }, canvas),
-    h('div', { class: 'rep-row rep-view-controls' },
-      field('Zoom', zoomInput), field('Rolagem', scrollInput), positionText),
-    h('p', { class: 'rep-hint', id: uid('wave-keys'), text: 'Clique para posicionar o cursor e arraste para selecionar o trecho A–B. Com a forma de onda em foco: ←/→ movem 1 s (Shift: 0,1 s), PageUp/PageDown 10 s, Espaço toca/pausa, A/B marcam o trecho no cursor, M adiciona comentário, S adiciona seção, +/− ajustam o zoom e X alterna A/B.' }),
-    h('p', { class: 'rep-legend' },
-      h('span', { class: 'lg-region', text: 'trecho A–B' }), h('span', { class: 'lg-grid', text: 'grade de compassos' }),
-      h('span', { class: 'lg-beats', text: 'pulsos rastreados' }), h('span', { class: 'lg-onsets', text: 'ataques' }),
-      h('span', { class: 'lg-comment', text: 'comentários' }), h('span', { class: 'lg-chords', text: 'acordes e notas estimados' })),
     h('div', { class: 'rep-row rep-transport' },
       playButton, stopButton,
       h('button', { type: 'button', onclick: () => seek(current()?.region?.start ?? 0), text: 'Voltar ao A' }),
-      h('label', { class: 'toggle' }, loopInput, 'Repetir trecho')),
+      h('label', { class: 'toggle' }, loopInput, 'Repetir trecho'), positionText),
     h('div', { class: 'rep-row rep-region' },
       field('A', aInput), h('button', { type: 'button', onclick: () => setRegionEdge('start'), text: 'A = cursor' }),
       field('B', bInput), h('button', { type: 'button', onclick: () => setRegionEdge('end'), text: 'B = cursor' }),
       h('button', { type: 'button', onclick: () => setRegion(null), text: 'Limpar trecho' }), regionText),
-    h('fieldset', { class: 'rep-processing' },
-      h('legend', { text: 'Velocidade e altura (independentes)' }),
-      h('div', { class: 'rep-row' },
-        field('Velocidade', h('span', { class: 'rep-inline' }, speedRange, speedNumber, '%')),
-        field('Transposição (semitons)', semitoneInput),
-        field('Ajuste fino (cents)', centsInput),
-        field('Algoritmo', algorithmSelect),
-        h('button', { type: 'button', onclick: () => setProcessing({ ...DEFAULT_PROCESSING, algorithm: current()?.processing.algorithm ?? 'vocoder' }), text: 'Original' })),
-      h('p', { class: 'rep-hint', text: 'Mudar a velocidade não altera a altura e transpor não altera a velocidade: o trecho (ou o item inteiro) é processado localmente, num worker, antes de tocar. Trechos curtos processam mais rápido.' })),
+    disclosure('processing', 'Velocidade e transposição',
+      h('fieldset', { class: 'rep-processing' },
+        h('legend', { text: 'Velocidade e altura independentes' }),
+        h('div', { class: 'rep-row' },
+          field('Velocidade', h('span', { class: 'rep-inline' }, speedRange, speedNumber, '%')),
+          field('Transposição (semitons)', semitoneInput),
+          field('Ajuste fino (cents)', centsInput),
+          field('Algoritmo', algorithmSelect),
+          h('button', { type: 'button', onclick: () => setProcessing({ ...DEFAULT_PROCESSING, algorithm: current()?.processing.algorithm ?? 'vocoder' }), text: 'Original' })),
+        h('p', { class: 'rep-hint', text: 'Processamento local antes de tocar. Velocidade e altura não alteram uma à outra; trechos curtos processam mais rápido.' }))),
+    disclosure('wave-view', 'Visualização e atalhos',
+      h('div', { class: 'rep-row rep-view-controls' }, field('Zoom', zoomInput), field('Rolagem', scrollInput)),
+      h('div', { class: 'rep-row' }, [['grid', 'Grade'], ['beats', 'Pulsos'], ['onsets', 'Ataques'], ['chords', 'Acordes'], ['notes', 'Notas']].map(([key, label]) =>
+        h('label', { class: 'toggle' }, h('input', { type: 'checkbox', 'data-show': key, checked: state.show[key],
+          onchange: event => { state.show[key] = event.target.checked; savePrefs(); draw(); } }), label))),
+      h('p', { class: 'rep-hint', id: uid('wave-keys'), text: 'Clique para mover o cursor; arraste para selecionar A–B. Com a onda em foco: ←/→ movem 1 s (Shift: 0,1 s), PageUp/PageDown 10 s, Espaço toca/pausa, A/B marcam o trecho, M comenta, S cria seção, +/− ajustam zoom e X alterna A/B.' }),
+      h('p', { class: 'rep-legend' },
+        h('span', { class: 'lg-region', text: 'trecho A–B' }), h('span', { class: 'lg-grid', text: 'grade' }),
+        h('span', { class: 'lg-beats', text: 'pulsos' }), h('span', { class: 'lg-onsets', text: 'ataques' }),
+        h('span', { class: 'lg-comment', text: 'comentários' }), h('span', { class: 'lg-chords', text: 'acordes e notas estimados' }))));
+  const emptyWorkspace = h('div', { class: 'rep-empty' },
+    h('h3', { text: 'Escolha uma música para praticar' }),
+    h('p', { class: 'rep-hint', text: 'Importe um áudio ou abra um pacote. Depois, ouça e escolha um trecho para repetir.' }),
+    h('div', { class: 'rep-row' },
+      h('button', { type: 'button', class: 'primary', onclick: () => audioInput.click(), text: 'Importar áudio…' }),
+      h('button', { type: 'button', onclick: () => packageInput.click(), text: 'Abrir pacote…' })),
+    h('p', { class: 'rep-hint', text: 'Sem áudio? Takes, setlists, MIDI e pacotes continuam disponíveis nas ferramentas abaixo.' }),
+    disclosure('empty-import-help', 'Formatos e limites',
+      h('p', { class: 'rep-hint', text: `WAV, MP3, OGG, FLAC e M4A/AAC, conforme o navegador. Até ${formatBytes(MAX_IMPORT_BYTES)} e ${MAX_DURATION_SECONDS / 60} min por arquivo. Você também pode arrastar arquivos para cá.` })));
+  const lab = h('div', { class: 'rep-lab' }, emptyWorkspace, itemWorkspace,
     h('div', { role: 'tablist', class: 'rep-tabs', 'aria-label': 'Ferramentas do repertório', onkeydown: tabKeys }, tabButtons),
     tabPanel);
-
+  const storageDisclosure = disclosure('storage', 'Armazenamento local', storageLine, persistButton);
+  storageDisclosure.classList.add('rep-storage-box');
   const root = h('section', { class: 'rep', 'aria-labelledby': uid('title') },
     h('div', { class: 'rep-header' },
-      h('div', {}, h('p', { class: 'eyebrow', text: 'REPERTÓRIO LOCAL' }), h('h2', { id: uid('title'), text: 'Laboratório de repertório' })),
-      h('div', { class: 'rep-storage-box' }, storageLine, persistButton)),
+      h('div', {}, h('p', { class: 'eyebrow', text: 'REPERTÓRIO LOCAL' }), h('h2', { id: uid('title'), text: 'Pratique com uma música' })),
+      storageDisclosure),
     statusLine, jobBox,
     h('div', { class: 'rep-layout' }, library, lab));
   container.replaceChildren(root);
+  tabPanel.addEventListener('input', event => {
+    if (event.target.matches('input, textarea, select')) event.target.dataset.uiDirty = 'true';
+  }, true);
+  tabPanel.addEventListener('change', event => {
+    if (!event.target.dataset.draft) delete event.target.dataset.uiDirty;
+  }, true);
 
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointermove', onPointerMove);
@@ -424,12 +521,14 @@ export function mountRepertoire(container, host) {
     if (destroyed) return;
     state.storageInfo = info;
     if (!store.persistent) {
+      storageDisclosure.querySelector('summary').textContent = 'Armazenamento indisponível';
       storageLine.textContent = store.error?.message ?? 'Armazenamento local indisponível.';
       storageLine.classList.add('error');
       persistButton.hidden = true;
       return;
     }
     storageLine.classList.remove('error');
+    storageDisclosure.querySelector('summary').textContent = 'Armazenamento local';
     storageLine.textContent = info
       ? `Armazenamento local: ${formatBytes(info.usage)} de ${formatBytes(info.quota)}${info.persisted ? ' · persistente' : ' · pode ser limpo pelo navegador se faltar espaço'}`
       : 'Armazenamento local ativo (estimativa de uso indisponível).';
@@ -699,13 +798,17 @@ export function mountRepertoire(container, host) {
   }
 
   function renderLibrary() {
+    const focus = captureUI(libraryList, 'library');
     const groups = [['reference', 'Referências'], ['take', 'Takes'], ['derived', 'Derivados']];
-    libraryList.replaceChildren(...groups.map(([kind, title]) => {
+    const populated = groups.filter(([kind]) => state.items.some(item => item.kind === kind));
+    libraryList.replaceChildren(...populated.map(([kind, title]) => {
       const items = state.items.filter(item => item.kind === kind);
       return h('section', { class: 'rep-group' },
         h('h4', { text: `${title} (${items.length})` }),
-        items.length ? h('ul', { class: 'rep-items' }, items.map(itemRow)) : h('p', { class: 'rep-hint', text: state.loading ? 'Carregando…' : EMPTY_TEXT[kind] }));
+        h('ul', { class: 'rep-items' }, items.map(itemRow)));
     }));
+    if (state.loading) libraryList.append(h('p', { class: 'rep-hint', text: 'Carregando…' }));
+    restoreUI(libraryList, 'library', focus);
     renderCorrupt();
     refreshBusy();
   }
@@ -717,8 +820,8 @@ export function mountRepertoire(container, host) {
     const silentTake = !item.media && item.attempts;
     const armed = state.deleteArm === item.id;
     const exercises = state.exercises.filter(exercise => exercise.itemId === item.id).length;
-    return h('li', { class: `rep-item${selected ? ' selected' : ''}` },
-      h('button', { type: 'button', class: 'rep-item-select', 'aria-current': selected ? 'true' : null, onclick: () => selectItem(item.id) },
+    return h('li', { class: `rep-item${selected ? ' selected' : ''}`, 'data-item': item.id },
+      h('button', { type: 'button', class: 'rep-item-select', 'data-focus': 'select', 'aria-current': selected ? 'true' : null, onclick: () => selectItem(item.id) },
         h('strong', { text: item.name }), h('span', { text: itemLabel(item) })),
       h('div', { class: 'rep-item-actions' },
         unsaved ? h('span', { class: 'rep-badge error', title: unsaved, text: 'não salvo' }) : null,
@@ -727,18 +830,22 @@ export function mountRepertoire(container, host) {
         missing ? h('button', { type: 'button', onclick: () => { relinkInput.dataset.item = item.id; relinkInput.click(); }, text: 'Vincular arquivo…' }) : null,
         silentTake ? h('span', { class: 'rep-badge warn', title: item.renderError ?? '', text: 'sem áudio' }) : null,
         silentTake ? h('button', { type: 'button', 'data-job': 'true', onclick: () => track(rerenderTake(item)), text: 'Renderizar de novo' }) : null,
-        h('button', { type: 'button', class: armed ? 'danger' : '', onclick: () => armDelete(item),
-          'aria-label': armed ? `Confirmar exclusão de ${item.name}` : `Excluir ${item.name}`,
-          text: armed ? `Confirmar exclusão${exercises ? ` (+${exercises} exercício(s))` : ''}` : 'Excluir' })));
+        disclosure(`item-actions:${item.id}`, 'Gerenciar',
+          h('button', { type: 'button', class: armed ? 'danger' : '', 'data-focus': 'delete', onclick: () => armDelete(item),
+            'aria-label': armed ? `Confirmar exclusão de ${item.name}` : `Excluir ${item.name}`,
+            text: armed ? `Confirmar exclusão${exercises ? ` (+${exercises} exercício(s))` : ''}` : 'Excluir' }))));
   }
 
   function renderCorrupt() {
+    const focus = captureUI(corruptBox, 'corrupt');
+    library.hidden = !state.items.length && !state.corrupt.length;
+    root.classList.toggle('rep-empty-library', library.hidden);
     corruptBox.hidden = state.corrupt.length === 0;
     if (!state.corrupt.length) { corruptBox.replaceChildren(); return; }
     corruptBox.replaceChildren(
       h('h4', { text: 'Registros danificados' }),
       h('p', { class: 'rep-hint', text: 'Estes registros não puderam ser lidos e não foram apagados. Baixe uma cópia bruta para recuperação manual ou remova-os.' }),
-      h('ul', {}, state.corrupt.map((record, index) => h('li', {},
+      h('ul', {}, state.corrupt.map((record, index) => h('li', { 'data-item': `${record.store}:${record.id ?? index}` },
         h('span', { text: `${record.store}: ${record.id ?? 'sem identificador'}` }),
         h('button', { type: 'button', onclick: () => {
           const text = JSON.stringify(record.raw, (key, value) => (value instanceof Blob ? `[Blob ${value.size} bytes]` : value), 2);
@@ -753,6 +860,7 @@ export function mountRepertoire(container, host) {
             setStatus(describeStorageError(error).message, true);
           }
         }, text: 'Remover' })))));
+    restoreUI(corruptBox, 'corrupt', focus);
   }
 
   // ---------- Laboratório ----------
@@ -769,6 +877,9 @@ export function mountRepertoire(container, host) {
 
   function refreshLab() {
     const item = current();
+    itemWorkspace.hidden = !item;
+    emptyWorkspace.hidden = Boolean(item);
+    for (const control of itemWorkspace.querySelectorAll('[data-show]')) control.checked = state.show[control.dataset.show];
     for (const control of [titleInput, playButton, stopButton, loopInput, aInput, bInput, speedRange, speedNumber, semitoneInput, centsInput, algorithmSelect, zoomInput, scrollInput]) {
       control.disabled = !item;
     }
@@ -783,11 +894,12 @@ export function mountRepertoire(container, host) {
     setValue(titleInput, item.name);
     playButton.disabled = !item.media;
     const details = [item.source === 'attempt' && !item.media ? 'Tentativa de teclado/toque (sem áudio)' : ITEM_SOURCES[item.source], formatTime(item.duration)];
-    if (item.sampleRate) details.push(`${(item.sampleRate / 1000).toLocaleString('pt-BR')} kHz`);
-    if (item.channels) details.push(item.channels === 1 ? 'mono' : `${item.channels} canais`);
-    if (item.media?.size) details.push(formatBytes(item.media.size));
-    metaLine.textContent = details.join(' · ');
-    const extras = [];
+    metaLine.textContent = details.join(' · ') + (isIdentityProcessing(item.processing) ? '' : ` · ${processingText(item.processing)}`);
+    const technical = [];
+    if (item.sampleRate) technical.push(`${(item.sampleRate / 1000).toLocaleString('pt-BR')} kHz`);
+    if (item.channels) technical.push(item.channels === 1 ? 'mono' : `${item.channels} canais`);
+    if (item.media?.size) technical.push(formatBytes(item.media.size));
+    const extras = technical.length ? [h('p', { class: 'rep-hint', text: technical.join(' · ') })] : [];
     if (item.source === 'attempt') {
       extras.push(h('p', { class: 'rep-hint', text: `Tentativa real de teclado/toque: ${item.attempts?.length ?? 0} ataque(s) registrados no estúdio${item.session ? `, sessão a ${item.session.bpm} BPM` : ''}. ${item.media ? 'O áudio é um render do arranjo com as tentativas, não uma gravação de microfone.' : 'Somente metadados: nenhum áudio foi renderizado.'}` }));
     }
@@ -807,7 +919,10 @@ export function mountRepertoire(container, host) {
       const parent = state.items.find(entry => entry.id === item.parentId);
       if (parent) extras.push(h('p', { class: 'rep-hint', text: `Derivado de “${parent.name}”.` }));
     }
+    const extraFocus = captureUI(extraBox, 'item-details');
     extraBox.replaceChildren(...domChildren(extras));
+    restoreUI(extraBox, 'item-details', extraFocus);
+    itemDetails.hidden = extras.length === 0;
     loopInput.checked = item.loop;
     setValue(aInput, item.region ? formatTime(item.region.start) : '');
     setValue(bInput, item.region ? formatTime(item.region.end) : '');
@@ -1216,24 +1331,15 @@ export function mountRepertoire(container, host) {
     tabButtons[next].focus();
   }
 
-  // A–B e processamento mudam contagens, disponibilidade e ações capturadas
-  // pelos painéis. Recria apenas as ferramentas dependentes, guardando rascunhos
-  // explícitos (não valores derivados, como a grade de andamento).
+  // Atualiza ações derivadas sem perder rascunhos, foco ou divulgações abertas.
   function refreshDerivedTabs() {
-    if (!['analysis', 'exercises', 'setlists', 'share'].includes(state.tab)) return;
-    const drafts = new Map([...tabPanel.querySelectorAll('[data-draft]')].map(control => [
-      control.dataset.draft, { value: control.value, checked: control.checked },
-    ]));
-    renderTabs();
-    for (const control of tabPanel.querySelectorAll('[data-draft]')) {
-      const draft = drafts.get(control.dataset.draft);
-      if (!draft) continue;
-      control.value = draft.value;
-      if (control.type === 'checkbox') control.checked = draft.checked;
-    }
+    if (['analysis', 'exercises', 'setlists', 'share'].includes(state.tab)) renderTabs();
   }
 
   function renderTabs() {
+    const previousContext = panelContext;
+    const focus = captureUI(tabPanel, previousContext);
+    panelContext = `${state.tab}:${state.selectedId ?? ''}:${state.tab === 'setlists' ? state.setlistId ?? '' : ''}`;
     tabButtons.forEach((button, index) => {
       const active = TABS[index][0] === state.tab;
       button.setAttribute('aria-selected', String(active));
@@ -1241,11 +1347,13 @@ export function mountRepertoire(container, host) {
     });
     tabPanel.setAttribute('aria-labelledby', uid(`tab-${state.tab}`));
     const builders = { markers: markersTab, analysis: analysisTab, takes: takesTab, exercises: exercisesTab, setlists: setlistsTab, share: shareTab };
-    tabPanel.replaceChildren(...domChildren([builders[state.tab]()]));
+    tabPanel.replaceChildren(...compactSections(builders[state.tab]()));
+    restoreUI(tabPanel, panelContext, previousContext === panelContext ? focus : null);
     refreshBusy();
   }
 
   function needsItem(text = 'Selecione um item da biblioteca para usar esta ferramenta.') {
+    if (!state.items.length && state.tab === 'markers') return null;
     return h('p', { class: 'rep-hint', text });
   }
 
@@ -1288,10 +1396,10 @@ export function mountRepertoire(container, host) {
   function markersTab() {
     const item = current();
     if (!item) return needsItem();
-    const kindSelect = h('select', {}, Object.entries(MARKER_KINDS).map(([value, label]) => h('option', { value }, label)));
-    const labelInput = h('input', { type: 'text', maxLength: 80, list: uid('sections'), placeholder: 'Ex.: Refrão, respiração, entrada do baixo' });
-    const textInput = h('textarea', { rows: 2, maxLength: 2000, placeholder: 'Comentário opcional' });
-    const rangedInput = h('input', { type: 'checkbox', disabled: !item.region });
+    const kindSelect = h('select', { 'data-draft': 'marker-kind' }, Object.entries(MARKER_KINDS).map(([value, label]) => h('option', { value }, label)));
+    const labelInput = h('input', { type: 'text', 'data-draft': 'marker-label', maxLength: 80, list: uid('sections'), placeholder: 'Ex.: Refrão, respiração, entrada do baixo' });
+    const textInput = h('textarea', { rows: 2, 'data-draft': 'marker-text', maxLength: 2000, placeholder: 'Comentário opcional' });
+    const rangedInput = h('input', { type: 'checkbox', 'data-draft': 'marker-ranged', disabled: !item.region });
     const sections = sectionList(item.markers, item.duration);
     return [
       h('datalist', { id: uid('sections') }, SECTION_PRESETS.map(name => h('option', { value: name }))),
@@ -1449,16 +1557,15 @@ export function mountRepertoire(container, host) {
     const item = current();
     if (!item) return needsItem();
     const analysis = analyses.get(item.id);
-    const toggles = [['grid', 'Grade de compassos'], ['beats', 'Pulsos rastreados'], ['onsets', 'Ataques'], ['chords', 'Acordes'], ['notes', 'Notas']].map(([key, label]) => h('label', { class: 'toggle' },
-      h('input', { type: 'checkbox', checked: state.show[key], onchange: event => { state.show[key] = event.target.checked; savePrefs(); draw(); } }), label));
     const content = [
-      h('p', { class: 'rep-hint', text: 'Estimativas calculadas neste aparelho, sem rede: andamento por autocorrelação de ataques, pulsos por programação dinâmica, altura predominante por YIN e acordes por croma. São hipóteses com confiança indicada — confira de ouvido e corrija.' }),
+      h('p', { class: 'rep-hint', text: 'Estimativas locais: confira de ouvido e corrija.' }),
       h('div', { class: 'rep-row' },
         h('button', { type: 'button', class: 'primary', 'data-job': 'true', onclick: runAnalysis, text: analysis ? 'Analisar de novo' : 'Analisar ritmo, altura e acordes' }),
-        h('label', { class: 'toggle' }, h('input', { type: 'checkbox', checked: state.analyzeRegionOnly, disabled: !item.region, onchange: event => { state.analyzeRegionOnly = event.target.checked; } }), 'Somente o trecho A–B'),
-        h('button', { type: 'button', 'data-job': 'true', onclick: separateItem, text: 'Separar harmônico/percussivo' })),
-      h('p', { class: 'rep-hint', text: 'A separação harmônico/percussiva usa filtros de mediana no espectrograma (STFT) do trecho A–B (ou do item). Gera duas estimativas aproximadas — sons sustentados e ataques — e NÃO isola voz, baixo ou instrumentos específicos.' }),
-      h('div', { class: 'rep-row' }, toggles),
+        h('label', { class: 'toggle' }, h('input', { type: 'checkbox', checked: state.analyzeRegionOnly, disabled: !item.region, onchange: event => { state.analyzeRegionOnly = event.target.checked; } }), 'Somente o trecho A–B')),
+      disclosure('analysis-method', 'Métodos e separação de áudio',
+        h('p', { class: 'rep-hint', text: 'Andamento por autocorrelação, pulsos por programação dinâmica, altura predominante por YIN e acordes por croma. São hipóteses, não uma transcrição exata.' }),
+        h('button', { type: 'button', 'data-job': 'true', onclick: separateItem, text: 'Separar harmônico/percussivo' }),
+        h('p', { class: 'rep-hint', text: 'HPSS gera duas estimativas do trecho A–B (ou do item): sons sustentados e ataques. Não isola voz, baixo ou instrumentos específicos.' })),
     ];
     const tempo = item.tempo;
     const tapButton = h('button', { type: 'button', onclick: () => {
@@ -1750,10 +1857,10 @@ export function mountRepertoire(container, host) {
 
   function takesTab() {
     const playable = state.items.filter(item => item.media);
-    const loopsInput = h('input', { type: 'number', min: 1, max: 16, step: 1, value: 1 });
-    const mixInput = h('input', { type: 'checkbox', disabled: !current()?.media });
-    const refGain = h('input', { type: 'number', min: 0, max: 150, step: 5, value: 100 });
-    const arrGain = h('input', { type: 'number', min: 0, max: 150, step: 5, value: 80 });
+    const loopsInput = h('input', { type: 'number', 'data-draft': 'take-loops', min: 1, max: 16, step: 1, value: 1 });
+    const mixInput = h('input', { type: 'checkbox', 'data-draft': 'take-mix', disabled: !current()?.media });
+    const refGain = h('input', { type: 'number', 'data-draft': 'take-reference-gain', min: 0, max: 150, step: 5, value: 100 });
+    const arrGain = h('input', { type: 'number', 'data-draft': 'take-arrangement-gain', min: 0, max: 150, step: 5, value: 80 });
     const select = (key, label) => field(label, h('select', { onchange: event => { state.ab[key] = event.target.value || null; state.ab.result = null; savePrefs(); } },
       h('option', { value: '' }, '— escolha —'),
       playable.map(item => h('option', { value: item.id, selected: state.ab[key] === item.id }, `${item.name} (${ITEM_SOURCES[item.source]})`))));
@@ -2037,6 +2144,8 @@ export function mountRepertoire(container, host) {
       if (trackIndex < 0) throw new Error('O arquivo MIDI não contém notas.');
       state.midi = { parsed, fileName: file.name, trackIndex, quantize: 'sixteenth' };
       setTab('share');
+      disclosureState.set('tool:share:MIDI (arquivo Standard MIDI)', true);
+      tabPanel.querySelector('[data-disclosure="tool:share:MIDI (arquivo Standard MIDI)"]').open = true;
       setStatus(`MIDI “${file.name}” lido: ${parsed.tracks.length} trilha(s). Escolha a trilha e aplique à sessão.`);
     } catch (error) {
       reportError(error);
@@ -2125,7 +2234,7 @@ export function mountRepertoire(container, host) {
     const session = host.getSession();
     const content = [];
 
-    content.push(h('section', { class: 'rep-subsection' },
+    if (item?.media) content.push(h('section', { class: 'rep-subsection' },
       h('h4', { text: 'Áudio (WAV)' }),
       h('div', { class: 'rep-row' },
         h('button', { type: 'button', disabled: !item?.media, onclick: () => exportWav(item, false), text: 'Baixar item inteiro (WAV)' }),

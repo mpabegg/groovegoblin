@@ -54,6 +54,11 @@ const audio = new GrooveAudio({ onState: () => renderControls(), onFinish: (atte
   void saveTake(attempts, { ...detail, session: reference, results }).catch(error => message(`Treino concluído; não foi possível guardar a tomada: ${error.message}`, true));
   $('train-state').textContent = 'Treino concluído. Compare ataques e términos; a tomada usa a sessão executada.';
   renderControls();
+  if ((document.activeElement === $('train-pad') || document.activeElement === document.body) && $('tab-practice').getAttribute('aria-selected') === 'true') {
+    const summary = $('practice-results') ?? $('feedback-detail').querySelector('summary');
+    summary.focus({ preventScroll: true });
+    summary.scrollIntoView({ block: 'center', behavior: 'instant' });
+  }
 } });
 
 function message(text, error = false) {
@@ -121,6 +126,10 @@ async function begin(mode = 'loop') {
   repertoire?.stop();
   stop();
   const request = ++generation;
+  if (mode === 'train') {
+    activateTab($('tab-practice'));
+    $('performance-input').open = true;
+  }
   pending = 'play';
   renderControls();
   const snapshot = structuredClone(session);
@@ -128,6 +137,10 @@ async function begin(mode = 'loop') {
   try {
     await audio.playSession(snapshot, { mode });
     if (request !== generation) return;
+    if (mode === 'train') {
+      $('train-pad').focus({ preventScroll: true });
+      $('performance-input').scrollIntoView({ block: 'center', behavior: 'instant' });
+    }
     message(mode === 'train' ? 'Treino iniciado no loop da fonte; a forma não entra na avaliação.' : session.form.enabled ? 'Forma musical em reprodução.' : 'Arranjo completo no mesmo loop.');
   } catch (error) {
     if (request === generation) { audio.stop(); message(`Não foi possível iniciar: ${error.message}`, true); }
@@ -158,6 +171,9 @@ function activateTab(tab) {
     item.setAttribute('aria-selected', String(active)); item.tabIndex = active ? 0 : -1;
     $(item.getAttribute('aria-controls')).hidden = !active;
   }
+  document.body.dataset.intent = tab.id.slice(4);
+  const slot = tab.id === 'tab-band' ? $('band-session-slot') : $('practice-session-slot');
+  if ($('session-workspace').parentElement !== slot) slot.append($('session-workspace'));
   if (tab.id !== 'tab-repertoire') repertoire.stop();
 }
 for (const tab of tabs) {
@@ -471,7 +487,7 @@ function travelHistory(direction) {
 $('undo').addEventListener('click', () => travelHistory('undo')); $('redo').addEventListener('click', () => travelHistory('redo'));
 $('play').addEventListener('click', () => void begin().catch(() => {}));
 $('train').addEventListener('click', () => void begin('train').catch(() => {}));
-$('stop').addEventListener('click', () => { stop('Sessão parada.'); repertoire.stop(); });
+$('stop').addEventListener('click', () => { practice.cancel(); repertoire.stop(); message('Som interrompido.'); });
 
 // Entradas de treino usam o relógio do evento, nunca um segundo transporte.
 function clearInput() {
@@ -492,7 +508,7 @@ for (const type of ['pointercancel', 'lostpointercapture']) $('train-pad').addEv
 });
 window.addEventListener('keydown', event => {
   const editing = event.target instanceof Element && !!event.target.closest('input, textarea, select, [contenteditable=true]');
-  if (event.key === 'Escape') { stop('Sessão interrompida.'); repertoire.stop(); return; }
+  if (event.key === 'Escape') { practice.cancel(); repertoire.stop(); message('Som interrompido.'); return; }
   if (editing) return;
   if ((event.code === 'Space' || (event.code === 'Enter' && event.target === $('train-pad'))) && ['countin', 'train'].includes(audio.position.mode)) {
     event.preventDefault(); if (!event.repeat && !activeInput) { activeInput = { source: 'keyboard', id: event.code }; audio.press(event.timeStamp, Number($('input-pitch').value)); } return;
@@ -697,6 +713,7 @@ $('replace-library-recovery').addEventListener('click', () => {
 
 function renderFeedback() {
   $('feedback').replaceChildren(); $('timeline').replaceChildren();
+  $('feedback-detail').hidden = !results;
   if (!results) { const p = document.createElement('p'); p.className = 'muted'; p.textContent = 'Conclua um treino para comparar cada ataque e término, notas omitidas e extras.'; $('feedback').append(p); return; }
   renderTimeline($('timeline'), buildTimelineData(results, { session: reference }));
   const summary = summarizeFeedback(results);
@@ -777,12 +794,15 @@ function frame() {
   if (position.mode === 'train') $('train-state').textContent = `Repetição ${position.repetition}/${session.training.repetitions} · pressione e solte nos limites das notas.`;
   requestAnimationFrame(frame);
 }
+$('session-workspace').insertBefore($('training-options'), $('studio-editor'));
+for (const id of ['session-status', 'recovery', 'share-preview']) $('studio-notices').append($(id));
 repertoire = mountRepertoire($('repertoire-mount'), host);
 practice = mountPractice($('practice-mount'), host);
 playground = mountPlayground($('playground-mount'), host);
 journey = mountJourney($('journey-mount'), host);
 setupOffline({ isBusy: () => busy() || repertoire.isBusy(), canReload: () => sessionSaved, notify: message });
 history.push(session); audio.setMixer(session.mixer); renderLibrary(); renderAll();
+activateTab($('tab-practice'));
 $('recovery').hidden = recoveryRaw === null; persist();
 if (restored.warnings?.length) message(restored.warnings.join(' '), true);
 if (library.warning) $('library-status').textContent = library.warning;
