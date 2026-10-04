@@ -48,3 +48,8 @@ p { font-size: 14px; line-height: 1.6; margin: 4px 0 9px; }.muted { color: var(-
 .train-pad:disabled { opacity: 1; }
 .timing-counts { color: var(--accent); font-size: 14px; }
 .practice-advice { border-left: 3px solid var(--blue); padding: 12px 16px; background: #111b20; margin: 14px 0 20px; }
+.progression-chords { display: flex; flex-wrap: wrap; gap: 12px; list-style: none; padding: 0; margin: 18px 0; }
+.progression-chord { flex: 1 1 140px; border: 1px solid var(--line); border-radius: 8px; padding: 14px; background: #111b20; }
+.progression-chord strong { display: block; color: var(--accent); font-size: 22px; margin: 6px 0; }
+.progression-chord span { display: block; color: var(--muted); font-size: 12px; }
+.progression-chord.current { border-color: var(--accent); background: #26392a; }

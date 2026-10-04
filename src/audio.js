@@ -113,7 +113,7 @@ export class GrooveAudio {
   #timerId = null;
   #finishTimeoutId = null;
 
-  #sessionKind = null; // null | 'play' | 'train'
+  #sessionKind = null; // null | 'play' | 'progression' | 'train'
   #sessionStartTime = 0; // ctx.currentTime anchor for the active session
   #secPerTick = 0;
   #scheduleCursor = 0; // next tick index not yet handed to the audio graph
@@ -134,7 +134,20 @@ export class GrooveAudio {
     this.#onFinishCb = onFinish;
   }
 
-  async play(notes, bpm, metronome, bars = 1) {
+  play(notes, bpm, metronome, bars = 1) {
+    return this.#startLoop(notes, bpm, metronome, TICKS_PER_BAR * this.#validBars(bars), 'play');
+  }
+
+  playProgression(progression, bpm, metronome = false) {
+    // Tétrades são simultâneas; não passam pelo modelo monofônico de frases.
+    const notes = progression.chords.flatMap((chord, index) => chord.notes.map(note => ({
+      start: index * TICKS_PER_BAR, duration: TICKS_PER_BAR,
+      frequency: 440 * 2 ** ((note.midi - 69) / 12), gainScale: 0.25,
+    })));
+    return this.#startLoop(notes, bpm, metronome, progression.chords.length * TICKS_PER_BAR, 'progression');
+  }
+
+  async #startLoop(notes, bpm, metronome, totalTicks, kind) {
     this.stop();
     const gen = this.#generation;
     const ctx = this.#ensureContext();
@@ -142,14 +155,14 @@ export class GrooveAudio {
     this.#notes = notes;
     this.#secPerTick = 60 / bpm / TICKS_PER_BEAT;
     this.#metronomeEnabled = !!metronome;
-    this.#totalTicks = TICKS_PER_BAR * this.#validBars(bars);
+    this.#totalTicks = totalTicks;
 
     if (ctx.state === 'suspended') {
       await ctx.resume();
     }
     if (gen !== this.#generation) return; // stop() won the race during resume()
 
-    this.#sessionKind = 'play';
+    this.#sessionKind = kind;
     this.#scheduleCursor = 0;
     this.#sessionStartTime = ctx.currentTime + SESSION_PRIME_SEC;
     this.#emitState();
@@ -250,10 +263,10 @@ export class GrooveAudio {
     const now = this.#nowAudioTime();
     const elapsedTicks = Math.max(0, (now - this.#sessionStartTime) / this.#secPerTick);
 
-    if (this.#sessionKind === 'play') {
+    if (this.#sessionKind === 'play' || this.#sessionKind === 'progression') {
       const tick = elapsedTicks % this.#totalTicks;
       return {
-        mode: 'play',
+        mode: this.#sessionKind,
         tick,
         repetition: 0,
         bar: Math.floor(tick / TICKS_PER_BAR) + 1,
@@ -365,7 +378,7 @@ export class GrooveAudio {
     if (gen !== this.#generation) return;
     const ctx = this.#ctx;
     const horizon = ctx.currentTime + SCHEDULE_AHEAD_SEC;
-    const isPlay = this.#sessionKind === 'play';
+    const isPlay = this.#sessionKind === 'play' || this.#sessionKind === 'progression';
     const totalTrainTicks = TICKS_PER_BAR + this.#totalTicks * 4;
 
     while (true) {
@@ -396,7 +409,7 @@ export class GrooveAudio {
     }
     for (const note of this.#notes) {
       if (note.start === tick) {
-        this.#scheduleNote(time, note.duration * this.#secPerTick);
+        this.#scheduleNote(time, note.duration * this.#secPerTick, note.frequency, note.gainScale);
       }
     }
   }
@@ -470,12 +483,12 @@ export class GrooveAudio {
     this.#trackNode(osc, gain);
   }
 
-  #scheduleNote(time, durationSec) {
+  #scheduleNote(time, durationSec, frequency = NOTE_FREQUENCY_HZ, gainScale = 1) {
     const ctx = this.#ctx;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(NOTE_FREQUENCY_HZ, time);
+    osc.frequency.setValueAtTime(frequency, time);
 
     const attack = Math.min(NOTE_ATTACK_SEC, durationSec / 4);
     const decay = Math.min(NOTE_DECAY_SEC, durationSec / 4);
@@ -483,9 +496,9 @@ export class GrooveAudio {
     const sustainEnd = time + durationSec - release;
 
     gain.gain.setValueAtTime(0, time);
-    gain.gain.linearRampToValueAtTime(NOTE_PEAK_GAIN, time + attack);
-    gain.gain.linearRampToValueAtTime(NOTE_SUSTAIN_GAIN, time + attack + decay);
-    gain.gain.setValueAtTime(NOTE_SUSTAIN_GAIN, sustainEnd);
+    gain.gain.linearRampToValueAtTime(NOTE_PEAK_GAIN * gainScale, time + attack);
+    gain.gain.linearRampToValueAtTime(NOTE_SUSTAIN_GAIN * gainScale, time + attack + decay);
+    gain.gain.setValueAtTime(NOTE_SUSTAIN_GAIN * gainScale, sustainEnd);
     gain.gain.linearRampToValueAtTime(0, time + durationSec);
 
     osc.connect(gain).connect(this.#masterGain);

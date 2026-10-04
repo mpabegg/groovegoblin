@@ -1,6 +1,14 @@
 # GrooveGoblin
 
-Aplicação web estática para compor e treinar frases rítmicas em 4/4. Usa JavaScript ESM, CSS e SVG nativos: sem framework, dependências de runtime ou backend. Guia completo da interface, notação, biblioteca, geração, avaliação e privacidade: [guide.html](./guide.html) — também acessível pelo app.
+Aplicação web estática para compor e treinar frases rítmicas em 4/4 e explorar progressões diatônicas. Usa JavaScript ESM, CSS e SVG nativos: sem framework, dependências de runtime ou backend. Guia completo da interface, notação, biblioteca, geração rítmica, harmonia, avaliação e privacidade: [guide.html](./guide.html) — também acessível pelo app.
+
+## Progressões diatônicas
+
+Escolha uma das **24 tonalidades** (12 maiores e 12 menores naturais) e gere uma sequência aleatória de **2 a 5 acordes de sétima**, cada um com quatro notas da escala. Repetições são permitidas; os cartões mostram grau, cifra e notas.
+
+**Ouvir progressão em loop** sintetiza as quatro notas simultaneamente, sem samples, com um compasso em 4/4 por acorde e o BPM do controle rítmico. Trocar tonalidade ou gerar outra progressão durante o loop interrompe o áudio anterior e reinicia a nova sequência. Progressão, referência rítmica e treino nunca tocam juntos. Parar, Escape fora de campos, perder o foco ou trocar de aba interrompem a sessão.
+
+A progressão não altera a frase rítmica, sua partitura ou seu treino. Tonalidade e acordes ficam somente na sessão: não são persistidos, desfeitos, exportados ou compartilhados. O gerador harmônico usa `Math.random`, sem semente na interface; o gerador rítmico existente continua reproduzível por semente.
 
 ## Desenvolvimento local
 

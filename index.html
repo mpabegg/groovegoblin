@@ -90,6 +90,18 @@
       <p>O link contém a frase, BPM e compassos. Quem receber o link pode lê-los; nenhum serviço armazena a frase.</p>
     </div>
   </section>
+  <section class="panel progression" aria-labelledby="progression-title">
+    <div class="section-heading"><div><div class="eyebrow">EXPLORE A HARMONIA</div><h2 id="progression-title">Progressões diatônicas</h2></div><span class="badge">2–5 tétrades · 4 notas/acorde</span></div>
+    <div class="tool-row">
+      <label for="progression-key">Tonalidade <select id="progression-key" aria-describedby="progression-hint"></select></label>
+      <button id="generate-progression">Gerar nova progressão</button>
+      <button id="play-progression" class="primary">▶ Ouvir progressão em loop</button>
+      <button id="stop-progression" disabled>■ Parar progressão</button>
+    </div>
+    <p id="progression-hint" class="tool-hint muted">Maior ou menor natural · cada acorde dura um compasso em 4/4, no BPM acima. Repetições são permitidas. A progressão não altera sua frase rítmica e fica apenas nesta sessão.</p>
+    <ol id="progression-chords" class="progression-chords" aria-label="Acordes da progressão"></ol>
+    <p id="progression-status" class="tool-hint" role="status" aria-live="polite"></p>
+  </section>
   <section class="panel training" aria-labelledby="train-title">
     <div class="section-heading"><div><div class="eyebrow">02 / SINTA O TEMPO</div><h2 id="train-title">Do desenho ao gesto</h2></div><span class="badge">1 entrada + 4 repetições</span></div>
     <div class="training-controls"><div><p>Ouça a referência, depois reproduza a frase inteira com a <kbd>barra de espaço</kbd> ou segurando o botão abaixo.</p><p class="muted">Pressione no ataque. Solte no final. Durante a avaliação, só o metrônomo toca.</p></div><button id="train" class="primary" disabled>Começar treino</button></div>

@@ -7,6 +7,7 @@ import { buildTimelineData, renderTimeline } from './timeline.js';
 import { GROOVES, loadGroove } from './library.js';
 import { generateGroove } from './generator.js';
 import { buildRhythmNotation, renderRhythmNotation } from './notation.js';
+import { PROGRESSION_KEYS, generateProgression } from './progression.js';
 
 const $ = id => document.getElementById(id);
 const restored = loadState();
@@ -17,6 +18,7 @@ let bars = restored.bars;
 let selected = null;
 let drag = null;
 let starting = false;
+let startingMode = null;
 let importing = false;
 let startGeneration = 0;
 let lastMode = 'idle';
@@ -26,6 +28,8 @@ let notationBars = 0;
 let recoveryRaw = restored.recoveryRaw;
 let sharedPhrase = null;
 let activeInput = null;
+let progression = generateProgression({ keyId: 'c-major' });
+let activeChord = -1;
 const history = new History(100);
 
 // Durações predefinidas (em semicolcheias) e seus nomes musicais.
@@ -50,6 +54,7 @@ const audio = new GrooveAudio({ onState: () => renderControls(), onFinish: attem
 } });
 
 function busy() { return starting || importing || audio.position.mode !== 'idle'; }
+function progressionSession() { return audio.position.mode === 'progression' || (starting && startingMode === 'progression'); }
 function message(text, error = false) {
   $('message').textContent = text;
   $('message').classList.toggle('error', error);
@@ -248,8 +253,9 @@ function renderControls() {
   const locked = busy();
   const note = notes.find(n => n.id === selected);
   if (!note) selected = null;
-  $('play').disabled = locked || notes.length === 0;
-  $('train').disabled = locked || notes.length === 0;
+  const playingProgression = audio.position.mode === 'progression';
+  $('play').disabled = (locked && !playingProgression) || notes.length === 0;
+  $('train').disabled = (locked && !playingProgression) || notes.length === 0;
   $('stop').disabled = !starting && audio.position.mode === 'idle';
   $('bpm').disabled = locked;
   $('bars').disabled = locked;
@@ -266,6 +272,11 @@ function renderControls() {
   $('apply-share').disabled = locked || !sharedPhrase;
   $('replace-recovery').disabled = locked;
   $('train-pad').disabled = !['countin', 'train'].includes(audio.position.mode);
+  $('progression-key').disabled = $('generate-progression').disabled = importing || (locked && !progressionSession());
+  $('play-progression').disabled = importing || progressionSession();
+  $('stop-progression').disabled = !progressionSession();
+  const key = PROGRESSION_KEYS.find(item => item.id === progression.keyId);
+  $('progression-status').textContent = `${progressionSession() ? 'Em loop' : 'Pronta para ouvir'} · ${key.label} · ${progression.chords.length} acordes.`;
   const editable = locked || !note;
   $('note-start').disabled = $('note-duration').disabled = editable;
   $('note-start').max = $('note-duration').max = totalTicks();
@@ -469,22 +480,60 @@ $('seed').value = preferences.seed ?? newSeed();
 if (preferences.seed === null) persistPreferences();
 $('generate').addEventListener('click', () => generate(false));
 $('variation').addEventListener('click', () => generate(true));
+for (const key of PROGRESSION_KEYS) {
+  const option = document.createElement('option');
+  option.value = key.id; option.textContent = key.label;
+  $('progression-key').append(option);
+}
+$('progression-key').value = progression.keyId;
+function renderProgression() {
+  const items = progression.chords.map((chord, index) => {
+    const item = document.createElement('li');
+    item.className = 'progression-chord';
+    const degree = document.createElement('span');
+    degree.textContent = `Compasso ${index + 1} · ${chord.roman} · grau ${chord.degree}`;
+    const symbol = document.createElement('strong');
+    symbol.textContent = chord.symbol;
+    const tones = document.createElement('span');
+    tones.textContent = chord.notes.map(note => note.name).join(' · ');
+    item.append(degree, symbol, tones);
+    return item;
+  });
+  $('progression-chords').replaceChildren(...items);
+  activeChord = -1;
+}
+function regenerateProgression() {
+  if (importing || (busy() && !progressionSession())) return;
+  const restart = progressionSession();
+  if (restart) stop();
+  progression = generateProgression({ keyId: $('progression-key').value });
+  renderProgression();
+  renderControls();
+  if (restart) void begin('progression');
+}
+$('progression-key').addEventListener('change', regenerateProgression);
+$('generate-progression').addEventListener('click', regenerateProgression);
+$('play-progression').addEventListener('click', () => begin('progression'));
+$('stop-progression').addEventListener('click', () => stop('Progressão parada.'));
 async function begin(mode) {
-  if (busy() || !notes.length) return;
+  if (importing || (mode !== 'progression' && (!notes.length || (busy() && audio.position.mode !== 'progression')))) return;
+  if (busy()) stop();
   const generation = ++startGeneration;
   cancelDrag();
   if (mode === 'train') {
     $('inspiration').open = false;
     $('grid').scrollIntoView({ block: 'start' });
   }
+  startingMode = mode;
   starting = true; renderNotes();
   try {
     if (mode === 'train') { invalidateFeedback(); await audio.train(notes, bpm, bars); }
+    else if (mode === 'progression') await audio.playProgression(progression, bpm, $('metronome').checked);
     else await audio.play(notes, bpm, $('metronome').checked, bars);
   } catch (error) {
     if (generation === startGeneration) { audio.stop(); message(`Não foi possível iniciar o áudio: ${error.message}`, true); }
   } finally {
-    if (generation === startGeneration) { starting = false; renderControls(); }
+    if (generation === startGeneration) { starting = false; startingMode = null; renderControls(); }
   }
 }
 $('play').addEventListener('click', () => begin('play'));
@@ -493,6 +542,7 @@ function stop(reason) {
   const wasTrain = ['countin','train'].includes(audio.position.mode);
   ++startGeneration;
   starting = false;
+  startingMode = null;
   cancelDrag();
   audio.stop();
   clearInput();
@@ -617,26 +667,36 @@ function frame() {
   const position = audio.position;
   if (position.mode !== lastMode) { lastMode = position.mode; renderControls(); }
   const total = totalTicks();
-  $('playhead').hidden = position.mode === 'idle';
+  $('playhead').hidden = position.mode === 'idle' || position.mode === 'progression';
   $('playhead').style.left = `${Math.max(0, Math.min(position.mode === 'countin' ? TICKS_PER_BAR : total, position.tick)) / total * 100}%`;
-  if (position.mode !== 'idle') {
+  if (position.mode !== 'idle' && position.mode !== 'progression') {
     const scroll = document.querySelector('.grid-scroll');
     const x = position.tick / total * $('grid').clientWidth;
     if (x < scroll.scrollLeft + 16 || x > scroll.scrollLeft + scroll.clientWidth - 32) {
       scroll.scrollLeft = Math.max(0, x - scroll.clientWidth / 3);
     }
   }
+  const chordIndex = position.mode === 'progression' ? position.bar - 1 : -1;
+  if (chordIndex !== activeChord) {
+    activeChord = chordIndex;
+    Array.from($('progression-chords').children).forEach((item, index) => {
+      item.classList.toggle('current', index === chordIndex);
+      if (index === chordIndex) item.setAttribute('aria-current', 'step');
+      else item.removeAttribute('aria-current');
+    });
+  }
   const activeTraining = ['countin','train'].includes(position.mode);
   $('train-pad').classList.toggle('active', activeTraining);
   $('train-pad').classList.toggle('held', position.held);
   $('held-state').textContent = position.held ? 'PRESSIONADA · nota em curso' : 'ESPAÇO ou toque · pressionar / soltar';
   const where = position.mode === 'idle' ? 'Pronto para compor' : `compasso ${position.bar}${position.mode === 'train' ? ` · repetição ${position.repetition}/4` : ''} · tempo ${position.beat}`;
-  $('position-text').textContent = position.mode === 'idle' ? where : `${position.mode === 'countin' ? 'Entrada' : position.mode === 'train' ? 'Treino' : 'Loop'} · ${where}`;
+  $('position-text').textContent = position.mode === 'idle' ? where : `${position.mode === 'countin' ? 'Entrada' : position.mode === 'train' ? 'Treino' : position.mode === 'progression' ? 'Harmonia' : 'Loop'} · ${where}`;
   if (position.mode === 'countin') $('train-state').textContent = `Contagem de entrada · ${position.beat} / 4. Aguarde para tocar.`;
   if (position.mode === 'train') $('train-state').textContent = `Repetição ${position.repetition} / 4 · compasso ${position.bar} · pressione e solte nos limites de cada nota.`;
   requestAnimationFrame(frame);
 }
 history.push({ notes, bpm, bars });
+renderProgression();
 renderGrid(); renderNotes(); renderFeedback();
 if (restored.warning) message(restored.warning, true);
 $('recovery').hidden = recoveryRaw === null;

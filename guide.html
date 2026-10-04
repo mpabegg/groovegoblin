@@ -17,9 +17,10 @@
   <section class="panel">
     <h2>Compositor e treinador rítmico</h2>
     <p>Crie frases monofônicas em 4/4 com <strong>1, 2 ou 4 compassos</strong> e 16 posições de semicolcheia por compasso. O app não tem backend, contas, fontes externas, nem envio automático de dados. Os links externos da biblioteca só acessam a internet quando você os abre.</p>
+    <p>Explore também progressões diatônicas maiores ou menores naturais, separadas da frase rítmica: tétrades com quatro alturas simultâneas e reprodução sintetizada em loop.</p>
     <nav aria-label="Conteúdo do guia"><ul>
       <li><a href="#compose">Compor e editar</a></li><li><a href="#notation">Partitura rítmica</a></li>
-      <li><a href="#library">Biblioteca e gerador</a></li><li><a href="#training">Ouvir e treinar</a></li>
+      <li><a href="#library">Biblioteca e gerador</a></li><li><a href="#progressions">Progressões diatônicas</a></li><li><a href="#training">Ouvir e treinar</a></li>
       <li><a href="#feedback">Feedback e latência</a></li><li><a href="#files">Arquivos, links e dados locais</a></li>
     </ul></nav>
   </section>
@@ -77,6 +78,19 @@
     </ol>
     <p>Geração mantém BPM e tamanho atuais. Preferências são ponderadas, não proibições: “mais nos tempos” ainda pode produzir síncopes. Ataques são sorteados sem reposição em cada compasso; duração é limitada pelo próximo ataque ou pelo fim, sem sobreposição, e pode atravessar barras internas. “Curtas” sempre usa 1 tick; as outras opções incluem sustentações e pausas. Alterar somente duração mantém os ataques para a mesma semente.</p>
     <p>O PRNG Mulberry32 é determinístico; não usa rede. Pesos de ataque: “mais nos tempos” = 12/3/1 para tempos/contratempos de colcheia/demais ticks; “mais sincopados” = 1 nos tempos e 4 nas outras subdivisões; mistos = pesos iguais. A nova semente vem de <code>crypto.getRandomValues</code>. Na primeira abertura, uma semente aleatória é gerada e salva; opções e semente permanecem após recarregar e podem reproduzir a mesma frase. Não há promessa de composição estilística ou identificação de gênero. Opções/semente não entram no arquivo JSON nem no link compartilhado; as opções atuais são salvas localmente nas preferências.</p>
+  </section>
+  <section class="panel" id="progressions" aria-labelledby="progressions-title">
+    <h2 id="progressions-title">Progressões diatônicas</h2>
+    <ol>
+      <li>Escolha uma das <strong>24 tonalidades</strong>: as 12 classes de altura em modo maior ou menor natural. As grafias enarmônicas escolhidas evitam tonalidades duplicadas; acidentes como E# em F# maior ou Cb em Eb menor natural são intencionais.</li>
+      <li><strong>Gerar nova progressão</strong> sorteia de <strong>2 a 5 acordes de sétima</strong>. Cada acorde é uma tétrade formada por fundamental, terça, quinta e sétima da escala; todos os sete graus podem aparecer, inclusive repetidos. Não há exigência de começar na tônica ou terminar em cadência.</li>
+      <li>Os cartões mostram compasso, grau em algarismo romano, cifra e as quatro notas. <code>maj7</code> indica sétima maior; <code>m7</code>, acorde menor com sétima menor; <code>7</code>, acorde maior com sétima menor; <code>m7b5</code>, meio-diminuto. O símbolo <code>ø</code> no grau indica esse último tipo.</li>
+      <li><strong>Ouvir progressão em loop</strong> toca quatro osciladores triangulares simultâneos por acorde, com volume de cada voz reduzido a um quarto. Cada acorde dura <strong>um compasso em 4/4</strong>, no BPM definido acima; o cartão em curso fica destacado. A quantidade de compassos da frase rítmica não limita a progressão.</li>
+    </ol>
+    <p>Em C maior, os acordes disponíveis são Cmaj7, Dm7, Em7, Fmaj7, G7, Am7 e Bm7b5. Em A menor natural, são Am7, Bm7b5, Cmaj7, Dm7, Em7, Fmaj7 e G7. O modo menor é <strong>natural</strong>, não harmônico ou melódico: o quinto grau é menor, sem elevar a sensível.</p>
+    <p>Trocar tonalidade ou gerar novamente durante a reprodução para o grafo de áudio anterior e reinicia a nova sequência no primeiro acorde. <strong>Parar progressão</strong> ou o controle geral <strong>Parar</strong> interrompem o áudio. Escape fora de campos, perder o foco e trocar de aba também interrompem. O metrônomo é o mesmo controle da frase e pode ser alterado durante o loop.</p>
+    <p>Reprodução harmônica, referência rítmica e treino são <strong>mutuamente exclusivos</strong>: iniciar outra sessão interrompe a anterior; interromper um treino descarta o resultado parcial. A progressão usa o mesmo scheduler Web Audio e não modifica notas rítmicas, partitura, histórico ou avaliação. Durante sua reprodução, a edição da frase e o BPM ficam bloqueados; tonalidade e regeneração continuam disponíveis.</p>
+    <p>O sorteio harmônico usa <code>Math.random</code>, sem semente ou promessa de reproduzir uma sequência. Tonalidade e progressão ficam <strong>somente nesta sessão</strong>; recarregar cria uma nova progressão em C maior. Não entram em Desfazer/Refazer, arquivos JSON, links compartilhados ou preferências salvas. Não há samples, dependências ou consultas de rede para gerar e tocar acordes.</p>
   </section>
   <section class="panel" id="training" aria-labelledby="training-title">
     <h2 id="training-title">Ouvir e treinar</h2>
