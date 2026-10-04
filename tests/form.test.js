@@ -68,8 +68,12 @@ test('section bounds contain crossbar sustains and tiny-meter microtiming', () =
   const bar = compileBarPlan({ ...source, form: { enabled: true, loop: false, sections: [section({ meter: { beats: 1, unit: 16 }, bpm: 300 })] } }).bars[0];
   assert.equal(bar.events().filter(event => event.channel === 'phrase').length, 0, 'attack outside finite section is omitted');
   const start = make({ notes: [{ id: 'early', start: 0, duration: 2, offsetMs: -80 }] });
-  const early = compileBarPlan(start).bars[0].events()[0];
+  const early = compileBarPlan({ ...start, form: { enabled: true, loop: false, sections: [section()] } }).bars[0].events()[0];
   close(early.offsetMs, 0);
+  const rootLoop = compileBarPlan(start);
+  close(rootLoop.at(0).events()[0].offsetMs, -80);
+  close(rootLoop.at(2).events({ barIndex: 2 })[0].offsetMs, -80);
+  close(compileBarPlan(start, { training: true }).at(0).events()[0].offsetMs, -80);
 });
 
 test('deleting/reordering real sections changes the resulting source audio sequence', () => {

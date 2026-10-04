@@ -184,3 +184,15 @@ test('stale output timestamps fall back to a fresh clock pair rather than record
   h.advance(2.06);
   close(attempts[0].start, 0.44); close(attempts[0].end, 0.56);
 });
+
+test('root-loop anticipations cross later seams unchanged in realtime and offline', async t => {
+  const h = harness(t);
+  const expressive = session({ bpm: 120, notes: [{ ...note, offsetMs: -80 }] });
+  await h.audio.playSession(expressive);
+  h.advance(2);
+  assert.ok(h.ctx.sources.some(source => Math.abs(source.startTime - 1.98) < 1e-8));
+  const rendered = await renderSession(expressive, { loops: 2, tailSeconds: 0, contextFactory: audioContext });
+  assert.equal(rendered.context.sources.length, 2);
+  close(rendered.context.sources[0].startTime, 0);
+  close(rendered.context.sources[1].startTime, 1.92);
+});

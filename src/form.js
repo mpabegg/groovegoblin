@@ -88,8 +88,10 @@ export function compileBarPlan(session, { training = false } = {}) {
             events.push(...clock.barEvents(sourceBar, { barIndex, includePhrase: false }).filter(event => event.channel === 'metronome'));
             for (const event of events) {
               const fromSectionStart = ((sourceBar - section.startBar) * barTicks + event.tick) * secPerTick;
-              event.offsetMs = Math.max(event.offsetMs ?? 0, -fromSectionStart * 1000);
-              event.maxSeconds = ((section.endBar - sourceBar) * barTicks - event.tick) * secPerTick - event.offsetMs / 1000;
+              // O loop-fonte mantém microtempo através das barras e voltas.
+              // Só as seções explícitas impõem uma fronteira musical rígida.
+              event.offsetMs = useForm ? Math.max(event.offsetMs ?? 0, -fromSectionStart * 1000) : event.offsetMs ?? 0;
+              event.maxSeconds = useForm ? ((section.endBar - sourceBar) * barTicks - event.tick) * secPerTick - event.offsetMs / 1000 : Infinity;
             }
             return events.filter(event => event.maxSeconds > 0).sort((a, b) => a.tick * secPerTick + a.offsetMs / 1000 - b.tick * secPerTick - b.offsetMs / 1000);
           },
