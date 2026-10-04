@@ -20,6 +20,7 @@
     <nav aria-label="Conteúdo do guia"><ul>
       <li><a href="#compose">Compor e editar</a></li><li><a href="#notation">Partitura rítmica</a></li>
       <li><a href="#library">Biblioteca e gerador</a></li><li><a href="#training">Ouvir e treinar</a></li>
+      <li><a href="#drums">Bateria complementar</a></li>
       <li><a href="#feedback">Feedback e latência</a></li><li><a href="#files">Arquivos, links e dados locais</a></li>
     </ul></nav>
   </section>
@@ -77,6 +78,14 @@
     </ol>
     <p>Geração mantém BPM e tamanho atuais. Preferências são ponderadas, não proibições: “mais nos tempos” ainda pode produzir síncopes. Ataques são sorteados sem reposição em cada compasso; duração é limitada pelo próximo ataque ou pelo fim, sem sobreposição, e pode atravessar barras internas. “Curtas” sempre usa 1 tick; as outras opções incluem sustentações e pausas. Alterar somente duração mantém os ataques para a mesma semente.</p>
     <p>O PRNG Mulberry32 é determinístico; não usa rede. Pesos de ataque: “mais nos tempos” = 12/3/1 para tempos/contratempos de colcheia/demais ticks; “mais sincopados” = 1 nos tempos e 4 nas outras subdivisões; mistos = pesos iguais. A nova semente vem de <code>crypto.getRandomValues</code>. Na primeira abertura, uma semente aleatória é gerada e salva; opções e semente permanecem após recarregar e podem reproduzir a mesma frase. Não há promessa de composição estilística ou identificação de gênero. Opções/semente não entram no arquivo JSON nem no link compartilhado; as opções atuais são salvas localmente nas preferências.</p>
+  </section>
+  <section class="panel" id="drums" aria-labelledby="drums-title">
+    <h2 id="drums-title">Bateria complementar</h2>
+    <p><strong>Gerar / variar bateria</strong> cria e ativa um padrão próprio, mostrado nas linhas de bumbo, caixa e chimbal abaixo do grid. O bumbo marca o início do compasso e apoia alguns ataques da frase; a caixa marca os tempos 2 e 4; o chimbal sustenta a subdivisão com espaços e intensidades diferentes. Não é uma cópia do grid nem uma identificação automática de estilo musical. Cada variação escolhe uma semente; frase, compassos e semente iguais produzem o mesmo padrão.</p>
+    <p>Editar a frase ou trocar o número de compassos atualiza o acompanhamento, mantendo a semente atual. A bateria compartilha BPM, início e duração de loop com a frase. <strong>Ativar bateria</strong> liga/desliga os samples durante a reprodução sem reiniciar o grid. Para mudar BPM ou compassos, pare primeiro. O treino permanece com metrônomo apenas.</p>
+    <p>Os WAVs reais da <a href="https://github.com/sgossner/VCSL">Versilian Community Sample Library (VCSL)</a> são empacotados localmente: não há download de serviços externos durante o uso. A fonte declara dedicação CC0 1.0; consulte a <a href="./assets/drums/README.md">proveniência com revisão, URLs e hashes</a> e a <a href="./assets/drums/LICENSE.txt">licença integral</a>. Trata-se do registro da licença declarada pela fonte, não de garantia jurídica geral.</p>
+    <p>Na primeira reprodução com bateria, o navegador carrega e decodifica os arquivos locais antes de iniciar ambos os padrões. Se falhar, o app informa o erro e não inicia a sessão; tente novamente ou desligue a bateria para ouvir só a frase. Se a ativação falhar quando o grid já estiver tocando, a frase continua sem bateria. Parar cancela um início pendente.</p>
+    <p>A bateria e sua semente existem somente na sessão: não modificam as notas da frase, não entram no histórico, não são persistidas e não acompanham o JSON ou link compartilhado.</p>
   </section>
   <section class="panel" id="training" aria-labelledby="training-title">
     <h2 id="training-title">Ouvir e treinar</h2>

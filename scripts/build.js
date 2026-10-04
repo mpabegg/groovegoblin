@@ -9,6 +9,7 @@ await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 await cp(resolve(project, 'index.html'), resolve(output, 'index.html'));
 await cp(resolve(project, 'src'), resolve(output, 'src'), { recursive: true });
+await cp(resolve(project, 'assets'), resolve(output, 'assets'), { recursive: true });
 await cp(resolve(project, 'README.md'), resolve(output, 'README.md'));
 await cp(resolve(project, 'guide.html'), resolve(output, 'guide.html'));
 await writeFile(resolve(output, '.nojekyll'), '');

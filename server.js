@@ -6,7 +6,7 @@ const projectRoot = fileURLToPath(new URL('.', import.meta.url));
 const root = resolve(projectRoot, process.env.STATIC_ROOT || '.');
 const basePath = normalizeBasePath(process.env.BASE_PATH || '/');
 const port = Number(process.env.PORT || 5173);
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.md': 'text/plain', '.svg': 'image/svg+xml', '.json': 'application/json' };
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.md': 'text/plain', '.svg': 'image/svg+xml', '.json': 'application/json', '.wav': 'audio/wav' };
 
 function normalizeBasePath(path) {
   const normalized = `/${path.split('/').filter(Boolean).join('/')}/`;
@@ -35,7 +35,9 @@ const server = createServer(async (request, response) => {
       return;
     }
     const content = await readFile(path);
-    response.writeHead(200, { 'Content-Type': `${types[extname(path)] || 'application/octet-stream'}; charset=utf-8`, 'Cache-Control': 'no-cache' });
+    const type = types[extname(path)] || 'application/octet-stream';
+    const contentType = type.startsWith('text/') || type === 'application/json' || type === 'image/svg+xml' ? `${type}; charset=utf-8` : type;
+    response.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'no-cache' });
     response.end(request.method === 'HEAD' ? undefined : content);
   } catch {
     response.writeHead(404).end('Não encontrado');

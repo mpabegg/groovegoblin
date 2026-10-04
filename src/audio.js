@@ -82,6 +82,7 @@
  */
 
 import { TICKS_PER_BAR, BAR_OPTIONS } from './model.js';
+import { DRUM_INSTRUMENTS } from './drums.js';
 
 const TICKS_PER_BEAT = 4;
 
@@ -102,6 +103,15 @@ const CLICK_ACCENT_GAIN = 0.55;
 const CLICK_FREQUENCY_HZ = 1500;
 const CLICK_ACCENT_FREQUENCY_HZ = 2200;
 
+const DRUM_SAMPLE_URLS = Object.freeze({
+  kick: new URL('../assets/drums/kick.wav', import.meta.url),
+  snare: new URL('../assets/drums/snare.wav', import.meta.url),
+  hihat: new URL('../assets/drums/hihat.wav', import.meta.url),
+});
+// Peaks leave room for the reference; original decoded samples stay untouched.
+const DRUM_PEAK_GAINS = Object.freeze({ kick: 0.24, snare: 0.2, hihat: 0.1 });
+const DRUM_FADE_SEC = 0.01;
+
 export class GrooveAudio {
   #onStateCb;
   #onFinishCb;
@@ -119,6 +129,12 @@ export class GrooveAudio {
   #scheduleCursor = 0; // next tick index not yet handed to the audio graph
   #notes = [];
   #metronomeEnabled = false;
+  #drumHits = [];
+  #drumsEnabled = false;
+  #drumGain = null;
+  #drumBuffers = null;
+  #drumLoad = null;
+  #drumGeneration = 0;
   #totalTicks = TICKS_PER_BAR; // ticks por repeticao/loop: bars * TICKS_PER_BAR
 
   #attempts = [];
@@ -134,7 +150,7 @@ export class GrooveAudio {
     this.#onFinishCb = onFinish;
   }
 
-  async play(notes, bpm, metronome, bars = 1) {
+  async play(notes, bpm, metronome, bars = 1, { hits = [], enabled = false } = {}) {
     this.stop();
     const gen = this.#generation;
     const ctx = this.#ensureContext();
@@ -143,11 +159,16 @@ export class GrooveAudio {
     this.#secPerTick = 60 / bpm / TICKS_PER_BEAT;
     this.#metronomeEnabled = !!metronome;
     this.#totalTicks = TICKS_PER_BAR * this.#validBars(bars);
+    this.#drumHits = hits;
+    this.#drumsEnabled = !!enabled;
+    this.#setDrumGain(0, true);
 
-    if (ctx.state === 'suspended') {
-      await ctx.resume();
-    }
-    if (gen !== this.#generation) return; // stop() won the race during resume()
+    await Promise.all([
+      ctx.state === 'suspended' ? ctx.resume() : Promise.resolve(),
+      enabled ? this.#loadDrums() : Promise.resolve(),
+    ]);
+    if (gen !== this.#generation) return; // stop() won during resume/sample loading
+    this.#setDrumGain(enabled ? 1 : 0);
 
     this.#sessionKind = 'play';
     this.#scheduleCursor = 0;
@@ -189,6 +210,9 @@ export class GrooveAudio {
   stop() {
     const wasActive = this.#sessionKind !== null;
     this.#generation += 1; // invalidates any in-flight resume()/finish continuation
+    this.#drumGeneration += 1;
+    this.#drumsEnabled = false;
+    this.#setDrumGain(0);
 
     if (this.#timerId !== null) {
       clearInterval(this.#timerId);
@@ -214,6 +238,24 @@ export class GrooveAudio {
 
   setMetronome(enabled) {
     this.#metronomeEnabled = !!enabled;
+  }
+
+  async setDrumsEnabled(enabled) {
+    const request = ++this.#drumGeneration;
+    const gen = this.#generation;
+    this.#drumsEnabled = !!enabled;
+    this.#setDrumGain(0);
+    if (!enabled || this.#sessionKind !== 'play') return true;
+    try {
+      await this.#loadDrums();
+    } catch (error) {
+      if (request !== this.#drumGeneration || gen !== this.#generation) return false;
+      this.#drumsEnabled = false;
+      throw error;
+    }
+    if (request !== this.#drumGeneration || gen !== this.#generation) return false;
+    this.#setDrumGain(1);
+    return true;
   }
 
   press(eventTimeStamp = performance.now()) {
@@ -311,8 +353,51 @@ export class GrooveAudio {
       this.#masterGain = ctx.createGain();
       this.#masterGain.gain.value = 1;
       this.#masterGain.connect(ctx.destination);
+      this.#drumGain = ctx.createGain();
+      this.#drumGain.gain.value = 0;
+      this.#drumGain.connect(this.#masterGain);
     }
     return this.#ctx;
+  }
+
+  #setDrumGain(value, immediate = false) {
+    if (!this.#drumGain) return;
+    const gain = this.#drumGain.gain;
+    const now = this.#ctx.currentTime;
+    if (!immediate && typeof gain.cancelAndHoldAtTime === 'function') {
+      gain.cancelAndHoldAtTime(now);
+    } else {
+      const current = gain.value;
+      gain.cancelScheduledValues(now);
+      gain.setValueAtTime(current, now);
+    }
+    if (immediate) gain.setValueAtTime(value, now);
+    else gain.linearRampToValueAtTime(value, now + DRUM_FADE_SEC);
+  }
+
+  async #loadDrums() {
+    if (this.#drumBuffers) return;
+    if (!this.#drumLoad) {
+      this.#drumLoad = Promise.all(DRUM_INSTRUMENTS.map(async instrument => {
+        const response = await fetch(DRUM_SAMPLE_URLS[instrument]);
+        if (!response.ok) throw new Error(`${instrument}.wav: HTTP ${response.status}`);
+        const buffer = await this.#ctx.decodeAudioData(await response.arrayBuffer());
+        let peak = 0;
+        for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+          const data = buffer.getChannelData(channel);
+          for (let index = 0; index < data.length; index += 1) {
+            peak = Math.max(peak, Math.abs(data[index]));
+          }
+        }
+        const makeupGain = peak > 0 ? DRUM_PEAK_GAINS[instrument] / peak : 0;
+        return [instrument, { buffer, makeupGain }];
+      })).then(entries => {
+        this.#drumBuffers = Object.fromEntries(entries);
+      }).catch(error => {
+        throw new Error(`Falha ao carregar samples de bateria: ${error.message}`);
+      }).finally(() => { this.#drumLoad = null; });
+    }
+    await this.#drumLoad;
   }
 
   #toAudioTime(eventTimeStampMs) {
@@ -397,6 +482,11 @@ export class GrooveAudio {
     for (const note of this.#notes) {
       if (note.start === tick) {
         this.#scheduleNote(time, note.duration * this.#secPerTick);
+      }
+    }
+    if (this.#drumsEnabled && this.#drumBuffers) {
+      for (const hit of this.#drumHits) {
+        if (hit.start === tick) this.#scheduleDrum(time, hit);
       }
     }
   }
@@ -492,6 +582,17 @@ export class GrooveAudio {
     osc.start(time);
     osc.stop(time + durationSec + 0.01);
     this.#trackNode(osc, gain);
+  }
+
+  #scheduleDrum(time, { instrument, velocity }) {
+    const source = this.#ctx.createBufferSource();
+    const gain = this.#ctx.createGain();
+    const sample = this.#drumBuffers[instrument];
+    source.buffer = sample.buffer;
+    gain.gain.setValueAtTime(velocity * sample.makeupGain, time);
+    source.connect(gain).connect(this.#drumGain);
+    source.start(time);
+    this.#trackNode(source, gain);
   }
 
   #trackNode(osc, gain) {
