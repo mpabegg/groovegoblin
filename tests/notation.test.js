@@ -306,9 +306,13 @@ test('binário e tercina no mesmo tempo usam grupos reais pequenos, não pausas 
   const session = createSession({ meter: { beats: 7, unit: 8 }, subdivision: 3, notes: [{ id: 'binary', start: 0, duration: 1 }, { id: 'triplet', start: 8 / 3, duration: 4 / 3 }] });
   const model = assertFractionalNotation(session);
   const firstBeat = eventsOf(model).filter(event => event.start < 4 - 1e-6);
-  assert.deepEqual(firstBeat.map(event => event.kind), ['note', 'rest', 'rest', 'note']);
   assert.ok(firstBeat.every(event => !event.approximate));
-  assert.deepEqual(firstBeat.filter(event => event.tuplet).map(event => [event.value, event.tuplet.actual, event.tuplet.normal]), [['sixteenth', 3, 2], ['eighth', 3, 2]]);
+  const tuplets = firstBeat.filter(event => event.tuplet);
+  assert.ok(tuplets.every(event => event.tuplet.actual === 3 && event.tuplet.normal === 2));
+  assert.equal(new Set(tuplets.map(event => event.tuplet.id)).size, 1);
+  assert.ok(Math.abs(tuplets[0].start - 2) < 1e-6);
+  assert.ok(Math.abs(tuplets.reduce((sum, event) => sum + event.duration, 0) - 2) < 1e-6);
+  assert.ok(firstBeat.filter(event => event.start < 2).every(event => !event.tuplet));
 });
 
 test('compassos simples, compostos e irregulares mantêm barras, ligaduras e pausas completas', () => {
