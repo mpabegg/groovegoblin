@@ -2,6 +2,8 @@
 
 GrooveGoblin é um estúdio musical local para praticar, tocar com uma banda sintetizada, explorar ideias, trabalhar repertório e acompanhar o próprio percurso. É uma aplicação web estática em JavaScript ESM, CSS e SVG; não exige conta, backend nem dependências de runtime. O [guia da interface e dos limites](./guide.html) está disponível no app.
 
+O botão **Como usar**, no topo, abre um tour animado de 10 passos pelos controles principais. Ele aparece automaticamente na primeira visita sem interação, pode ser pulado ou concluído e não volta a abrir sozinho enquanto os dados do navegador forem mantidos. Use **Próximo**, **Voltar** ou as setas; **Esc** encerra. O guia funciona em telas pequenas, respeita a preferência de movimento reduzido e restaura a tela anterior sem modificar a sessão ou iniciar áudio.
+
 ## Cinco intenções
 
 - **Praticar**: objetivos rítmicos, exercícios ajustáveis, rotina guiada, jogos de ouvido, tentativa por teclado/toque e adaptação de andamento a partir dos resultados.

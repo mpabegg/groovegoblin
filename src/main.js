@@ -10,6 +10,7 @@ import { mountPlayground } from './playground.js';
 import { mountJourney } from './practice-view.js';
 import { mountRepertoire } from './repertoire-view.js';
 import { setupOffline } from './offline.js';
+import { mountTour } from './tour.js';
 import { mergeSession, readSessionLibrary, SESSION_LIBRARY_KEY } from './studio-state.js';
 import { History } from './history.js';
 import { addNote, updateNote, deleteNote } from './model.js';
@@ -786,3 +787,11 @@ $('recovery').hidden = recoveryRaw === null; persist();
 if (restored.warnings?.length) message(restored.warnings.join(' '), true);
 if (library.warning) $('library-status').textContent = library.warning;
 previewShare(); requestAnimationFrame(frame);
+const tour = mountTour($('tour-open'), {
+  activateTab: id => activateTab($(id)),
+  isBusy: () => busy() || repertoire.isBusy(),
+  notify: message,
+  // Avisos de recuperação, link recebido ou erro de carregamento têm prioridade.
+  canAutoOpen: () => $('recovery').hidden && $('share-preview').hidden && $('library-recovery').hidden && !$('message').classList.contains('error'),
+});
+tour.autoStart();
