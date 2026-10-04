@@ -43,7 +43,8 @@ export function spanTicks(span) {
   if (typeof span === 'number') return isValidBars(span) ? span * TICKS_PER_BAR : NaN;
   if (span === null || typeof span !== 'object' || !isValidBars(span.bars)) return NaN;
   const meter = span.meter ?? { beats: 4, unit: 4 };
-  if (!meter || !Number.isInteger(meter.beats) || !Number.isInteger(meter.unit)) return NaN;
+  if (!meter || !Number.isInteger(meter.beats) || meter.beats < 1 || meter.beats > 16
+    || ![2, 4, 8, 16].includes(meter.unit)) return NaN;
   const ticks = span.bars * ticksPerBar(meter);
   return Number.isFinite(ticks) && ticks > 0 ? ticks : NaN;
 }
@@ -58,6 +59,7 @@ function overlaps(a, b) {
 }
 
 export function isValidNote(note, limit) {
+  if (!isFiniteNumber(limit) || limit <= 0) return false;
   if (note === null || typeof note !== 'object' || Array.isArray(note)) return false;
   if (typeof note.id !== 'string' || note.id.length === 0 || note.id.length > 64) return false;
   if (!isFiniteNumber(note.start) || note.start < 0) return false;
@@ -112,10 +114,12 @@ function fitsWith(notes, candidate, limit, ignoreId = null) {
 
 export function addNote(notes, start, duration = 1, span = DEFAULT_BARS, fields = {}) {
   const limit = spanTicks(span);
-  if (!Array.isArray(notes) || !Number.isFinite(limit)) return notes;
-  if (fields === null || typeof fields !== 'object') return notes;
-  const candidate = completeNote({ ...pickFields(fields), id: generateId(), start, duration });
-  if (!isFiniteNumber(start) || !isFiniteNumber(duration)) return notes;
+  if (!validPhrase(notes, span) || !Number.isFinite(limit)) return notes;
+  if (fields === null || typeof fields !== 'object' || Array.isArray(fields)
+    || Object.keys(fields).some(key => !Object.hasOwn(FIELD_VALIDATORS, key))) return notes;
+  const raw = { ...pickFields(fields), id: generateId(), start, duration };
+  if (!isValidNote(raw, limit)) return notes;
+  const candidate = completeNote(raw);
   if (!fitsWith(notes, candidate, limit)) return notes;
   return [...notes, candidate];
 }
@@ -131,7 +135,7 @@ export function resizeNote(notes, id, duration, span = DEFAULT_BARS) {
 // patch pode conter start, duration, pitch, velocity, articulation, offsetMs.
 export function updateNote(notes, id, patch, span = DEFAULT_BARS) {
   const limit = spanTicks(span);
-  if (!Array.isArray(notes) || !Number.isFinite(limit)) return notes;
+  if (!validPhrase(notes, span) || !Number.isFinite(limit)) return notes;
   if (patch === null || typeof patch !== 'object' || Array.isArray(patch)) return notes;
   if (Object.keys(patch).some(key => key === 'id' || !NOTE_KEYS.includes(key))) return notes;
   const existing = notes.find(n => n.id === id);
@@ -140,6 +144,7 @@ export function updateNote(notes, id, patch, span = DEFAULT_BARS) {
     if (Object.hasOwn(patch, key) && !isFiniteNumber(patch[key])) return notes;
   }
   const candidate = { ...existing, ...patch };
+  if (!isValidNote(candidate, limit)) return notes;
   for (const key of ['start', 'duration']) candidate[key] = roundTick(candidate[key]);
   if (!fitsWith(notes, candidate, limit, id)) return notes;
   return notes.map(n => (n.id === id ? candidate : n));

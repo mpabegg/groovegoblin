@@ -1,23 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GROOVES, loadGroove } from '../src/library.js';
-import { TICKS_PER_BAR, validPhrase } from '../src/model.js';
+import { validPhrase } from '../src/model.js';
+import { createSession, ticksPerBar } from '../src/session.js';
 
 for (const groove of GROOVES) {
   test(`library: ${groove.id} carrega uma frase ordenada, monofônica e editável`, () => {
     const state = loadGroove(groove.id);
     assert.ok(Number.isInteger(state.bpm) && state.bpm >= 40 && state.bpm <= 240);
-    assert.equal(validPhrase(state.notes, state.bars), true);
+    assert.equal(validPhrase(state.notes, state), true);
+    assert.deepEqual(createSession(state).notes, state.notes);
     assert.equal(new Set(state.notes.map((note) => note.id)).size, state.notes.length);
     for (let index = 0; index < state.notes.length; index += 1) {
       const note = state.notes[index];
       assert.ok(typeof note.id === 'string' && note.id.length > 0);
-      assert.ok(Number.isInteger(note.start) && note.start >= 0);
-      assert.ok(Number.isInteger(note.duration) && note.duration >= 1);
-      assert.ok(note.start + note.duration <= state.bars * TICKS_PER_BAR);
+      assert.ok(Number.isFinite(note.start) && note.start >= 0);
+      assert.ok(Number.isFinite(note.duration) && note.duration >= 0.05);
+      assert.ok(note.start + note.duration <= state.bars * ticksPerBar(state) + 1e-6);
       if (index > 0) {
         const previous = state.notes[index - 1];
-        assert.ok(previous.start + previous.duration <= note.start);
+        assert.ok(previous.start + previous.duration <= note.start + 1e-6);
       }
     }
   });
@@ -67,8 +69,8 @@ test('library: pulso adjacente mantém quatro ataques e termina no limite do com
     assert.notEqual(previous.id, state.notes[index].id);
   }
   const last = state.notes.at(-1);
-  assert.equal(last.start + last.duration, TICKS_PER_BAR);
-  assert.equal(validPhrase(state.notes, state.bars), true);
+  assert.equal(last.start + last.duration, ticksPerBar(state));
+  assert.equal(validPhrase(state.notes, state), true);
 });
 
 test('library: tresillo traduz o agrupamento 3+3+2 em colcheias, não tercinas', () => {
@@ -79,7 +81,7 @@ test('library: tresillo traduz o agrupamento 3+3+2 em colcheias, não tercinas',
   const starts = state.notes.map((note) => note.start);
   assert.deepEqual(starts, [0, 6, 12]);
   const eighthNoteIntervals = starts.map((start, index) => {
-    const next = starts[index + 1] ?? TICKS_PER_BAR;
+    const next = starts[index + 1] ?? ticksPerBar(state);
     return (next - start) / 2;
   });
   assert.deepEqual(eighthNoteIntervals, [3, 3, 2]);
@@ -100,8 +102,8 @@ test('library: son clave preserva as posições internas ao inverter seus lados'
   const twoThree = loadGroove('son-clave-2-3');
   const beatsByBar = (state) => Array.from({ length: state.bars }, (_, bar) => (
     state.notes
-      .filter((note) => Math.floor(note.start / TICKS_PER_BAR) === bar)
-      .map((note) => 1 + (note.start % TICKS_PER_BAR) / 4)
+      .filter((note) => Math.floor(note.start / ticksPerBar(state)) === bar)
+      .map((note) => 1 + (note.start % ticksPerBar(state)) / 4)
   ));
   assert.deepEqual(beatsByBar(threeTwo), [[1, 2.5, 4], [2, 3]]);
   assert.deepEqual(beatsByBar(twoThree), [[2, 3], [1, 2.5, 4]]);

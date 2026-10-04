@@ -180,7 +180,7 @@ export function parseChordSymbol(text) {
   if (typeof text !== 'string') throw new TypeError('Digite uma cifra, por exemplo Cmaj7 ou G7/B.');
   const normalized = text.trim().replaceAll('♯', '#').replaceAll('♭', 'b');
   const match = /^([A-G](?:#|b)?)([^/]*)(?:\/([A-G](?:#|b)?))?$/.exec(normalized);
-  const quality = match ? QUALITY_ALIASES[match[2]] : undefined;
+  const quality = match && Object.hasOwn(QUALITY_ALIASES, match[2]) ? QUALITY_ALIASES[match[2]] : undefined;
   if (!match || quality === undefined) {
     throw new TypeError(`Cifra não reconhecida: "${text.trim().slice(0, 24)}". Use, por exemplo, C, Am7, F#ø, Bb7/D.`);
   }
@@ -205,14 +205,18 @@ function chordTones(chord) {
     const pc = note.midi % 12;
     if (!names.has(pc)) names.set(pc, note.name);
   }
+  const intervals = Object.hasOwn(CHORD_QUALITIES, chord.quality) ? CHORD_QUALITIES[chord.quality] : null;
+  const order = pc => intervals
+    ? intervals.findIndex(([semitones]) => (chord.root + semitones) % 12 === pc)
+    : (pc - chord.root + 12) % 12;
   const tones = [...names.entries()]
     .map(([pc, name]) => ({ pc, name }))
-    .sort((a, b) => ((a.pc - chord.root + 12) % 12) - ((b.pc - chord.root + 12) % 12));
+    .sort((a, b) => order(a.pc) - order(b.pc));
   return { tones, foreignBass };
 }
 
 function isChordTone(chord, pc) {
-  const intervals = CHORD_QUALITIES[chord.quality];
+  const intervals = Object.hasOwn(CHORD_QUALITIES, chord.quality) ? CHORD_QUALITIES[chord.quality] : null;
   if (!intervals) return true;
   return intervals.some(([semitones]) => (chord.root + semitones) % 12 === pc);
 }
@@ -238,7 +242,12 @@ export function invertChord(chord, inversion) {
   }
   const notes = stackFrom(tones, inversion, CHORD_LOW);
   const bassNote = foreignBass ? [{ name: chord.notes[0].name, midi: CHORD_LOW - 12 + chord.bass }] : [];
-  return { ...chord, inversion, notes: [...bassNote, ...notes] };
+  // Uma inversão manual de cifra com baixo de acorde atualiza também o
+  // baixo explícito; um pedal estranho ao acorde continua independente.
+  const slash = !foreignBass && chord.bass !== null && chord.bass !== undefined;
+  const bass = slash ? notes[0].midi % 12 : chord.bass;
+  const symbol = slash ? `${chord.symbol.split('/')[0]}/${notes[0].name}` : chord.symbol;
+  return { ...chord, symbol, bass, inversion, notes: [...bassNote, ...notes] };
 }
 
 function voicingDistance(from, to) {
@@ -260,9 +269,11 @@ export function voiceProgression(chords) {
       continue;
     }
     const { tones, foreignBass } = chordTones(chord);
+    const fixedBass = !foreignBass && chord.bass !== null && chord.bass !== undefined;
     const upper = upperNotes(previous);
     let best = null;
     for (let inversion = 0; inversion < tones.length; inversion += 1) {
+      if (fixedBass && tones[inversion].pc !== chord.bass) continue;
       for (let octave = -12; octave <= 12; octave += 12) {
         const notes = stackFrom(tones, inversion, CHORD_LOW + octave);
         if (notes[0].midi < VOICE_RANGE[0] - 5 || notes.at(-1).midi > VOICE_RANGE[1]) continue;

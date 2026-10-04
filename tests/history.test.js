@@ -1,208 +1,122 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { History } from '../src/history.js';
+import { createSession, patchSession } from '../src/session.js';
+import { parseChordSymbol } from '../src/progression.js';
 
-function phrase(bpm = 100, bars = 1) {
-  return {
-    notes: [{ id: 'a', start: 0, duration: 4 }],
-    bpm,
-    bars,
-  };
-}
+const session = (bpm = 100) => createSession({ bpm, bars: 3, meter: { beats: 7, unit: 8 }, subdivision: 3, notes: [{ id: 'a', start: 4 / 3, duration: 8 / 3, pitch: 60 }] });
 
-test('History: canUndo e canRedo refletem todos os movimentos e limites', () => {
+test('undo/redo percorrem sessões completas, sem clonar os retornos', () => {
   const history = new History();
-  assert.equal(history.canUndo, false);
-  assert.equal(history.canRedo, false);
+  assert.equal(history.current, null);
   assert.equal(history.undo(), null);
   assert.equal(history.redo(), null);
-
-  const a = phrase();
-  const b = phrase(120);
-  history.push(a);
-  assert.equal(history.canUndo, false);
-  assert.equal(history.canRedo, false);
-  assert.equal(history.undo(), null);
-
-  history.push(b);
-  assert.equal(history.canUndo, true);
-  assert.equal(history.canRedo, false);
-  assert.equal(history.redo(), null);
-  assert.deepEqual(history.undo(), a);
-  assert.equal(history.canUndo, false);
-  assert.equal(history.canRedo, true);
-  assert.equal(history.undo(), null);
-  assert.equal(history.canRedo, true);
-  assert.deepEqual(history.redo(), b);
-  assert.equal(history.canUndo, true);
-  assert.equal(history.canRedo, false);
-});
-
-test('History: push depois de undo remove toda a cauda de redo', () => {
-  const history = new History();
-  const a = phrase(80);
-  const b = phrase(100);
-  const c = phrase(120);
-  const branch = phrase(140, 2);
-  history.push(a);
-  history.push(b);
-  history.push(c);
-  assert.deepEqual(history.undo(), b);
-  assert.deepEqual(history.undo(), a);
-  assert.equal(history.canRedo, true);
-
-  history.push(branch);
-  assert.equal(history.canRedo, false);
-  assert.equal(history.redo(), null);
-  assert.deepEqual(history.undo(), a);
-  assert.equal(history.undo(), null);
-  assert.deepEqual(history.redo(), branch);
-  assert.equal(history.redo(), null);
-});
-
-test('History: igualdade estrutural é no-op e preserva o redo', () => {
-  const history = new History();
-  const a = phrase();
-  const b = phrase(120);
-  history.push(a);
-  history.push({ bars: 1, bpm: 100, notes: [{ duration: 4, start: 0, id: 'a' }] });
-  assert.equal(history.canUndo, false);
-
-  history.push(b);
-  const storedA = history.undo();
-  history.push(phrase());
-  assert.equal(history.canUndo, false);
-  assert.equal(history.canRedo, true);
-  const storedB = history.redo();
-  assert.deepEqual(storedB, b);
-  assert.equal(history.undo(), storedA);
-  assert.equal(history.redo(), storedB);
-});
-
-test('History: alterações em notas, BPM e compassos criam snapshots distintos', () => {
-  const history = new History();
-  const a = phrase();
-  const moved = { ...phrase(), notes: [{ id: 'a', start: 1, duration: 4 }] };
-  const resized = { ...phrase(), notes: [{ id: 'a', start: 1, duration: 5 }] };
-  const renamed = { ...phrase(), notes: [{ id: 'b', start: 1, duration: 5 }] };
-  const tempo = { ...renamed, bpm: 101 };
-  const longer = { ...tempo, bars: 2 };
-  const empty = { notes: [], bpm: 101, bars: 2 };
-  const states = [a, moved, resized, renamed, tempo, longer, empty];
+  const states = [session(), session(120), session(140)];
   for (const state of states) history.push(state);
-  for (let index = states.length - 2; index >= 0; index -= 1) {
-    assert.deepEqual(history.undo(), states[index]);
-  }
+  const middle = history.undo();
+  assert.deepEqual(middle, states[1]);
+  const first = history.undo();
+  assert.deepEqual(first, states[0]);
+  assert.equal(history.canUndo, false);
+  assert.equal(history.canRedo, true);
   assert.equal(history.undo(), null);
+  assert.equal(history.redo(), middle);
+  assert.deepEqual(history.redo(), states[2]);
+  assert.equal(history.redo(), null);
+  assert.equal(history.undo(), middle);
+  assert.equal(history.undo(), first);
 });
 
-test('History: a ordem das notas faz parte da igualdade estrutural', () => {
+test('igualdade estrutural preserva redo, inclusive objetos de extensão reordenados', () => {
   const history = new History();
-  const a = { notes: [{ id: 'a', start: 0, duration: 4 }, { id: 'b', start: 4, duration: 4 }], bpm: 100, bars: 1 };
+  const a = createSession({ extensions: { repertoire: { title: 'Peça', markers: [1, 2] }, practice: { goal: 'pulse' } } });
+  history.push(a);
+  history.push(patchSession(a, { bpm: 120 }));
+  const stored = history.undo();
+  history.push({ ...a, extensions: { practice: { goal: 'pulse' }, repertoire: { markers: [1, 2], title: 'Peça' } } });
+  assert.equal(history.current, stored);
+  assert.equal(history.canUndo, false);
+  assert.equal(history.canRedo, true);
+  history.push(patchSession(a, { name: 'Outra sessão' }));
+  assert.equal(history.canRedo, false);
+  assert.equal(history.redo(), null);
+  assert.equal(history.undo(), stored);
+});
+
+test('cada campo musical, loop, treino, mixer e metadados viajam no snapshot', () => {
+  const history = new History();
+  const initial = session();
+  const edits = [
+    { name: 'Estudo' }, { bpm: 130 }, { bars: 4 }, { meter: { beats: 5, unit: 4 } },
+    { subdivision: 5 }, { swing: 1 / 3, swingUnit: 'sixteenth' },
+    { notes: [{ ...initial.notes[0], pitch: 72, velocity: 0.4, articulation: 'ghost', offsetMs: -20 }] },
+    { progression: { enabled: true, chords: [parseChordSymbol('G7/B')] } },
+    { drums: { enabled: true, style: 'funk', density: 'busy', seed: 42 } },
+    { band: { bassEnabled: true, role: 'harmony', mode: 'follow' } },
+    { loop: { startBar: 1, endBar: 3 } },
+    { training: { repetitions: 7, countInBars: 2, goal: 'pitch', evaluation: 'style', monitor: false } },
+    { metronome: { pattern: 'offbeats', silentBars: 2 } },
+    { companion: { enabled: true, pulses: 5, spanBeats: 3 } },
+    { generator: { seed: 123, lengths: 'long' } },
+    { timbres: { phrase: 'marimba' } }, { mixer: { bass: { volume: 0.25, muted: true } } },
+    { form: { enabled: true, loop: false, sections: [{ id: 'A', name: 'Tema', kind: 'A', startBar: 0, endBar: 3, repeats: 2, bpm: 90, meter: { beats: 3, unit: 4 }, density: 'sparse' }] } },
+    { extensions: { annotations: [{ text: 'Acentuar', tick: 4 / 3 }] } },
+  ];
+  const states = [initial];
+  history.push(initial);
+  for (const edit of edits) {
+    states.push(patchSession(states.at(-1), edit));
+    history.push(states.at(-1));
+  }
+  for (let index = states.length - 2; index >= 0; index -= 1) assert.deepEqual(history.undo(), states[index]);
+  for (let index = 1; index < states.length; index += 1) assert.deepEqual(history.redo(), states[index]);
+});
+
+test('snapshots são cópias profundas congeladas, inclusive acordes e extensões', () => {
+  const input = createSession({ progression: { chords: [parseChordSymbol('Cmaj7')], enabled: true }, extensions: { tags: ['estudo'] } });
+  const expected = structuredClone(input);
+  const history = new History();
+  history.push(input);
+  input.progression.chords[0].notes[0].midi = 90;
+  input.extensions.tags.push('alterado');
+  input.mixer.bass.volume = 0;
+  assert.deepEqual(history.current, expected);
+  assert.throws(() => { history.current.progression.chords[0].notes[0].midi = 30; }, TypeError);
+  assert.throws(() => history.current.extensions.tags.push('x'), TypeError);
+  assert.throws(() => { history.current.mixer.bass.muted = true; }, TypeError);
+});
+
+test('ordem de notas é uma edição; estados inválidos não destroem redo', () => {
+  const a = createSession({ notes: [{ id: 'a', start: 0, duration: 1 }, { id: 'b', start: 2, duration: 1 }] });
+  const history = new History();
   history.push(a);
   history.push({ ...a, notes: [...a.notes].reverse() });
   assert.deepEqual(history.undo(), a);
-});
-
-test('History: limite descarta o snapshot mais antigo, incluindo após branching', () => {
-  const history = new History(3);
-  const states = [80, 90, 100, 110, 120].map(bpm => phrase(bpm));
-  for (const state of states) history.push(state);
-  assert.deepEqual(history.undo(), states[3]);
-  assert.deepEqual(history.undo(), states[2]);
-  assert.equal(history.canUndo, false);
-  assert.equal(history.undo(), null);
-  assert.deepEqual(history.redo(), states[3]);
-
-  const branch = phrase(130);
-  history.push(branch);
-  assert.equal(history.redo(), null);
-  assert.deepEqual(history.undo(), states[3]);
-  assert.deepEqual(history.undo(), states[2]);
-  assert.equal(history.undo(), null);
-});
-
-test('History: limite de um snapshot nunca permite undo ou redo', () => {
-  const history = new History(1);
-  history.push(phrase());
-  history.push(phrase(120));
-  assert.equal(history.canUndo, false);
-  assert.equal(history.canRedo, false);
-  assert.equal(history.undo(), null);
-  assert.equal(history.redo(), null);
-});
-
-test('History: o limite padrão guarda cem snapshots', () => {
-  const history = new History();
-  for (let bpm = 40; bpm <= 140; bpm += 1) history.push(phrase(bpm));
-  for (let bpm = 139; bpm >= 41; bpm -= 1) assert.equal(history.undo().bpm, bpm);
-  assert.equal(history.undo(), null);
-});
-
-test('History: snapshots são cópias profundas imutáveis, sem reclone no retorno', () => {
-  const history = new History();
-  const input = phrase();
-  const expected = phrase();
-  history.push(input);
-  input.notes[0].id = 'alterada';
-  input.notes[0].start = 5;
-  input.notes[0].duration = 2;
-  input.notes.push({ id: 'nova', start: 8, duration: 1 });
-  input.bpm = 200;
-  input.bars = 4;
-  history.push(phrase(120));
-
-  const stored = history.undo();
-  assert.deepEqual(stored, expected);
-  assert.notEqual(stored, input);
-  assert.notEqual(stored.notes, input.notes);
-  assert.notEqual(stored.notes[0], input.notes[0]);
-  assert.equal(Object.isFrozen(stored), true);
-  assert.equal(Object.isFrozen(stored.notes), true);
-  assert.equal(Object.isFrozen(stored.notes[0]), true);
-  assert.throws(() => { stored.bpm = 180; }, TypeError);
-  assert.throws(() => { stored.notes[0].start = 3; }, TypeError);
-  assert.throws(() => { stored.notes.push({ id: 'x', start: 8, duration: 1 }); }, TypeError);
-  history.redo();
-  assert.equal(history.undo(), stored);
-  assert.deepEqual(stored, expected);
-});
-
-test('History: rejeita estados inválidos com TypeError sem destruir redo', () => {
-  const history = new History();
-  history.push(phrase());
-  history.push(phrase(120));
-  history.undo();
-  const invalid = [
-    null, undefined, false, 'frase', [], {},
-    { ...phrase(), notes: null },
-    { ...phrase(), notes: [{ id: 'a', start: 0, duration: 4 }, { id: 'b', start: 3, duration: 4 }] },
-    { ...phrase(), notes: [{ id: 'a', start: 0, duration: 1 }, { id: 'a', start: 4, duration: 1 }] },
-    { ...phrase(), notes: [{ id: 'a', start: 15, duration: 2 }] },
-    ...[39, 241, 100.5, NaN, Infinity, '100'].map(bpm => ({ ...phrase(), bpm })),
-    ...[0, 3, 8, 1.5, '1', undefined].map(bars => ({ ...phrase(), bars })),
-  ];
-  for (const state of invalid) {
-    assert.throws(() => history.push(state), TypeError);
-    assert.equal(history.canUndo, false);
+  for (const invalid of [null, undefined, false, [], {}, { ...a, bpm: 301 }, { ...a, bars: 17 }, { ...a, notes: [{ id: 'a', start: 15, duration: 2 }] }, { ...a, notes: [a.notes[0], { ...a.notes[1], start: 0.5 }] }]) {
+    assert.throws(() => history.push(invalid), TypeError);
     assert.equal(history.canRedo, true);
   }
-  assert.deepEqual(history.redo(), phrase(120));
 });
 
-test('History: aceita os limites de BPM e frases de um, dois e quatro compassos', () => {
-  const history = new History();
-  for (const bars of [1, 2, 4]) {
-    for (const bpm of [40, 240]) {
-      history.push({ notes: [{ id: 'fim', start: bars * 16 - 1, duration: 1 }], bpm, bars });
-    }
-  }
-  assert.equal(history.undo().bars, 4);
-  assert.equal(history.undo().bars, 2);
-});
-
-test('History: rejeita limites que não sejam inteiros positivos', () => {
-  for (const limit of [0, -1, 1.5, NaN, Infinity, '3', null]) {
-    assert.throws(() => new History(limit), TypeError);
-  }
+test('limite conta o atual, descarta antigos e funciona depois de branching', () => {
+  const history = new History(3);
+  for (const bpm of [80, 90, 100, 110, 120]) history.push(session(bpm));
+  assert.equal(history.undo().bpm, 110);
+  assert.equal(history.undo().bpm, 100);
+  assert.equal(history.undo(), null);
+  assert.equal(history.redo().bpm, 110);
+  history.push(session(130));
+  assert.equal(history.redo(), null);
+  assert.equal(history.undo().bpm, 110);
+  assert.equal(history.undo().bpm, 100);
+  assert.equal(history.undo(), null);
+  const single = new History(1);
+  single.push(session()); single.push(session(120));
+  assert.equal(single.undo(), null);
+  assert.equal(single.redo(), null);
+  const standard = new History();
+  for (let bpm = 40; bpm <= 140; bpm += 1) standard.push(session(bpm));
+  for (let bpm = 139; bpm >= 41; bpm -= 1) assert.equal(standard.undo().bpm, bpm);
+  assert.equal(standard.undo(), null);
+  for (const limit of [0, -1, 1.5, NaN, Infinity, '3', null]) assert.throws(() => new History(limit), TypeError);
 });

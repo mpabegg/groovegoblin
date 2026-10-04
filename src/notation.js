@@ -36,7 +36,7 @@ const TUPLETS = [
 ];
 
 function near(value, target) {
-  return Math.abs(value - target) < 1e-4;
+  return Math.abs(value - target) < EPSILON;
 }
 
 function isMultiple(value, step) {
@@ -81,25 +81,32 @@ export function buildRhythmNotation(notes, span = 1, options = {}) {
   }
   if (cursor < total - EPSILON) segments.push({ start: cursor, end: total, note: null });
 
-  // Classifica cada span de cada compasso como binário ou quiáltera.
+  // Uma semínima pode misturar escrita binária e quiáltera. Procuramos o
+  // grupo inteiro primeiro; se não cabe, dividimos em metades/ quartos sem
+  // deslocar nenhuma fronteira da frase. Frações não reconhecíveis ficam
+  // explicitamente aproximadas, nunca recebem uma razão fictícia.
   const spans = [];
+  const boundaries = [...new Set(segments.flatMap(segment => [segment.start, segment.end]))];
+  function classifySpan(start, end, bar, compound = false) {
+    const inside = boundaries.filter(value => value > start + EPSILON && value < end - EPSILON).map(value => value - start);
+    const length = end - start;
+    const binary = inside.every(value => isMultiple(value, 0.5));
+    const candidate = !binary && !compound && [1, 2, 4].some(size => near(length, size))
+      ? TUPLETS.find(item => length / item.normal >= 0.5 - EPSILON
+        && inside.every(value => isMultiple(value, length / item.actual)))
+      : null;
+    const tuplet = candidate ? { ...candidate, unit: length / candidate.normal } : null;
+    if (!binary && !tuplet && length >= 2 - EPSILON) {
+      const split = compound && length > 4 ? 4 : length / 2;
+      classifySpan(start, start + split, bar);
+      classifySpan(start + split, end, bar);
+      return;
+    }
+    spans.push({ start, end, bar, tuplet, approximate: !binary && !tuplet, id: `t${bar + 1}-${start}` });
+  }
   for (let bar = 0; bar < bars; bar += 1) {
-    for (const [index, local] of beatSpans(meter, barTicks).entries()) {
-      const start = bar * barTicks + local.start;
-      const end = bar * barTicks + local.end;
-      const boundaries = segments.flatMap(segment => [segment.start, segment.end])
-        .filter(value => value > start + EPSILON && value < end - EPSILON)
-        .map(value => value - start);
-      let tuplet = null;
-      let approximate = false;
-      if (!boundaries.every(value => isMultiple(value, 0.5))) {
-        const length = end - start;
-        tuplet = near(length, 4) && !local.compound
-          ? TUPLETS.find(candidate => boundaries.every(value => isMultiple(value, 4 / candidate.actual))) ?? null
-          : null;
-        approximate = tuplet === null;
-      }
-      spans.push({ start, end, bar, tuplet, approximate, id: `t${bar + 1}-${index + 1}` });
+    for (const local of beatSpans(meter, barTicks)) {
+      classifySpan(bar * barTicks + local.start, bar * barTicks + local.end, bar, local.compound);
     }
   }
 
@@ -150,7 +157,7 @@ export function buildRhythmNotation(notes, span = 1, options = {}) {
 
   function tupletPiece(segment, start, end, span) {
     const { unit } = span.tuplet;
-    const realUnit = 4 / span.tuplet.actual;
+    const realUnit = (span.end - span.start) / span.tuplet.actual;
     const values = segment.note ? NOTE_VALUES : REST_VALUES;
     let position = Math.round((start - span.start) / realUnit);
     let remaining = Math.round((end - start) / realUnit);
@@ -237,8 +244,20 @@ export function renderRhythmNotation(container, model) {
 
   const meter = model.meter ?? { beats: 4, unit: 4 };
   const barTicks = model.ticksPerBar ?? 16;
-  const measureWidth = 48 + barTicks * PX_PER_TICK;
-  const width = LEFT + model.bars * measureWidth + 24;
+  const layouts = [];
+  let right = LEFT;
+  for (const measure of model.measures) {
+    let cursor = 24;
+    const positions = measure.events.map(event => {
+      const x = cursor;
+      cursor += Math.max(32, event.duration * PX_PER_TICK);
+      return x;
+    });
+    const width = Math.max(48 + barTicks * PX_PER_TICK, cursor + 24);
+    layouts.push({ left: right, width, positions });
+    right += width;
+  }
+  const width = right + 24;
   const attacks = model.measures.reduce((count, measure) => count + measure.events.filter(event => event.kind === 'note' && !event.tieFromPrevious).length, 0);
   const tuplets = new Set(model.measures.flatMap(measure => measure.events.filter(event => event.tuplet).map(event => event.tuplet.id)));
   const svg = element('svg', {
@@ -246,13 +265,14 @@ export function renderRhythmNotation(container, model) {
     role: 'img', 'aria-label': `Partitura rítmica em ${meter.beats}/${meter.unit}: ${model.bars} compasso(s), ${attacks} ataque(s)${tuplets.size ? `, ${tuplets.size} grupo(s) de quiálteras` : ''}. Pauta de uma linha, sem alturas.`,
     class: 'rhythm-notation', 'data-bars': model.bars, 'data-meter': `${meter.beats}/${meter.unit}`,
   });
+  svg.style.minWidth = `${width}px`;
   title(svg, 'Ritmo em pauta de uma linha: ataques, durações, pausas, ligaduras, quiálteras e articulações; sem alturas musicais.');
   const staff = element('g', { class: 'rhythm-staff', 'aria-hidden': 'true' }, svg);
   line(staff, LEFT, STAFF_Y, width - 24, STAFF_Y, 1);
   number(staff, meter.beats, 44, 43, 1.5);
   number(staff, meter.unit, 44, 76, 1.5);
   for (let index = 0; index <= model.bars; index += 1) {
-    const x = LEFT + index * measureWidth;
+    const x = index === model.bars ? right : layouts[index].left;
     const barline = element('g', { class: 'rhythm-barline' }, staff);
     line(barline, x, 53, x, 87, index === model.bars ? 3 : 1.5);
     if (index === model.bars) line(barline, x - 6, 53, x - 6, 87, 1);
@@ -325,11 +345,10 @@ export function renderRhythmNotation(container, model) {
   const ties = element('g', { class: 'rhythm-ties' }, svg);
   const groups = new Map();
   for (const measure of model.measures) {
-    const measureLeft = LEFT + (measure.index - 1) * measureWidth;
-    for (const event of measure.events) {
-      const local = event.start - (measure.index - 1) * barTicks;
+    const layout = layouts[measure.index - 1];
+    for (const [eventIndex, event] of measure.events.entries()) {
       const wholeMeasureRest = event.kind === 'rest' && near(event.duration, barTicks);
-      const x = wholeMeasureRest ? measureLeft + measureWidth / 2 : measureLeft + 24 + local * PX_PER_TICK;
+      const x = layout.left + (wholeMeasureRest ? layout.width / 2 : layout.positions[eventIndex]);
       const attributes = {
         class: `rhythm-${event.kind}`, 'data-start': event.start, 'data-duration': event.duration,
         'data-value': event.value, 'data-dotted': event.dotted,

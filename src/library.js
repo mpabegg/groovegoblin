@@ -199,8 +199,7 @@ export function loadGroove(id) {
   return {
     notes: groove.notes.map((note, index) => completeNote({
       id: `${groove.id}-${index}`,
-      start: note.start,
-      duration: note.duration,
+      ...note,
     })),
     bpm: groove.bpm,
     bars: groove.bars,

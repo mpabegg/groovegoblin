@@ -17,6 +17,14 @@ function freezeDeep(value) {
   return value;
 }
 
+function snapshotKey(session) {
+  return JSON.stringify(session, (_, value) => (
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]]))
+      : value
+  ));
+}
+
 export class History {
   #limit;
   #states = [];
@@ -33,7 +41,7 @@ export class History {
   push(session) {
     const result = validateSession(session);
     if (!result.ok) throw new TypeError(`O histórico requer uma sessão válida: ${result.error}`);
-    const key = JSON.stringify(result.session);
+    const key = snapshotKey(result.session);
     if (this.#keys[this.#index] === key) return;
 
     this.#states.length = this.#index + 1;

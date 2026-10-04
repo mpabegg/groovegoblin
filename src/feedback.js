@@ -28,8 +28,8 @@
 // uma tentativa corresponde. Para uma tentativa 'extra', a repetição
 // reportada é estimada pela posição absoluta do ataque (heurística de exibição).
 
-import { EPSILON, ticksPerBar, gridStep, performTick, secondsPerTick, swingLocalTick } from './meter.js';
-import { validateSession, createSession } from './session.js';
+import { EPSILON, ticksPerBar, gridStep, performTick, secondsPerTick } from './meter.js';
+import { validateSession, createSession, GOALS } from './session.js';
 
 export const REPETITIONS = 4;
 
@@ -98,14 +98,15 @@ function referenceRows(session, attempts, options) {
   const local = phrase.map(note => ({
     note,
     start: timeOf(note.start) + note.offsetMs / 1000,
-    end: timeOf(Math.min(note.start + note.duration, endTick)),
+    end: timeOf(Math.min(note.start + note.duration, endTick)) + note.offsetMs / 1000,
   })).sort((a, b) => a.start - b.start);
 
   const gridSeconds = gridStep(session.subdivision) * tickSeconds;
+  const phases = local.map(note => ((note.start % repetitionSeconds) + repetitionSeconds) % repetitionSeconds).sort((a, b) => a - b);
   let spacing = Infinity;
-  for (let index = 0; index < local.length; index += 1) {
-    const next = index + 1 < local.length ? local[index + 1].start : local[0].start + repetitionSeconds;
-    spacing = Math.min(spacing, next - local[index].start);
+  for (let index = 0; index < phases.length; index += 1) {
+    const next = index + 1 < phases.length ? phases[index + 1] : phases[0] + repetitionSeconds;
+    spacing = Math.min(spacing, next - phases[index]);
   }
   const matchWindowMs = (Math.min(gridSeconds, spacing) * 1000) / 2;
   const toleranceMs = matchWindowMs / 2;
@@ -117,6 +118,7 @@ function referenceRows(session, attempts, options) {
       expected.push({ noteId: note.id, pitch: note.pitch, repetition: rep, expectedStart: offset + start, expectedEnd: offset + end });
     }
   }
+  expected.sort((a, b) => a.expectedStart - b.expectedStart);
   const actual = [...attempts].sort((a, b) => a.start - b.start);
   const rows = [];
   const extra = att => ({
@@ -171,28 +173,40 @@ function referenceRows(session, attempts, options) {
 
 // Modo livre: cada ataque contra o ponto de subdivisão (com swing) mais próximo.
 function freeRows(session, attempts, options) {
-  const { barTicks, tickSeconds, startTick, repetitionSeconds } = geometry(session);
+  const { barTicks, tickSeconds, startTick, endTick, repetitionSeconds } = geometry(session);
   const step = gridStep(session.subdivision);
   const gridSeconds = step * tickSeconds;
   const toleranceMs = (gridSeconds * 1000) / 4;
-  const rows = [...attempts].sort((a, b) => a.start - b.start).map(att => {
-    const straightTick = att.start / tickSeconds;
-    const candidates = [Math.floor(straightTick / step) - 1, Math.floor(straightTick / step), Math.floor(straightTick / step) + 1, Math.floor(straightTick / step) + 2]
-      .map(index => index * step)
-      .map(tick => {
-        const bar = Math.floor((tick + EPSILON) / barTicks);
-        return { tick, performed: bar * barTicks + swingLocalTick(tick - bar * barTicks, session.swing, session.swingUnit, barTicks) };
-      });
-    let best = candidates[0];
-    for (const candidate of candidates) {
-      if (Math.abs(candidate.performed * tickSeconds - att.start) < Math.abs(best.performed * tickSeconds - att.start)) best = candidate;
+  const loopTicks = endTick - startTick;
+  // A grade recomeça em CADA barra, como o arranjo. Em 7/8 com tercinas,
+  // por exemplo, não prolongamos a tercina anterior além da barra de 14 ticks.
+  const grid = [];
+  for (let bar = session.loop.startBar; bar < session.loop.endBar; bar += 1) {
+    for (let local = 0; local < barTicks - EPSILON; local += step) {
+      const tick = bar * barTicks + local;
+      grid.push({ tick, performed: performTick(session, tick) - startTick });
     }
-    const deviationMs = (att.start - best.performed * tickSeconds) * 1000;
-    const loopTicks = repetitionSeconds / tickSeconds;
+  }
+  grid.push({ tick: endTick, performed: loopTicks });
+  const rows = [...attempts].sort((a, b) => a.start - b.start).map(att => {
+    const tick = att.start / tickSeconds;
+    const cycle = Math.floor(tick / loopTicks);
+    const local = tick - cycle * loopTicks;
+    let low = 0;
+    let high = grid.length - 1;
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+      if (grid[middle].performed < local) low = middle + 1;
+      else high = middle;
+    }
+    const after = grid[low];
+    const before = grid[Math.max(0, low - 1)];
+    const best = local - before.performed <= after.performed - local ? before : after;
+    const deviationMs = (tick - (cycle * loopTicks + best.performed)) * tickSeconds * 1000;
     return {
       kind: 'free', repetition: extraRepetition(att.start, repetitionSeconds, options.repetitions),
       actualStart: att.start, actualEnd: att.end, pitch: att.pitch ?? null,
-      nearestTick: startTick + (((best.tick % loopTicks) + loopTicks) % loopTicks),
+      nearestTick: best.tick === endTick ? startTick : best.tick,
       deviationMs, onsetMs: deviationMs, onset: classify(deviationMs, toleranceMs),
     };
   });
@@ -238,6 +252,16 @@ export function evaluateSession(session, attempts, options = {}) {
   const goal = options.goal ?? valid.training.goal;
   const repetitions = options.repetitions ?? valid.training.repetitions;
   if (!['strict', 'style', 'free'].includes(mode)) throw new TypeError('Modo de avaliação desconhecido.');
+  if (!GOALS.includes(goal)) throw new TypeError('Objetivo de avaliação desconhecido.');
+  if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 64) throw new TypeError('O treino deve ter de 1 a 64 repetições.');
+  for (const att of attempts) {
+    if (!att || typeof att !== 'object' || Array.isArray(att)
+      || !Number.isFinite(att.start) || !Number.isFinite(att.end ?? att.start)
+      || (att.end ?? att.start) < att.start
+      || (att.pitch != null && (!Number.isInteger(att.pitch) || att.pitch < 0 || att.pitch > 127))) {
+      throw new TypeError('Cada tentativa deve ter início e fim finitos, em ordem, e altura MIDI válida.');
+    }
+  }
   const normalized = attempts.map(att => ({ start: att.start, end: att.end ?? att.start, pitch: att.pitch ?? null }));
   const core = mode === 'free'
     ? freeRows(valid, normalized, { repetitions })
@@ -308,7 +332,7 @@ export function summarizeFeedback(result) {
       advice.push('Nenhum toque registrado. Toque livremente sobre o pulso; os ataques serão comparados com a subdivisão mais próxima.');
     } else {
       advice.push(`${attackOk} de ${free} ataques ficaram dentro de ±${ms(result.toleranceMs)} da subdivisão mais próxima.`);
-      if (stats?.onset.medianMs !== null && Math.abs(stats.onset.medianMs) > result.toleranceMs) {
+      if (Number.isFinite(stats?.onset?.medianMs) && Math.abs(stats.onset.medianMs) > result.toleranceMs) {
         advice.push(`Seus ataques tendem a cair ${ms(stats.onset.medianMs)} ${stats.onset.medianMs > 0 ? 'depois' : 'antes'} da grade; se não for intencional, ouça o metrônomo e ajuste.`);
       }
     }
@@ -328,7 +352,7 @@ export function summarizeFeedback(result) {
     if (goal === 'pitch' && pitchChecked > 0 && pitchOk < pitchChecked) {
       advice.push(`${pitchChecked - pitchOk} nota(s) tocada(s) com altura diferente da referência; toque a frase devagar conferindo cada altura.`);
     }
-    if (mode === 'style' && stats?.feelMs !== null && Math.abs(stats.feelMs) > result.toleranceMs) {
+    if (mode === 'style' && Number.isFinite(stats?.feelMs) && Math.abs(stats.feelMs) > result.toleranceMs) {
       advice.push(`Seu pulso ficou consistentemente ${ms(stats.feelMs)} ${stats.feelMs > 0 ? 'atrás' : 'à frente'} da grade; no modo estilo isso é tratado como escolha, não como erro.`);
     }
     if (matched === expected && attackOk === matched && (goal === 'timing' || endOk === matched)) {

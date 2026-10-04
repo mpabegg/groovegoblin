@@ -1,4 +1,5 @@
 import { REPETITIONS } from './feedback.js';
+import { ticksPerBar, secondsPerTick } from './meter.js';
 
 // Projeção pura da avaliação: uma janela por repetição do trecho do loop,
 // não por compasso. Os metadados de matched pertencem a cada bloco (uma
@@ -16,7 +17,7 @@ export function buildTimelineData(results, options = {}) {
   const { session } = options;
   const bpm = results.bpm ?? session?.bpm ?? options.bpm;
   const bars = results.loopBars ?? (session ? session.loop.endBar - session.loop.startBar : options.bars);
-  const barSeconds = results.barSeconds ?? 240 / bpm;
+  const barSeconds = results.barSeconds ?? (session ? ticksPerBar(session) * secondsPerTick(bpm) : 240 / bpm);
   const windowSeconds = results.repetitionSeconds ?? bars * barSeconds;
   const count = results.repetitions ?? REPETITIONS;
   const repetitions = Array.from({ length: count }, (_, index) => ({
@@ -36,6 +37,7 @@ export function buildTimelineData(results, options = {}) {
         end: row.expectedEnd - offset,
         noteId: row.noteId,
         missed: row.kind === 'missed',
+        pitch: row.expectedPitch ?? null,
       };
       if (row.kind === 'matched') copyTiming(row, expected);
       repetition.expected.push(expected);
@@ -47,6 +49,7 @@ export function buildTimelineData(results, options = {}) {
         start: Math.min(relativeStart, windowSeconds),
         end: Math.min(relativeEnd, windowSeconds),
         extra: row.kind === 'extra',
+        pitch: row.pitch ?? null,
       };
       if (relativeStart > windowSeconds || relativeEnd > windowSeconds) {
         actual.clamped = true;
@@ -80,6 +83,9 @@ function copyTiming(row, block) {
   block.endMs = row.endMs;
   block.onset = row.onset;
   block.ending = row.ending;
+  if (row.relativeOnsetMs !== undefined) block.relativeOnsetMs = row.relativeOnsetMs;
+  if (row.relativeEndMs !== undefined) block.relativeEndMs = row.relativeEndMs;
+  if (row.pitchOk !== undefined) block.pitchOk = row.pitchOk;
 }
 
 // Classes para o CSS do app:
@@ -178,7 +184,10 @@ function addMarkers(document, node, block, unmatched) {
   for (const isEnd of block.free ? [false] : [false, true]) {
     const name = isEnd ? 'TÉRMINO' : 'ATAQUE';
     const classification = unmatched ?? (isEnd ? block.ending : block.onset);
-    const delta = isEnd ? block.endMs : block.onsetMs;
+    const absoluteDelta = isEnd ? block.endMs : block.onsetMs;
+    const relativeDelta = isEnd ? block.relativeEndMs : block.relativeOnsetMs;
+    const delta = relativeDelta ?? absoluteDelta;
+    const feel = relativeDelta === undefined ? '' : ` em relação ao pulso pessoal; desvio absoluto ${formatDelta(absoluteDelta)}`;
     const free = block.free ? ' da subdivisão mais próxima' : '';
     const text = unmatched === 'missing' ? 'ausente'
       : unmatched === 'extra' ? 'extra'
@@ -192,8 +201,8 @@ function addMarkers(document, node, block, unmatched) {
         : classification === 'late' ? 'atrasado' : text;
     const note = block.noteId === undefined ? '' : ` da nota ${block.noteId}`;
     const clamped = isEnd && block.clamped ? ', posição recortada no fim da repetição' : '';
-    marker.setAttribute('aria-label', `${name}${note}: ${text}${free}, ${status}${clamped}`);
-    marker.append(element(document, 'span', 'timeline-marker-label', `${name} ${text}`));
+    marker.setAttribute('aria-label', `${name}${note}: ${text}${free}${feel}, ${status}${clamped}`);
+    marker.append(element(document, 'span', 'timeline-marker-label', `${name} ${text}${relativeDelta === undefined ? '' : ' relativo'}`));
     node.append(marker);
   }
 }

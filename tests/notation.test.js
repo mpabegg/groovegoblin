@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildRhythmNotation } from '../src/notation.js';
+import { createSession, ticksPerBar } from '../src/session.js';
 
 // SVG geometry is exercised with the app's real-browser integration smoke.
 // These tests verify musical intervals and attacks, independently of the DOM.
@@ -13,7 +14,7 @@ function eventsOf(model) {
 }
 
 function assertExactPhrase(notes, bars) {
-  const model = buildRhythmNotation(notes, bars);
+  const model = buildRhythmNotation(notes, createSession({ bars, notes }));
   assert.equal(model.bars, bars);
   assert.equal(model.measures.length, bars);
   let cursor = 0;
@@ -246,9 +247,7 @@ test('invalid phrases and bar counts are rejected before notation is built', () 
     [{ id: '', start: 0, duration: 1 }],
     [{ id: 2, start: 0, duration: 1 }],
     [{ id: 'a', start: -1, duration: 1 }],
-    [{ id: 'a', start: 0.5, duration: 1 }],
     [{ id: 'a', start: 0, duration: 0 }],
-    [{ id: 'a', start: 0, duration: 1.5 }],
     [{ id: 'a', start: 0, duration: NaN }],
     [{ id: 'a', start: Infinity, duration: 1 }],
     [{ id: 'a', start: 16, duration: 1 }],
@@ -257,7 +256,74 @@ test('invalid phrases and bar counts are rejected before notation is built', () 
     [{ id: 'same', start: 0, duration: 1 }, { id: 'same', start: 2, duration: 1 }],
   ];
   for (const notes of invalidPhrases) assert.throws(() => buildRhythmNotation(notes, 1), TypeError);
-  for (const bars of [0, -1, 3, 8, 1.5, '1', null, NaN]) {
+  for (const bars of [0, -1, 17, 1.5, '1', null, NaN]) {
     assert.throws(() => buildRhythmNotation([], bars), TypeError);
+  }
+});
+
+function assertFractionalNotation(session) {
+  const model = buildRhythmNotation(session.notes, session);
+  const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-6, `${a} != ${b}`);
+  let cursor = 0;
+  for (const [bar, measure] of model.measures.entries()) {
+    for (const event of measure.events) {
+      close(event.start, cursor);
+      assert.ok(event.duration > 0);
+      assert.ok(event.start >= bar * ticksPerBar(session) - 1e-6);
+      assert.ok(event.start + event.duration <= (bar + 1) * ticksPerBar(session) + 1e-6);
+      if (event.tuplet) {
+        assert.ok(event.tuplet.actual > 1 && event.tuplet.normal > 0);
+        const nominal = { whole: 16, half: 8, quarter: 4, eighth: 2, sixteenth: 1, 'thirty-second': 0.5 }[event.value] * (event.dotted ? 1.5 : 1);
+        close(event.duration, nominal * event.tuplet.normal / event.tuplet.actual);
+      }
+      cursor += event.duration;
+    }
+  }
+  close(cursor, session.bars * ticksPerBar(session));
+  const events = eventsOf(model);
+  for (const note of session.notes) {
+    const pieces = events.filter(event => event.noteId === note.id);
+    close(pieces[0].start, note.start);
+    close(pieces.at(-1).start + pieces.at(-1).duration, note.start + note.duration);
+    close(pieces.reduce((sum, event) => sum + event.duration, 0), note.duration);
+    assert.equal(pieces.filter(event => !event.tieFromPrevious).length, 1);
+    assert.ok(pieces.every(event => event.pitch === note.pitch && event.articulation === note.articulation));
+  }
+  return model;
+}
+
+test('tercinas, quintinas, sextinas e septinas conservam todos os ataques e durações', () => {
+  for (const subdivision of [3, 5, 6, 7]) {
+    const notes = Array.from({ length: subdivision }, (_, index) => ({ id: `t${index}`, start: index * 4 / subdivision, duration: 4 / subdivision, pitch: 72, articulation: 'accent' }));
+    const model = assertFractionalNotation(createSession({ notes, subdivision }));
+    const tuplets = eventsOf(model).filter(event => event.tuplet);
+    assert.equal(tuplets.length, subdivision);
+    assert.ok(tuplets.every(event => event.tuplet.actual === subdivision));
+  }
+});
+
+test('binário e tercina no mesmo tempo usam grupos reais pequenos, não pausas fracionárias fictícias', () => {
+  const session = createSession({ meter: { beats: 7, unit: 8 }, subdivision: 3, notes: [{ id: 'binary', start: 0, duration: 1 }, { id: 'triplet', start: 8 / 3, duration: 4 / 3 }] });
+  const model = assertFractionalNotation(session);
+  const firstBeat = eventsOf(model).filter(event => event.start < 4 - 1e-6);
+  assert.deepEqual(firstBeat.map(event => event.kind), ['note', 'rest', 'rest', 'note']);
+  assert.ok(firstBeat.every(event => !event.approximate));
+  assert.deepEqual(firstBeat.filter(event => event.tuplet).map(event => [event.value, event.tuplet.actual, event.tuplet.normal]), [['sixteenth', 3, 2], ['eighth', 3, 2]]);
+});
+
+test('compassos simples, compostos e irregulares mantêm barras, ligaduras e pausas completas', () => {
+  for (const meter of [{ beats: 3, unit: 4 }, { beats: 7, unit: 8 }, { beats: 6, unit: 8 }, { beats: 12, unit: 8 }, { beats: 5, unit: 16 }]) {
+    const barTicks = meter.beats * 16 / meter.unit;
+    assertFractionalNotation(createSession({ bars: 3, meter, notes: [{ id: 'across', start: barTicks - 0.5, duration: barTicks + 1 }] }));
+    const rests = buildRhythmNotation([], createSession({ bars: 3, meter }));
+    assert.ok(rests.measures.every(measure => measure.events.length === 1 && measure.events[0].duration === barTicks));
+  }
+});
+
+test('frações fora da grade reconhecida permanecem exatas e assumidamente aproximadas', () => {
+  const model = assertFractionalNotation(createSession({ notes: [{ id: 'expressive', start: 0.123, duration: 0.987 }] }));
+  assert.ok(eventsOf(model).some(event => event.approximate));
+  for (const meter of [{ beats: 0, unit: 4 }, { beats: 7, unit: 3 }]) {
+    assert.throws(() => buildRhythmNotation([], { bars: 1, meter }), TypeError);
   }
 });

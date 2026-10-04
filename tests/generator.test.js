@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateGroove } from '../src/generator.js';
-import { BAR_OPTIONS, TICKS_PER_BAR, validPhrase } from '../src/model.js';
+import { generateGroove, generatePolyrhythm } from '../src/generator.js';
+import { TICKS_PER_BAR, validPhrase } from '../src/model.js';
+import { createSession, ticksPerBar } from '../src/session.js';
+const BAR_COUNTS = [1, 2, 3, 4, 8, 16];
 
 const BASE = { bars: 2, seed: 42, density: 'medium', syncopation: 'mixed', lengths: 'mixed' };
 const ATTACK_COUNTS = { sparse: 2, medium: 4, busy: 8 };
@@ -41,7 +43,7 @@ test('generateGroove: todas as combinações preservam densidade por compasso, l
   }]));
   const lastTicks = new Set();
   const phraseEndings = new Set();
-  for (const bars of BAR_OPTIONS) {
+  for (const bars of BAR_COUNTS) {
     const end = bars * TICKS_PER_BAR;
     for (const [density, count] of Object.entries(ATTACK_COUNTS)) {
       for (const syncopation of STYLES) {
@@ -86,7 +88,7 @@ test('generateGroove: todas as combinações preservam densidade por compasso, l
   for (const lengths of Object.keys(LENGTH_CHOICES)) {
     assert.ok(observed[lengths].rest, `${lengths} permite pausas reais`);
     assert.ok(observed[lengths].adjacency, `${lengths} preserva notas adjacentes distintas`);
-    for (const bars of BAR_OPTIONS) {
+    for (const bars of BAR_COUNTS) {
       assert.ok(lastTicks.has(`${bars}:${lengths}`), `último tick presente: ${bars}/${lengths}`);
       assert.ok(phraseEndings.has(`${bars}:${lengths}`), `fim exato presente: ${bars}/${lengths}`);
     }
@@ -154,7 +156,7 @@ test('generateGroove: opções inválidas rejeitadas com TypeError, sem coerçã
     assert.throws(() => generateGroove(options), TypeError);
   }
   const invalid = {
-    bars: [undefined, null, 0, -1, 3, 8, 1.5, '1', NaN, Infinity, new Number(1)],
+    bars: [undefined, null, 0, -1, 17, 1.5, '1', NaN, Infinity, new Number(1)],
     seed: [undefined, null, false, -1, 0x100000000, 1.5, '42', NaN, Infinity, -Infinity, 42n, new Number(42)],
     density: [undefined, null, false, 2, 'Sparse', '', 'constructor', 'toString', new String('medium')],
     syncopation: [undefined, null, false, 1, 'Straight', '', 'constructor', new String('mixed')],
@@ -165,5 +167,44 @@ test('generateGroove: opções inválidas rejeitadas com TypeError, sem coerçã
     const missing = { ...BASE };
     delete missing[field];
     assert.throws(() => generateGroove(missing), TypeError);
+  }
+});
+
+test('geração em compassos e subdivisões reais produz notas canônicas fracionárias válidas', () => {
+  for (const meter of [{ beats: 3, unit: 4 }, { beats: 7, unit: 8 }, { beats: 12, unit: 8 }, { beats: 1, unit: 16 }, { beats: 16, unit: 2 }]) {
+    for (const subdivision of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      for (const density of ['sparse', 'medium', 'busy']) {
+        const options = { ...BASE, bars: 3, meter, subdivision, density, keyId: 'f-sharp-minor' };
+        const generated = generateGroove(options);
+        const session = createSession({ notes: generated.notes, bars: generated.bars, meter, subdivision, generator: { seed: generated.seed } });
+        assert.ok(validPhrase(session.notes, session));
+        const slots = Math.ceil(ticksPerBar(session) / (4 / subdivision) - 1e-6);
+        const count = Math.max(1, Math.min(slots, Math.round(ATTACK_COUNTS[density] * ticksPerBar(session) / 16)));
+        assert.equal(generated.notes.length, 3 * count);
+        assert.ok(generated.notes.every(note => [0, 2, 3, 5, 7, 8, 10].includes((note.pitch - 6 + 12) % 12)));
+        assert.deepEqual(generateGroove(options), generated);
+        for (const note of generated.notes) {
+          const local = note.start % ticksPerBar(session);
+          assert.ok(Math.abs(local / (4 / subdivision) - Math.round(local / (4 / subdivision))) < 1e-6);
+        }
+      }
+    }
+  }
+});
+
+test('altura e acentos não alteram ataques/durações; polirritmia mantém ciclo através das barras', () => {
+  const plain = generateGroove({ ...BASE, subdivision: 3, accents: false });
+  const melodic = generateGroove({ ...BASE, subdivision: 3, accents: true, keyId: 'c-major' });
+  const geometry = generated => generated.notes.map(({ start, duration }) => ({ start, duration }));
+  assert.deepEqual(geometry(plain), geometry(melodic));
+  assert.ok(plain.notes.every(note => note.pitch === 69 && note.articulation === 'normal'));
+  const meter = { beats: 3, unit: 4 };
+  const notes = generatePolyrhythm({ bars: 3, meter, pulses: 3, spanBeats: 4, pitch: 60 });
+  assert.ok(validPhrase(notes, { bars: 3, meter }));
+  assert.deepEqual(notes.slice(0, 4).map(note => note.start), [0, 5.333333333, 10.666666667, 16]);
+  assert.equal(notes.at(-1).start + notes.at(-1).duration, 36);
+  assert.ok(notes.every(note => note.pitch === 60));
+  for (const options of [{ pulses: 1 }, { spanBeats: 0 }, { pitch: 128 }, { meter: { beats: 7, unit: 3 } }]) {
+    assert.throws(() => generatePolyrhythm(options), TypeError);
   }
 });
