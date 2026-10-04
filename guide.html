@@ -80,7 +80,7 @@
   </section>
   <section class="panel" id="training" aria-labelledby="training-title">
     <h2 id="training-title">Ouvir e treinar</h2>
-    <p>Ajuste BPM inteiro entre <strong>40 e 240</strong>. Ouvir em loop usa tom triangular sustentado de 440 Hz, ataque de 4 ms e release de 15 ms no limite nominal. Metrônomo pode ser ligado/desligado durante o loop; cliques já agendados podem permanecer por cerca de 100 ms. Parar/Escape interrompem; edição, biblioteca, gerador e BPM ficam bloqueados durante sessão.</p>
+    <p>Ajuste BPM inteiro entre <strong>40 e 240</strong>. Ouvir em loop usa tom triangular sustentado de 440 Hz: ataque de 4 ms até um pico, decaimento de até 25 ms para uma sustentação mais baixa (40% do pico) e release de 15 ms terminando no limite nominal. As rampas são limitadas a um quarto da duração em notas curtas. O pico destaca cada novo ataque, inclusive entre notas adjacentes e na emenda do loop, sem inserir pausas nem antecipar o término. Uma nota ligada mantém a sustentação, sem novo ataque nas divisões da partitura; no treino, mantenha a pressão por toda a duração escrita. Metrônomo pode ser ligado/desligado durante o loop; cliques já agendados podem permanecer por cerca de 100 ms. Parar/Escape interrompem; edição, biblioteca, gerador e BPM ficam bloqueados durante sessão.</p>
     <p>O áudio usa Web Audio com lookahead de 100 ms, agendado a cada 25 ms. A frase repete a partir de uma origem temporal única, sem pausa extra na emenda; pausas continuam sendo pausas. A animação consulta o relógio, não dispara sons.</p>
     <ol>
       <li>Ouça a referência.</li><li>Comece o treino; há <strong>um compasso de entrada</strong>, qualquer que seja o tamanho da frase.</li>

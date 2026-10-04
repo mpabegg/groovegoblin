@@ -69,15 +69,16 @@
  * (enqueuing oscillators ahead of time) still uses raw `ctx.currentTime`,
  * since Web Audio scheduling is necessarily expressed on that clock.
  *
- * Note envelopes (sustain + distinct re-attack)
+ * Note envelopes (attack contrast + held sustain)
  * ----------------------------------------------
- * Each note gets its own short linear attack ramp (0 → gain) at its start
- * and a short linear release ramp (gain → 0) ending exactly at its own end
- * time. Two adjacent notes (end of A === start of B, semi-open intervals)
- * therefore each get an audible attack transient and a dip to silence at
- * the boundary — a clear re-attack — without the scheduler ever inserting
- * extra silence into the timeline: B's oscillator still starts at exactly
- * A's nominal end tick.
+ * Each model note ramps from zero to an attack peak, decays to a lower
+ * nonzero sustain level, then releases to zero exactly at its nominal end.
+ * The peak makes each new onset stand out from the preceding sustain,
+ * including adjacent notes and the loop seam, without inserting a rest or
+ * moving an onset/end. Notation ties are parts of one model note, so they
+ * share one envelope: there is no re-attack at a beat or internal barline.
+ * Each ramp is capped at a quarter of the duration to keep short notes'
+ * stages ordered and leave a held sustain before release.
  */
 
 import { TICKS_PER_BAR, BAR_OPTIONS } from './model.js';
@@ -89,9 +90,11 @@ const SCHEDULE_AHEAD_SEC = 0.1;
 const SESSION_PRIME_SEC = 0.06;
 
 const NOTE_ATTACK_SEC = 0.004;
+const NOTE_DECAY_SEC = 0.025;
 const NOTE_RELEASE_SEC = 0.015;
 const NOTE_FREQUENCY_HZ = 440;
-const NOTE_GAIN = 0.55;
+const NOTE_PEAK_GAIN = 0.55;
+const NOTE_SUSTAIN_GAIN = 0.22;
 
 const CLICK_DURATION_SEC = 0.035;
 const CLICK_GAIN = 0.4;
@@ -475,12 +478,14 @@ export class GrooveAudio {
     osc.frequency.setValueAtTime(NOTE_FREQUENCY_HZ, time);
 
     const attack = Math.min(NOTE_ATTACK_SEC, durationSec / 4);
+    const decay = Math.min(NOTE_DECAY_SEC, durationSec / 4);
     const release = Math.min(NOTE_RELEASE_SEC, durationSec / 4);
     const sustainEnd = time + durationSec - release;
 
     gain.gain.setValueAtTime(0, time);
-    gain.gain.linearRampToValueAtTime(NOTE_GAIN, time + attack);
-    gain.gain.setValueAtTime(NOTE_GAIN, sustainEnd);
+    gain.gain.linearRampToValueAtTime(NOTE_PEAK_GAIN, time + attack);
+    gain.gain.linearRampToValueAtTime(NOTE_SUSTAIN_GAIN, time + attack + decay);
+    gain.gain.setValueAtTime(NOTE_SUSTAIN_GAIN, sustainEnd);
     gain.gain.linearRampToValueAtTime(0, time + durationSec);
 
     osc.connect(gain).connect(this.#masterGain);
