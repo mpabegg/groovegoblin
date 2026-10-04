@@ -745,7 +745,7 @@ export async function renderSession(session, {
     throw new TypeError('As tentativas devem ter início/término válidos em segundos e altura MIDI opcional.');
   }
   const arrangement = prepareArrangement(valid);
-  const plan = compileBarPlan(valid, { training });
+  const plan = compileBarPlan(valid, { training, repetitions: loops });
   const barTicks = ticksPerBar(valid);
   const secPerTick = secondsPerTick(valid.bpm);
   const countInBars = countIn ? valid.training.countInBars : 0;

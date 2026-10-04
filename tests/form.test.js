@@ -73,11 +73,25 @@ test('section bounds contain crossbar sustains and tiny-meter microtiming', () =
   const rootLoop = compileBarPlan(start);
   close(rootLoop.at(0).events()[0].offsetMs, -80);
   close(rootLoop.at(2).events({ barIndex: 2 })[0].offsetMs, -80);
-  close(compileBarPlan(start, { training: true }).at(0).events()[0].offsetMs, -80);
+  const training = compileBarPlan(start, { training: true });
+  close(training.at(0).events()[0].offsetMs, 0);
+  close(training.at(2).events({ barIndex: 2 })[0].offsetMs, -80);
 });
 
 test('deleting/reordering real sections changes the resulting source audio sequence', () => {
   const a = section(); const b = section({ id: 'b', startBar: 1, endBar: 2 }); const base = make();
   const pitches = sections => compileBarPlan({ ...base, form: { enabled: true, loop: true, sections } }).bars.flatMap(bar => bar.events().filter(event => event.channel === 'phrase').map(event => event.pitch));
   assert.deepEqual(pitches([a, b]), [64, 72]); assert.deepEqual(pitches([b, a]), [72, 64]); assert.deepEqual(pitches([b]), [72]);
+});
+
+test('training reference clips only capturable endpoints and omits onsets after final boundary', () => {
+  const session = createSession({ bpm: 120, meter: { beats: 3, unit: 16 }, training: { repetitions: 2 }, metronome: { enabled: false },
+    notes: [{ id: 'early', start: 0, duration: 1, offsetMs: -80 }, { id: 'late', start: 2.8, duration: 0.2, offsetMs: 80 }] });
+  const plan = compileBarPlan(session, { training: true });
+  const first = plan.at(0).events({ barIndex: 0 });
+  close(first[0].offsetMs, 0); close(first[0].duration * plan.at(0).secPerTick, 0.045);
+  assert.equal(first.length, 2, 'positive offset may cross an intermediate loop seam');
+  const last = plan.at(1).events({ barIndex: 1 });
+  assert.equal(last.length, 1, 'last late attack lies beyond captured training');
+  close(last[0].offsetMs, -80); close(last[0].duration, 1);
 });

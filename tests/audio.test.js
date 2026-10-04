@@ -196,3 +196,12 @@ test('root-loop anticipations cross later seams unchanged in realtime and offlin
   close(rendered.context.sources[0].startTime, 0);
   close(rendered.context.sources[1].startTime, 1.92);
 });
+
+test('explicit take-render loops extend accompaniment beyond the session training default', async () => {
+  const rendered = await renderSession(createSession({ bpm: 300, meter: { beats: 1, unit: 16 }, training: { repetitions: 1 } }), {
+    attempts: [], loops: 2, countIn: false, tailSeconds: 0, sampleRate: 8000, contextFactory: audioContext,
+  });
+  close(rendered.duration, 0.1);
+  assert.equal(rendered.context.sources.length, 2);
+  close(rendered.context.sources[1].startTime, 0.05);
+});

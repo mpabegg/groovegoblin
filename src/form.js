@@ -42,7 +42,7 @@ export function normalizeForm(value, bars) {
   return form;
 }
 
-export function compileBarPlan(session, { training = false } = {}) {
+export function compileBarPlan(session, { training = false, repetitions = session.training.repetitions } = {}) {
   const useForm = session.form.enabled && !training;
   const sections = useForm ? session.form.sections : [{ id: null, name: '', kind: 'A', ...session.loop, repeats: 1, bpm: null, meter: null, density: null }];
   const rootTicks = ticksPerBar(session);
@@ -92,6 +92,19 @@ export function compileBarPlan(session, { training = false } = {}) {
               // Só as seções explícitas impõem uma fronteira musical rígida.
               event.offsetMs = useForm ? Math.max(event.offsetMs ?? 0, -fromSectionStart * 1000) : event.offsetMs ?? 0;
               event.maxSeconds = useForm ? ((section.endBar - sourceBar) * barTicks - event.tick) * secPerTick - event.offsetMs / 1000 : Infinity;
+              if (training) {
+                // A captura começa em zero e termina após todas as repetições.
+                // Cortar só essas bordas externas; entre voltas, manter o offset.
+                const rawStart = (barIndex * barTicks + event.tick) * secPerTick + event.offsetMs / 1000;
+                const start = Math.max(0, rawStart);
+                const end = duration * repetitions;
+                if (event.duration > 0) {
+                  const release = Math.max(start, Math.min(end, rawStart + event.duration * secPerTick));
+                  event.duration = (release - start) / secPerTick;
+                }
+                event.offsetMs += (start - rawStart) * 1000;
+                event.maxSeconds = Math.min(event.maxSeconds, end - start);
+              }
             }
             return events.filter(event => event.maxSeconds > 0).sort((a, b) => a.tick * secPerTick + a.offsetMs / 1000 - b.tick * secPerTick - b.offsetMs / 1000);
           },
