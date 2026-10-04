@@ -9,8 +9,9 @@ import { EPSILON, ticksPerBar, sessionTicks, beatGroups } from './meter.js';
 import {
   ARTICULATIONS, MAX_BARS, MIN_BARS, NOTE_KEYS, completeNote, isValidNote, validPhrase,
 } from './model.js';
-import { CHORD_FUNCTIONS, CHORD_SOURCES, PROGRESSION_KEYS } from './progression.js';
+import { CHORD_FUNCTIONS, CHORD_SOURCES, CHORD_QUALITIES, PROGRESSION_KEYS } from './progression.js';
 import { parsePhrase, parseShare } from './portable.js';
+import { normalizeForm } from './form.js';
 
 export { ticksPerBar, sessionTicks, beatGroups, ARTICULATIONS, MIN_BARS, MAX_BARS };
 
@@ -113,6 +114,7 @@ function defaults() {
     drums: { enabled: false, seed: 1, style: 'complement', density: 'medium' },
     band: { bassEnabled: false, style: 'pop', density: 'medium', mode: 'steady', role: 'solo' },
     loop: { startBar: 0, endBar: 1 },
+    form: { enabled: false, loop: true, sections: [] },
     training: { countInBars: 1, repetitions: 4, goal: 'timing', evaluation: 'strict', tempoStep: 4, adaptive: false, monitor: true },
     metronome: { enabled: true, pattern: 'quarters', silentBars: 0, audibleBars: 1 },
     companion: { enabled: false, pulses: 3, spanBeats: 4, pitch: 84 },
@@ -210,7 +212,7 @@ const TOP_LEVEL_MESSAGES = {
   swingUnit: 'A unidade de swing deve ser colcheia ou semicolcheia.',
 };
 
-const ALLOWED_KEYS = new Set([...Object.keys(TOP_LEVEL), ...Object.keys(SECTIONS), 'notes', 'mixer', 'extensions']);
+const ALLOWED_KEYS = new Set([...Object.keys(TOP_LEVEL), ...Object.keys(SECTIONS), 'notes', 'mixer', 'extensions', 'form']);
 
 function normalizeSection(name, value, base) {
   if (value === undefined) return { ...base };
@@ -256,7 +258,10 @@ function normalizeChord(chord, beats) {
   if (degree !== null && !isInt(degree, 1, 7)) fail(`Grau inválido no acorde ${chord.symbol}.`);
   if (!isInt(root, 0, 11) || (bass !== null && !isInt(bass, 0, 11))) fail(`Fundamental ou baixo inválido no acorde ${chord.symbol}.`);
   if (!CHORD_FUNCTIONS.includes(fn) || !CHORD_SOURCES.includes(source)) fail(`Função ou origem inválida no acorde ${chord.symbol}.`);
-  if (!isInt(inversion, 0, 7)) fail(`Inversão inválida no acorde ${chord.symbol}.`);
+  const intervals = Object.hasOwn(CHORD_QUALITIES, chord.quality ?? '') ? CHORD_QUALITIES[chord.quality ?? ''] : null;
+  const foreignBass = bass !== null && intervals && !intervals.some(([semitones]) => (root + semitones) % 12 === bass);
+  const tones = new Set(notes.map(note => note.midi % 12).filter(pc => !foreignBass || pc !== bass));
+  if (!isInt(inversion, 0, tones.size - 1)) fail(`Inversão inválida no acorde ${chord.symbol}.`);
   for (const key of ['roman', 'quality']) {
     if (Object.hasOwn(chord, key) && (typeof chord[key] !== 'string' || chord[key].length > 16)) fail(`Campo ${key} inválido no acorde ${chord.symbol}.`);
   }
@@ -334,6 +339,8 @@ function normalize(value) {
   if (session.loop.startBar >= session.loop.endBar || session.loop.endBar > session.bars) {
     fail('O loop deve começar antes de terminar e caber nos compassos da sessão.');
   }
+  try { session.form = normalizeForm(value.form, session.bars); }
+  catch (error) { fail(error.message); }
   session.progression.chords = session.progression.chords.map(chord => normalizeChord(chord, session.meter.beats));
   session.notes = normalizeNotes(value.notes ?? [], session);
   session.mixer = normalizeMixer(value.mixer);
@@ -466,9 +473,10 @@ function safeParse(raw) {
 // Carrega a sessão v2; sem ela, migra frase/preferências/mixer antigos (sem
 // apagá-los). Dados v2 corrompidos não são sobrescritos em silêncio: uma cópia
 // fica em groovegoblin.session.v2.recovery e o texto volta em recoveryRaw.
-export function loadSession(storage = globalThis.localStorage) {
+export function loadSession(storage) {
   let raw;
   try {
+    storage ??= globalThis.localStorage;
     raw = storage.getItem(STORAGE_KEY);
   } catch {
     return {
@@ -499,10 +507,11 @@ export function loadSession(storage = globalThis.localStorage) {
   return { session: createSession(), warnings, recoveryRaw: raw, storageAvailable: true };
 }
 
-export function saveSession(session, storage = globalThis.localStorage) {
+export function saveSession(session, storage) {
   const result = validateSession(session);
   if (!result.ok) return false;
   try {
+    storage ??= globalThis.localStorage;
     storage.setItem(STORAGE_KEY, JSON.stringify(result.session));
     return true;
   } catch {

@@ -64,7 +64,29 @@
       <h3>Som e síntese</h3><div id="synth-controls" class="tool-row"></div>
     </section>
     <section id="mixer" class="panel mixer"><h2>Mixer da sessão</h2><p class="tool-hint muted">Volume e silenciamento viajam com a sessão. Ajuste durante a reprodução.</p><div id="mixer-channels" class="mixer-channels"></div><p id="mixer-status" role="status"></p></section>
-    <section class="panel"><h2>Metrônomo e estrutura</h2><div class="tool-row"><label>Padrão<select id="metro-pattern" data-path="metronome.pattern"></select></label><label>Compassos audíveis<input id="audible-bars" data-path="metronome.audibleBars" type="number" min="1" max="16"></label><label>Compassos silenciosos<input id="silent-bars" data-path="metronome.silentBars" type="number" min="0" max="16"></label><label>Entrada (compassos)<input id="count-in" data-path="training.countInBars" type="number" min="0" max="4"></label><label>Repetições<input id="repetitions" data-path="training.repetitions" type="number" min="1" max="32"></label><label class="toggle"><input data-path="companion.enabled" type="checkbox"> Pulso polirrítmico</label><label>Pulsos<input data-path="companion.pulses" type="number" min="2" max="12"></label><label>Em tempos<input data-path="companion.spanBeats" type="number" min="1" max="16"></label></div><p class="tool-hint muted">Silêncios alternam com compassos audíveis para trabalhar o pulso interno. O pulso polirrítmico divide o intervalo escolhido igualmente. A contagem de entrada prepara o treino; o loop pode cobrir apenas parte da frase.</p></section>
+    <section class="panel"><h2>Metrônomo, treino e ciclos</h2>
+      <div class="tool-row">
+        <label>Padrão<select id="metro-pattern" data-path="metronome.pattern"></select></label>
+        <label>Compassos audíveis<input id="audible-bars" data-path="metronome.audibleBars" type="number" min="1" max="8"></label>
+        <label>Compassos silenciosos<input id="silent-bars" data-path="metronome.silentBars" type="number" min="0" max="8"></label>
+        <label>Entrada (compassos)<input id="count-in" data-path="training.countInBars" type="number" min="0" max="4"></label>
+        <label>Repetições<input id="repetitions" data-path="training.repetitions" type="number" min="1" max="64"></label>
+        <label>Avaliação<select id="training-evaluation" data-path="training.evaluation"></select></label>
+        <label>Objetivo<select id="training-goal" data-path="training.goal"></select></label>
+        <label class="toggle"><input data-path="companion.enabled" type="checkbox"> Ciclo companheiro</label>
+        <label>Pulsos por ciclo<input data-path="companion.pulses" type="number" min="2" max="12"></label>
+        <label>Duração do ciclo (tempos escritos)<input data-path="companion.spanBeats" type="number" min="1" max="64"></label>
+      </div>
+      <p class="tool-hint muted">Silêncios alternam com compassos audíveis. Polirritmo: pulsos igualmente espaçados contra os tempos do compasso (ex.: 3 em 4). Polimetria: um ciclo de outra duração atravessa as barras (ex.: 3 em 3 sobre 4/4); o acento marca cada novo ciclo. Não há um segundo relógio.</p>
+      <p class="tool-hint muted">O treino e sua tomada usam sempre o loop da fonte selecionado no editor, no BPM e compasso principais, com entrada e repetições — não percorrem a forma variável. A resposta da banda acompanha somente toques reais no teclado ou na tela.</p>
+    </section>
+    <section id="form-panel" class="panel">
+      <h2>Forma musical</h2>
+      <div class="tool-row"><label class="toggle"><input id="form-enabled" data-path="form.enabled" type="checkbox"> Tocar a forma</label><label class="toggle"><input id="form-loop" data-path="form.loop" type="checkbox"> Repetir a forma (desmarque para terminar)</label><button id="add-section">Adicionar seção</button></div>
+      <p class="tool-hint muted">Cada seção toca compassos da fonte em ordem. Na tela os limites são inclusivos (1–2 toca os compassos 1 e 2). BPM e compasso em branco herdam a sessão; outro compasso redimensiona posições e durações proporcionalmente. A densidade muda bateria, baixo e harmonia habilitados. Edite com a reprodução parada.</p>
+      <ol id="form-sections" class="form-sections"></ol>
+      <p id="form-position" role="status" aria-live="polite">Forma desativada.</p>
+    </section>
   </section>
   <section id="panel-explore" class="intention-panel" role="tabpanel" aria-labelledby="tab-explore" hidden><div id="playground-mount"></div></section>
   <section id="panel-repertoire" class="intention-panel" role="tabpanel" aria-labelledby="tab-repertoire" hidden><div id="repertoire-mount"></div></section>

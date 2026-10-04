@@ -14,6 +14,8 @@ import { mergeSession, readSessionLibrary, SESSION_LIBRARY_KEY } from './studio-
 import { History } from './history.js';
 import { addNote, updateNote, deleteNote } from './model.js';
 import { quantizeTick as snapTick } from './meter.js';
+import { FORM_KINDS, FORM_LABELS, FORM_DESCRIPTIONS } from './form.js';
+import { EVALUATION_MODES, EVALUATION_MODE_LABELS, GOALS, GOAL_LABELS } from './session.js';
 import { generateGroove } from './generator.js';
 import { generateDrums, DRUM_VOICES } from './drums.js';
 
@@ -95,7 +97,7 @@ function replaceSession(value, { record = true, stopPlayback = true } = {}) {
   return true;
 }
 function renderAll() {
-  renderControls(); renderGrid(); renderDrums(); renderNotes(); renderProgression(); renderFeedback();
+  renderControls(); renderGrid(); renderDrums(); renderNotes(); renderProgression(); renderForm(); renderFeedback();
   practice?.render(); playground?.render(); journey?.render(); repertoire?.render();
 }
 function cancelDrag() {
@@ -125,7 +127,7 @@ async function begin(mode = 'loop') {
   try {
     await audio.playSession(snapshot, { mode });
     if (request !== generation) return;
-    message(mode === 'train' ? 'Treino iniciado: pressione no ataque e solte no término.' : 'Arranjo completo no mesmo loop.');
+    message(mode === 'train' ? 'Treino iniciado no loop da fonte; a forma não entra na avaliação.' : session.form.enabled ? 'Forma musical em reprodução.' : 'Arranjo completo no mesmo loop.');
   } catch (error) {
     if (request === generation) { audio.stop(); message(`Não foi possível iniciar: ${error.message}`, true); }
     throw error;
@@ -182,6 +184,8 @@ const metroLabels = { quarters: 'Semínimas', backbeat: 'Backbeat · 2 e 4', off
 const articulationLabels = { normal: 'Normal', accent: 'Acento', ghost: 'Fantasma', staccato: 'Staccato', tenuto: 'Tenuto', legato: 'Legato' };
 for (const id of ['drum-style', 'bass-style']) fillOptions($(id), STYLES, styleLabels);
 for (const id of ['drum-density', 'bass-density']) fillOptions($(id), DENSITIES, densityLabels);
+fillOptions($('training-evaluation'), EVALUATION_MODES, EVALUATION_MODE_LABELS);
+fillOptions($('training-goal'), GOALS, GOAL_LABELS);
 fillOptions($('metro-pattern'), METRONOME_PATTERNS, metroLabels);
 fillOptions($('note-articulation'), ARTICULATIONS, articulationLabels);
 for (const [channel, labelText] of Object.entries({ phrase: 'Timbre da frase', chords: 'Timbre da harmonia', bass: 'Timbre do baixo' })) {
@@ -236,7 +240,7 @@ function renderControls() {
   $('session-title').textContent = session.name;
   $('session-badge').textContent = `${session.meter.beats}/${session.meter.unit} · ${session.bars} comp. · loop ${session.loop.startBar + 1}–${session.loop.endBar}`;
   $('play').disabled = pending !== null;
-  $('train').disabled = pending !== null || !session.notes.some(note => note.start >= session.loop.startBar * barTicks(session) && note.start < session.loop.endBar * barTicks(session));
+  $('train').disabled = pending !== null || (session.training.evaluation !== 'free' && !session.notes.some(note => note.start >= session.loop.startBar * barTicks(session) && note.start < session.loop.endBar * barTicks(session)));
   $('stop').disabled = !locked && !repertoire?.isBusy();
   $('train-pad').disabled = !['countin', 'train'].includes(audio.position.mode);
   $('undo').disabled = locked || !history.canUndo;
@@ -261,9 +265,72 @@ function renderControls() {
   for (const preset of $('presets').children) preset.disabled = locked || !note;
   for (const input of document.querySelectorAll('.chord-editor input, .chord-editor select, .chord-editor button')) input.disabled = locked;
   for (const input of document.querySelectorAll('.cell, .note')) input.disabled = locked;
+  $('add-section').disabled = locked || session.form.sections.length >= 32;
+  for (const input of document.querySelectorAll('#form-sections input, #form-sections select, #form-sections button')) input.disabled = locked || input.dataset.boundary === 'true';
   renderMixer();
 }
 function format(number) { return String(Math.round(number * 1000) / 1000); }
+
+function renderForm() {
+  const list = $('form-sections');
+  list.replaceChildren();
+  const change = (index, patch) => {
+    const applied = updateSession({ form: { sections: session.form.sections.map((section, i) => i === index ? { ...section, ...patch } : section) } });
+    if (!applied) renderForm();
+  };
+  for (const [index, section] of session.form.sections.entries()) {
+    const row = document.createElement('li'); row.dataset.sectionId = section.id;
+    const fields = document.createElement('div'); fields.className = 'tool-row';
+    const field = (text, control) => {
+      const label = document.createElement('label'); label.append(document.createTextNode(text), control); fields.append(label); return control;
+    };
+    const text = document.createElement('input'); text.value = section.name; text.maxLength = 80;
+    text.addEventListener('change', () => change(index, { name: text.value })); field('Nome', text);
+    const kind = document.createElement('select'); fillOptions(kind, FORM_KINDS, FORM_LABELS); kind.value = section.kind;
+    kind.addEventListener('change', () => change(index, { kind: kind.value })); field('Tipo e papel', kind);
+    const number = (label, value, min, max, apply, optional = false) => {
+      const input = document.createElement('input'); input.type = 'number'; input.min = min; input.max = max; input.step = 1;
+      input.value = value ?? ''; input.required = !optional; if (optional) input.placeholder = 'Herdar';
+      input.addEventListener('change', () => {
+        if (!input.reportValidity()) return;
+        apply(input.value === '' ? null : Number(input.value));
+      });
+      return field(label, input);
+    };
+    number('Fonte: primeiro compasso', section.startBar + 1, 1, session.bars, value => change(index, { startBar: value - 1 }));
+    number('Fonte: último compasso', section.endBar, 1, session.bars, value => change(index, { endBar: value }));
+    number('Repetições', section.repeats, 1, 16, value => change(index, { repeats: value }));
+    number('BPM (semínimas)', section.bpm, 30, 300, value => change(index, { bpm: value }), true);
+    number('Tempos (vazio = herdar)', section.meter?.beats, 1, 16, value => change(index, { meter: value === null ? null : { beats: value, unit: section.meter?.unit ?? session.meter.unit } }), true);
+    const unit = document.createElement('select'); fillOptions(unit, ['', 2, 4, 8, 16], { '': 'Herdar', 2: '/2', 4: '/4', 8: '/8', 16: '/16' }); unit.value = section.meter?.unit ?? '';
+    unit.addEventListener('change', () => change(index, { meter: unit.value === '' ? null : { beats: section.meter?.beats ?? session.meter.beats, unit: Number(unit.value) } })); field('Unidade', unit);
+    const density = document.createElement('select'); fillOptions(density, ['', ...DENSITIES], { '': 'Herdar', ...densityLabels }); density.value = section.density ?? '';
+    density.addEventListener('change', () => change(index, { density: density.value || null })); field('Densidade da banda', density);
+    const button = (label, action, boundary = false) => {
+      const button = document.createElement('button'); button.textContent = label; button.type = 'button'; button.dataset.boundary = String(boundary);
+      button.disabled = busy() || boundary; button.addEventListener('click', action); fields.append(button);
+    };
+    const move = delta => {
+      const sections = [...session.form.sections]; [sections[index], sections[index + delta]] = [sections[index + delta], sections[index]];
+      updateSession({ form: { sections } });
+      const moved = [...list.children].find(item => item.dataset.sectionId === section.id);
+      moved?.querySelector('input')?.focus();
+    };
+    button('Mover acima', () => move(-1), index === 0);
+    button('Mover abaixo', () => move(1), index === session.form.sections.length - 1);
+    button('Excluir seção', () => {
+      const sections = session.form.sections.filter((_, i) => i !== index);
+      updateSession({ form: { sections, enabled: session.form.enabled && sections.length > 0 } });
+    });
+    const description = document.createElement('p'); description.className = 'tool-hint muted'; description.textContent = FORM_DESCRIPTIONS[section.kind];
+    row.append(fields, description); list.append(row);
+  }
+  for (const control of list.querySelectorAll('input, select')) control.disabled = busy();
+}
+$('add-section').addEventListener('click', () => {
+  const section = { id: crypto.randomUUID(), name: `Seção ${session.form.sections.length + 1}`, kind: 'A', startBar: session.loop.startBar, endBar: session.loop.endBar, repeats: 1, bpm: null, meter: null, density: null };
+  updateSession({ form: { sections: [...session.form.sections, section] } });
+});
 function renderGrid() {
   const total = totalTicks(session);
   const measure = barTicks(session);
@@ -669,6 +736,15 @@ function renderFeedback() {
 }
 function frame() {
   const position = audio.position;
+  const formPosition = position.sectionId && position.mode === 'loop'
+    ? `${position.sectionName} · repetição ${position.sectionRepeat} · fonte ${position.bar} · ${position.bpm} BPM · ${position.meter.beats}/${position.meter.unit}`
+    : position.mode === 'train' || position.mode === 'countin' ? 'Treino no loop da fonte (forma não executada).'
+      : session.form.enabled ? 'Forma pronta; reproduza para acompanhar as seções.' : 'Forma desativada: reprodução do loop da fonte.';
+  if ($('form-position').textContent !== formPosition) $('form-position').textContent = formPosition;
+  for (const row of $('form-sections').children) {
+    const active = position.mode === 'loop' && row.dataset.sectionId === position.sectionId;
+    if (active) row.setAttribute('aria-current', 'step'); else row.removeAttribute('aria-current');
+  }
   if (position.mode !== lastMode) { lastMode = position.mode; renderControls(); }
   const repertoireBusy = repertoire.isBusy();
   if (repertoireBusy !== lastRepertoireBusy) { lastRepertoireBusy = repertoireBusy; renderControls(); }

@@ -12,11 +12,9 @@
  *   decidir com os toques mais recentes) e entrega ao grafo Web Audio só os
  *   eventos dos próximos 100 ms. Assim updateSession()/setTempo() valem quase
  *   imediatamente: o que ainda não foi entregue é refeito.
- * - Coordenada do transporte: tick T contínuo desde o início (inclui a
- *   contagem). time(T) = anchorTime + (T - anchorTick) * secPerTick; mudar o
- *   andamento só reancora no instante atual. O compasso b do transporte é
- *   contagem (b < countInBars) ou o compasso de sessão
- *   loopStart + ((b - barBase) mod loopBars).
+ * - Coordenada interna: cada compasso ocupa rootTicks. compileBarPlan
+ *   converte essa coordenada para segundos reais usando BPM e fórmula de
+ *   cada seção; realtime e offline consomem os mesmos eventos de compasso.
  * - `position` é PUXADO: cada leitura rederiva modo/tick/compasso/tempo do
  *   instante correlacionado à SAÍDA (getOutputTimestamp), não do relógio de
  *   processamento. `onState` é EMPURRADO apenas em transições de
@@ -41,9 +39,10 @@
  */
 
 import { validateSession, MIXER_CHANNELS, BPM_MIN, BPM_MAX } from './session.js';
-import { EPSILON, ticksPerBar, beatTicks, secondsPerTick, sessionTicks } from './meter.js';
+import { EPSILON, ticksPerBar, secondsPerTick, sessionTicks } from './meter.js';
 import { prepareArrangement } from './arrangement.js';
 import { playTone, playChord, playClick, playDrum, loadDrumSamples } from './synth.js';
+import { compileBarPlan } from './form.js';
 
 const LOOKAHEAD_INTERVAL_SEC = 0.025;
 const SCHEDULE_AHEAD_SEC = 0.1;
@@ -68,14 +67,17 @@ function checkedSession(session) {
   return freezeDeep(result.session);
 }
 
-function mod(value, base) {
-  return ((value % base) + base) % base;
-}
 
+// Limitador final: linear abaixo de -1,94 dB, limitado a ±0,95 (sem corte PCM).
+const LIMITER_CURVE = Float32Array.from({ length: 4097 }, (_, index) => {
+  const x = (index / 4096 * 2 - 1) * 4;
+  const magnitude = Math.abs(x);
+  return Math.sign(x) * (magnitude <= 0.8 ? magnitude : 0.8 + 0.15 * Math.tanh((magnitude - 0.8) / 0.15));
+});
 // Master com compressor suave para mixes com muitas vozes simultâneas.
 function createBuses(ctx, mixer) {
   const master = ctx.createGain();
-  master.gain.value = 0.9;
+  master.gain.value = 0.45; // Reserva para cinco canais e acordes simultâneos.
   const compressor = ctx.createDynamicsCompressor();
   compressor.threshold.value = -10;
   compressor.knee.value = 6;
@@ -83,7 +85,11 @@ function createBuses(ctx, mixer) {
   compressor.attack.value = 0.003;
   compressor.release.value = 0.2;
   master.connect(compressor);
-  compressor.connect(ctx.destination);
+  const limiterInput = ctx.createGain();
+  limiterInput.gain.value = 0.25;
+  const limiter = ctx.createWaveShaper();
+  limiter.curve = LIMITER_CURVE;
+  compressor.connect(limiterInput).connect(limiter).connect(ctx.destination);
   const buses = {};
   for (const channel of MIXER_CHANNELS) {
     const bus = ctx.createGain();
@@ -98,23 +104,36 @@ function createBuses(ctx, mixer) {
 // Entrega um evento do arranjo ao grafo; devolve as entradas a rastrear.
 function dispatch(ctx, buses, samples, event, time, secPerTick) {
   const duration = event.duration * secPerTick;
+  let entries;
   switch (event.kind) {
     case 'note':
     case 'pulse':
-      return [playTone(ctx, buses[event.channel], {
+      entries = [playTone(ctx, buses[event.channel], {
         time, duration, pitch: event.pitch, velocity: event.velocity, timbre: event.timbre, articulation: event.articulation,
-      })];
+      })]; break;
     case 'chord':
-      return playChord(ctx, buses.chords, {
+      entries = playChord(ctx, buses.chords, {
         time, duration, pitches: event.pitches, velocity: event.velocity, timbre: event.timbre, articulation: event.articulation,
-      });
+      }); break;
     case 'drum':
-      return [playDrum(ctx, buses.drums, { time, instrument: event.instrument, velocity: event.velocity }, samples)];
+      entries = [playDrum(ctx, buses.drums, { time, instrument: event.instrument, velocity: event.velocity }, samples)]; break;
     case 'click':
-      return [playClick(ctx, buses.metronome, { time, accent: event.accent, velocity: event.velocity })];
-    default:
-      return [];
+      entries = [playClick(ctx, buses.metronome, { time, accent: event.accent, velocity: event.velocity })]; break;
+    default: return [];
   }
+  if (Number.isFinite(event.maxSeconds)) {
+    const end = time + Math.max(0, event.maxSeconds);
+    for (const entry of entries) {
+      if (entry.end <= end) continue;
+      const fade = Math.max(time, end - 0.01);
+      entry.gain.gain.cancelScheduledValues(fade);
+      entry.gain.gain.setTargetAtTime(0, fade, 0.002);
+      entry.gain.gain.setValueAtTime(0, end);
+      for (const source of entry.sources) source.stop(end);
+      entry.end = end;
+    }
+  }
+  return entries;
 }
 
 // Atividade real de teclado/toque nos dois compassos anteriores (modo follow).
@@ -150,6 +169,8 @@ export class GrooveAudio {
   #mode = null; // null | 'loop' | 'train' | 'preview'
   #session = null;
   #arrangement = null;
+  #plan = null;
+  #executedSession = null;
   #samples = null;
   #sampleStatus = 'unloaded';
   #startedAt = 0;
@@ -162,7 +183,6 @@ export class GrooveAudio {
   #loopStart = 0;
   #loopBars = 1;
   #repetitions = 0;
-  #barBase = 0;
   #nextBar = 0;
   #endBar = Infinity;
   #pending = [];
@@ -220,9 +240,11 @@ export class GrooveAudio {
       ctx.state === 'suspended' ? ctx.resume() : Promise.resolve(),
       valid.drums.enabled ? this.#loadSamples() : Promise.resolve(),
     ]);
-    if (gen !== this.#generation) return; // stop() venceu durante resume/carregamento
+    if (gen !== this.#generation) return false; // stop() venceu durante resume/carregamento
 
     const train = mode === 'train';
+    this.#plan = compileBarPlan(valid, { training: train });
+    this.#executedSession = valid;
     this.#arrangement = prepareArrangement(valid);
     this.#barTicks = ticksPerBar(valid);
     this.#secPerTick = secondsPerTick(valid.bpm);
@@ -230,8 +252,8 @@ export class GrooveAudio {
     this.#loopStart = valid.loop.startBar;
     this.#loopBars = valid.loop.endBar - valid.loop.startBar;
     this.#repetitions = train ? valid.training.repetitions : 0;
-    this.#endBar = train ? this.#countInBars + this.#loopBars * this.#repetitions : Infinity;
-    this.#barBase = this.#countInBars;
+    this.#endBar = train ? this.#countInBars + this.#loopBars * this.#repetitions
+      : this.#plan.loop ? Infinity : this.#plan.bars.length;
     this.#nextBar = 0;
     this.#pending = [];
     this.#onsets = [];
@@ -246,13 +268,12 @@ export class GrooveAudio {
     this.#mode = mode;
     this.#emitState();
     this.#runScheduler(gen);
-    if (train) this.#scheduleFinish(gen);
+    if (Number.isFinite(this.#endBar)) this.#scheduleFinish(gen);
+    return true;
   }
 
-  // Aplica mudanças ao vivo. Em 'loop' tudo vale (andamento, notas, compasso,
-  // loop, banda...); mudanças estruturais (compasso/loop) entram no próximo
-  // compasso. Em 'train' a grade avaliada fica congelada: só mixer, banda,
-  // metrônomo, pulso e timbres mudam.
+  // Mixer é imediato. Eventos ainda não despachados são recompilados na
+  // mesma posição relativa do compasso. O treino conserva a grade executada.
   updateSession(session) {
     let valid = checkedSession(session);
     this.setMixer(valid.mixer);
@@ -267,47 +288,31 @@ export class GrooveAudio {
         training: previous.training, swing: previous.swing, swingUnit: previous.swingUnit, subdivision: previous.subdivision,
       });
     }
-    const ctx = this.#ctx;
-    const structural = ticksPerBar(valid) !== this.#barTicks
-      || valid.loop.startBar !== previous.loop.startBar || valid.loop.endBar !== previous.loop.endBar;
-    if (valid.bpm !== previous.bpm) this.#reanchor(ctx.currentTime, secondsPerTick(valid.bpm));
-
-    const dispatchedTick = this.#tickAtTime(this.#dispatchedTime);
-    const currentBar = Math.max(0, Math.floor((dispatchedTick + EPSILON) / this.#barTicks));
+    const now = this.#ctx.currentTime;
+    const oldTicks = this.#barTicks;
+    const currentTick = this.#tickAtTime(now);
+    const barPosition = currentTick / oldTicks;
     this.#session = valid;
     this.#arrangement = prepareArrangement(valid);
+    this.#plan = compileBarPlan(valid, { training: this.#mode === 'train' });
+    this.#barTicks = ticksPerBar(valid);
+    this.#secPerTick = secondsPerTick(valid.bpm);
+    this.#loopStart = valid.loop.startBar;
+    this.#loopBars = valid.loop.endBar - valid.loop.startBar;
+    this.#anchorTick = barPosition * this.#barTicks;
+    this.#anchorTime = now;
+    this.#endBar = this.#mode === 'train' ? this.#countInBars + this.#loopBars * this.#repetitions
+      : this.#plan.loop ? Infinity : this.#plan.bars.length;
+    this.#onsets = this.#onsets.map(tick => tick / oldTicks * this.#barTicks);
     if (valid.drums.enabled && !this.#samples) this.#loadSamples().catch(() => {});
-
-    if (structural) {
-      // O compasso em curso termina como estava; o novo layout começa no próximo.
-      const nextBar = Math.max(currentBar + 1, this.#countInBars);
-      const boundary = nextBar * this.#barTicks;
-      this.#pending = this.#pending.filter(item => item.transportTick < boundary - EPSILON);
-      const boundaryTime = this.#timeOfTick(boundary);
-      const sessionBar = this.#sessionBarOf(Math.max(currentBar, this.#countInBars));
-      const newTicks = ticksPerBar(valid);
-      // Eventos restantes do compasso atual mudam para a nova coordenada.
-      const shift = nextBar * newTicks - boundary;
-      for (const item of this.#pending) {
-        item.transportTick += shift;
-        item.key += shift;
-      }
-      this.#barTicks = newTicks;
-      this.#anchorTime = boundaryTime;
-      this.#anchorTick = nextBar * newTicks;
-      this.#onsets = [];
-      this.#loopStart = valid.loop.startBar;
-      this.#loopBars = valid.loop.endBar - valid.loop.startBar;
-      const following = sessionBar + 1;
-      const target = following >= this.#loopStart && following < valid.loop.endBar ? following : this.#loopStart;
-      this.#barBase = nextBar - (target - this.#loopStart);
-      this.#nextBar = nextBar;
-    } else {
-      this.#pending = [];
-      this.#nextBar = currentBar;
-      if (currentBar < this.#endBar) this.#generateBar(currentBar, this.#dispatchedTime);
-      this.#nextBar = currentBar + 1;
-    }
+    this.#pending = [];
+    const currentBar = Math.max(0, Math.floor(this.#tickAtTime(this.#dispatchedTime) / this.#barTicks));
+    if (currentBar < this.#endBar) this.#generateBar(currentBar, this.#dispatchedTime);
+    this.#nextBar = currentBar + 1;
+    clearTimeout(this.#finishTimeoutId);
+    this.#finishTimeoutId = null;
+    if (Number.isFinite(this.#endBar)) this.#scheduleFinish(this.#generation);
+    if (this.#timerId === null && (this.#mode === 'loop' || this.#mode === 'train')) this.#runScheduler(this.#generation);
   }
 
   // Muda o andamento no loop sem reiniciar (não permitido durante o treino).
@@ -344,7 +349,7 @@ export class GrooveAudio {
     this.#keyDown = false;
     const resolve = this.#previewResolve;
     this.#previewResolve = null;
-    if (resolve) resolve();
+    if (resolve) resolve(false);
     if (wasActive) this.#emitState(); // treino interrompido não entrega onFinish
   }
 
@@ -361,7 +366,7 @@ export class GrooveAudio {
     const gen = this.#generation;
     const ctx = this.#ensureContext();
     if (ctx.state === 'suspended') await ctx.resume();
-    if (gen !== this.#generation) return;
+    if (gen !== this.#generation) return false;
     const secPerTick = secondsPerTick(bpm);
     const start = ctx.currentTime + SESSION_PRIME_SEC;
     let end = start;
@@ -374,15 +379,21 @@ export class GrooveAudio {
       end = Math.max(end, entry.end);
     }
     this.#mode = 'preview';
-    await new Promise(resolve => {
+    return new Promise(resolve => {
       this.#previewResolve = resolve;
-      this.#finishTimeoutId = setTimeout(() => {
+      const finish = () => {
         if (gen !== this.#generation) return;
+        const remaining = end + PREVIEW_TAIL_SEC - this.#nowAudioTime();
+        if (remaining > 1e-9) {
+          this.#finishTimeoutId = setTimeout(finish, Math.max(4, remaining * 1000));
+          return;
+        }
         this.#finishTimeoutId = null;
         this.#previewResolve = null;
         this.#mode = null;
-        resolve();
-      }, Math.max(0, (end - ctx.currentTime + PREVIEW_TAIL_SEC) * 1000));
+        resolve(true);
+      };
+      finish();
     });
   }
 
@@ -395,14 +406,15 @@ export class GrooveAudio {
     let sessionTick = 0;
     if (mode === 'loop' || mode === 'train' || mode === 'countin') {
       const tick = this.#tickAtTime(audioTime);
-      this.#onsets.push(tick);
+      if (tick >= 0) this.#onsets.push(tick);
       const keep = tick - this.#barTicks * 3;
       this.#onsets = this.#onsets.filter(value => value >= keep);
       const bar = Math.floor(tick / this.#barTicks);
       if (bar >= this.#countInBars) sessionTick = this.#sessionBarOf(bar) * this.#barTicks + (tick - bar * this.#barTicks);
     }
     this.#startMonitor(pitch ?? (this.#session ? referencePitch(this.#session, sessionTick) : 69));
-    if (mode !== 'train') return; // ignora idle/contagem/loop
+    if (mode !== 'train' || audioTime < this.#trainStartTime()
+      || audioTime >= this.#timeOfTick(this.#endBar * this.#barTicks)) return;
 
     const attempt = { start: audioTime - this.#trainStartTime(), end: null, pitch };
     this.#attempts.push(attempt);
@@ -419,7 +431,8 @@ export class GrooveAudio {
     if (!this.#heldAttempt) return; // o press correspondente foi ignorado
 
     const t = this.#toAudioTime(eventTimeStamp) - this.#trainStartTime();
-    this.#heldAttempt.end = Math.max(t, this.#heldAttempt.start);
+    const limit = this.#timeOfTick(this.#endBar * this.#barTicks) - this.#trainStartTime();
+    this.#heldAttempt.end = Math.max(this.#heldAttempt.start, Math.min(t, limit));
     this.#heldAttempt = null;
     this.#held = false;
     this.#heldPitch = null;
@@ -429,7 +442,8 @@ export class GrooveAudio {
   // {mode, tick (sessão), bar (1-based, compasso da sessão), beat (1-based na
   // unidade do compasso), repetition (treino 1..N; loop: passagem 1..),
   // repetitions (treino), held, pitch, startTick/endTick do loop,
-  // ticksPerBar, countInBar/countInBars, bpm, previewing}.
+  // ticksPerBar (fonte), countInBar/countInBars, bpm, previewing,
+  // meter (tocado), sectionId/sectionName/sectionIndex/sectionRepeat, formBar}.
   get position() {
     const idle = {
       mode: 'idle', tick: 0, bar: 1, beat: 1, repetition: 0, repetitions: 0, held: false, pitch: null,
@@ -441,11 +455,15 @@ export class GrooveAudio {
     const bar = Math.floor(tick / this.#barTicks);
     if (bar >= this.#endBar) return idle;
     const local = tick - bar * this.#barTicks;
-    const beat = Math.floor(local / beatTicks(this.#session)) + 1;
+    const descriptor = bar >= this.#countInBars ? this.#plan.at(bar - this.#countInBars) : null;
+    const beat = Math.floor(local / this.#barTicks * (descriptor?.meter.beats ?? this.#session.meter.beats)) + 1;
     const base = {
       held: this.#held, pitch: this.#heldPitch, beat, ticksPerBar: this.#barTicks,
       startTick: this.#loopStart * this.#barTicks, endTick: (this.#loopStart + this.#loopBars) * this.#barTicks,
-      repetitions: this.#repetitions, countInBars: this.#countInBars, bpm: this.#session.bpm, previewing: false,
+      repetitions: this.#repetitions, countInBars: this.#countInBars, bpm: descriptor?.bpm ?? this.#session.bpm, previewing: false,
+      meter: descriptor?.meter ?? this.#session.meter, sectionId: descriptor?.sectionId ?? null,
+      sectionName: descriptor?.sectionName ?? '', sectionIndex: descriptor?.sectionIndex ?? -1,
+      sectionRepeat: descriptor?.sectionRepeat ?? 0, formBar: bar - this.#countInBars + 1,
     };
     if (bar < this.#countInBars) {
       return { ...base, mode: 'countin', tick: base.startTick, bar: this.#loopStart + 1, repetition: 0, countInBar: bar + 1 };
@@ -453,28 +471,36 @@ export class GrooveAudio {
     const sessionBar = this.#sessionBarOf(bar);
     const repetition = this.#mode === 'train'
       ? Math.floor((bar - this.#countInBars) / this.#loopBars) + 1
-      : Math.floor((bar - this.#barBase) / this.#loopBars) + 1;
+      : Math.floor((bar - this.#countInBars) / this.#plan.bars.length) + 1;
     return { ...base, mode: this.#mode, tick: sessionBar * this.#barTicks + local, bar: sessionBar + 1, repetition, countInBar: 0 };
   }
 
   // -- internals ------------------------------------------------------
 
   #sessionBarOf(bar) {
-    return this.#loopStart + mod(bar - this.#barBase, this.#loopBars);
+    return this.#plan.at(bar - this.#countInBars).sourceBar;
+  }
+
+  // Coordenada interna: um compasso = rootTicks, mesmo com outra fórmula.
+  // A conversão usa a duração REAL de cada compasso do plano compartilhado.
+  #planSeconds(tick) {
+    const position = tick / this.#barTicks;
+    if (position < this.#countInBars) return tick * this.#secPerTick;
+    const index = Math.floor(position) - this.#countInBars;
+    return this.#countInBars * this.#barTicks * this.#secPerTick
+      + this.#plan.timeAt(index) + (position - Math.floor(position)) * this.#plan.at(index).duration;
   }
 
   #timeOfTick(tick) {
-    return this.#anchorTime + (tick - this.#anchorTick) * this.#secPerTick;
+    return this.#anchorTime + this.#planSeconds(tick) - this.#planSeconds(this.#anchorTick);
   }
 
   #tickAtTime(time) {
-    return this.#anchorTick + (time - this.#anchorTime) / this.#secPerTick;
-  }
-
-  #reanchor(time, secPerTick) {
-    this.#anchorTick = this.#tickAtTime(time);
-    this.#anchorTime = time;
-    this.#secPerTick = secPerTick;
+    const seconds = time - this.#anchorTime + this.#planSeconds(this.#anchorTick);
+    const countSeconds = this.#countInBars * this.#barTicks * this.#secPerTick;
+    if (seconds < countSeconds) return seconds / this.#secPerTick;
+    const located = this.#plan.locate(seconds - countSeconds);
+    return (this.#countInBars + located.index + located.fraction) * this.#barTicks;
   }
 
   #trainStartTime() {
@@ -515,18 +541,19 @@ export class GrooveAudio {
 
   #generateBar(bar, notBefore = -Infinity) {
     const train = this.#mode === 'train';
-    const events = bar < this.#countInBars
-      ? this.#arrangement.countInEvents()
-      : this.#arrangement.barEvents(this.#sessionBarOf(bar), {
-        barIndex: bar - this.#countInBars,
-        includePhrase: !train,
-        activity: activityFor(this.#onsets, bar, this.#barTicks),
-      });
+    const descriptor = bar < this.#countInBars ? null : this.#plan.at(bar - this.#countInBars);
+    const events = descriptor
+      ? descriptor.events({ barIndex: bar - this.#countInBars, includePhrase: !train,
+        activity: activityFor(this.#onsets, bar, this.#barTicks) })
+      : this.#arrangement.countInEvents();
+    const secPerTick = descriptor?.secPerTick ?? this.#secPerTick;
+    const eventTicks = descriptor?.ticks ?? this.#barTicks;
     const barStart = bar * this.#barTicks;
     for (const event of events) {
-      const transportTick = barStart + event.tick;
-      if (this.#timeOfTick(transportTick) + event.offsetMs / 1000 < notBefore - EPSILON) continue;
-      this.#pending.push({ transportTick, event, key: transportTick + event.offsetMs / 1000 / this.#secPerTick });
+      const transportTick = barStart + event.tick / eventTicks * this.#barTicks;
+      const time = this.#timeOfTick(transportTick) + (event.offsetMs ?? 0) / 1000;
+      if (time < notBefore - EPSILON) continue;
+      this.#pending.push({ transportTick, event, secPerTick, key: time });
     }
     this.#pending.sort((a, b) => a.key - b.key);
   }
@@ -546,15 +573,15 @@ export class GrooveAudio {
       this.#nextBar += 1;
     }
     while (this.#pending.length > 0) {
-      const { transportTick, event } = this.#pending[0];
-      let time = this.#timeOfTick(transportTick) + event.offsetMs / 1000;
+      const { transportTick, event, secPerTick } = this.#pending[0];
+      let time = this.#timeOfTick(transportTick) + (event.offsetMs ?? 0) / 1000;
       if (time >= horizon) break;
       this.#pending.shift();
       if (time < now) {
         if (now - time > LATE_DROP_SEC) continue; // aba congelada: não despeja eventos atrasados
         time = now;
       }
-      for (const entry of dispatch(ctx, this.#buses, this.#samples, event, time, this.#secPerTick)) this.#track(entry);
+      for (const entry of dispatch(ctx, this.#buses, this.#samples, event, time, secPerTick)) this.#track(entry);
     }
     this.#dispatchedTime = horizon;
     if (this.#nextBar >= this.#endBar && this.#pending.length === 0 && this.#timerId !== null) {
@@ -569,7 +596,10 @@ export class GrooveAudio {
       if (gen !== this.#generation) return;
       // Relógio correlacionado à saída: ver "Fechamento do treino".
       const remaining = this.#timeOfTick(this.#endBar * this.#barTicks) - this.#nowAudioTime();
-      if (remaining <= 0) this.#finishTrain(gen);
+      if (remaining <= 1e-9) {
+        if (this.#mode === 'train') this.#finishTrain(gen);
+        else this.stop();
+      }
       else this.#finishTimeoutId = setTimeout(check, Math.max(4, remaining * 1000));
     };
     check();
@@ -593,7 +623,8 @@ export class GrooveAudio {
       this.#timerId = null;
     }
     this.#finishTimeoutId = null;
-    const session = this.#session;
+    this.#silenceActiveNodes();
+    const session = this.#executedSession;
     const detail = {
       session, bpm: session.bpm, repetitions: this.#repetitions, countInBars: this.#countInBars,
       loop: { startBar: session.loop.startBar, endBar: session.loop.endBar }, startedAt: this.#startedAt,
@@ -627,8 +658,10 @@ export class GrooveAudio {
     const ctx = this.#ctx;
     if (typeof ctx.getOutputTimestamp === 'function') {
       const { contextTime, performanceTime } = ctx.getOutputTimestamp();
+      const age = performance.now() - performanceTime;
       const valid = Number.isFinite(contextTime) && Number.isFinite(performanceTime)
-        && !(contextTime === 0 && performanceTime === 0);
+        && !(contextTime === 0 && performanceTime === 0) && age >= -10 && age < 250
+        && contextTime <= ctx.currentTime + 0.01;
       if (valid) return contextTime + (eventTimeStampMs - performanceTime) / 1000;
     }
     // Sem correlação de saída válida: par novo (performance.now(), currentTime)
@@ -698,46 +731,56 @@ export class GrooveAudio {
 // avaliado, como entregues por onFinish), o canal da frase toca a execução
 // real por teclado/toque em vez da referência, após a contagem.
 export async function renderSession(session, {
-  loops = 1, sampleRate = 44100, attempts = null, countIn = Boolean(attempts), tailSeconds = 1, contextFactory = null,
+  loops, sampleRate = 44100, attempts = null, countIn = attempts !== null, tailSeconds = 1, contextFactory = null,
 } = {}) {
   const valid = checkedSession(session);
+  const training = attempts !== null;
+  loops ??= training ? valid.training.repetitions : 1;
   if (!Number.isInteger(loops) || loops < 1 || loops > 64) throw new TypeError('O número de repetições deve ser de 1 a 64.');
-  if (attempts !== null && (!Array.isArray(attempts) || attempts.some(attempt => !attempt || !Number.isFinite(attempt.start)))) {
-    throw new TypeError('As tentativas devem ser uma lista de {start, end}.');
+  if (!Number.isInteger(sampleRate) || sampleRate < 8000 || sampleRate > 96000
+    || !Number.isFinite(tailSeconds) || tailSeconds < 0 || tailSeconds > 10) throw new TypeError('Taxa de amostragem ou cauda inválida.');
+  if (training && (!Array.isArray(attempts) || attempts.some(attempt => !attempt || !Number.isFinite(attempt.start)
+    || attempt.start < 0 || !Number.isFinite(attempt.end) || attempt.end < attempt.start
+    || (attempt.pitch != null && (!Number.isInteger(attempt.pitch) || attempt.pitch < 0 || attempt.pitch > 127))))) {
+    throw new TypeError('As tentativas devem ter início/término válidos em segundos e altura MIDI opcional.');
   }
   const arrangement = prepareArrangement(valid);
+  const plan = compileBarPlan(valid, { training });
   const barTicks = ticksPerBar(valid);
   const secPerTick = secondsPerTick(valid.bpm);
   const countInBars = countIn ? valid.training.countInBars : 0;
-  const loopBars = valid.loop.endBar - valid.loop.startBar;
-  const totalBars = countInBars + loopBars * loops;
-  const length = Math.ceil((totalBars * barTicks * secPerTick + tailSeconds) * sampleRate);
+  const countSeconds = countInBars * barTicks * secPerTick;
+  const endTime = countSeconds + plan.duration * loops;
+  const length = Math.max(1, Math.ceil((endTime + tailSeconds) * sampleRate));
   const ctx = contextFactory
     ? contextFactory({ numberOfChannels: 2, length, sampleRate })
     : new OfflineAudioContext({ numberOfChannels: 2, length, sampleRate });
-  const { buses } = createBuses(ctx, valid.mixer);
+  const { buses, master } = createBuses(ctx, valid.mixer);
+  // A mesma parada musical do transporte: nenhuma voz cruza o fim finito.
+  master.gain.setValueAtTime(0.45, Math.max(0, endTime - 0.01));
+  master.gain.linearRampToValueAtTime(0, endTime);
   const samples = valid.drums.enabled ? await loadDrumSamples(ctx).catch(() => null) : null;
-  const trainStart = countInBars * barTicks;
-  const onsets = (attempts ?? []).map(attempt => trainStart + attempt.start / secPerTick);
-
-  for (let bar = 0; bar < totalBars; bar += 1) {
-    const events = bar < countInBars
-      ? arrangement.countInEvents()
-      : arrangement.barEvents(valid.loop.startBar + ((bar - countInBars) % loopBars), {
-        barIndex: bar - countInBars, includePhrase: !attempts, activity: activityFor(onsets, bar, barTicks),
-      });
+  const onsets = (attempts ?? []).map(attempt => countInBars * barTicks + attempt.start / secPerTick);
+  for (let bar = 0; bar < countInBars; bar += 1) {
+    for (const event of arrangement.countInEvents()) dispatch(ctx, buses, samples, event, (bar * barTicks + event.tick) * secPerTick, secPerTick);
+  }
+  for (let index = 0; index < plan.bars.length * loops; index += 1) {
+    const descriptor = plan.at(index);
+    const start = countSeconds + plan.timeAt(index);
+    const events = descriptor.events({ barIndex: index, includePhrase: !training,
+      activity: activityFor(onsets, index + countInBars, barTicks) });
     for (const event of events) {
-      const time = Math.max(0, (bar * barTicks + event.tick) * secPerTick + event.offsetMs / 1000);
-      dispatch(ctx, buses, samples, event, time, secPerTick);
+      const time = Math.max(countSeconds, start + event.tick * descriptor.secPerTick + (event.offsetMs ?? 0) / 1000);
+      if (time < endTime) dispatch(ctx, buses, samples, event, time, descriptor.secPerTick);
     }
   }
   for (const attempt of attempts ?? []) {
-    const start = trainStart * secPerTick + attempt.start;
-    if (start < 0) continue;
-    const end = Number.isFinite(attempt.end) ? attempt.end : attempt.start + 0.1;
-    const sessionTick = valid.loop.startBar * barTicks + ((attempt.start / secPerTick) % (loopBars * barTicks));
+    const start = countSeconds + attempt.start;
+    if (start >= endTime || attempt.end <= attempt.start) continue;
+    const end = Math.min(countSeconds + attempt.end, endTime);
+    const sessionTick = valid.loop.startBar * barTicks + ((attempt.start / secPerTick) % (plan.bars.length * barTicks));
     playTone(ctx, buses.phrase, {
-      time: start, duration: Math.max(0.03, end - attempt.start), pitch: attempt.pitch ?? referencePitch(valid, sessionTick),
+      time: start, duration: end - start, pitch: attempt.pitch ?? referencePitch(valid, sessionTick),
       velocity: 0.8, timbre: valid.timbres.phrase, articulation: 'tenuto',
     });
   }

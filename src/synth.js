@@ -270,7 +270,7 @@ export const TIMBRE_IDS = Object.freeze(Object.keys(TIMBRES));
 export function playTone(ctx, destination, { time, duration, pitch = 69, velocity = 0.8, timbre = 'soft-lead', articulation = 'normal' }) {
   const shaped = articulate(duration, velocity, articulation);
   const end = time + Math.max(0.02, shaped.gate + shaped.overlap);
-  const build = TIMBRES[timbre] ?? TIMBRES['soft-lead'];
+  const build = Object.hasOwn(TIMBRES, timbre) ? TIMBRES[timbre] : TIMBRES['soft-lead'];
   const voice = build(ctx, { time, end, frequency: midiToFrequency(pitch), amp: amplitude(shaped.velocity) });
   return finish(voice.sources, voice.out, time, voice.end, destination);
 }
@@ -278,7 +278,7 @@ export function playTone(ctx, destination, { time, duration, pitch = 69, velocit
 // Acorde: vozes somadas com ganho reduzido para não saturar o barramento.
 export function playChord(ctx, destination, { time, duration, pitches, velocity = 0.5, timbre = 'electric-piano', articulation = 'normal' }) {
   const voices = pitches.map(pitch => playTone(ctx, destination, {
-    time, duration, pitch, velocity: velocity / Math.sqrt(Math.max(1, pitches.length)), timbre, articulation,
+    time, duration, pitch, velocity: velocity / Math.max(1, pitches.length) ** (1 / 1.3), timbre, articulation,
   }));
   return voices;
 }
