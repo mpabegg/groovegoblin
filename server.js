@@ -2,11 +2,12 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve, extname, sep } from 'node:path';
+import { createAssetManifest } from './scripts/asset-manifest.js';
 const projectRoot = fileURLToPath(new URL('.', import.meta.url));
 const root = resolve(projectRoot, process.env.STATIC_ROOT || '.');
 const basePath = normalizeBasePath(process.env.BASE_PATH || '/');
 const port = Number(process.env.PORT || 5173);
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.md': 'text/plain', '.svg': 'image/svg+xml', '.json': 'application/json', '.wav': 'audio/wav' };
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.md': 'text/plain', '.svg': 'image/svg+xml', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.wasm': 'application/wasm', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg' };
 
 function normalizeBasePath(path) {
   const normalized = `/${path.split('/').filter(Boolean).join('/')}/`;
@@ -34,7 +35,16 @@ const server = createServer(async (request, response) => {
       response.writeHead(403).end();
       return;
     }
-    const content = await readFile(path);
+    let content;
+    if (root === resolve(projectRoot) && path === resolve(root, 'offline-assets.json')) {
+      content = JSON.stringify(await createAssetManifest(root));
+    } else {
+      content = await readFile(path);
+      if (root === resolve(projectRoot) && path === resolve(root, 'sw.js')) {
+        const manifest = await createAssetManifest(root);
+        content = content.toString('utf8').replace('__GROOVE_REVISION__', manifest.version);
+      }
+    }
     const type = types[extname(path)] || 'application/octet-stream';
     const contentType = type.startsWith('text/') || type === 'application/json' || type === 'image/svg+xml' ? `${type}; charset=utf-8` : type;
     response.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'no-cache' });

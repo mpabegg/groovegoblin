@@ -1,0 +1,13 @@
+{
+  "id": "./",
+  "name": "GrooveGoblin — parceiro de prática musical",
+  "short_name": "GrooveGoblin",
+  "description": "Pratique, toque com a banda, explore ideias e organize seu repertório. Local e privado.",
+  "lang": "pt-BR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#141b22",
+  "theme_color": "#141b22",
+  "icons": [{ "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
