@@ -38,8 +38,8 @@ const history = new History();
 const library = readSessionLibrary(undefined, parseSession);
 const audio = new GrooveAudio({ onState: () => renderControls(), onFinish: (attempts, detail) => {
   clearInput();
-  reference = detail?.session ?? structuredClone(session);
-  results = detail?.results ?? evaluateSession(reference, attempts);
+  reference = detail.session;
+  results = detail.results ?? evaluateSession(reference, attempts);
   renderFeedback();
   practice?.onFinish(attempts, { ...detail, session: reference, results });
   playground?.onFinish(attempts, { ...detail, session: reference, results });
@@ -185,7 +185,7 @@ monitorLabel.append(monitor, document.createTextNode('Ouvir teclado/toque no tre
 for (const input of document.querySelectorAll('[data-path^="generator."]')) input.dataset.path = `extensions.studio.${input.dataset.path}`;
 $('progression-function').dataset.path = 'extensions.studio.progressionFunction';
 $('input-pitch').addEventListener('change', event => {
-  if (!event.target.checkValidity()) { event.target.value = session.extensions.studio.inputPitch; message('Escolha uma altura MIDI entre 21 e 108.', true); return; }
+  if (event.target.value === '' || !event.target.checkValidity()) { event.target.value = session.extensions.studio.inputPitch; message('Escolha uma altura MIDI entre 21 e 108.', true); return; }
   session = mergeSession(session, { extensions: { studio: { inputPitch: Number(event.target.value) } } });
   persist();
 });
@@ -195,13 +195,14 @@ const getPath = (object, path) => path.split('.').reduce((value, key) => value?.
 function pathPatch(path, value) { return path.split('.').reverse().reduce((patch, key) => ({ [key]: patch }), value); }
 for (const input of document.querySelectorAll('[data-path]')) {
   input.addEventListener('change', () => {
+    if (!input.checkValidity()) { message('Valor fora dos limites permitidos. Confira o campo e tente novamente.', true); renderControls(); return; }
     const path = input.dataset.path;
     const value = input.type === 'checkbox' ? input.checked : numericPaths.has(path) ? Number(input.value) : input.value;
     let patch = pathPatch(path, value);
     if (path === 'bars') patch = mergeSession(patch, { loop: { endBar: value, startBar: Math.min(session.loop.startBar, value - 1) } });
     if (path === 'progression.keyId') {
       const chords = getDiatonicChords(value);
-      patch.progression.chords = session.progression.chords.map(chord => ({ ...chords[(chord.degree ?? 1) - 1], durationBars: chord.durationBars, inversion: 0 }));
+      patch.progression.chords = session.progression.chords.map(chord => chord.source !== 'diatonic' ? chord : invertChord({ ...chords[(chord.degree ?? 1) - 1], durationBars: chord.durationBars }, chord.inversion));
     }
     updateSession(patch);
   });
