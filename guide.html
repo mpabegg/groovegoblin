@@ -4,155 +4,107 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#141b22">
-  <title>Guia GrooveGoblin — composição e treino</title>
+  <title>Guia GrooveGoblin — estúdio de prática</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="./src/style.css">
 </head>
 <body>
 <main>
   <header class="masthead">
-    <div><div class="eyebrow">GUIA · MÉTODO · PRIVACIDADE</div><h1>Groove<span>Goblin</span></h1></div>
+    <div><div class="eyebrow">GUIA · ESTÚDIO · PRIVACIDADE</div><h1>Groove<span>Goblin</span></h1></div>
     <a href="./index.html">Voltar ao app ↗</a>
   </header>
   <section class="panel">
-    <h2>Compositor e treinador rítmico</h2>
-    <p>Crie frases monofônicas em 4/4 com <strong>1, 2 ou 4 compassos</strong> e 16 posições de semicolcheia por compasso. O app não tem backend, contas, fontes externas, nem envio automático de dados. Os links externos da biblioteca só acessam a internet quando você os abre.</p>
-    <p>Explore também progressões diatônicas maiores ou menores naturais, separadas da frase rítmica: tétrades com quatro alturas simultâneas e reprodução sintetizada em loop.</p>
+    <h2>Um estúdio, cinco intenções</h2>
+    <p>O GrooveGoblin é uma aplicação web local para praticar, criar acompanhamento, explorar ideias musicais, trabalhar repertório e consultar o próprio percurso. Uma sessão reúne frase, estrutura, banda, harmonia, metrônomo, treino e mixer. A pauta mostra ritmo; a frase também pode conter altura, velocidade expressiva e articulação.</p>
     <nav aria-label="Conteúdo do guia"><ul>
-      <li><a href="#compose">Compor e editar</a></li><li><a href="#notation">Partitura rítmica</a></li>
-      <li><a href="#library">Biblioteca e gerador</a></li><li><a href="#progressions">Progressões diatônicas</a></li><li><a href="#training">Ouvir e treinar</a></li>
-      <li><a href="#drums">Bateria complementar</a></li>
-      <li><a href="#mixer">Mixer: volume e mute</a></li>
-      <li><a href="#feedback">Feedback e latência</a></li><li><a href="#files">Arquivos, links e dados locais</a></li>
+      <li><a href="#intentions">As cinco intenções</a></li>
+      <li><a href="#session">Sessão, editor e recuperação</a></li>
+      <li><a href="#meter">Compasso, ticks, swing e notação</a></li>
+      <li><a href="#band">Banda, papéis e som</a></li>
+      <li><a href="#practice">Prática e feedback</a></li>
+      <li><a href="#explore">Exploração criativa e jogos de ouvido</a></li>
+      <li><a href="#repertoire">Repertório e análise de áudio</a></li>
+      <li><a href="#files">Arquivos e dados locais</a></li>
+      <li><a href="#offline">Offline e privacidade</a></li>
+      <li><a href="#development">Desenvolvimento e preview</a></li>
     </ul></nav>
   </section>
-  <section class="panel" id="compose" aria-labelledby="compose-title">
-    <h2 id="compose-title">Compor e editar</h2>
-    <ol>
-      <li>Escolha <strong>Compassos: 1, 2 ou 4</strong>. Reduzir o tamanho é rejeitado se uma nota ultrapassar o novo fim; nenhuma nota é apagada silenciosamente.</li>
-      <li>Clique numa posição vazia para criar uma nota de uma semicolcheia. Clique numa nota para selecionar; arraste o corpo para mover e puxe a borda direita para redimensionar.</li>
-      <li>Use os campos <strong>Início</strong> (posição absoluta na frase, a partir de 1), <strong>Duração</strong> (semicolcheias) ou os botões de duração. Valores 1, 2, 3, 4, 6, 8, 12 e 16 representam semicolcheia, colcheia, colcheia pontuada, semínima, semínima pontuada, mínima, mínima pontuada e semibreve. Outros inteiros também são válidos, até o fim da frase.</li>
-      <li><strong>Excluir nota</strong> apaga a seleção; <strong>Limpar frase</strong> apaga tudo. Desfazer/Refazer recuperam notas, BPM e número de compassos, incluindo padrões, geração e importação. O histórico mantém até 100 estados recentes; uma nova edição após desfazer descarta o ramo de refazer.</li>
-      <li>Frases longas rolam horizontalmente; grid e partitura compartilham a área. Durante reprodução/treino, ela acompanha o cursor; no treino, as ferramentas de inspiração são recolhidas para manter o grid visível.</li>
-    </ol>
-    <p>Ataques e durações são quantizados. Operações inválidas são rejeitadas: não empurram nem sobrepõem notas, e não ultrapassam o fim. Terminar exatamente no limite final é válido; sustentar através de uma barra interna também. Pausas são espaços vazios. Notas adjacentes continuam distintas, com novo ataque. A barra final indica o começo do próximo loop, <strong>não é uma posição adicional</strong>. Cada tempo usa <code>1 e &amp; a</code>: <code>&amp;</code> é o contratempo de colcheia; <code>e</code> e <code>a</code> são subdivisões de semicolcheia.</p>
-    <h3>Atalhos</h3>
-    <div class="table-scroll"><table><thead><tr><th scope="col">Tecla</th><th scope="col">Ação</th></tr></thead><tbody>
-      <tr><td>← / →</td><td>Mover nota selecionada em 1 semicolcheia</td></tr>
-      <tr><td>↑ / ↓</td><td>Aumentar / diminuir duração em 1 semicolcheia</td></tr>
-      <tr><td>Shift + setas</td><td>Passo de 4 semicolcheias</td></tr>
-      <tr><td>1 / 2 / 3 / 4 / 6 / 8</td><td>Definir duração em semicolcheias</td></tr>
-      <tr><td>Delete / Backspace</td><td>Excluir a nota selecionada</td></tr>
-      <tr><td>Ctrl+Z</td><td>Desfazer</td></tr>
-      <tr><td>Ctrl+Y / Ctrl+Shift+Z</td><td>Refazer</td></tr>
-      <tr><td>Escape</td><td>Parar ou cancelar sessão</td></tr>
-      <tr><td>Espaço durante treino</td><td>Pressionar = ataque; soltar = término</td></tr>
-    </tbody></table></div>
-    <p>Atalhos de edição não atuam dentro de campos e seletores, nem durante uma sessão. Tab percorre as posições; Enter/Espaço em uma posição vazia cria uma nota. O histórico termina ao fechar/recarregar; a frase atual permanece salva no navegador.</p>
-  </section>
-  <section class="panel" id="notation" aria-labelledby="notation-title">
-    <h2 id="notation-title">Partitura rítmica</h2>
-    <p>A pauta de uma linha não indica alturas, nomes de notas nem clave. Mostra figuras rítmicas, pausas, pontos de aumento e barras em 4/4; acompanha edição, desfazer/refazer, importação, biblioteca e gerador. A notação SVG é geométrica e local, sem fonte musical ou biblioteca externa. Colcheias e semicolcheias têm bandeirolas individuais, sem agrupamento por feixes.</p>
-    <p>Valores não convencionais e sustentações fora de alinhamento métrico são divididos em figuras convencionais <strong>ligadas</strong>. Por exemplo, 5 ticks começando no tempo viram semínima + semicolcheia ligadas; 6 ticks no tempo viram semínima pontuada. Valores alinhados de 3, 6 e 12 ticks mantêm colcheia, semínima e mínima pontuadas. Sustentações entre compassos recebem ligadura entre as partes. Ligadura <strong>não pede novo ataque</strong>; notas adjacentes distintas não são ligadas.</p>
-    <p>Pausas usam figuras sem ponto e escolhem a maior que cabe no silêncio sem atravessar a barra, respeitando o alinhamento: semibreve no início de compasso completo; mínima nos tempos 1 ou 3; semínima no início de um tempo; colcheia na subdivisão de colcheia; semicolcheia nas demais posições. Um compasso vazio mostra pausa de compasso centralizada. A partitura representa o ritmo quantizado, não alturas nem a execução do treino.</p>
-  </section>
-  <section class="panel" id="library" aria-labelledby="library-title">
-    <h2 id="library-title">Biblioteca e gerador</h2>
-    <p>Abra <strong>Biblioteca de grooves e gerador</strong>, escolha um padrão e carregue-o. Ele substitui frase, tamanho e BPM; Desfazer recupera o estado anterior. As notas carregadas são editáveis.</p>
-    <div class="table-scroll"><table><thead><tr><th scope="col">Padrão</th><th scope="col">Compassos</th><th scope="col">Ataques (ticks desde 0)</th></tr></thead><tbody>
-      <tr><td>Pulso em semínimas</td><td>1</td><td>0, 4, 8, 12</td></tr>
-      <tr><td>Contratempos de colcheia</td><td>1</td><td>2, 6, 10, 14</td></tr>
-      <tr><td>Tresillo — 3+3+2</td><td>1</td><td>0, 6, 12</td></tr>
-      <tr><td>Cinquillo — 2+1+2+1+2</td><td>1</td><td>0, 4, 6, 10, 12</td></tr>
-      <tr><td>Son clave 3–2</td><td>2</td><td>0, 6, 12, 20, 24</td></tr>
-      <tr><td>Son clave 2–3</td><td>2</td><td>4, 8, 16, 22, 28</td></tr>
-    </tbody></table></div>
-    <p>Os dois primeiros padrões são exercícios próprios. Os tradicionais usam fontes da <strong>Berklee PULSE</strong>, também disponíveis na interface:</p>
+  <section class="panel" id="intentions" aria-labelledby="intentions-title">
+    <h2 id="intentions-title">As cinco intenções</h2>
     <ul>
-      <li><a href="https://pulse.berklee.edu/?id=4&amp;lesson=376">The Foundational Rhythms of New Orleans</a>: <a href="https://pulse.berklee.edu/content/public/pub_unit_assets/lessons/clave/Bamboula.jpg">Bamboula/Tresillo</a> e <a href="https://pulse.berklee.edu/content/public/pub_unit_assets/lessons/clave/Cinquillo.jpg">Cinquillo</a>.</li>
-      <li><a href="https://pulse.berklee.edu/?id=4&amp;lesson=14">The Clave</a>: <a href="https://pulse.berklee.edu/content/public/pub_unit_assets/lessons/clave/Son-Clave.jpg">Son clave 3–2</a> e <a href="https://pulse.berklee.edu/content/public/pub_unit_assets/lessons/lesson5_banded/2_3_son_graphic.png">Son clave 2–3</a>.</li>
+      <li><strong>Praticar</strong>: escolha um objetivo e uma frase, escute a referência, toque com teclado ou superfície de toque e veja os resultados de ataque e término. Exercícios podem usar sua sessão ou uma frase gerada. A rotina guiada oferece etapas para escutar, imitar, ler, memorizar com clique parcial e improvisar.</li>
+      <li><strong>Banda</strong>: configure o papel que você toca, a frase, baixo, bateria, harmonia, metrônomo, timbres e volumes. Tudo usa o transporte da sessão e pode ser salvo junto.</li>
+      <li><strong>Explorar</strong>: responda a padrões, experimente transformações, polirritmia e ideias lúdicas; prévias começam por ação explícita, não automaticamente.</li>
+      <li><strong>Repertório</strong>: importe áudio, marque trechos, examine análises como hipóteses, compare takes, prepare exercícios e setlists e exporte material.</li>
+      <li><strong>Percurso</strong>: consulte execuções, progresso por objetivo, revisões agendadas, perguntas de ouvido e histórico; exporte ou importe os registros para transferi-los.</li>
     </ul>
-    <p>As fontes fundamentam os ataques; BPM e sustentações são escolhas didáticas e não reproduzem o decaimento de claves, uma bateria completa ou uma gravação. Tresillo aqui é 3+3+2 em colcheias, não tercinas. A descrição se refere ao padrão original, não às edições posteriores.</p>
-    <h3>Gerador reproduzível</h3>
-    <ol>
-      <li>Escolha densidade de 2, 4 ou 8 notas por compasso, preferência de ataques mais nos tempos/mistos/mais sincopados e durações curtas/variadas/longas.</li>
-      <li><strong>Nova variação</strong> sorteia uma semente uint32; <strong>Gerar com esta semente</strong> reproduz as mesmas notas para opções iguais.</li>
-    </ol>
-    <p>Geração mantém BPM e tamanho atuais. Preferências são ponderadas, não proibições: “mais nos tempos” ainda pode produzir síncopes. Ataques são sorteados sem reposição em cada compasso; duração é limitada pelo próximo ataque ou pelo fim, sem sobreposição, e pode atravessar barras internas. “Curtas” sempre usa 1 tick; as outras opções incluem sustentações e pausas. Alterar somente duração mantém os ataques para a mesma semente.</p>
-    <p>O PRNG Mulberry32 é determinístico; não usa rede. Pesos de ataque: “mais nos tempos” = 12/3/1 para tempos/contratempos de colcheia/demais ticks; “mais sincopados” = 1 nos tempos e 4 nas outras subdivisões; mistos = pesos iguais. A nova semente vem de <code>crypto.getRandomValues</code>. Na primeira abertura, uma semente aleatória é gerada e salva; opções e semente permanecem após recarregar e podem reproduzir a mesma frase. Não há promessa de composição estilística ou identificação de gênero. Opções/semente não entram no arquivo JSON nem no link compartilhado; as opções atuais são salvas localmente nas preferências.</p>
+    <p>As abas são navegáveis por Tab e pelas setas esquerda/direita (Home/End vão à primeira/última). Trocar de intenção não inicia som. Os controles usam teclado e toque; não há captura ao vivo de microfone ou entrada de instrumento por hardware/MIDI.</p>
   </section>
-  <section class="panel" id="progressions" aria-labelledby="progressions-title">
-    <h2 id="progressions-title">Progressões diatônicas</h2>
-    <ol>
-      <li>Escolha uma das <strong>24 tonalidades</strong>: as 12 classes de altura em modo maior ou menor natural. As grafias enarmônicas escolhidas evitam tonalidades duplicadas; acidentes como E# em F# maior ou Cb em Eb menor natural são intencionais.</li>
-      <li><strong>Gerar nova progressão</strong> sorteia de <strong>2 a 5 acordes de sétima</strong>. Cada acorde é uma tétrade formada por fundamental, terça, quinta e sétima da escala; todos os sete graus podem aparecer, inclusive repetidos. Não há exigência de começar na tônica ou terminar em cadência.</li>
-      <li>Os cartões mostram compasso, grau em algarismo romano, cifra e as quatro notas. <code>maj7</code> indica sétima maior; <code>m7</code>, acorde menor com sétima menor; <code>7</code>, acorde maior com sétima menor; <code>m7b5</code>, meio-diminuto. O símbolo <code>ø</code> no grau indica esse último tipo.</li>
-      <li><strong>Ouvir progressão em loop</strong> toca quatro osciladores triangulares simultâneos por acorde, com volume de cada voz reduzido a um quarto. Cada acorde dura <strong>um compasso em 4/4</strong>, no BPM definido acima; o cartão em curso fica destacado. A quantidade de compassos da frase rítmica não limita a progressão.</li>
-    </ol>
-    <p>Em C maior, os acordes disponíveis são Cmaj7, Dm7, Em7, Fmaj7, G7, Am7 e Bm7b5. Em A menor natural, são Am7, Bm7b5, Cmaj7, Dm7, Em7, Fmaj7 e G7. O modo menor é <strong>natural</strong>, não harmônico ou melódico: o quinto grau é menor, sem elevar a sensível.</p>
-    <p>Trocar tonalidade ou gerar novamente durante a reprodução para o grafo de áudio anterior e reinicia a nova sequência no primeiro acorde. <strong>Parar progressão</strong> ou o controle geral <strong>Parar</strong> interrompem o áudio. Escape fora de campos, perder o foco e trocar de aba também interrompem. O metrônomo é o mesmo controle da frase e pode ser alterado durante o loop.</p>
-    <p>Reprodução harmônica, referência rítmica e treino são <strong>mutuamente exclusivos</strong>: iniciar outra sessão interrompe a anterior; interromper um treino descarta o resultado parcial. A progressão usa o mesmo scheduler Web Audio e não modifica notas rítmicas, partitura, histórico ou avaliação. Durante sua reprodução, a edição da frase e o BPM ficam bloqueados; tonalidade e regeneração continuam disponíveis.</p>
-    <p>O sorteio harmônico usa <code>Math.random</code>, sem semente ou promessa de reproduzir uma sequência. Tonalidade e progressão ficam <strong>somente nesta sessão</strong>; recarregar cria uma nova progressão em C maior. Não entram em Desfazer/Refazer, arquivos JSON, links compartilhados ou preferências salvas. Não há samples, dependências ou consultas de rede para gerar e tocar acordes.</p>
+  <section class="panel" id="session" aria-labelledby="session-title">
+    <h2 id="session-title">Sessão, editor e recuperação</h2>
+    <p>O editor de frase fica em <strong>Editar frase e organizar sessões</strong>. Clique em uma posição vazia para criar nota; clique numa nota para selecioná-la, arraste o corpo para movê-la e arraste a borda para ajustar a duração. Campos permitem editar início/duração em ticks, altura MIDI, velocidade, articulação e microtempo; transposição, exclusão, limpeza, desfazer e refazer também estão disponíveis. Notas da frase não se sobrepõem; edições inválidas são rejeitadas em vez de deslocar silenciosamente outras notas.</p>
+    <p>Desfazer/Refazer cobre o estado completo da sessão e fica disponível durante a página aberta; o histórico transitório de edição não sobrevive a recarregar. A sessão atual é salva no armazenamento local do navegador. Também é possível guardar cópias nomeadas na biblioteca, restaurá-las e apagá-las.</p>
+    <p><strong>Exportar sessão</strong> baixa um JSON; <strong>Importar sessão</strong> valida o documento antes de aplicar e uma importação bem-sucedida pode ser desfeita. Links compartilhados carregam os dados da sessão no fragmento da URL, sem serviço intermediário. Abrir um link mostra uma prévia; é preciso escolher aplicar, e a sessão anterior continua recuperável por Desfazer. Quem receber o link poderá ler seus dados.</p>
+    <p>Sessões antigas de frase são migradas para o formato atual quando válidas. Se os dados salvos estiverem inválidos, o app preserva o texto original, permite trabalhar em memória e oferece baixar os originais antes de uma substituição explícita. Se o navegador bloquear ou não puder gravar armazenamento, a sessão continua somente na memória: exporte-a antes de fechar ou atualizar.</p>
   </section>
-  <section class="panel" id="drums" aria-labelledby="drums-title">
-    <h2 id="drums-title">Bateria complementar</h2>
-    <p><strong>Gerar / variar bateria</strong> cria e ativa um padrão próprio, mostrado nas linhas de bumbo, caixa e chimbal abaixo do grid. O bumbo marca o início do compasso e apoia alguns ataques da frase; a caixa marca os tempos 2 e 4; o chimbal sustenta a subdivisão com espaços e intensidades diferentes. Não é uma cópia do grid nem uma identificação automática de estilo musical. Cada variação escolhe uma semente; frase, compassos e semente iguais produzem o mesmo padrão.</p>
-    <p>Editar a frase ou trocar o número de compassos atualiza o acompanhamento, mantendo a semente atual. A bateria compartilha BPM, início e duração de loop com a frase. <strong>Ativar bateria</strong> liga/desliga os samples durante a reprodução sem reiniciar o grid. Para mudar BPM ou compassos, pare primeiro. A bateria acompanha somente a referência rítmica; fica silenciada durante a progressão harmônica separada, com seus controles bloqueados. O treino permanece com metrônomo apenas.</p>
-    <p>Os WAVs reais da <a href="https://github.com/sgossner/VCSL">Versilian Community Sample Library (VCSL)</a> são empacotados localmente: não há download de serviços externos durante o uso. A fonte declara dedicação CC0 1.0; consulte a <a href="./assets/drums/README.md">proveniência com revisão, URLs e hashes</a> e a <a href="./assets/drums/LICENSE.txt">licença integral</a>. Trata-se do registro da licença declarada pela fonte, não de garantia jurídica geral.</p>
-    <p>Na primeira reprodução com bateria, o navegador carrega e decodifica os arquivos locais antes de iniciar ambos os padrões. Se falhar, o app informa o erro e não inicia a sessão; tente novamente ou desligue a bateria para ouvir só a frase. Se a ativação falhar quando o grid já estiver tocando, a frase continua sem bateria. Parar cancela um início pendente.</p>
-    <p>O padrão de bateria e sua semente existem somente na sessão: não modificam as notas da frase, não entram no histórico, não são persistidos e não acompanham o JSON ou link compartilhado. Seu volume e mute ficam separados no mixer e são persistidos localmente.</p>
+  <section class="panel" id="meter" aria-labelledby="meter-title">
+    <h2 id="meter-title">Compasso, ticks, swing e notação</h2>
+    <p>Em <strong>Tempos por compasso</strong>, <strong>Unidade</strong> e <strong>Compassos</strong>, configure a fórmula de compasso e o comprimento da frase; é possível trabalhar com compassos simples, compostos ou assimétricos dentro dos limites aceitos pelo editor. <strong>BPM</strong> mede semínimas. Uma semínima vale 4 ticks, portanto cada compasso contém <code>tempos × 16 ÷ unidade</code> ticks. A posição e duração podem ser fracionárias para divisões que não cabem em números inteiros de ticks.</p>
+    <p><strong>Divisões por semínima</strong> escolhe a resolução da grade; opções incluem tercinas, quintinas e septinas. Os tempos, barras e subdivisões são rotulados na grade. <strong>Swing</strong> e sua base (colcheia ou semicolcheia) alteram a temporização das subdivisões, não apenas o texto exibido. O loop pode começar e terminar em compassos escolhidos da sessão.</p>
+    <p>A partitura rítmica SVG acompanha a frase e mostra compassos, pausas, valores convencionais, pontos e ligaduras. Ela representa durações/ataques e não é uma partitura de alturas com clave. Partes ligadas mostram a continuação de uma nota através de limites métricos ou de compasso; uma ligadura não cria outro ataque.</p>
+    <p>Atalhos no editor: setas movem a nota ou alteram sua duração pela subdivisão atual; Shift + setas usa um passo de semínima; teclas 1/2/3/4/6/8 escolhem durações; Delete/Backspace excluem; Ctrl/Cmd+Z desfaz e Ctrl/Cmd+Y ou Ctrl/Cmd+Shift+Z refaz. Em campos editáveis, as teclas continuam pertencendo ao campo.</p>
   </section>
-  <section class="panel" id="mixer" aria-labelledby="mixer-title">
-    <h2 id="mixer-title">Mixer: volume e mute</h2>
-    <p>Equilibre os quatro canais pelo slider de <strong>Volume, de 0 a 100%</strong>, e pela opção <strong>Silenciar</strong> de cada um:</p>
-    <ul>
-      <li><strong>Frase / ritmo</strong>: tom da frase e referência rítmica.</li>
-      <li><strong>Metrônomo</strong>: cliques do loop e do treino, incluindo o compasso de contagem de entrada.</li>
-      <li><strong>Bateria</strong>: acompanhamento de bumbo, caixa e chimbal, como um único canal.</li>
-      <li><strong>Acordes</strong>: todas as notas da progressão harmônica, sem alterar a frase rítmica.</li>
-    </ul>
-    <p>Volume e mute são independentes entre canais. <strong>Silenciar preserva o volume escolhido</strong>; desmarcar volta a esse nível. Os controles permanecem disponíveis durante reprodução, progressão, contagem e treino, e afetam o áudio em andamento sem reiniciar a sessão. Não mudam timbres, notas, BPM, durações ou padrões. Volume zero também torna o canal inaudível, mesmo sem mute.</p>
-    <p>O mixer não liga fontes desligadas: a bateria só toca com <strong>Ativar bateria</strong> marcado, sem mute e com volume maior que zero. Desmutar não ativa a bateria nem muda sua ausência durante progressão ou treino. O checkbox geral <strong>Metrônomo</strong> continua controlando sua participação; o volume e mute do canal também valem para a entrada do treino. Se silenciar esse canal, a contagem continua visualmente, sem cliques.</p>
-    <p>Use Tab para chegar aos controles, setas para ajustar sliders e Espaço para alternar Silenciar. Com foco no mixer, essas teclas controlam o painel, não registram ataques de treino. Para tocar a tentativa pelo teclado, volte o foco ao botão de treino.</p>
-    <p>Os padrões são <strong>100% e sem mute</strong> em todos os canais. As alterações são salvas neste navegador separadamente da frase e restauradas ao recarregar. Não entram em Desfazer/Refazer, arquivos JSON ou links compartilhados; importar ou aplicar uma frase não muda o mixer. O status do painel informa avisos de restauração e falhas de armazenamento.</p>
+  <section class="panel" id="band" aria-labelledby="band-title">
+    <h2 id="band-title">Banda, papéis e som</h2>
+    <p>A frase, o baixo, a bateria, a harmonia e o metrônomo compartilham o mesmo transporte, BPM e loop; não são tocados por transportes concorrentes. Em <strong>Seu papel</strong>, escolha solista/frase, baixista, harmonia ou baterista: o acompanhamento abre espaço para a parte selecionada. O baixo pode ter resposta de pulso estável ou seguir a frase. Densidade e semente controlam a variação de acompanhamento.</p>
+    <p>Os estilos disponíveis para baixo e bateria são <strong>Complementar, Pop, Rock, Funk, Shuffle, Jazz, Bossa nova, Samba, Baião, Reggae e Valsa</strong>. São padrões gerados pelo app, não identificação automática nem reprodução de gravações desses gêneros. A bateria usa samples locais de bumbo, caixa e chimbal; o baixo, a frase e a harmonia são sintetizados pelo navegador. Selecione timbre para frase, harmonia e baixo nos controles de síntese.</p>
+    <p>Ative a harmonia e escolha uma tonalidade; é possível gerar cadência, turnaround ou sequência diatônica livre, adicionar/remover acordes e editar cifra, duração e inversão. A opção de cifra manual valida símbolos de acordes suportados pelo editor. Harmonia, bateria e baixo participam da sessão quando habilitados. O metrônomo oferece padrões de cliques e compassos audíveis/silenciosos; contagem de entrada e repetições do treino são configuráveis.</p>
+    <p>O mixer tem canais independentes para frase, metrônomo, bateria, acordes e baixo; cada um tem volume e mute. A mixagem integra a sessão e o link. Silenciar ou zerar um canal não ativa uma fonte desabilitada, como a bateria desligada. Samples de bateria e sua proveniência/licença declarada ficam em <a href="./assets/drums/README.md">assets/drums</a>.</p>
   </section>
-  <section class="panel" id="training" aria-labelledby="training-title">
-    <h2 id="training-title">Ouvir e treinar</h2>
-    <p>Ajuste BPM inteiro entre <strong>40 e 240</strong>. Ouvir em loop usa tom triangular sustentado de 440 Hz: ataque de 4 ms até um pico, decaimento de até 25 ms para uma sustentação mais baixa (40% do pico) e release de 15 ms terminando no limite nominal. As rampas são limitadas a um quarto da duração em notas curtas. O pico destaca cada novo ataque, inclusive entre notas adjacentes e na emenda do loop, sem inserir pausas nem antecipar o término. Uma nota ligada mantém a sustentação, sem novo ataque nas divisões da partitura; no treino, mantenha a pressão por toda a duração escrita. Metrônomo pode ser ligado/desligado durante o loop; cliques já agendados podem permanecer por cerca de 100 ms. Parar/Escape interrompem; edição, biblioteca, gerador e BPM ficam bloqueados durante sessão.</p>
-    <p>O áudio usa Web Audio com lookahead de 100 ms, agendado a cada 25 ms. A frase repete a partir de uma origem temporal única, sem pausa extra na emenda; pausas continuam sendo pausas. A animação consulta o relógio, não dispara sons.</p>
-    <ol>
-      <li>Ouça a referência.</li><li>Comece o treino; há <strong>um compasso de entrada</strong>, qualquer que seja o tamanho da frase.</li>
-      <li>Reproduza a frase inteira <strong>quatro vezes</strong>. Pressione Espaço ou toque/mantenha o botão grande de treino no ataque; solte no término.</li>
-      <li>Grid e partitura permanecem visíveis; durante a avaliação toca somente o metrônomo. Referência e pressões não são sonificadas.</li>
-      <li>Veja timeline, contagens separadas de ataque/término e feedback de cada repetição.</li>
-    </ol>
-    <p>Pressões iniciadas na entrada são ignoradas, mesmo se mantidas até a avaliação. Repetição automática de teclado não cria ataques; segurar através de uma fronteira não divide uma tentativa. Ponteiro/tela de toque e teclado usam a mesma entrada. Cancelamento de toque, perder foco, trocar de aba, parar ou Escape interrompem e descartam resultados parciais. Uma pressão mantida no fim é encerrada nessa borda.</p>
+  <section class="panel" id="practice" aria-labelledby="practice-title">
+    <h2 id="practice-title">Prática, adaptação e feedback</h2>
+    <p>Objetivos disponíveis: <strong>Tempo exato, Durações, Síncope, Pausas, Ataques acentuados e Pulso interno</strong>. Ajuste contagem de entrada, repetições, BPM, subdivisão e clique audível/silencioso conforme o exercício. Um clique parcial silencia de fato os compassos definidos. Resultados vazios não contam como sucesso; improvisação fica registrada como escolha criativa, sem pontuação de acerto.</p>
+    <p>Na tentativa, pressione Espaço (ou Enter quando o botão de treino tem foco) ou pressione e mantenha a área de treino por toque no ataque; solte no término. A altura MIDI de entrada é escolhida no estúdio, não inferida do som do toque. O aplicativo mede instantes de pressionar/soltar pelo relógio do navegador e pode ouvir a nota sintetizada quando o monitor de treino está habilitado. <strong>Não mede velocidade/força do dedo ou tela</strong> e não simula sensibilidade de velocity física.</p>
+    <p>A timeline, a tabela e o resumo comparam ataques, términos e alturas à sessão efetivamente executada, distinguindo notas omitidas e extras. O modo de avaliação pode ser estrito, expressivo ou livre. Latência varia conforme navegador, sistema, dispositivo e saída de áudio; relógios/timestamps do navegador são estimativas, não calibração acústica nem garantia de tempo real. Fones com fio podem reduzir variabilidade.</p>
+    <p>Com adaptação habilitada, a próxima alteração de BPM ocorre somente a partir dos resultados avaliados e dos critérios apresentados na interface; nenhum resultado vazio ou improvisação é tratado como acerto. O Percurso conserva histórico e progresso por objetivo. Revisão espaçada agenda retornos com base no desempenho: o intervalo cresce quando a execução vai bem e volta a um dia quando há dificuldade. Isso organiza a prática, não é uma certificação musical.</p>
   </section>
-  <section class="panel" id="feedback" aria-labelledby="feedback-title">
-    <h2 id="feedback-title">Feedback: método e latência</h2>
-    <p>Não há pontuação única. Timeline sobrepõe referência e execução, separa ataques/términos e distingue notas omitidas/extras; tabela mantém desvios exatos em milissegundos. Valores negativos significam antes, positivos depois. A geometria que ultrapassa a janela de uma repetição é recortada e sinalizada; o desvio numérico não é corrigido pelo recorte. Editar frase, BPM ou tamanho invalida feedback anterior.</p>
-    <p>A referência contém <strong>quatro frases completas</strong>. Matching ordena por ataque e associa a primeira tentativa dentro da janela de um ataque esperado, sem usar duração para escolher. Tentativas antes da janela são extras; ataques esperados ultrapassados são omitidos. Finais só são comparados depois da associação.</p>
-    <ul>
-      <li><code>tickMs = 15000 / BPM</code>.</li><li>Janela de associação: ±meio tick, <code>7500 / BPM</code> ms.</li>
-      <li>Tolerância independente de ataque e término: ±um quarto de tick, <code>3750 / BPM</code> ms; limites inclusivos.</li>
-      <li>A 100 BPM: associação ±75 ms e tolerância ±37,5 ms (exibida arredondada para 38 ms).</li>
-      <li>A 240 BPM: tolerância ±15,625 ms; a latência pesa mais.</li>
-    </ul>
-    <p>A contagem indica separadamente ataques e términos associados dentro da tolerância; as sugestões de prática partem dessas diferenças e não são uma nota. Duração correta não apaga deslocamento: uma nota inteira atrasada pode ter ataque e término atrasados. Fora da janela, aparece como omitida + extra. No meio exato entre ataques adjacentes, o desempate favorece o esperado anterior. Tentativas duplicadas numa janela não revelam a intenção com certeza. Não há realinhamento global nem calibração.</p>
-    <p>Scheduler usa <code>AudioContext.currentTime</code>. Indicador, limites de captura e fim do treino usam <code>getOutputTimestamp()</code> quando válido; timestamps de teclado são convertidos pelo par <code>contextTime/performanceTime</code>. É uma estimativa do navegador, não medição independente da chegada do som ao ouvido. Sem essa API, usa um par fresco <code>currentTime/performance.now()</code>, sem compensar latência de saída.</p>
-    <p>Teclado, sistema operacional, navegador, driver, hardware, Bluetooth e percepção afetam resultados. Prefira fones com fio e use o feedback para comparar padrões, não para alegar precisão absoluta. Travamentos maiores que o horizonte do scheduler podem causar falha de áudio; não há promessa de tempo real rígido.</p>
+  <section class="panel" id="explore" aria-labelledby="explore-title">
+    <h2 id="explore-title">Exploração criativa e jogos de ouvido</h2>
+    <p>O Playground reúne atividades com chamada e resposta do duende, masmorra rítmica, chefe devorador de espaço, sala do silêncio, erros férteis, alquimia de motivos, portal polirrítmico, espelho reverso e coral de objetos. As respostas são escolhas explícitas em grades/controles e recebem retorno verificável; não dependem de microfone. Jogos de ouvido incluem reconhecimento de intervalos, função de acorde e ritmo, com referência sonora, alternativas selecionáveis e indicação correta/incorreta.</p>
+    <p>Transformações como retrogradação, espelhamento e síncope podem ser ouvidas antes de aplicar à sessão. Ideias e tentativas podem ser guardadas como material criativo e cultivadas em frase; microtiming pode ser preservado ou quantizado como opção de transformação. Segredos visuais são opcionais e não bloqueiam conteúdo de prática.</p>
+    <p>Todo som do Playground começa por um botão. O controle de volume regula as prévias. Efeitos e padrões são sons sintetizados/gerados pelo estúdio e amostras locais disponíveis; não existe gravação de instrumentos ou entrada de áudio. Os registros locais do Playground podem ser apagados ou exportados conforme os controles apresentados.</p>
+  </section>
+  <section class="panel" id="repertoire" aria-labelledby="repertoire-title">
+    <h2 id="repertoire-title">Repertório, arquivos de áudio e DSP</h2>
+    <p>Importe arquivos que o navegador consiga decodificar (incluindo WAV, MP3, OGG, FLAC, M4A/AAC e formatos compatíveis), até <strong>150 MiB e 15 minutos por arquivo</strong>. A biblioteca mostra forma de onda e permite ouvir, selecionar região A–B, aplicar andamento/altura, criar marcadores e comentários, comparar takes A/B, montar exercícios graduais e organizar setlists. Pausa, retomada, busca e cancelamento de processamento estão no painel.</p>
+    <p>Reduzir/elevar velocidade usa WSOLA ou vocoder de fase e preserva a altura quando a transposição fica em zero; velocidade é limitada a 25–150%. Transposição é independente e limitada a ±12 semitons e ±50 cents. O processamento pesado roda localmente e usa buffers/cache limitados; não há promessa de funcionar com qualquer duração/memória de dispositivo. Erro de decodificação, arquivo acima dos limites e falha de armazenamento são informados.</p>
+    <p>A análise local calcula candidatos de ataques e andamento, pulso, alturas predominantes, tonalidade e hipóteses de acordes, com confiança e alternativas que podem ser revistas. Material polifônico pode tornar a altura instável; resultado é uma hipótese editável, não uma transcrição garantida. HPSS (separação harmônica/percussiva) cria estimativas de componentes harmônicos e percussivos, <strong>não stems de vocal, baixo ou instrumentos</strong>.</p>
+    <p>Takes são renders de arranjo, tentativas de teclado/toque e arquivos importados, identificados como tais; não são gravações de microfone. WAV pode ser importado/exportado. MIDI Standard é intercâmbio por arquivo: o estúdio exporta frase e acordes, e a importação permite escolher uma trilha e quantização para aplicá-la à frase monofônica. Sobreposições/trilhas extras, mudanças de andamento ou compasso podem ser reduzidas/ignoradas com avisos; bateria/baixo gerados não são exportados como trilhas MIDI. Não há MIDI ao vivo.</p>
+    <p>Pacotes locais de tarefa podem incluir sessão, objetivo, metadados da referência, exercícios e áudio opcional; áudio embutido tem limite de <strong>25 MiB</strong>. Um pacote sem mídia requer que quem recebe associe o arquivo de áudio à referência. O pacote é um arquivo para compartilhar por canal externo escolhido pela pessoa, não um upload do GrooveGoblin.</p>
   </section>
   <section class="panel" id="files" aria-labelledby="files-title">
-    <h2 id="files-title">Arquivos, compartilhamento e dados locais</h2>
-    <h3>JSON de frase</h3>
-    <p><strong>Exportar</strong> baixa <code>groovegoblin-frase.json</code>; <strong>Importar</strong> valida o documento inteiro antes de alterar a frase. JSON malformado, formato/versão desconhecidos, campos desconhecidos, IDs duplicados, BPM inválido, sobreposição ou notas fora do limite são rejeitados sem mudança. A importação pode ser desfeita.</p>
-    <p>Formato: <code>format: "groovegoblin-phrase"</code>, <code>version: 1</code>, <code>bpm</code>, <code>bars</code> e <code>notes</code> com <code>id</code>, <code>start</code>, <code>duration</code>; ticks começam em 0 no arquivo. Arquivos antigos sem <code>bars</code> significam um compasso; arquivos novos sempre incluem o campo. JSON contém frase/BPM/tamanho, não treino, histórico, biblioteca, opções do gerador ou mixer.</p>
-    <h3>Link de frase</h3>
-    <p><strong>Compartilhar link</strong> grava os mesmos dados portáteis no fragmento da URL (<code>#phrase=...</code>), sem servidor. Qualquer pessoa com o link pode ler a frase, BPM e tamanho nele. Abrir o link mostra uma prévia: só <strong>Aplicar frase recebida</strong> substitui o estado em edição; Desfazer recupera o anterior. <strong>Dispensar</strong> fecha a prévia sem aplicar. Preferências e resultados de treino não são compartilhados. Se a área de transferência não puder ser usada, o link aparece selecionado para cópia manual.</p>
-    <h3>Persistência e recuperação</h3>
-    <p>Frase/BPM/tamanho são salvos na chave <code>groovegoblin.v1</code>; preferências do metrônomo/gerador (densidade, síncope, durações e semente) ficam separadas em <code>groovegoblin.preferences.v1</code>. Os valores padrão para estados antigos continuam um compasso, BPM 100, metrônomo ligado, densidade 4, opções mistas. Dados ficam nesta origem no navegador: <code>localhost</code>, <code>127.0.0.1</code>, portas diferentes e o domínio publicado têm armazenamentos separados. Limpar dados do site apaga as cópias locais.</p>
-    <p>Volume e mute dos quatro canais ficam em <code>groovegoblin.mixer.v1</code>, separados da frase e das preferências. Dados inválidos do mixer geram aviso e usam valores seguros na interface, sem sobrescrever o conteúdo salvo ao abrir. Uma interação com volume ou Silenciar tenta salvar o estado atual completo do mixer. Com armazenamento bloqueado, os ajustes funcionam só na memória e o painel informa a falha.</p>
-    <p>Se o estado salvo da frase for inválido, o app conserva os bytes originais, não os sobrescreve automaticamente e permite editar em memória. Baixe os dados originais para recuperação antes de decidir; o botão <strong>Substituir dados salvos pela frase atual</strong> é a ação explícita que os troca. Se o navegador bloquear armazenamento, o app funciona em memória sem salvar. O app não envia frase nem preferências para servidor: GitHub Pages hospeda apenas arquivos estáticos.</p>
+    <h2 id="files-title">Arquivos e armazenamento local</h2>
+    <p>A sessão atual e a biblioteca de sessões são mantidas no armazenamento local deste navegador/origem. Preferências e histórico do Percurso/Playground usam armazenamento local próprio. O Repertório guarda metadados, áudio, análises, exercícios e setlists em <strong>IndexedDB</strong>; a mídia não é colocada no cache offline da aplicação. O espaço disponível depende do navegador e do dispositivo. Se a quota acabar, o app informa a falha; é possível remover conteúdo ou pedir ao navegador armazenamento persistente, que pode recusar. Faça exportações de backup: limpar dados do site apaga o conteúdo local.</p>
+    <p>Bibliotecas corrompidas não são substituídas silenciosamente: baixe os dados brutos antes de decidir substituir ou apagar. Se o IndexedDB ficar indisponível, o Repertório pode manter alterações só em memória até fechar a página. Armazenamentos de <code>localhost</code>, portas diferentes e site publicado são separados.</p>
+    <p>Importar JSON, MIDI, áudio ou pacote processa arquivos selecionados localmente. GitHub Pages hospeda os arquivos estáticos do app; o app não envia sessão, áudio, resultados ou histórico. Ações de compartilhamento/clipboard, download e abertura de links externos seguem as permissões e escolhas do navegador.</p>
+  </section>
+  <section class="panel" id="offline" aria-labelledby="offline-title">
+    <h2 id="offline-title">Preparar offline, atualizar e proteger seu trabalho</h2>
+    <p>Em HTTPS ou <code>localhost</code>, conecte-se e escolha <strong>Preparar uso offline</strong>. O service worker instala um conjunto completo e versionado de arquivos publicados; depois, a aplicação pode abrir sem rede nessa origem. Navegadores sem suporte a service worker ou contextos inseguros não oferecem essa preparação. Áudios importados, pacotes baixados e links externos não viram recursos do cache da aplicação.</p>
+    <p>Uma versão nova fica aguardando até escolher <strong>Aplicar atualização</strong>. Atualização não recarrega durante loop, treino, reprodução ou processamento do Repertório; pare e aplique quando estiver pronto. Se a sessão atual estiver só na memória, salve-a ou exporte uma cópia antes de recarregar. O cache contém código e recursos do app, não backup das suas sessões ou da biblioteca de áudio.</p>
+  </section>
+  <section class="panel" id="development" aria-labelledby="development-title">
+    <h2 id="development-title">Desenvolvimento, build e preview</h2>
+    <p>Requer Node.js 22 ou posterior. Não é necessário instalar dependências:</p>
+    <pre><code>npm start</code></pre>
+    <p>Abra <code>http://127.0.0.1:5173</code>. O servidor escuta em loopback; <code>PORT=5174 npm start</code> escolhe outra porta. Módulos ES não funcionam por <code>file://</code>.</p>
+    <p>Os comandos disponíveis para teste, verificação sintática e build são:</p>
+    <pre><code>npm test
+npm run check
+npm run build
+npm run preview</code></pre>
+    <p>Build prepara <code>dist/</code>; preview serve o build sob <code>/groovegoblin/</code>. Confira em <code>http://127.0.0.1:5173/groovegoblin/</code>. Porta, diretório e prefixo podem ser definidos, por exemplo: <code>STATIC_ROOT=dist BASE_PATH=/meu-projeto/ PORT=5174 node server.js</code>. Estes são comandos de uso; esta página não declara resultados de testes.</p>
   </section>
   <footer><span>GrooveGoblin · guia estático</span><a href="./index.html">Voltar ao app</a></footer>
 </main>

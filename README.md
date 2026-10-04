@@ -1,14 +1,26 @@
 # GrooveGoblin
 
-Aplicação web estática para compor e treinar frases rítmicas em 4/4 e explorar progressões diatônicas. Usa JavaScript ESM, CSS e SVG nativos: sem framework, dependências de runtime ou backend. Guia completo da interface, notação, biblioteca, geração rítmica, bateria complementar, mixer, harmonia, avaliação e privacidade: [guide.html](./guide.html) — também acessível pelo app.
+GrooveGoblin é um estúdio musical local para praticar, tocar com uma banda sintetizada, explorar ideias, trabalhar repertório e acompanhar o próprio percurso. É uma aplicação web estática em JavaScript ESM, CSS e SVG; não exige conta, backend nem dependências de runtime. O [guia da interface e dos limites](./guide.html) está disponível no app.
 
-## Progressões diatônicas
+## Cinco intenções
 
-Escolha uma das **24 tonalidades** (12 maiores e 12 menores naturais) e gere uma sequência aleatória de **2 a 5 acordes de sétima**, cada um com quatro notas da escala. Repetições são permitidas; os cartões mostram grau, cifra e notas.
+- **Praticar**: objetivos rítmicos, exercícios ajustáveis, rotina guiada, jogos de ouvido, tentativa por teclado/toque e adaptação de andamento a partir dos resultados.
+- **Banda**: frase, baixo, bateria, harmonia e metrônomo em um transporte sincronizado; escolha seu papel, estilos, densidade, timbres e mixagem.
+- **Explorar**: jogos musicais, transformações de frases e ideias criativas, com prévias acionadas pelo usuário.
+- **Repertório**: importe arquivos de áudio e trabalhe trechos, marcadores, análises estimadas, takes, exercícios, setlists e intercâmbio por arquivos.
+- **Percurso**: histórico local, progresso por objetivo e agenda de revisões espaçadas.
 
-**Ouvir progressão em loop** sintetiza as quatro notas simultaneamente, sem samples, com um compasso em 4/4 por acorde e o BPM do controle rítmico. Trocar tonalidade ou gerar outra progressão durante o loop interrompe o áudio anterior e reinicia a nova sequência. Progressão, referência rítmica e treino nunca tocam juntos. Parar, Escape fora de campos, perder o foco ou trocar de aba interrompem a sessão.
+As sessões têm compasso e duração configuráveis. A frase usa coordenadas em ticks (4 ticks por semínima), admite subdivisões/quiálteras, swing e atributos expressivos; a pauta rítmica representa durações e pausas, não altura. O histórico de desfazer/refazer cobre a sessão completa. As cinco abas são operadas por teclado ou toque; o estúdio **não** captura microfone, não recebe MIDI ao vivo e não mede velocidade/força física do toque.
 
-A progressão não altera a frase rítmica, sua partitura ou seu treino. Tonalidade e acordes ficam somente na sessão: não são persistidos, desfeitos, exportados ou compartilhados. O gerador harmônico usa `Math.random`, sem semente na interface; o gerador rítmico existente continua reproduzível por semente.
+Consulte [guide.html](./guide.html) para os controles, formatos aceitos, funcionamento offline e limitações de análise.
+
+## Dados, privacidade e mídia
+
+Sessão, biblioteca de sessões, preferências de prática/jogos e Percurso são armazenados localmente no navegador. O Repertório usa IndexedDB para mídias e metadados e avisa se o banco estiver indisponível ou se faltar quota; armazenamento persistente pode ser solicitado ao navegador, mas não é garantido. Exporte cópias para backup: limpar os dados do site pode apagar o conteúdo local. Sessões completas podem ser exportadas/importadas como JSON ou compartilhadas em link, sem enviar os dados a um servidor do GrooveGoblin. Pacotes de tarefa são arquivos explícitos para o usuário enviar por conta própria.
+
+Áudio importado e processamentos permanecem no dispositivo. O limite por arquivo importado é 150 MiB e 15 minutos; arquivos de áudio embutidos em pacotes têm limite de 25 MiB. WAV e Standard MIDI são intercâmbios por arquivo; não são integração MIDI ao vivo. Compatibilidade de codecs de áudio depende do navegador. A análise local fornece hipóteses de ataques, andamento, alturas, tonalidade e acordes com confiança/alternativas, não transcrição infalível. HPSS separa estimativas harmônica e percussiva; não cria stems de voz, baixo ou instrumentos.
+
+Não há upload automático de sessões, mídia, análises ou histórico. A hospedagem GitHub Pages entrega arquivos estáticos; ao abrir links externos ou compartilhar/baixar arquivos, a ação sai do armazenamento local sob controle do navegador.
 
 ## Desenvolvimento local
 
@@ -18,42 +30,18 @@ Requer Node.js 22 ou posterior e navegador moderno com Web Audio; não é necess
 npm start
 ```
 
-Abra <http://127.0.0.1:5173>. O servidor local serve somente arquivos estáticos em loopback; não recebe nem processa frases. Porta alternativa: `PORT=5174 npm start`. Pare com Ctrl+C. `file://` não é suportado por causa dos módulos ES.
+Abra <http://127.0.0.1:5173>. O servidor local escuta somente em loopback e serve arquivos; não recebe nem processa sessões. Porta alternativa: `PORT=5174 npm start`. Pare com Ctrl+C. `file://` não é suportado por causa dos módulos ES.
 
-## Build e preview
-
-`npm run build` recria `dist/` sem bundler e copia o app, módulos `src/`, `assets/` (samples e proveniência/licença), `guide.html`, este README e `.nojekyll`. Testes, evidências e scripts de desenvolvimento não são publicados.
+## Build e preview com prefixo
 
 ```sh
 npm run build
 npm run preview
 ```
 
-Abra <http://127.0.0.1:5173/groovegoblin/>. O preview serve o artefato real `dist/` sob o prefixo de caminho de um repositório GitHub Pages. O servidor redireciona o prefixo sem a barra final para preservar URLs relativas. É possível trocar prefixo e porta: `STATIC_ROOT=dist BASE_PATH=/meu-projeto/ PORT=5174 node server.js`.
+`npm run build` gera `dist/` para publicação estática. `npm run preview` serve esse artefato sob o prefixo `/groovegoblin/`; abra <http://127.0.0.1:5173/groovegoblin/>. Para usar outro prefixo, porta ou diretório: `STATIC_ROOT=dist BASE_PATH=/meu-projeto/ PORT=5174 node server.js`. O servidor redireciona o prefixo sem a barra final.
 
-## GitHub Pages
-
-O workflow [`.github/workflows/pages.yml`](./.github/workflows/pages.yml), acionado por push à branch `main` ou manualmente, executa testes e checagem sintática, constrói e envia `dist/` como artefato Pages e então faz o deploy. Este repositório está configurado em **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-
-O deploy está ativo em [GrooveGoblin](https://mpabegg.github.io/groovegoblin/); consulte o [guia](https://mpabegg.github.io/groovegoblin/guide.html) e o [repositório](https://github.com/mpabegg/groovegoblin). A origem publicada tem armazenamento de navegador separado de `localhost` e de outras origens. Frases/BPM/compassos e preferências permanecem no `localStorage` do dispositivo; não há serviço de aplicação nem upload automático. Links compartilhados carregam os dados da frase no fragmento da URL.
-
-## Bateria complementar
-
-**Gerar / variar bateria** cria e ativa um acompanhamento próprio de bumbo, caixa e chimbal. O bumbo apoia alguns ataques da frase; caixa e chimbal estabelecem o pulso e deixam espaço. As três linhas aparecem alinhadas ao grid e se atualizam ao editar a frase. **Ativar bateria** liga/desliga o acompanhamento durante o loop sem reiniciar a frase. Ambos usam o mesmo BPM, início e duração de loop; pare antes de mudar BPM ou compassos. A bateria acompanha somente a referência rítmica, não a progressão harmônica separada. O treino continua com metrônomo apenas.
-
-Os samples reais da [VCSL](https://github.com/sgossner/VCSL) são distribuídos localmente sob a dedicação CC0 1.0 declarada pela fonte. [Proveniência, revisão e hashes](./assets/drums/README.md) e [licença integral](./assets/drums/LICENSE.txt) acompanham os arquivos. Não há download de serviços externos durante o uso. Falha ao carregar/decodificar samples impede o início conjunto e mostra um erro; é possível tentar novamente ou desligar a bateria para ouvir só a frase. Se a ativação falhar com a frase já tocando, ela continua sem bateria.
-
-O padrão de bateria e sua semente são próprios da sessão: não entram no histórico, armazenamento local, JSON ou link compartilhado. Seu volume e mute são ajustes separados do mixer, persistidos localmente. A frase original permanece intacta.
-
-## Mixer
-
-O painel **Mixer** oferece volume de **0 a 100%** e **Silenciar** independentes para **Frase / ritmo** (referência), **Metrônomo** (incluindo a contagem de entrada do treino), **Bateria** e **Acordes** (progressão). Os controles continuam disponíveis durante reprodução e treino; mudanças afetam o áudio em andamento sem reiniciar o loop. Silenciar preserva o volume escolhido: desmarcar restaura esse nível. Os controles não alteram timbres, notas ou padrões.
-
-O mixer não ativa fontes desligadas. Para ouvir bateria, **Ativar bateria** deve estar marcado, o canal deve estar sem mute e seu volume deve ser maior que zero. Desmutar o canal não liga a bateria nem faz com que ela acompanhe progressões ou treino. Silenciar o metrônomo também silencia a contagem de entrada.
-
-Volume e mute começam em 100% e desmarcado, respectivamente, e são salvos em `groovegoblin.mixer.v1`, separados da frase e das preferências. Recarregar restaura esses ajustes; Desfazer/Refazer, importar frases, JSON e links compartilhados não os incluem nem os modificam. Dados de mixer inválidos geram aviso e não são sobrescritos ao abrir: somente uma interação com seus controles tenta salvar o estado atual. Se o armazenamento estiver indisponível, o mixer funciona em memória e informa que não foi salvo.
-
-## Verificações locais
+## Comandos de verificação
 
 ```sh
 npm test
@@ -61,4 +49,8 @@ npm run check
 npm run build
 ```
 
-`npm test` executa os testes Node; `npm run check` checa a sintaxe dos módulos, servidor e construtor; `npm run build` valida a produção estática. Para confirmar o preview de projeto, confira respostas HTML, CSS, JavaScript e guia em `/groovegoblin/`. Esses checks locais não executam o workflow do GitHub nem substituem teste real no navegador.
+Esses são comandos disponíveis para a verificação local; este README não declara resultados de execução. Uma checagem manual do preview pode conferir HTML, CSS, JavaScript e guia sob `/groovegoblin/`. A publicação pelo GitHub Actions tem seu próprio workflow em [`.github/workflows/pages.yml`](./.github/workflows/pages.yml).
+
+## Uso offline e atualizações
+
+Em HTTPS ou `localhost`, escolha **Preparar uso offline** enquanto conectado. A aplicação prepara os arquivos publicados para esta origem e pode então abrir sem rede. A opção de atualização só recarrega quando você a aplicar; reprodução, treino e trabalho em andamento adiam a atualização. Se a sessão ainda estiver somente na memória, salve-a ou exporte uma cópia antes de recarregar. Mídias importadas no Repertório não fazem parte do cache offline do app.
