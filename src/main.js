@@ -101,9 +101,11 @@ function cancelDrag() {
 function stop(reason) {
   ++generation;
   pending = null;
+  const wasDragging = drag !== null;
   cancelDrag();
   audio.stop();
   clearInput();
+  if (wasDragging) renderNotes();
   renderControls();
   if (reason) message(reason);
 }
@@ -243,7 +245,10 @@ function renderControls() {
     const input = $(`note-${field}`); input.value = note?.[field] ?? ''; input.disabled = locked || !note;
   }
   $('note-start').max = $('note-duration').max = totalTicks(session);
+  $('transpose-semitones').disabled = locked;
+  $('transpose-phrase').disabled = locked || !session.notes.length;
   $('note-start').step = $('note-duration').step = 4 / session.subdivision;
+  $('note-duration').min = 0;
   $('delete').disabled = locked || !note;
   for (const preset of $('presets').children) preset.disabled = locked || !note;
   for (const input of document.querySelectorAll('.chord-editor input, .chord-editor select, .chord-editor button')) input.disabled = locked;
@@ -267,7 +272,7 @@ function renderGrid() {
     cell.disabled = busy();
     cell.addEventListener('click', () => {
       if (busy()) return;
-      const notes = addNote(session.notes, tick, 4 / session.subdivision, session, { pitch: Number($('input-pitch').value), velocity: 0.8, articulation: 'normal' });
+      const notes = addNote(session.notes, tick, Math.min(4 / session.subdivision, totalTicks(session) - tick), session, { pitch: Number($('input-pitch').value), velocity: 0.8, articulation: 'normal' });
       if (notes === session.notes) { message('Posição ocupada ou duração ultrapassa a frase.', true); return; }
       selected = notes.find(note => !session.notes.some(previous => previous.id === note.id)).id;
       updateSession({ notes });
@@ -332,6 +337,9 @@ $('grid').addEventListener('pointerup', event => {
   const notes = drag.next; cancelDrag(); if (!busy()) updateSession({ notes });
 });
 $('grid').addEventListener('pointercancel', () => { cancelDrag(); renderNotes(); });
+$('grid').addEventListener('lostpointercapture', event => {
+  if (drag?.pointer === event.pointerId) { cancelDrag(); renderNotes(); }
+});
 for (const field of ['start', 'duration', 'pitch', 'velocity', 'articulation', 'offsetMs']) $(`note-${field}`).addEventListener('change', event => commitNote({ [field]: field === 'articulation' ? event.target.value : Number(event.target.value) }));
 for (const [ticks, label] of [[1, '1/16'], [2, '1/8'], [3, '1/8.'], [4, '1/4'], [6, '1/4.'], [8, '1/2'], [12, '1/2.'], [16, '1/1'], [4 / 3, 'Tercina'], [4 / 5, 'Quintina'], [4 / 7, 'Septina']]) {
   const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'preset'; chip.textContent = label;
@@ -340,6 +348,13 @@ for (const [ticks, label] of [[1, '1/16'], [2, '1/8'], [3, '1/8.'], [4, '1/4'], 
 function removeSelected() { if (!busy() && selected) updateSession({ notes: deleteNote(session.notes, selected) }); }
 $('delete').addEventListener('click', removeSelected);
 $('clear').addEventListener('click', () => { if (!busy()) updateSession({ notes: [] }); });
+$('transpose-phrase').addEventListener('click', () => {
+  if (busy()) return;
+  const input = $('transpose-semitones');
+  if (input.value === '' || !input.checkValidity()) { message('Informe uma transposição inteira entre −24 e +24 semitons.', true); return; }
+  const shift = Number(input.value);
+  if (updateSession({ notes: session.notes.map(note => ({ ...note, pitch: note.pitch + shift })) })) message(`Frase transposta em ${shift > 0 ? '+' : ''}${shift} semitons.`);
+});
 function travelHistory(direction) {
   if (busy()) return;
   const value = history[direction](); if (value) replaceSession(value, { record: false });
@@ -504,7 +519,8 @@ $('import-file').addEventListener('change', async event => {
   try {
     const text = await file.text(); if (request !== generation) return;
     const imported = parseSession(text); if (request !== generation) return;
-    pending = null; replaceSession(imported); message('Sessão inteira importada. Desfazer recupera a anterior.');
+    pending = null;
+    if (replaceSession(imported)) message('Sessão inteira importada. Desfazer recupera a anterior.');
   } catch (error) { if (request === generation) message(`Importação rejeitada: ${error.message}. Sessão preservada.`, true); }
   finally { if (request === generation) { pending = null; renderControls(); } }
 });
