@@ -3,161 +3,72 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#141b22">
-  <title>GrooveGoblin — composição & treino</title>
-  <link rel="icon" href="data:,">
+  <meta name="theme-color" content="#10161b">
+  <title>GrooveGoblin — seu estúdio de prática</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./src/style.css">
+  <link rel="stylesheet" href="./src/practice.css">
+  <link rel="stylesheet" href="./src/repertoire.css">
   <script type="module" src="./src/main.js"></script>
 </head>
 <body>
 <main>
-  <header class="masthead">
-    <div><div class="eyebrow">LABORATÓRIO RÍTMICO · LOCAL & PRIVADO</div><h1>Groove<span>Goblin</span><span class="logo-mark" aria-hidden="true"> ▰</span></h1></div>
-    <div class="signature">Seu ritmo.<br>Infinitas intenções.</div>
-  </header>
-  <section class="panel" aria-labelledby="compose-title">
-    <div class="section-heading"><div><div class="eyebrow">01 / DESENHE A FRASE</div><h2 id="compose-title">Seu groove</h2></div><div class="badge">4/4 <span>·</span> 16 semicolcheias/compasso <span>·</span> mono</div></div>
-    <div class="transport">
-      <button id="play" class="primary">▶ Ouvir em loop</button>
-      <button id="stop" disabled>■ Parar</button>
-      <label class="bpm-label">BPM <input id="bpm" type="number" min="40" max="240" step="1" value="100"></label>
-      <label class="toggle"><input id="metronome" type="checkbox" checked> Metrônomo</label>
-      <label class="bpm-label">Compassos <select id="bars" aria-label="Quantidade de compassos da frase"><option value="1">1</option><option value="2">2</option><option value="4">4</option></select></label>
-      <div id="position-text" class="position-text">Pronto para compor</div>
-    </div>
-    <details class="inspiration" id="inspiration">
-      <summary>Biblioteca de grooves e gerador</summary>
-      <div class="inspiration-tools">
-        <section aria-labelledby="library-title">
-          <h3 id="library-title">Padrões para explorar</h3>
-          <div class="tool-row"><select id="groove-library" aria-label="Groove da biblioteca"><option value="">Escolha um padrão</option></select><button id="load-groove" disabled>Carregar padrão</button></div>
-          <div id="groove-description" class="muted">Escolha um groove para conhecer seus ataques e suas fontes.</div>
-          <p class="tool-hint">Carregar substitui frase, tamanho e BPM. Desfazer recupera o estado anterior.</p>
-        </section>
-        <section aria-labelledby="generator-title">
-          <h3 id="generator-title">Gerador semi-aleatório</h3>
-          <div class="tool-row">
-            <label>Densidade <select id="density"><option value="sparse">2 notas/compasso</option><option value="medium" selected>4 notas/compasso</option><option value="busy">8 notas/compasso</option></select></label>
-            <label>Ataques <select id="syncopation"><option value="straight">Mais nos tempos</option><option value="mixed" selected>Mistos</option><option value="syncopated">Mais sincopados</option></select></label>
-            <label>Durações <select id="lengths"><option value="short">Curtas</option><option value="mixed" selected>Variadas</option><option value="long">Longas</option></select></label>
-            <label>Semente <input id="seed" type="number" min="0" max="4294967295" step="1" aria-label="Semente do gerador"></label>
-          </div>
-          <div class="tool-row"><button id="generate">Gerar com esta semente</button><button id="variation">Nova variação</button></div>
-          <p class="tool-hint">Mantém compassos e BPM atuais. Mesma semente e opções recriam a mesma frase; Desfazer recupera a anterior.</p>
-        </section>
-      </div>
-    </details>
-    <section class="drum-controls" aria-labelledby="drums-title">
+  <header class="masthead"><div><div class="eyebrow">ESTÚDIO MUSICAL · LOCAL & PRIVADO</div><h1>Groove<span>Goblin</span></h1></div><div id="offline-status" aria-live="polite"></div></header>
+  <nav class="intentions" role="tablist" aria-label="O que você quer fazer?">
+    <button id="tab-practice" role="tab" aria-selected="true" aria-controls="panel-practice">Praticar</button>
+    <button id="tab-band" role="tab" aria-selected="false" aria-controls="panel-band" tabindex="-1">Banda</button>
+    <button id="tab-explore" role="tab" aria-selected="false" aria-controls="panel-explore" tabindex="-1">Explorar</button>
+    <button id="tab-repertoire" role="tab" aria-selected="false" aria-controls="panel-repertoire" tabindex="-1">Repertório</button>
+    <button id="tab-journey" role="tab" aria-selected="false" aria-controls="panel-journey" tabindex="-1">Percurso</button>
+  </nav>
+  <section class="panel performance" aria-labelledby="session-title">
+    <div class="section-heading"><div><div class="eyebrow">UMA SESSÃO · TODOS OS INSTRUMENTOS</div><h2 id="session-title">Seu groove</h2></div><span id="session-badge" class="badge"></span></div>
+    <div class="transport"><button id="play" class="primary">Ouvir em loop</button><button id="train" class="primary">Começar treino</button><button id="stop" disabled>Parar</button><label>BPM <input id="bpm" data-path="bpm" type="number" min="30" max="300" step="1"></label><label class="toggle"><input id="metronome" data-path="metronome.enabled" type="checkbox"> Metrônomo</label><span id="position-text" class="position-text" role="status">Pronto</span></div>
+    <button id="train-pad" type="button" class="train-pad" disabled aria-label="Tocar: pressione no ataque e solte no término"><span id="train-state">Ouça, depois toque com espaço ou segure aqui.</span><span id="held-state" class="held-state">ESPAÇO ou toque</span></button>
+    <div class="tool-row"><label>Altura ao tocar (MIDI)<input id="input-pitch" type="number" min="21" max="108" value="69"></label><label class="toggle"><input id="minimal" type="checkbox"> Foco na execução</label></div>
+    <p class="tool-hint muted">Som gerado e teclado/toque, sem captura de instrumentos. Ataque e término importam. Latência do navegador não é calibração absoluta; prefira fones com fio.</p>
+    <div class="panel-foot"><span id="message" role="status" aria-live="polite">Sua sessão reúne frase, banda, treino e mixer.</span><span id="saved" class="saved"></span></div>
+    <section id="recovery" class="notice" hidden><h3>Dados originais protegidos</h3><p>Edições ficam na memória até você autorizar a substituição. Exporte os originais antes de continuar.</p><button id="download-recovery">Baixar originais</button><button id="replace-recovery">Substituir pela sessão atual</button></section>
+    <section id="share-preview" class="notice" hidden><h3>Sessão recebida por link</h3><p id="share-description"></p><p>Nada foi substituído. Aplicar permite desfazer depois.</p><button id="apply-share">Aplicar sessão recebida</button><button id="dismiss-share">Dispensar</button></section>
+  </section>
+  <details id="studio-editor" class="panel studio-detail">
+    <summary>Editar frase e organizar sessões</summary>
+    <section aria-labelledby="editor-title"><h2 id="editor-title">Frase musical</h2>
       <div class="tool-row">
-        <h3 id="drums-title">Bateria complementar</h3>
-        <label class="toggle"><input id="drums-enabled" type="checkbox"> Ativar bateria</label>
-        <button id="generate-drums" type="button">Gerar / variar bateria</button>
-        <span id="drums-state" role="status" aria-live="polite">Desligada</span>
+        <label>Nome da sessão<input id="session-name" data-path="name" type="text" maxlength="120"></label>
+        <label>Compassos<input id="bars" data-path="bars" type="number" min="1" max="16" step="1"></label>
+        <label>Tempos por compasso<input id="meter-beats" data-path="meter.beats" type="number" min="1" max="16" step="1"></label>
+        <label>Unidade<select id="meter-unit" data-path="meter.unit"><option value="2">Mínima / 2</option><option value="4">Semínima / 4</option><option value="8">Colcheia / 8</option><option value="16">Semicolcheia / 16</option></select></label>
+        <label>Divisões por semínima<select id="subdivision" data-path="subdivision"><option value="1">1</option><option value="2">2</option><option value="3">3 · tercina</option><option value="4">4</option><option value="5">5 · quintina</option><option value="6">6</option><option value="7">7 · septina</option><option value="8">8</option></select></label>
+        <label>Swing<input id="swing" data-path="swing" type="number" min="0" max="0.75" step="0.05"></label>
+        <label>Base do swing<select id="swing-unit" data-path="swingUnit"><option value="eighth">Colcheia</option><option value="sixteenth">Semicolcheia</option></select></label>
+        <label>Loop: primeiro compasso<input id="loop-start" type="number" min="1" step="1"></label><label>Último compasso<input id="loop-end" data-path="loop.endBar" type="number" min="1" step="1"></label>
       </div>
-      <p class="tool-hint">Bumbo apoia a frase, caixa marca os tempos 2 e 4, chimbal deixa espaço. Samples CC0 · mesmo BPM e loop da frase · não acompanha a progressão · no treino, só o metrônomo. A bateria não altera nem é exportada com a frase.</p>
+      <p class="tool-hint muted">BPM mede semínimas. Posições e durações abaixo usam ticks: 4 ticks = uma semínima. Grade respeita quiálteras; notas podem cruzar barras, mas não se sobrepor.</p>
+      <div class="grid-scroll"><div class="grid-shell"><div id="beat-labels" class="beat-labels" aria-hidden="true"></div><div id="grid" class="grid" aria-label="Editor de frase"><div id="cells" class="cells"></div><div id="marks" class="marks" aria-hidden="true"></div><div id="notes" class="notes"></div><div id="playhead" class="playhead" hidden aria-hidden="true"></div></div><div id="subdivision-labels" class="subdivision-labels" aria-hidden="true"></div><div id="drum-lanes" class="drum-lanes"><div id="drum-rows"></div></div><div class="score-heading">Partitura rítmica <span>Ligaduras sustentam o mesmo ataque</span></div><div id="rhythm-score" class="rhythm-score"></div></div></div>
+      <div class="editor"><span id="selection-text"></span><div id="presets" class="presets" role="group" aria-label="Durações"></div><label>Início (ticks)<input id="note-start" type="number" min="0" step="any"></label><label>Duração (ticks)<input id="note-duration" type="number" min="0.01" step="any"></label><label>Altura (MIDI)<input id="note-pitch" type="number" min="21" max="108"></label><label>Velocidade<input id="note-velocity" type="number" min="0" max="1" step="0.05"></label><label>Articulação<select id="note-articulation"><option value="normal">Normal</option><option value="staccato">Staccato</option><option value="legato">Legato</option><option value="accent">Acento</option></select></label><button id="delete">Excluir nota</button><button id="clear">Limpar frase</button><button id="undo">Desfazer</button><button id="redo">Refazer</button></div>
+      <div class="tool-row"><label>Microtempo (ms)<input id="note-offsetMs" type="number" min="-80" max="80" step="1"></label><span class="tool-hint muted">Deslocamento expressivo da nota, sem mover sua posição notada.</span></div>
+      <p class="tool-hint muted">Clique numa célula para criar. Arraste para mover; borda direita muda duração. Setas esquerda/direita movem; cima/baixo mudam duração; Shift = semínima. Delete exclui, Ctrl+Z desfaz. Teclas 1/2/3/4/6/8 escolhem duração.</p>
     </section>
-    <div class="grid-scroll"><div class="grid-shell">
-      <div id="beat-labels" class="beat-labels" aria-hidden="true"></div>
-      <div id="grid" class="grid" aria-label="Frase: clique numa posição vazia para criar uma nota">
-        <div id="cells" class="cells"></div><div id="marks" class="marks" aria-hidden="true"></div><div id="notes" class="notes"></div>
-        <div id="playhead" class="playhead" hidden aria-hidden="true"></div>
-      </div>
-      <div id="subdivision-labels" class="subdivision-labels" aria-hidden="true"></div>
-      <div id="drum-lanes" class="drum-lanes" aria-label="Padrão de bateria">
-        <div id="drum-rows"></div>
-        <div id="drum-playhead" class="playhead" hidden aria-hidden="true"></div>
-      </div>
-      <div class="score-heading">Partitura rítmica <span>Sem alturas · ligaduras sustentam, não criam novos ataques</span></div>
-      <div id="rhythm-score" class="rhythm-score"></div>
-    </div></div>
-    <div class="grid-key"><span><i class="bar-mark"></i> compasso</span><span><i class="beat-mark"></i> tempo</span><span><i class="medium"></i> colcheia</span><span><i></i> semicolcheia</span><span class="boundary-hint">Barra final = início do próximo loop; não é um ataque.</span></div>
-    <div class="editor">
-      <span id="selection-text">Clique para criar · arraste para mover · puxe a borda direita para durar.</span>
-      <div class="presets" id="presets" role="group" aria-label="Durações predefinidas para a nota selecionada"></div>
-      <label>Início <input id="note-start" type="number" min="1" max="16" step="1" disabled aria-label="Início da nota selecionada, em semicolcheias"></label>
-      <label>Duração <input id="note-duration" type="number" min="1" max="16" step="1" disabled aria-label="Duração da nota selecionada em semicolcheias"></label>
-      <button id="delete" disabled>Excluir nota</button><button id="clear" disabled>Limpar frase</button>
-      <button id="undo" disabled title="Ctrl+Z">↶ Desfazer</button><button id="redo" disabled title="Ctrl+Y / Ctrl+Shift+Z">↷ Refazer</button>
-      <button id="export" disabled title="Baixa um arquivo JSON com a frase">⇩ Exportar</button>
-      <button id="import" disabled title="Carrega uma frase exportada">⇧ Importar</button>
-      <button id="share" title="Gera um link com a frase, sem servidor">Compartilhar link</button>
-      <input type="file" id="import-file" accept=".json,application/json" hidden>
-    </div>
-    <div class="panel-foot"><span id="message" role="status" aria-live="polite">Espaços vazios são pausas. Notas vizinhas têm ataques separados.</span><span id="saved" class="saved">Salvo neste navegador</span></div>
-    <section id="recovery" class="notice" aria-labelledby="recovery-title" hidden>
-      <h3 id="recovery-title">Dados salvos protegidos</h3>
-      <p>Os dados anteriores não puderam ser restaurados integralmente. Suas edições ficam só na memória até você decidir substituí-los. Baixe os dados originais antes de continuar.</p>
-      <button id="download-recovery">Baixar dados originais</button>
-      <button id="replace-recovery">Substituir dados salvos pela frase atual</button>
+    <details id="inspiration" class="inspiration"><summary>Biblioteca de grooves e gerador com semente</summary><div class="inspiration-tools"><section><h3>Padrões de referência</h3><div class="tool-row"><select id="groove-library" aria-label="Padrão rítmico"><option value="">Escolha um padrão</option></select><button id="load-groove">Carregar padrão</button></div><div id="groove-description" class="muted"></div></section><section><h3>Gerador</h3><div class="tool-row"><label>Densidade<select id="density" data-path="generator.density"><option value="sparse">Poucas notas</option><option value="medium">Média</option><option value="busy">Muitas notas</option></select></label><label>Ataques<select id="syncopation" data-path="generator.syncopation"><option value="straight">Nos tempos</option><option value="mixed">Mistos</option><option value="syncopated">Sincopados</option></select></label><label>Durações<select id="lengths" data-path="generator.lengths"><option value="short">Curtas</option><option value="mixed">Variadas</option><option value="long">Longas</option></select></label><label>Semente<input id="seed" data-path="generator.seed" type="number" min="0" max="4294967295"></label></div><button id="generate">Gerar com semente</button><button id="variation">Nova variação</button></section></div></details>
+    <section class="session-library"><h3>Sessões completas</h3><div class="tool-row"><button id="save-session">Guardar sessão na biblioteca</button><select id="session-library" aria-label="Sessões guardadas"><option value="">Escolha uma sessão</option></select><button id="restore-session">Restaurar</button><button id="delete-session">Excluir sessão guardada</button><button id="export">Exportar sessão</button><button id="import">Importar sessão</button><button id="share">Compartilhar link</button><input id="import-file" type="file" accept=".json,application/json" hidden></div><p id="library-status" role="status"></p><div id="library-recovery" hidden><button id="download-library-recovery">Baixar biblioteca original</button><button id="replace-library-recovery">Substituir biblioteca pela sessão atual</button></div><div id="share-output" class="notice" hidden><label for="share-url">Link completo, sem servidor</label><input id="share-url" type="text" readonly><p>Quem recebe pode ler a sessão inteira, incluindo opções e mixer.</p></div></section>
+  </details>
+  <section id="panel-practice" class="intention-panel" role="tabpanel" aria-labelledby="tab-practice"><div id="practice-mount"></div><section class="panel feedback"><h2>Ataque & término</h2><div id="timeline"></div><div id="feedback"></div></section></section>
+  <section id="panel-band" class="intention-panel" role="tabpanel" aria-labelledby="tab-band" hidden>
+    <section class="panel"><h2>Sua banda</h2><p class="muted">Frase, harmonia, baixo, bateria e metrônomo compartilham o mesmo transporte. Escolha seu papel: a banda deixa esse instrumento para você.</p>
+      <div class="tool-row"><label>Seu papel<select id="band-role" data-path="band.role"><option value="solo">Solista / frase</option><option value="bass">Baixista</option><option value="harmony">Harmonia</option><option value="drums">Baterista</option></select></label><label class="toggle"><input id="bass-enabled" data-path="band.bassEnabled" type="checkbox"> Baixo</label><label>Estilo do baixo<select id="bass-style" data-path="band.style"></select></label><label>Densidade do baixo<select id="bass-density" data-path="band.density"></select></label><label>Resposta<select id="band-mode" data-path="band.mode"><option value="steady">Pulso estável</option><option value="follow">Segue a frase</option></select></label></div>
+      <div class="tool-row"><label class="toggle"><input id="drums-enabled" data-path="drums.enabled" type="checkbox"> Bateria</label><label>Estilo<select id="drum-style" data-path="drums.style"></select></label><label>Densidade<select id="drum-density" data-path="drums.density"></select></label><label>Semente<input id="drum-seed" data-path="drums.seed" type="number" min="0" max="4294967295"></label><button id="generate-drums">Variar bateria</button></div>
+      <h3>Harmonia manual e funcional</h3><div class="tool-row"><label class="toggle"><input id="chords-enabled" data-path="progression.enabled" type="checkbox"> Harmonia</label><label>Tonalidade<select id="progression-key" data-path="progression.keyId"></select></label><label>Funções<select id="progression-function"><option value="cadence">Tônica → subdominante → dominante → tônica</option><option value="turnaround">Turnaround I–vi–ii–V</option><option value="random">Diatônica livre</option></select></label><button id="generate-progression">Gerar progressão</button><button id="add-chord">Adicionar acorde</button></div><ol id="progression-chords" class="progression-chords"></ol><p id="progression-status" class="tool-hint"></p>
+      <h3>Som e síntese</h3><div id="synth-controls" class="tool-row"></div>
     </section>
-    <section id="share-preview" class="notice" aria-labelledby="share-title" hidden>
-      <h3 id="share-title">Frase recebida por link</h3>
-      <p id="share-description"></p>
-      <p>Abrir este link não altera sua frase. Aplicar substitui frase, BPM e compassos; Desfazer recupera a anterior.</p>
-      <button id="apply-share">Aplicar frase recebida</button>
-      <button id="dismiss-share">Dispensar</button>
-    </section>
-    <div id="share-output" class="notice" hidden>
-      <label for="share-url">Link da frase — selecione e copie se necessário</label>
-      <input id="share-url" type="text" readonly>
-      <p>O link contém a frase, BPM e compassos. Quem receber o link pode lê-los; nenhum serviço armazena a frase.</p>
-    </div>
+    <section id="mixer" class="panel mixer"><h2>Mixer da sessão</h2><p class="tool-hint muted">Volume e silenciamento viajam com a sessão. Ajuste durante a reprodução.</p><div id="mixer-channels" class="mixer-channels"></div><p id="mixer-status" role="status"></p></section>
+    <section class="panel"><h2>Metrônomo e estrutura</h2><div class="tool-row"><label>Padrão<select id="metro-pattern" data-path="metronome.pattern"></select></label><label>Compassos audíveis<input id="audible-bars" data-path="metronome.audibleBars" type="number" min="1" max="16"></label><label>Compassos silenciosos<input id="silent-bars" data-path="metronome.silentBars" type="number" min="0" max="16"></label><label>Entrada (compassos)<input id="count-in" data-path="training.countInBars" type="number" min="0" max="4"></label><label>Repetições<input id="repetitions" data-path="training.repetitions" type="number" min="1" max="32"></label><label class="toggle"><input data-path="companion.enabled" type="checkbox"> Pulso polirrítmico</label><label>Pulsos<input data-path="companion.pulses" type="number" min="2" max="12"></label><label>Em tempos<input data-path="companion.spanBeats" type="number" min="1" max="16"></label></div><p class="tool-hint muted">Silêncios alternam com compassos audíveis para trabalhar o pulso interno. O pulso polirrítmico divide o intervalo escolhido igualmente. A contagem de entrada prepara o treino; o loop pode cobrir apenas parte da frase.</p></section>
   </section>
-  <section id="mixer" class="panel mixer" aria-labelledby="mixer-title" aria-describedby="mixer-hint">
-    <div class="section-heading"><div><div class="eyebrow">EQUILIBRE O SOM</div><h2 id="mixer-title">Mixer</h2></div><span class="badge">Volume e mute por canal</span></div>
-    <p id="mixer-hint" class="tool-hint muted">Ajuste mesmo durante a reprodução ou o treino. Silenciar preserva o volume escolhido. O canal do metrônomo inclui a contagem de entrada; a bateria continua respeitando o botão Ativar bateria.</p>
-    <div class="mixer-channels">
-      <fieldset class="mixer-channel" data-channel="phrase">
-        <legend id="mixer-phrase-label">Frase / ritmo</legend>
-        <div class="mixer-volume-heading"><label id="mixer-phrase-volume-label" for="mixer-phrase-volume">Volume</label><output id="mixer-phrase-value" for="mixer-phrase-volume" aria-hidden="true">100%</output></div>
-        <input id="mixer-phrase-volume" type="range" min="0" max="100" step="1" value="100" aria-labelledby="mixer-phrase-label mixer-phrase-volume-label" aria-valuetext="100%">
-        <label class="toggle"><input id="mixer-phrase-muted" type="checkbox" aria-label="Silenciar frase / ritmo"> Silenciar</label>
-      </fieldset>
-      <fieldset class="mixer-channel" data-channel="metronome">
-        <legend id="mixer-metronome-label">Metrônomo</legend>
-        <div class="mixer-volume-heading"><label id="mixer-metronome-volume-label" for="mixer-metronome-volume">Volume</label><output id="mixer-metronome-value" for="mixer-metronome-volume" aria-hidden="true">100%</output></div>
-        <input id="mixer-metronome-volume" type="range" min="0" max="100" step="1" value="100" aria-labelledby="mixer-metronome-label mixer-metronome-volume-label" aria-valuetext="100%">
-        <label class="toggle"><input id="mixer-metronome-muted" type="checkbox" aria-label="Silenciar metrônomo"> Silenciar</label>
-      </fieldset>
-      <fieldset class="mixer-channel" data-channel="drums">
-        <legend id="mixer-drums-label">Bateria</legend>
-        <div class="mixer-volume-heading"><label id="mixer-drums-volume-label" for="mixer-drums-volume">Volume</label><output id="mixer-drums-value" for="mixer-drums-volume" aria-hidden="true">100%</output></div>
-        <input id="mixer-drums-volume" type="range" min="0" max="100" step="1" value="100" aria-labelledby="mixer-drums-label mixer-drums-volume-label" aria-valuetext="100%">
-        <label class="toggle"><input id="mixer-drums-muted" type="checkbox" aria-label="Silenciar bateria"> Silenciar</label>
-      </fieldset>
-      <fieldset class="mixer-channel" data-channel="chords">
-        <legend id="mixer-chords-label">Acordes</legend>
-        <div class="mixer-volume-heading"><label id="mixer-chords-volume-label" for="mixer-chords-volume">Volume</label><output id="mixer-chords-value" for="mixer-chords-volume" aria-hidden="true">100%</output></div>
-        <input id="mixer-chords-volume" type="range" min="0" max="100" step="1" value="100" aria-labelledby="mixer-chords-label mixer-chords-volume-label" aria-valuetext="100%">
-        <label class="toggle"><input id="mixer-chords-muted" type="checkbox" aria-label="Silenciar acordes"> Silenciar</label>
-      </fieldset>
-    </div>
-    <p id="mixer-status" class="tool-hint muted" role="status" aria-live="polite">Ajustes do mixer ficam neste navegador, separados da frase.</p>
-  </section>
-  <section class="panel progression" aria-labelledby="progression-title">
-    <div class="section-heading"><div><div class="eyebrow">EXPLORE A HARMONIA</div><h2 id="progression-title">Progressões diatônicas</h2></div><span class="badge">2–5 tétrades · 4 notas/acorde</span></div>
-    <div class="tool-row">
-      <label for="progression-key">Tonalidade <select id="progression-key" aria-describedby="progression-hint"></select></label>
-      <button id="generate-progression">Gerar nova progressão</button>
-      <button id="play-progression" class="primary">▶ Ouvir progressão em loop</button>
-      <button id="stop-progression" disabled>■ Parar progressão</button>
-    </div>
-    <p id="progression-hint" class="tool-hint muted">Maior ou menor natural · cada acorde dura um compasso em 4/4, no BPM acima. Repetições são permitidas. A progressão não altera sua frase rítmica e fica apenas nesta sessão.</p>
-    <ol id="progression-chords" class="progression-chords" aria-label="Acordes da progressão"></ol>
-    <p id="progression-status" class="tool-hint" role="status" aria-live="polite"></p>
-  </section>
-  <section class="panel training" aria-labelledby="train-title">
-    <div class="section-heading"><div><div class="eyebrow">02 / SINTA O TEMPO</div><h2 id="train-title">Do desenho ao gesto</h2></div><span class="badge">1 entrada + 4 repetições</span></div>
-    <div class="training-controls"><div><p>Ouça a referência, depois reproduza a frase inteira com a <kbd>barra de espaço</kbd> ou segurando o botão abaixo.</p><p class="muted">Pressione no ataque. Solte no final. Durante a avaliação, só o metrônomo toca.</p></div><button id="train" class="primary" disabled>Começar treino</button></div>
-    <button type="button" id="train-pad" class="train-pad" aria-label="Tocar treino: pressione e segure no ataque, solte no término" disabled><span id="train-state">Prepare o ouvido. A duração importa tanto quanto o ataque.</span><span id="held-state" class="held-state">ESPAÇO ou toque · pressionar / soltar</span></button>
-    <p class="timing-note">Feedback relativo, não medição absoluta: teclado, navegador e saída de áudio introduzem latência. Use fones com fio; Bluetooth pode deslocar toda a execução. Sem calibração automática. Trocar de aba ou perder o foco interrompe a sessão.</p>
-  </section>
-  <section class="panel feedback" aria-labelledby="feedback-title">
-    <div class="section-heading"><div><div class="eyebrow">03 / OBSERVE AS DIFERENÇAS</div><h2 id="feedback-title">Ataque & término</h2></div><span class="badge">Sem pontuação única</span></div>
-    <div id="timeline"></div>
-    <div id="feedback"><p class="muted">Ao concluir o treino, cada ataque e cada término aparecerão separados, além de notas omitidas e extras.</p></div>
-  </section>
-  <footer>GrooveGoblin · Seus dados ficam neste navegador. <a href="./guide.html">Guia e método de avaliação ↗</a></footer>
+  <section id="panel-explore" class="intention-panel" role="tabpanel" aria-labelledby="tab-explore" hidden><div id="playground-mount"></div></section>
+  <section id="panel-repertoire" class="intention-panel" role="tabpanel" aria-labelledby="tab-repertoire" hidden><div id="repertoire-mount"></div></section>
+  <section id="panel-journey" class="intention-panel" role="tabpanel" aria-labelledby="tab-journey" hidden><div id="journey-mount"></div></section>
+  <footer>Seus dados ficam neste navegador. <a href="./guide.html">Guia e método de avaliação</a></footer>
 </main>
 </body>
 </html>
