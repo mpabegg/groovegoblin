@@ -6,54 +6,24 @@ export const TOUR_STORAGE_KEY = 'groovegoblin:tour:v1';
 
 const STEPS = [
   {
-    tab: 'tab-practice', target: '.intentions',
-    title: 'Cinco intenções, uma sessão',
-    body: 'Escolha o que quer fazer: Praticar, Banda, Explorar, Repertório ou Percurso. Todas as abas compartilham a mesma sessão — frase, banda, treino e mixer — e tudo fica neste navegador.',
-  },
-  {
-    tab: 'tab-practice', target: '.performance .transport',
-    title: 'Transporte e andamento',
-    body: 'O exercício guiado aparece primeiro. Abaixo, a frase do estúdio permite ouvir o arranjo ou treinar uma frase editada. Ajuste BPM e metrônomo aqui; “Parar som”, no topo, ou Esc interrompem de qualquer aba.',
-  },
-  {
-    tab: 'tab-practice', open: ['performance-input'], target: '#train-pad',
-    title: 'Área de toque do treino',
-    body: 'Durante o treino, pressione no ataque e solte no término de cada nota — com a barra de espaço ou segurando aqui. O GrooveGoblin não grava microfone nem instrumento: avalia só esses toques de teclado ou tela.',
-  },
-  {
-    tab: 'tab-practice', open: ['studio-editor'], target: '#studio-editor .grid-scroll',
-    title: 'Grade da frase',
-    body: 'Em “Editar frase e organizar sessões”: clique numa célula para criar uma nota, arraste para mover e puxe a borda direita para mudar a duração. Abaixo, bateria e partitura rítmica acompanham cada mudança; Ctrl+Z desfaz.',
-  },
-  {
-    tab: 'tab-practice', open: ['studio-editor', 'session-storage'], target: '#studio-editor .session-library',
-    title: 'Guardar, exportar e compartilhar',
-    body: 'Guarde sessões completas na biblioteca local, exporte ou importe um arquivo .json, ou gere um link que carrega a sessão inteira sem servidor. Quem recebe vê uma prévia antes de aplicar.',
+    tab: 'tab-practice', target: '#train-pad',
+    title: 'Treinar ritmo: ouvir → tocar → repetir',
+    body: 'Ouça a referência até aparecer “Tocar o ritmo”. Espere a contagem e pressione Espaço ou esta área no início de cada nota; segure e solte no final. O resultado aparece aqui mesmo. Não há gravação por microfone. “Escolher ou ajustar a frase” e “Estúdio avançado” guardam as opções extras.',
   },
   {
     tab: 'tab-band', target: '#panel-band > .band-setup',
-    title: 'Banda e harmonia',
-    body: 'Escolha seu papel e a banda deixa esse instrumento para você. Baixo e bateria seguem estilos e densidades; a harmonia aceita progressões funcionais geradas ou acordes escritos à mão, com inversões.',
-  },
-  {
-    tab: 'tab-band', open: ['mixer'], target: '#mixer',
-    title: 'Mixer da sessão',
-    body: 'Volume e silenciamento de frase, metrônomo, bateria, harmonia e baixo. Dá para ajustar durante a reprodução, e o mixer viaja junto com a sessão e o link.',
-  },
-  {
-    tab: 'tab-explore', target: '#playground-mount',
-    title: 'Explorar',
-    body: 'Jogos de ouvido e ritmo: dueto de chamado e resposta, a masmorra do clique sumido, o chefe que devora os espaços e transformações da frase. Nada toca sozinho — todo som começa de um botão seu.',
+    title: 'Tocar com banda',
+    body: 'Escolha seu papel e habilite baixo, bateria e harmonia. Logo abaixo, ajuste BPM e use “Tocar acompanhamento” ou “Parar”. Acordes, timbres, mixer, editor e forma musical continuam disponíveis nas opções. Toque seu instrumento junto com a banda; não usamos microfone.',
   },
   {
     tab: 'tab-repertoire', target: '#repertoire-mount',
-    title: 'Repertório',
-    body: 'Importe arquivos de áudio ou MIDI que você já tem: marque trechos A–B, mude velocidade sem mudar a altura, analise pulsos e acordes, compare takes e monte setlists. O processamento é local.',
+    title: 'Estudar uma música',
+    body: 'Importe um áudio, escolha um trecho A–B, repita em loop e ajuste a velocidade para estudar. Análise de pulsos e acordes, tomadas e setlists ficam nesta atividade. A importação de MIDI serve para levar notas à frase do estúdio, não para abrir uma gravação. Seus arquivos são processados neste navegador.',
   },
   {
-    tab: 'tab-journey', target: '#journey-mount',
-    title: 'Percurso',
-    body: 'Acompanhe aproveitamento e BPM ao longo dos treinos concluídos e as revisões espaçadas agendadas. Para rever este tour, use “Como usar” no topo a qualquer momento.',
+    tab: 'tab-practice', target: '.intentions',
+    title: 'Escolha sua atividade',
+    body: 'As três atividades principais ficam no topo. Em “Mais opções”, Explorar reúne jogos e experiências; Percurso e histórico mostra seus treinos e revisões. “Parar som” ou Esc interrompe o áudio. Esta ajuda só abre quando você escolhe “Como usar”.',
   },
 ];
 
@@ -62,9 +32,6 @@ const GAP = 14;
 const PAD = 8;
 const MOBILE = '(max-width: 640px)';
 
-function readFlag() {
-  try { return localStorage.getItem(TOUR_STORAGE_KEY); } catch { return null; }
-}
 function writeFlag(status) {
   try { localStorage.setItem(TOUR_STORAGE_KEY, JSON.stringify({ status, at: new Date().toISOString() })); } catch { /* memória basta nesta visita */ }
 }
@@ -83,10 +50,9 @@ function el(tag, props = {}, ...children) {
 }
 
 /**
- * host: { activateTab(id), isBusy(), notify(text, error), canAutoOpen() }
+ * host: { activateTab(id), isBusy(), notify(text, error) }
  */
 export function mountTour(button, host) {
-  let seenThisVisit = readFlag() !== null;
   let state = null;
 
   const title = el('h2', { id: 'tour-title', className: 'tour-title', tabIndex: -1 });
@@ -95,7 +61,7 @@ export function mountTour(button, host) {
   const bar = el('span', { className: 'tour-progress-fill' });
   const progress = el('div', { className: 'tour-progress', role: 'progressbar', 'aria-label': 'Progresso do tour', 'aria-valuemin': '1', 'aria-valuemax': String(STEPS.length) }, bar);
   const live = el('p', { className: 'tour-live', 'aria-live': 'polite' });
-  const skip = el('button', { type: 'button', className: 'tour-skip', text: 'Pular tour' });
+  const skip = el('button', { type: 'button', className: 'tour-skip', text: 'Fechar ajuda' });
   const back = el('button', { type: 'button', text: 'Voltar' });
   const next = el('button', { type: 'button', className: 'primary' });
   const card = el('div', { className: 'tour-card' },
@@ -131,27 +97,26 @@ export function mountTour(button, host) {
   skip.addEventListener('click', () => finish('skipped'));
   back.addEventListener('click', () => go(-1));
   next.addEventListener('click', () => go(1));
-  button.addEventListener('click', () => start({ auto: false }));
+  button.addEventListener('click', start);
 
-  function start({ auto }) {
+  function start() {
     if (state) return false;
     if (host.isBusy()) {
-      host.notify('Pare a reprodução ou o processamento do repertório antes de abrir o tour “Como usar”.', true);
+      host.notify('Pare o som ou o processamento da música antes de abrir “Como usar”.', true);
       return false;
     }
     const tab = document.querySelector('.intentions [role=tab][aria-selected=true]');
     state = {
-      auto, index: 0, token: 0, raf: 0, settleTimer: 0, settling: false, animations: [],
+      index: 0, token: 0, raf: 0, settleTimer: 0, settling: false, animations: [],
       restore: {
         tab: tab?.id ?? 'tab-practice',
-        open: Object.fromEntries(['studio-editor', 'inspiration'].map(id => [id, document.getElementById(id)?.open ?? false])),
+        open: Object.fromEntries([...document.querySelectorAll('details[id]')].map(details => [details.id, details.open])),
         focusMode: document.body.classList.contains('performance-focus'),
         x: scrollX, y: scrollY,
         gridLeft: document.querySelector('.grid-scroll')?.scrollLeft ?? 0,
         focus: document.activeElement,
       },
     };
-    if (auto) { seenThisVisit = true; writeFlag('shown'); }
     // O foco na execução esconde as abas; só a vista muda, não a sessão.
     document.body.classList.remove('performance-focus');
     document.documentElement.classList.add('tour-active');
@@ -169,7 +134,8 @@ export function mountTour(button, host) {
       host.notify(`Não foi possível abrir o tour: ${error.message}`, true);
       return false;
     }
-    show(0, { first: true });
+    const contextualIndex = STEPS.findIndex(step => step.tab === tab?.id);
+    show(Math.max(0, contextualIndex), { first: true });
     return true;
   }
 
@@ -362,7 +328,6 @@ export function mountTour(button, host) {
     removeEventListener('resize', onViewport);
     removeEventListener('scroll', onScroll);
     globalThis.visualViewport?.removeEventListener('resize', onViewport);
-    seenThisVisit = true;
     writeFlag(status);
     if (dialog.open) dialog.close();
     document.documentElement.classList.remove('tour-active');
@@ -377,20 +342,7 @@ export function mountTour(button, host) {
   }
 
   return {
-    start: () => start({ auto: false }),
+    start,
     get open() { return state !== null; },
-    /** Abre uma vez na primeira visita, sem atropelar avisos ou interação. */
-    autoStart({ delay = 700 } = {}) {
-      if (seenThisVisit) return;
-      let interacted = false;
-      const mark = () => { interacted = true; };
-      const events = ['pointerdown', 'keydown'];
-      for (const type of events) addEventListener(type, mark, { capture: true, once: true });
-      setTimeout(() => {
-        for (const type of events) removeEventListener(type, mark, { capture: true });
-        if (seenThisVisit || interacted || document.hidden || host.isBusy() || !host.canAutoOpen()) return;
-        start({ auto: true });
-      }, delay);
-    },
   };
 }

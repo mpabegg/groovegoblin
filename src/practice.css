@@ -121,6 +121,20 @@
   margin: 14px 0 0;
   background: transparent;
 }
+.practice-current > #practice-results {
+  border: 0;
+  border-top: 1px solid var(--pg-line);
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 18px 0 0;
+  margin: 18px 0 0;
+}
+.practice-current > .feedback { margin-top: 14px; padding: 12px 14px; background: var(--pg-panel-2); }
+.practice-current .practice-input .train-pad { min-height: 96px; font-size: 14px; }
+.practice-current .practice-input .train-pad:disabled { opacity: 1; }
+.practice-root, .playground-root, .journey-root, .practice-section, .practice-grid { min-width: 0; max-width: 100%; }
+.practice-inline-controls > *, .practice-routine-controls > * { min-width: 0; max-width: 100%; }
 .practice-current .practice-stage-panel { border: 0; background: transparent; padding: 0; }
 .practice-root > .practice-section:first-of-type { padding: 14px 18px; box-shadow: none; }
 .practice-root select, .playground-root select { max-width: 100%; }
@@ -254,7 +268,7 @@ button.practice-tick:hover:not(:disabled) { border-color: var(--pg-blue); backgr
 .journey-summary li:last-child { border-bottom: 0; }
 .journey-summary-label { color: var(--pg-muted); }
 .journey-summary-value { color: var(--pg-text); font-weight: 600; white-space: nowrap; }
-.journey-objectives { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.journey-objectives { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 12px; }
 .journey-objective { border: 1px solid var(--pg-line); border-radius: 10px; padding: 14px 16px; background: var(--pg-panel-2); }
 .journey-objective-meta { flex-direction: row; flex-wrap: wrap; gap: 4px 14px; font-size: 11px; color: var(--pg-muted); }
 .journey-bars { display: flex; align-items: flex-end; gap: 3px; height: 46px; margin-top: 10px; }
@@ -271,6 +285,8 @@ button.practice-tick:hover:not(:disabled) { border-color: var(--pg-blue); backgr
   .practice-tick { min-width: 32px; height: 44px; }
   .journey-objectives { grid-template-columns: 1fr; }
   .practice-inline-controls, .practice-routine-controls { align-items: flex-start; flex-direction: column; }
+  .practice-inline-controls label, .practice-routine-controls label { flex-wrap: wrap; }
+  .journey-summary-value { white-space: normal; }
   .playground-toolbar { padding: 14px; }
   .playground-toolbar > label, .playground-effects { width: 100%; }
   .playground-effects .practice-inline-controls { flex-direction: row; align-items: center; }

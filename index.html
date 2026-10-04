@@ -17,23 +17,27 @@
 <main>
   <header class="masthead"><div><div class="eyebrow">SEU PARCEIRO DE PRÁTICA</div><h1>Groove<span>Goblin</span></h1></div><div class="masthead-actions"><button id="stop" type="button" disabled>Parar som</button><button id="tour-open" type="button" class="help-button" aria-haspopup="dialog"><span aria-hidden="true">?</span>Como usar</button><details class="app-options"><summary>Offline</summary><div id="offline-status" aria-live="polite"></div></details></div></header>
   <nav class="intentions" role="tablist" aria-label="O que você quer fazer?">
-    <button id="tab-practice" role="tab" aria-selected="true" aria-controls="panel-practice">Praticar</button>
-    <button id="tab-band" role="tab" aria-selected="false" aria-controls="panel-band" tabindex="-1">Banda</button>
-    <button id="tab-explore" role="tab" aria-selected="false" aria-controls="panel-explore" tabindex="-1">Explorar</button>
-    <button id="tab-repertoire" role="tab" aria-selected="false" aria-controls="panel-repertoire" tabindex="-1">Repertório</button>
-    <button id="tab-journey" role="tab" aria-selected="false" aria-controls="panel-journey" tabindex="-1">Percurso</button>
+    <div class="primary-activities" role="presentation">
+      <button id="tab-practice" role="tab" aria-selected="true" aria-controls="panel-practice"><span>Treinar ritmo</span><small>Ouça, toque e compare</small></button>
+      <button id="tab-band" role="tab" aria-selected="false" aria-controls="panel-band" tabindex="-1"><span>Tocar com banda</span><small>Monte seu acompanhamento</small></button>
+      <button id="tab-repertoire" role="tab" aria-selected="false" aria-controls="panel-repertoire" tabindex="-1"><span>Estudar uma música</span><small>Importe e repita trechos</small></button>
+    </div>
+    <div class="secondary-activities" role="presentation">
+      <span class="muted">Mais opções</span>
+      <button id="tab-explore" role="tab" aria-selected="false" aria-controls="panel-explore" tabindex="-1">Explorar</button>
+      <button id="tab-journey" role="tab" aria-selected="false" aria-controls="panel-journey" tabindex="-1">Percurso e histórico</button>
+    </div>
   </nav>
   <div id="studio-notices" class="studio-notices"></div>
   <div id="session-workspace">
   <section class="panel performance" aria-labelledby="session-title">
-    <div class="section-heading"><div><div class="eyebrow">FRASE DO ESTÚDIO</div><h2 id="session-title">Seu groove</h2></div><span id="session-badge" class="badge"></span></div>
-    <div class="transport"><button id="play">Ouvir em loop</button><button id="train">Treinar esta frase</button><label>BPM <input id="bpm" data-path="bpm" type="number" min="30" max="300" step="1"></label><label class="toggle"><input id="metronome" data-path="metronome.enabled" type="checkbox"> Metrônomo</label><span id="position-text" class="position-text" role="status">Pronto</span></div>
-    <details id="performance-input" class="control-detail">
-      <summary>Área de toque e opções de execução</summary>
-    <button id="train-pad" type="button" class="train-pad" disabled aria-label="Tocar: pressione no ataque e solte no término"><span id="train-state">Ouça, depois toque com espaço ou segure aqui.</span><span id="held-state" class="held-state">ESPAÇO ou toque</span></button>
-    <div class="tool-row"><label>Altura ao tocar (MIDI)<input id="input-pitch" type="number" min="21" max="108" value="69"></label><label class="toggle"><input id="minimal" type="checkbox"> Foco na execução</label></div>
-    <p class="tool-hint muted">Use Espaço ou toque e solte na área acima. Sem microfone; a latência varia com o dispositivo.</p>
-    </details>
+    <div class="section-heading"><div><div class="eyebrow">SESSÃO GUARDADA · INDEPENDENTE DO EXERCÍCIO</div><h2 id="session-title">Seu groove</h2></div><span id="session-badge" class="badge"></span></div>
+    <div class="transport"><button id="play" type="button" class="primary">Tocar acompanhamento</button><button id="band-stop" type="button" disabled>Parar</button><button id="train" type="button">Treinar esta frase</button><label>BPM <input id="bpm" data-path="bpm" type="number" min="30" max="300" step="1"></label><label class="toggle"><input id="metronome" data-path="metronome.enabled" type="checkbox"> Metrônomo</label><span id="position-text" class="position-text" role="status">Pronto</span></div>
+    <section id="performance-input" class="practice-input" aria-label="Toque o ritmo">
+      <p class="input-directions">Depois de ouvir, pressione <kbd>Espaço</kbd> ou esta área no início de cada nota. Segure pela duração da nota e solte no final. Não usamos microfone.</p>
+      <button id="train-pad" type="button" class="train-pad" disabled aria-label="Tocar o ritmo: pressione no início da nota e solte no final"><span id="train-state">Ouça a referência e depois escolha Tocar o ritmo.</span><span id="held-state" class="held-state">ESPAÇO ou toque</span></button>
+      <details id="input-options" class="control-detail"><summary>Opções de toque</summary><div class="tool-row"><label>Altura ao tocar (MIDI)<input id="input-pitch" type="number" min="21" max="108" value="69"></label><label class="toggle"><input id="minimal" type="checkbox"> Foco na execução</label></div><p class="tool-hint muted">O resultado mede seus toques, não o som de um instrumento. A latência varia com o dispositivo.</p></details>
+    </section>
     <div id="session-status" class="panel-foot"><span id="message" role="status" aria-live="polite"></span><span id="saved" class="saved"></span></div>
     <section id="recovery" class="notice" hidden><h3>Dados originais protegidos</h3><p>Edições ficam na memória até você autorizar a substituição. Exporte os originais antes de continuar.</p><button id="download-recovery">Baixar originais</button><button id="replace-recovery">Substituir pela sessão atual</button></section>
     <section id="share-preview" class="notice" hidden><h3>Sessão recebida por link</h3><p id="share-description"></p><p>Nada foi substituído. Aplicar permite desfazer depois.</p><button id="apply-share">Aplicar sessão recebida</button><button id="dismiss-share">Dispensar</button></section>
@@ -64,19 +68,20 @@
     </details>
   </details>
   </div>
-  <section id="panel-practice" class="intention-panel" role="tabpanel" aria-labelledby="tab-practice"><div id="practice-mount"></div><div id="practice-session-slot"></div><details id="feedback-detail" class="panel feedback" hidden><summary>Ataques e términos · ver detalhes</summary><div id="timeline"></div><div id="feedback"></div></details></section>
+  <section id="panel-practice" class="intention-panel" role="tabpanel" aria-labelledby="tab-practice"><div id="practice-mount"></div><details id="practice-studio" class="panel studio-detail"><summary>Estúdio avançado · editar frase e organizar sessões</summary><p class="muted">Sua sessão guardada é separada do exercício. Edite ou restaure uma frase aqui e escolha “Treinar esta frase” para praticá-la. O exercício só substitui a sessão se você escolher aplicá-lo.</p><div id="practice-session-slot"></div></details><details id="feedback-detail" class="panel feedback" hidden><summary>Ataques e términos · ver detalhes</summary><div id="timeline"></div><div id="feedback"></div></details></section>
   <section id="panel-band" class="intention-panel" role="tabpanel" aria-labelledby="tab-band" hidden>
-    <div id="band-session-slot"></div>
     <section class="panel band-setup"><h2>Monte seu acompanhamento</h2><p class="muted">Escolha seu papel e ligue os instrumentos que vão tocar com você.</p>
       <div class="tool-row"><label>Seu papel<select id="band-role" data-path="band.role"><option value="solo">Solista / frase</option><option value="bass">Baixista</option><option value="harmony">Harmonia</option><option value="drums">Baterista</option></select></label><label class="toggle"><input id="bass-enabled" data-path="band.bassEnabled" type="checkbox"> Baixo</label><label>Estilo do baixo<select id="bass-style" data-path="band.style"></select></label><label>Densidade do baixo<select id="bass-density" data-path="band.density"></select></label><label>Resposta<select id="band-mode" data-path="band.mode"><option value="steady">Pulso estável</option><option value="follow">Segue a frase</option></select></label></div>
       <div class="tool-row"><label class="toggle"><input id="drums-enabled" data-path="drums.enabled" type="checkbox"> Bateria</label><label>Estilo<select id="drum-style" data-path="drums.style"></select></label><label>Densidade<select id="drum-density" data-path="drums.density"></select></label><label>Semente<input id="drum-seed" data-path="drums.seed" type="number" min="0" max="4294967295"></label><button id="generate-drums">Variar bateria</button></div>
+      <div class="tool-row"><label class="toggle"><input id="chords-enabled" data-path="progression.enabled" type="checkbox"> Harmonia</label><span class="tool-hint muted">Escolha os acordes em “Acordes e progressões”. Depois use “Tocar acompanhamento” abaixo.</span></div>
       <details class="control-detail" id="harmony-options"><summary>Acordes e progressões</summary>
-      <h3>Harmonia manual e funcional</h3><div class="tool-row"><label class="toggle"><input id="chords-enabled" data-path="progression.enabled" type="checkbox"> Harmonia</label><label>Tonalidade<select id="progression-key" data-path="progression.keyId"></select></label><label>Funções<select id="progression-function"><option value="cadence">Tônica → subdominante → dominante → tônica</option><option value="turnaround">Turnaround I–vi–ii–V</option><option value="random">Diatônica livre</option></select></label><button id="generate-progression">Gerar progressão</button><button id="add-chord">Adicionar acorde</button></div><ol id="progression-chords" class="progression-chords"></ol><p id="progression-status" class="tool-hint"></p>
+      <h3>Harmonia manual e funcional</h3><div class="tool-row"><label>Tonalidade<select id="progression-key" data-path="progression.keyId"></select></label><label>Funções<select id="progression-function"><option value="cadence">Tônica → subdominante → dominante → tônica</option><option value="turnaround">Turnaround I–vi–ii–V</option><option value="random">Diatônica livre</option></select></label><button id="generate-progression">Gerar progressão</button><button id="add-chord">Adicionar acorde</button></div><ol id="progression-chords" class="progression-chords"></ol><p id="progression-status" class="tool-hint"></p>
       </details>
       <details class="control-detail" id="sound-options"><summary>Escolher timbres</summary>
       <h3>Som e síntese</h3><div id="synth-controls" class="tool-row"></div>
       </details>
     </section>
+    <div id="band-session-slot"></div>
     <details id="mixer" class="panel mixer"><summary>Mixer · volume e silenciamento</summary><div id="mixer-channels" class="mixer-channels"></div><p id="mixer-status" role="status"></p></details>
     <details id="training-options" class="panel control-detail"><summary>Configurar treino, metrônomo e polirritmia</summary>
       <div class="tool-row">

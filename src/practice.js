@@ -6,6 +6,9 @@
 
 import { evaluateSession, summarizeFeedback } from './feedback.js';
 import { generateGroove } from './generator.js';
+import { mergeSession } from './studio-state.js';
+import { performTick } from './meter.js';
+import { createSession } from './session.js';
 
 // ---------------------------------------------------------------------------
 // Utilidades compartilhadas (usadas também por playground.js e practice-view.js)
@@ -243,8 +246,8 @@ export const OBJECTIVES = Object.freeze([
 ]);
 
 export const STAGES = Object.freeze([
-  { id: 'listen', name: 'Escutar', description: 'Ouça a referência e conte as subdivisões em voz alta.' },
-  { id: 'imitate', name: 'Imitar', description: 'Reproduza a referência ouvida sobre o clique; a avaliação compara ataques e términos.' },
+  { id: 'listen', name: 'Ouvir', description: 'Ouça o ritmo da frase. Os blocos mostram quando cada nota começa e termina.' },
+  { id: 'imitate', name: 'Tocar', description: 'Depois da contagem, toque o mesmo ritmo com Espaço ou na área de toque.' },
   { id: 'read', name: 'Ler', description: 'Leia a frase na grade com os pulsos numerados antes de tocar de novo.' },
   { id: 'memorize', name: 'Memorizar', description: 'Ouça, memorize e toque com o clique silencioso em parte dos compassos.' },
   { id: 'improvise', name: 'Improvisar', description: 'Improvise sobre o acompanhamento: escolha criativa, sem nota certa ou errada.' },
@@ -627,7 +630,7 @@ export function createPracticeState() {
     version: 1,
     objective: 'timing',
     routine: {
-      stages: STAGES.map(stage => stage.id),
+      stages: ['listen', 'imitate'],
       listenRepetitions: 2,
       memorizeSilentBars: 2,
       adaptiveTempo: true,
@@ -688,7 +691,7 @@ export function validatePracticeState(value) {
   }
   const stages = Array.isArray(value?.routine?.stages)
     ? value.routine.stages.filter(id => STAGES.some(stage => stage.id === id))
-    : STAGES.map(stage => stage.id);
+    : createPracticeState().routine.stages;
   const skills = {};
   if (value.skills && typeof value.skills === 'object' && !Array.isArray(value.skills)) {
     for (const objective of OBJECTIVES) {
@@ -1025,14 +1028,18 @@ export function mountPractice(container, host, options = {}) {
 
   let exercise = generateExercise({ objective: state.objective, seed: 1, bars: 1, bpm: session0.bpm, level: levelFromSkill(state.skills[state.objective]), source: 'generated', session: host.getSession() });
   let exerciseSource = 'generated';
+  let selectedSession = null;
   let seedValue = 1;
   let stageIndex = 0;
   let listens = 0;
   let routineDone = false;
   let lastRun = null;
+  let lastRunSession = null;
   let comparing = null;
   const completedRuns = new WeakMap();
   let pendingStage = null;
+  let resultPending = false;
+  let lastTrainingStage = null;
   let improvisation = null;
   let variantDimension = VARIANT_DIMENSIONS[0].id;
   let earActivity = 'interval';
@@ -1059,29 +1066,97 @@ export function mountPractice(container, host, options = {}) {
     return STAGES.find(stage => stage.id === stages[stageIndex]) ?? null;
   }
 
-  function applyExerciseToSession() {
-    host.updateSession({
+  function exercisePatch() {
+    return {
       notes: exercise.notes.map(note => ({ ...note })),
       bpm: exercise.bpm,
       bars: exercise.bars,
       meter: exercise.meter,
-      loop: exercise.source === 'session' ? host.getSession().loop : { startBar: 0, endBar: exercise.bars },
+      loop: selectedSession?.loop ?? { startBar: 0, endBar: exercise.bars },
+      swing: selectedSession?.swing ?? 0,
+      swingUnit: selectedSession?.swingUnit ?? 'eighth',
+      subdivision: selectedSession?.subdivision ?? 4,
       metronome: { ...exercise.metronome },
       training: { goal: exercise.objective === 'durations' ? 'duration' : 'timing', adaptive: state.routine.adaptiveTempo },
-      extensions: { practice: { objective: exercise.objective, stage: activeStage()?.name ?? 'execução livre' } },
+      extensions: { practice: { objective: exercise.objective, stage: activeStage()?.name ?? 'execução livre', workspace: 'studio' } },
+    };
+  }
+
+  function exerciseSession(patch = {}) {
+    const current = host.getSession();
+    // A fonte escolhida mantém sua geometria; um exercício gerado não herda
+    // seções ou acordes que dependem do compasso da sessão guardada.
+    const base = selectedSession ?? createSession();
+    const config = exercisePatch();
+    return mergeSession(mergeSession(base, config), mergeSession({
+      training: { ...current.training, ...config.training },
+      mixer: current.mixer,
+      timbres: current.timbres,
+      companion: current.companion,
+      extensions: { practice: { workspace: 'exercise' } },
+      form: { enabled: false, sections: [] },
+    }, patch));
+  }
+
+  function previewReference(snapshot = exerciseSession()) {
+    const ticks = snapshot.meter.beats * 16 / snapshot.meter.unit;
+    const startTick = snapshot.loop.startBar * ticks;
+    const endTick = snapshot.loop.endBar * ticks;
+    const offsetTicks = note => (note.offsetMs ?? 0) / tickSeconds(snapshot.bpm) / 1000;
+    const notes = snapshot.notes.filter(note => note.start >= startTick && note.start < endTick).map(note => {
+      const start = Math.max(0, performTick(snapshot, note.start) - startTick + offsetTicks(note));
+      const end = Math.min(endTick - startTick, performTick(snapshot, note.start + note.duration) - startTick + offsetTicks(note));
+      return { ...note, start, duration: Math.max(0.05, end - start) };
     });
+    return previewPhrase(host, notes, { bpm: snapshot.bpm, timbre: snapshot.timbres.phrase });
+  }
+
+  function applyExerciseToSession() {
+    return host.updateSession(exercisePatch());
+  }
+
+  function startTraining(stage = null, advance = false) {
+    pendingStage = advance ? stageIndex : null;
+    lastTrainingStage = stage;
+    resultPending = false;
+    lastRun = null;
+    const patch = stage?.id === 'memorize'
+      ? { metronome: { silentBars: state.routine.memorizeSilentBars, audibleBars: 1, pattern: 'quarters', enabled: true } }
+      : {};
+    const snapshot = exerciseSession(mergeSession(patch, { extensions: { practice: { stage: stage?.name ?? 'execução livre' } } }));
+    rerender();
+    host.play('train', snapshot).catch(error => {
+      pendingStage = null;
+      host.notify(`Não foi possível iniciar o treino: ${error?.message ?? error}`, true);
+    });
+  }
+
+  function useSession({ train = false } = {}) {
+    exerciseSource = 'session';
+    rebuildExercise();
+    stageIndex = 0;
+    listens = 0;
+    routineDone = false;
+    resultPending = false;
+    pendingStage = null;
+    lastTrainingStage = null;
+    lastRun = null;
+    rerender();
+    if (train) startTraining();
   }
 
   function rebuildExercise({ preserveBpm = false } = {}) {
     const previousBpm = preserveBpm && exercise ? exercise.bpm : undefined;
+    const sourceSession = host.getSession();
+    selectedSession = exerciseSource === 'session' ? sourceSession : null;
     exercise = generateExercise({
       objective: state.objective,
       seed: seedValue,
       bars: exercise?.bars === 2 || exercise?.bars === 4 ? exercise.bars : 1,
-      bpm: previousBpm ?? host.getSession()?.bpm ?? 90,
+      bpm: previousBpm ?? sourceSession.bpm ?? 90,
       level: levelFromSkill(state.skills[state.objective]),
       source: exerciseSource,
-      session: host.getSession(),
+      session: sourceSession,
     });
   }
 
@@ -1089,7 +1164,7 @@ export function mountPractice(container, host, options = {}) {
     pendingStage = null;
     if (improvisation) {
       host.stop();
-      host.updateSession(improvisation.restore);
+      // O acompanhamento do exercício é temporário; a sessão guardada não muda.
       improvisation = null;
     }
     stageIndex += 1;
@@ -1131,7 +1206,7 @@ export function mountPractice(container, host, options = {}) {
     if (recorded.recorded) save();
     lastRun = recorded.recorded ? recorded.entry : state.history.find(entry => entry.id === run.id) ?? run;
     if (recorded.recorded && adapt && adapt.bpmDelta !== 0) {
-      host.updateSession({ bpm: adapt.nextBpm });
+      if (session.extensions?.practice?.workspace !== 'exercise') host.updateSession({ bpm: adapt.nextBpm });
       if (exercise.objective === objective) exercise.bpm = adapt.nextBpm;
       host.notify(`Tempo adaptado: ${adapt.reason}`);
     }
@@ -1154,16 +1229,21 @@ export function mountPractice(container, host, options = {}) {
       for (const warning of loadInfo.warnings) warningBox.appendChild(createEl('p', { text: warning }));
       root.appendChild(warningBox);
     }
-    root.appendChild(renderObjectivesSection());
     const current = renderExerciseSection();
     current.classList.add('practice-current');
     current.appendChild(renderStagesSection());
-    current.appendChild(disclosure('exercise', 'Ajustar exercício', renderExerciseControls()));
+    host.mountPracticeInput?.(current);
+    if (lastRun) current.appendChild(renderResultsSection());
+    current.appendChild(disclosure('exercise', 'Escolher ou ajustar a frase', renderExerciseControls()));
+    current.appendChild(disclosure('objective', 'Objetivo do treino', renderObjectivesSection()));
     root.appendChild(current);
-    if (lastRun) root.appendChild(renderResultsSection());
     root.appendChild(disclosure('routine', 'Configurar rotina', renderRoutineSection()));
     root.appendChild(disclosure('ear', 'Jogos de ouvido', renderEarSection()));
     root.appendChild(disclosure('history', 'Histórico e revisões', renderHistorySection()));
+    for (const control of root.querySelectorAll('#practice-objective, #practice-exercise-bpm, #practice-results button, .practice-exercise-controls button, .practice-exercise-controls input, .practice-exercise-controls select, .practice-routine-current button:not([data-focus-key="practice-cancel"]):not([data-allow-busy]), .practice-stage-config input, .practice-routine-controls input')) {
+      control.dataset.idleOnly = String(control.disabled);
+    }
+    setBusy(host.isBusy?.() ?? false);
   }
 
   function disclosure(id, label, content) {
@@ -1171,6 +1251,10 @@ export function mountPractice(container, host, options = {}) {
       createEl('summary', { text: label, dataset: { focusKey: `disclosure-${id}` } }),
       content,
     ]);
+  }
+
+  function setBusy(locked) {
+    for (const control of root.querySelectorAll('[data-idle-only]')) control.disabled = locked || control.dataset.idleOnly === 'true';
   }
 
   function renderObjectivesSection() {
@@ -1192,6 +1276,8 @@ export function mountPractice(container, host, options = {}) {
       stageIndex = 0;
       listens = 0;
       routineDone = false;
+      resultPending = false;
+      lastRun = null;
       rerender();
     });
     section.appendChild(list);
@@ -1261,9 +1347,14 @@ export function mountPractice(container, host, options = {}) {
 
   function renderExerciseSection() {
     const section = createEl('section', { className: 'practice-section', 'aria-labelledby': 'practice-exercise-title' });
-    section.appendChild(createEl('h3', { id: 'practice-exercise-title', text: 'Sua frase' }));
+    section.appendChild(createEl('h3', { id: 'practice-exercise-title', text: 'Treinar ritmo' }));
+    section.appendChild(createEl('p', { className: 'practice-hint', text: '1. Ouça a frase. 2. Toque o ritmo com Espaço ou na tela. 3. Veja o resultado e repita.' }));
     const meta = createEl('p', { className: 'practice-exercise-meta' });
-    meta.appendChild(createEl('span', { text: `${exercise.objectiveName} · ${exercise.bars} compasso(s) · ${exercise.notes.length} nota(s)` }));
+    const loop = selectedSession?.loop ?? { startBar: 0, endBar: exercise.bars };
+    const startTick = loop.startBar * exercise.ticksPerBar;
+    const displayNotes = exercise.notes.filter(note => note.start >= startTick && note.start < loop.endBar * exercise.ticksPerBar)
+      .map(note => ({ ...note, start: note.start - startTick, duration: Math.min(note.duration, loop.endBar * exercise.ticksPerBar - note.start) }));
+    meta.appendChild(createEl('span', { text: `${exercise.source === 'session' ? `Frase escolhida do estúdio · trecho ${loop.startBar + 1}–${loop.endBar}` : 'Exercício gerado'} · ${exercise.objectiveName} · ${loop.endBar - loop.startBar} compasso(s) · ${displayNotes.length} nota(s)` }));
     if (exercise.changed) meta.appendChild(createEl('span', { className: 'practice-changed', text: ` · variação: ${VARIANT_DIMENSIONS.find(d => d.id === exercise.changed)?.name ?? exercise.changed}` }));
     section.appendChild(meta);
     const tempoInput = createEl('input', {
@@ -1281,15 +1372,16 @@ export function mountPractice(container, host, options = {}) {
     });
     section.appendChild(createEl('div', { className: 'practice-inline-controls' }, [
       createEl('label', { for: 'practice-exercise-bpm' }, [
-        createEl('span', { text: 'Andamento do exercício (BPM)' }),
+        createEl('span', { text: 'Velocidade (BPM)' }),
         tempoInput,
       ]),
     ]));
-    section.appendChild(renderTickGrid(exercise.notes, exercise.bars, exercise.ticksPerBar, {
+    section.appendChild(renderTickGrid(displayNotes, loop.endBar - loop.startBar, exercise.ticksPerBar, {
       ticksPerBeat: exercise.ticksPerBeat,
       ariaLabel: 'Frase do exercício',
       className: exercise.notes.some(note => note.velocity >= 0.9) ? 'practice-grid-accents' : '',
     }));
+    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Os blocos mostram quando pressionar e por quanto tempo segurar. A grade é uma referência visual, não a área de toque.' }));
     return section;
   }
 
@@ -1297,7 +1389,7 @@ export function mountPractice(container, host, options = {}) {
     const section = createEl('div', { className: 'practice-exercise-controls' });
 
     const sourceControls = createEl('div', { className: 'practice-inline-controls' });
-    for (const [value, label] of [['generated', 'Frase gerada'], ['session', 'Frase atual do estúdio']]) {
+    for (const [value, label] of [['generated', 'Exercício gerado'], ['session', 'Escolher a frase guardada no estúdio']]) {
       const button = createEl('button', {
         type: 'button',
         className: `practice-chip${exerciseSource === value ? ' practice-chip-selected' : ''}`,
@@ -1306,12 +1398,18 @@ export function mountPractice(container, host, options = {}) {
       });
       button.addEventListener('click', () => {
         exerciseSource = value;
+        resultPending = false;
+        lastRun = null;
+        stageIndex = 0;
+        listens = 0;
+        routineDone = false;
         rebuildExercise({ preserveBpm: true });
         rerender();
       });
       sourceControls.appendChild(button);
     }
     section.appendChild(sourceControls);
+    section.appendChild(createEl('p', { className: 'practice-hint', text: 'O exercício não altera sua sessão guardada. Para editar ou restaurar uma frase, abra “Estúdio avançado” abaixo e depois escolha a frase do estúdio aqui.' }));
 
     const generatorControls = createEl('div', { className: 'practice-inline-controls' });
     const seedInput = createEl('input', { type: 'number', min: '0', max: '4294967295', value: String(seedValue), 'aria-label': 'Semente do exercício' });
@@ -1346,10 +1444,9 @@ export function mountPractice(container, host, options = {}) {
 
 
     const playControls = createEl('div', { className: 'practice-inline-controls' });
-    const applyButton = createEl('button', { type: 'button', text: 'Usar esta frase na sessão' });
+    const applyButton = createEl('button', { type: 'button', text: 'Substituir a frase da sessão por este exercício' });
     applyButton.addEventListener('click', () => {
-      applyExerciseToSession();
-      host.notify('Frase do exercício aplicada à sessão do estúdio.');
+      if (applyExerciseToSession()) host.notify('Frase do exercício aplicada à sessão do estúdio.');
     });
     playControls.appendChild(applyButton);
     if (state.routine.stages.length > 0) section.appendChild(renderFreeControls());
@@ -1362,18 +1459,14 @@ export function mountPractice(container, host, options = {}) {
     const listenOnce = createEl('button', { type: 'button', text: 'Ouvir referência' });
     listenOnce.addEventListener('click', async () => {
       try {
-        await previewPhrase(host, exercise.notes, { bpm: exercise.bpm, loops: 2 });
+        await previewReference();
       } catch (error) {
         host.notify(error.message, true);
       }
     });
     playControls.appendChild(listenOnce);
     const train = createEl('button', { type: 'button', className: 'practice-primary', text: 'Treinar sem seguir a rotina' });
-    train.addEventListener('click', () => {
-      pendingStage = null;
-      applyExerciseToSession();
-      host.play('train').catch(error => host.notify(error.message, true));
-    });
+    train.addEventListener('click', () => startTraining());
     playControls.appendChild(train);
     const stopButton = createEl('button', { type: 'button', text: 'Cancelar', dataset: { focusKey: 'practice-cancel' } });
     stopButton.addEventListener('click', cancel);
@@ -1384,7 +1477,7 @@ export function mountPractice(container, host, options = {}) {
   function cancel() {
     pendingStage = null;
     host.stop();
-    if (improvisation) host.updateSession(improvisation.restore);
+    resultPending = false;
     improvisation = null;
     rerender();
   }
@@ -1392,6 +1485,19 @@ export function mountPractice(container, host, options = {}) {
   function renderStagesSection() {
     const section = createEl('section', { className: 'practice-section practice-routine-current', 'aria-labelledby': 'practice-stages-title' });
     section.appendChild(createEl('h3', { id: 'practice-stages-title', text: 'Agora' }));
+    if (resultPending && lastRun) {
+      section.appendChild(createEl('p', { className: 'practice-done', role: 'status', text: 'Confira seu resultado abaixo. Você pode repetir a mesma frase ou continuar a rotina.' }));
+      const repeat = createEl('button', { type: 'button', className: 'practice-primary', text: 'Repetir o ritmo', dataset: { focusKey: 'routine-action' } });
+      repeat.addEventListener('click', () => startTraining(lastTrainingStage));
+      const next = createEl('button', { type: 'button', text: routineDone ? 'Ouvir e começar de novo' : 'Continuar rotina' });
+      next.addEventListener('click', () => {
+        resultPending = false;
+        if (routineDone) { stageIndex = 0; listens = 0; routineDone = false; }
+        rerender();
+      });
+      section.append(repeat, next);
+      return section;
+    }
     if (state.routine.stages.length === 0) {
       section.appendChild(createEl('p', { text: 'Prática livre: ouça a frase e toque quando estiver pronto. Configure a rotina abaixo para seguir etapas.' }));
       section.appendChild(renderFreeControls());
@@ -1413,7 +1519,7 @@ export function mountPractice(container, host, options = {}) {
     const stopButton = createEl('button', { type: 'button', text: 'Cancelar', dataset: { focusKey: 'practice-cancel' } });
     stopButton.addEventListener('click', cancel);
     if (routineDone) {
-      section.appendChild(createEl('p', { className: 'practice-done', role: 'status', text: 'Rotina concluída! A revisão espaçada agenda os próximos objetivos; veja a aba Percurso.' }));
+      section.appendChild(createEl('p', { className: 'practice-done', role: 'status', text: 'Rotina concluída! Seu histórico e as próximas revisões estão em “Percurso e histórico”.' }));
       const restart = createEl('button', { type: 'button', className: 'practice-primary', dataset: { focusKey: 'routine-action' }, text: 'Recomeçar rotina' });
       restart.addEventListener('click', () => {
         stageIndex = 0;
@@ -1436,7 +1542,7 @@ export function mountPractice(container, host, options = {}) {
       const listenButton = createEl('button', { type: 'button', className: 'practice-primary', dataset: { focusKey: 'routine-action' }, text: `Ouvir referência (${listens}/${state.routine.listenRepetitions})` });
       listenButton.addEventListener('click', async () => {
         try {
-          const completed = await previewPhrase(host, exercise.notes, { bpm: exercise.bpm });
+          const completed = await previewReference();
           if (completed === false || activeStage()?.id !== 'listen') return;
           listens += 1;
           if (listens >= state.routine.listenRepetitions) stageComplete();
@@ -1447,21 +1553,10 @@ export function mountPractice(container, host, options = {}) {
       });
       controls.appendChild(listenButton);
     } else if (stage.id === 'imitate' || stage.id === 'memorize') {
-      const trainButton = createEl('button', { type: 'button', className: 'practice-primary', dataset: { focusKey: 'routine-action' }, text: stage.id === 'imitate' ? 'Treinar com a referência' : 'Treinar com clique parcial' });
-      trainButton.addEventListener('click', () => {
-        pendingStage = stageIndex;
-        applyExerciseToSession();
-        if (stage.id === 'memorize') {
-          host.updateSession({ metronome: { silentBars: state.routine.memorizeSilentBars, audibleBars: 1, pattern: 'quarters', enabled: true } });
-        }
-        host.play('train').catch(error => {
-          pendingStage = null;
-          host.notify(`Não foi possível iniciar o treino: ${error?.message ?? error}`, true);
-        });
-        host.notify('Treino iniciado: toque no teclado ou superfície do estúdio quando o clique contar 1.');
-      });
+      const trainButton = createEl('button', { type: 'button', className: 'practice-primary', dataset: { focusKey: 'routine-action' }, text: stage.id === 'imitate' ? 'Tocar o ritmo' : 'Tocar de memória' });
+      trainButton.addEventListener('click', () => startTraining(stage, true));
       controls.appendChild(trainButton);
-      controls.appendChild(createEl('span', { className: 'practice-hint', text: 'Toque no teclado ou na superfície. Ao terminar, veja o resultado abaixo.' }));
+      controls.appendChild(createEl('span', { className: 'practice-hint', text: 'Espere a contagem. Depois pressione e solte Espaço ou a área de toque logo abaixo.' }));
     } else if (stage.id === 'read') {
       const counts = createEl('p', { className: 'practice-counts', text: 'Conte em voz alta: 1 · e · e · a, 2 · e · e · a… (um ataque por nota na grade acima).' });
       panel.appendChild(counts);
@@ -1472,27 +1567,23 @@ export function mountPractice(container, host, options = {}) {
       const improviseStart = createEl('button', { type: 'button', className: 'practice-primary', dataset: { focusKey: 'routine-action' }, disabled: !!improvisation, text: 'Tocar acompanhamento e improvisar' });
       improviseStart.addEventListener('click', async () => {
         if (improvisation) return;
-        applyExerciseToSession();
-        const current = host.getSession();
-        const restore = { band: { role: current.band.role }, mixer: { phrase: { muted: current.mixer.phrase.muted } } };
-        host.updateSession({ band: { role: 'solo' }, mixer: { phrase: { muted: true } } });
+        const snapshot = mergeSession(host.getSession(), { band: { role: 'solo' }, mixer: { phrase: { muted: true } }, form: { enabled: false } });
         try {
-          await host.play('loop');
-          improvisation = { startAt: performance.now(), restore };
+          await host.play('loop', snapshot);
+          improvisation = { startAt: performance.now(), session: snapshot };
           rerender();
-          host.notify('Acompanhamento em loop; improvise no teclado do estúdio. Conclua quando quiser.');
+          host.notify('Acompanhamento em loop; improvise no seu instrumento. Esta etapa registra o tempo de prática, sem avaliar som ou microfone.');
         } catch (error) {
-          host.updateSession(restore);
           host.notify(`Não foi possível iniciar o acompanhamento: ${error?.message ?? error}`, true);
         }
       });
       controls.appendChild(improviseStart);
-      const finish = createEl('button', { type: 'button', className: improvisation ? 'practice-primary' : '', text: 'Concluir improvisação', disabled: !improvisation });
+      const finish = createEl('button', { type: 'button', className: improvisation ? 'practice-primary' : '', text: 'Concluir improvisação', disabled: !improvisation, dataset: { allowBusy: 'true' } });
       finish.addEventListener('click', () => {
         if (!improvisation) return;
         const durationSec = (performance.now() - improvisation.startAt) / 1000;
+        const played = improvisation.session;
         host.stop();
-        host.updateSession(improvisation.restore);
         improvisation = null;
         Object.assign(state, loadPracticeState(storage).state);
         const creative = {
@@ -1501,10 +1592,10 @@ export function mountPractice(container, host, options = {}) {
           kind: 'creative',
           objective: state.objective,
           stage: 'Improvisar',
-          bpm: exercise.bpm,
-          bars: exercise.bars,
+          bpm: played.bpm,
+          bars: played.bars,
           durationSec,
-          notes: exercise.notes,
+          notes: played.notes,
           metrics: { expected: 0, matched: 0, missed: 0, extra: 0, attackOk: 0, endOk: 0, objectiveScore: 0 },
           tempoDelta: 0,
         };
@@ -1518,7 +1609,7 @@ export function mountPractice(container, host, options = {}) {
     controls.appendChild(stopButton);
 
     const skip = createEl('button', { type: 'button', text: 'Pular etapa' });
-    skip.addEventListener('click', () => stageComplete());
+    skip.addEventListener('click', () => { host.stop(); stageComplete(); });
     controls.appendChild(skip);
     panel.appendChild(controls);
     section.appendChild(panel);
@@ -1556,11 +1647,11 @@ export function mountPractice(container, host, options = {}) {
     section.appendChild(table);
 
     const controls = createEl('div', { className: 'practice-inline-controls' });
-    const reference = createEl('button', { type: 'button', text: 'Ouvir referência' });
-    reference.addEventListener('click', () => host.play('loop').catch(error => host.notify(`Falha ao reproduzir: ${error?.message ?? error}`, true)));
+    const reference = createEl('button', { type: 'button', text: `Ouvir referência do resultado (${lastRun.bpm} BPM)` });
+    reference.addEventListener('click', () => previewReference(lastRunSession).catch(error => host.notify(`Falha ao reproduzir: ${error?.message ?? error}`, true)));
     controls.appendChild(reference);
     // O take desta execução é capturado automaticamente pelo estúdio
-    // (Repertório); aqui comparamos execuções locais sem duplicar captura.
+    // (Estudar uma música); aqui comparamos execuções sem duplicar captura.
     const previousRun = findPreviousRun();
     if (previousRun) {
       const compareButton = createEl('button', { type: 'button', text: `Comparar com execução anterior (${previousRun.bpm} bpm)` });
@@ -1574,7 +1665,7 @@ export function mountPractice(container, host, options = {}) {
 
     if (comparing) {
       const box = createEl('div', { className: 'practice-comparison', role: 'region', 'aria-label': 'Comparação com execução anterior' });
-      box.appendChild(createEl('p', { text: `Comparação — execução atual vs. execução anterior de ${formatDatePt(comparing.at)} (${comparing.bpm} bpm). O take desta execução fica no Repertório, capturado automaticamente pelo estúdio:` }));
+      box.appendChild(createEl('p', { text: `Comparação — execução atual vs. execução anterior de ${formatDatePt(comparing.at)} (${comparing.bpm} bpm). A tomada desta execução fica em “Estudar uma música”, guardada automaticamente:` }));
       const cmpTable = createEl('table', { className: 'practice-metrics' });
       cmpTable.appendChild(createEl('thead', {}, [createEl('tr', {}, [
         createEl('th', { scope: 'col', text: 'Métrica' }),
@@ -1821,7 +1912,7 @@ export function mountPractice(container, host, options = {}) {
     section.appendChild(review);
     const recent = state.history.slice(-8).reverse();
     if (recent.length === 0) {
-      section.appendChild(createEl('p', { className: 'practice-hint', text: 'Nenhuma execução registrada ainda. O histórico fica neste navegador e pode ser exportado na aba Percurso.' }));
+      section.appendChild(createEl('p', { className: 'practice-hint', text: 'Nenhuma execução registrada ainda. O histórico fica neste navegador e pode ser exportado em “Percurso e histórico”, nas opções do topo.' }));
       return section;
     }
     const list = createEl('ul', { className: 'practice-history' });
@@ -1839,17 +1930,20 @@ export function mountPractice(container, host, options = {}) {
       list.appendChild(item);
     }
     section.appendChild(list);
-    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Histórico completo, exportação, importação e exclusão individual ficam na aba Percurso.' }));
+    section.appendChild(createEl('p', { className: 'practice-hint', text: 'Histórico completo, exportação, importação e exclusão individual ficam em “Percurso e histórico”, nas opções do topo.' }));
     return section;
   }
 
   function onFinish(attempts, detail) {
     if (!Array.isArray(attempts)) return null;
     if (completedRuns.has(attempts)) return completedRuns.get(attempts);
+    lastRunSession = detail?.session ?? host.getSession();
     const result = processRun(attempts, detail);
     completedRuns.set(attempts, result);
     if (attempts.length === 0) host.notify('Nenhum toque: notas esperadas registradas como perdidas, sem sucesso automático.');
     if (pendingStage !== null && pendingStage === stageIndex) stageComplete();
+    resultPending = true;
+    rerender();
     pendingStage = null;
     return result;
   }
@@ -1864,11 +1958,10 @@ export function mountPractice(container, host, options = {}) {
 
   function destroy() {
     pendingStage = null;
-    if (improvisation) host.updateSession(improvisation.restore);
     improvisation = null;
     root.remove();
   }
 
-  const api = { render, onFinish, cancel, destroy };
+  const api = { render, onFinish, cancel, destroy, useSession, setBusy };
   return api;
 }

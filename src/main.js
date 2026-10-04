@@ -34,6 +34,8 @@ let sharedSession = null;
 let results = null;
 let reference = null;
 let lastMode = 'idle';
+let executionSession = null;
+let exercisePlayback = false;
 let repertoire;
 let practice;
 let playground;
@@ -45,6 +47,8 @@ const history = new History();
 const library = readSessionLibrary(undefined, parseSession);
 const audio = new GrooveAudio({ onState: () => renderControls(), onFinish: (attempts, detail) => {
   clearInput();
+  const focusResult = $('tab-practice').getAttribute('aria-selected') === 'true'
+    && (document.activeElement === $('train-pad') || document.activeElement === document.body);
   reference = detail.session;
   results = detail.results ?? evaluateSession(reference, attempts);
   renderFeedback();
@@ -52,9 +56,9 @@ const audio = new GrooveAudio({ onState: () => renderControls(), onFinish: (atte
   playground?.onFinish(attempts, { ...detail, session: reference, results });
   journey?.render();
   void saveTake(attempts, { ...detail, session: reference, results }).catch(error => message(`Treino concluído; não foi possível guardar a tomada: ${error.message}`, true));
-  $('train-state').textContent = 'Treino concluído. Compare ataques e términos; a tomada usa a sessão executada.';
+  $('train-state').textContent = 'Treino concluído. Veja seu resultado e repita quando quiser.';
   renderControls();
-  if ((document.activeElement === $('train-pad') || document.activeElement === document.body) && $('tab-practice').getAttribute('aria-selected') === 'true') {
+  if (focusResult) {
     const summary = $('practice-results') ?? $('feedback-detail').querySelector('summary');
     summary.focus({ preventScroll: true });
     summary.scrollIntoView({ block: 'center', behavior: 'instant' });
@@ -85,7 +89,7 @@ function liveChoice(key) {
   return ['mixer', 'metronome', 'band', 'drums', 'timbres'].includes(key) || (key === 'bpm' && audio.position.mode === 'loop');
 }
 function updateSession(patch) {
-  const live = pending === null && audio.position.mode !== 'idle' && Object.keys(patch).every(liveChoice);
+  const live = !exercisePlayback && pending === null && audio.position.mode !== 'idle' && Object.keys(patch).every(liveChoice);
   const applied = replaceSession(mergeSession(session, patch), { stopPlayback: !live });
   if (applied && live) audio.updateSession(session);
   return applied;
@@ -117,31 +121,36 @@ function stop(reason) {
   const wasDragging = drag !== null;
   cancelDrag();
   audio.stop();
+  audio.setMixer(session.mixer);
+  executionSession = null;
+  exercisePlayback = false;
   clearInput();
   if (wasDragging) renderNotes();
   renderControls();
   if (reason) message(reason);
 }
-async function begin(mode = 'loop') {
+async function begin(mode = 'loop', practiceSession = null) {
   repertoire?.stop();
   stop();
   const request = ++generation;
   if (mode === 'train') {
     activateTab($('tab-practice'));
-    $('performance-input').open = true;
+    if (!practiceSession) practice.useSession();
   }
   pending = 'play';
   renderControls();
-  const snapshot = structuredClone(session);
+  const snapshot = structuredClone(practiceSession ?? session);
+  executionSession = snapshot;
+  exercisePlayback = practiceSession !== null;
   if (mode === 'train') { results = null; reference = null; renderFeedback(); }
   try {
     await audio.playSession(snapshot, { mode });
     if (request !== generation) return;
     if (mode === 'train') {
       $('train-pad').focus({ preventScroll: true });
-      $('performance-input').scrollIntoView({ block: 'center', behavior: 'instant' });
+      $('train-pad').scrollIntoView({ block: 'center', behavior: 'instant' });
     }
-    message(mode === 'train' ? 'Treino iniciado no loop da fonte; a forma não entra na avaliação.' : session.form.enabled ? 'Forma musical em reprodução.' : 'Arranjo completo no mesmo loop.');
+    message(mode === 'train' ? 'Depois da contagem, toque com Espaço ou na área de toque. Não usamos microfone.' : snapshot.form.enabled ? 'Forma musical em reprodução.' : 'Acompanhamento em loop.');
   } catch (error) {
     if (request === generation) { audio.stop(); message(`Não foi possível iniciar: ${error.message}`, true); }
     throw error;
@@ -161,7 +170,15 @@ async function preview(notes, options = {}) {
   finally { if (request === generation) { pending = null; renderControls(); } }
 }
 async function saveTake(attempts, detail) { return repertoire.captureTake(attempts, detail); }
-const host = { getSession: () => structuredClone(session), updateSession, replaceSession, play: begin, stop, notify: message, preview, saveTake, renderSession };
+const practiceInput = $('performance-input');
+const detailedFeedback = $('feedback-detail');
+const host = {
+  getSession: () => structuredClone(session), updateSession, replaceSession, play: begin, stop, notify: message, preview, saveTake, renderSession,
+  isBusy: busy,
+  mountPracticeInput: target => {
+    target.append(practiceInput, detailedFeedback);
+  },
+};
 
 // Uma única intenção na ordem de tabulação; setas navegam entre abas.
 const tabs = [...document.querySelectorAll('[role=tab]')];
@@ -174,6 +191,9 @@ function activateTab(tab) {
   document.body.dataset.intent = tab.id.slice(4);
   const slot = tab.id === 'tab-band' ? $('band-session-slot') : $('practice-session-slot');
   if ($('session-workspace').parentElement !== slot) slot.append($('session-workspace'));
+  if (tab.id === 'tab-band') $('session-title').closest('.performance').querySelector('.eyebrow').textContent = 'ACOMPANHAMENTO DA SESSÃO';
+  else $('session-title').closest('.performance').querySelector('.eyebrow').textContent = 'SESSÃO GUARDADA · INDEPENDENTE DO EXERCÍCIO';
+  renderControls();
   if (tab.id !== 'tab-repertoire') repertoire.stop();
 }
 for (const tab of tabs) {
@@ -257,7 +277,8 @@ function renderControls() {
   $('session-title').textContent = session.name;
   $('session-badge').textContent = `${session.meter.beats}/${session.meter.unit} · ${session.bars} comp. · loop ${session.loop.startBar + 1}–${session.loop.endBar}`;
   $('play').disabled = pending !== null;
-  $('play').textContent = session.form.enabled ? (session.form.loop ? 'Ouvir forma em loop' : 'Ouvir forma') : 'Ouvir em loop';
+  $('play').textContent = session.form.enabled ? (session.form.loop ? 'Tocar forma em loop' : 'Tocar forma') : 'Tocar acompanhamento';
+  $('band-stop').disabled = !locked;
   $('train').disabled = pending !== null || (session.training.evaluation !== 'free' && !session.notes.some(note => note.start >= session.loop.startBar * barTicks(session) && note.start < session.loop.endBar * barTicks(session)));
   $('stop').disabled = !locked && !repertoire?.isBusy();
   $('train-pad').disabled = !['countin', 'train'].includes(audio.position.mode);
@@ -286,6 +307,7 @@ function renderControls() {
   $('add-section').disabled = locked || session.form.sections.length >= 32;
   for (const input of document.querySelectorAll('#form-sections input, #form-sections select, #form-sections button')) input.disabled = locked || input.dataset.boundary === 'true';
   renderMixer();
+  practice?.setBusy(locked);
 }
 function format(number) { return String(Math.round(number * 1000) / 1000); }
 
@@ -486,8 +508,9 @@ function travelHistory(direction) {
 }
 $('undo').addEventListener('click', () => travelHistory('undo')); $('redo').addEventListener('click', () => travelHistory('redo'));
 $('play').addEventListener('click', () => void begin().catch(() => {}));
-$('train').addEventListener('click', () => void begin('train').catch(() => {}));
+$('train').addEventListener('click', () => practice.useSession({ train: true }));
 $('stop').addEventListener('click', () => { practice.cancel(); repertoire.stop(); message('Som interrompido.'); });
+$('band-stop').addEventListener('click', () => { practice.cancel(); message('Acompanhamento parado.'); });
 
 // Entradas de treino usam o relógio do evento, nunca um segundo transporte.
 function clearInput() {
@@ -755,6 +778,7 @@ function renderFeedback() {
 }
 function frame() {
   const position = audio.position;
+  const playing = executionSession ?? session;
   const formPosition = position.sectionId && position.mode === 'loop'
     ? `${position.sectionName} · repetição ${position.sectionRepeat} · fonte ${position.bar} · ${position.bpm} BPM · ${position.meter.beats}/${position.meter.unit}`
     : position.mode === 'train' || position.mode === 'countin' ? 'Treino no loop da fonte (forma não executada).'
@@ -771,14 +795,14 @@ function frame() {
   // processing and media playback while the cached busy state stays true.
   const stopDisabled = !busy() && !repertoireBusy;
   if ($('stop').disabled !== stopDisabled) $('stop').disabled = stopDisabled;
-  $('playhead').hidden = position.mode === 'idle' || position.mode === 'countin';
+  $('playhead').hidden = exercisePlayback || position.mode === 'idle' || position.mode === 'countin';
   $('playhead').style.left = `${Math.max(0, Math.min(totalTicks(session), position.tick ?? 0)) / totalTicks(session) * 100}%`;
-  if ($('studio-editor').open && ['loop', 'train'].includes(position.mode)) {
+  if (!exercisePlayback && $('studio-editor').open && ['loop', 'train'].includes(position.mode)) {
     const scroll = document.querySelector('.grid-scroll');
-    const x = (position.tick ?? 0) / totalTicks(session) * $('grid').clientWidth;
+    const x = (position.tick ?? 0) / totalTicks(playing) * $('grid').clientWidth;
     if (x < scroll.scrollLeft + 16 || x > scroll.scrollLeft + scroll.clientWidth - 32) scroll.scrollLeft = Math.max(0, x - scroll.clientWidth / 3);
   }
-  const marker = position.mode === 'idle' || position.mode === 'countin' ? -1 : chordMarkers.findIndex(item => position.tick >= item.start && position.tick < item.start + item.duration);
+  const marker = exercisePlayback || position.mode === 'idle' || position.mode === 'countin' ? -1 : chordMarkers.findIndex(item => position.tick >= item.start && position.tick < item.start + item.duration);
   const chordIndex = marker < 0 || !session.progression.enabled ? -1 : marker % session.progression.chords.length;
   if (chordIndex !== activeChordIndex) {
     activeChordIndex = chordIndex;
@@ -789,9 +813,9 @@ function frame() {
   }
   $('train-pad').classList.toggle('active', ['countin', 'train'].includes(position.mode)); $('train-pad').classList.toggle('held', !!position.held);
   $('held-state').textContent = position.held ? 'PRESSIONADA · nota em curso' : 'ESPAÇO ou toque · pressionar / soltar';
-  $('position-text').textContent = position.mode === 'idle' ? pending ? 'Preparando…' : 'Pronto' : `${position.mode === 'countin' ? 'Entrada' : position.mode === 'train' ? 'Treino' : 'Loop'} · compasso ${position.bar ?? Math.floor((position.tick ?? 0) / barTicks(session)) + 1} · tempo ${position.beat ?? 1}${position.mode === 'train' ? ` · ${position.repetition}/${session.training.repetitions}` : ''}`;
-  if (position.mode === 'countin') $('train-state').textContent = 'Contagem de entrada. Prepare-se para tocar.';
-  if (position.mode === 'train') $('train-state').textContent = `Repetição ${position.repetition}/${session.training.repetitions} · pressione e solte nos limites das notas.`;
+  $('position-text').textContent = position.mode === 'idle' ? pending ? 'Preparando…' : 'Pronto' : `${position.mode === 'countin' ? 'Entrada' : position.mode === 'train' ? 'Treino' : 'Loop'} · compasso ${position.bar ?? Math.floor((position.tick ?? 0) / barTicks(playing)) + 1} · tempo ${position.beat ?? 1}${position.mode === 'train' ? ` · ${position.repetition}/${playing.training.repetitions}` : ''}`;
+  if (position.mode === 'countin') $('train-state').textContent = 'Espere a contagem de entrada. Depois, toque o ritmo.';
+  if (position.mode === 'train') $('train-state').textContent = `Repetição ${position.repetition}/${playing.training.repetitions} · pressione no início de cada nota e solte no final.`;
   requestAnimationFrame(frame);
 }
 $('session-workspace').insertBefore($('training-options'), $('studio-editor'));
@@ -807,11 +831,8 @@ $('recovery').hidden = recoveryRaw === null; persist();
 if (restored.warnings?.length) message(restored.warnings.join(' '), true);
 if (library.warning) $('library-status').textContent = library.warning;
 previewShare(); requestAnimationFrame(frame);
-const tour = mountTour($('tour-open'), {
+mountTour($('tour-open'), {
   activateTab: id => activateTab($(id)),
   isBusy: () => busy() || repertoire.isBusy(),
   notify: message,
-  // Avisos de recuperação, link recebido ou erro de carregamento têm prioridade.
-  canAutoOpen: () => $('recovery').hidden && $('share-preview').hidden && $('library-recovery').hidden && !$('message').classList.contains('error'),
 });
-tour.autoStart();

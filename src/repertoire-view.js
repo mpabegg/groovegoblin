@@ -361,10 +361,11 @@ export function mountRepertoire(container, host) {
         h('span', { class: 'lg-beats', text: 'pulsos' }), h('span', { class: 'lg-onsets', text: 'ataques' }),
         h('span', { class: 'lg-comment', text: 'comentários' }), h('span', { class: 'lg-chords', text: 'acordes e notas estimados' }))));
   const emptyWorkspace = h('div', { class: 'rep-empty' },
-    h('h3', { text: 'Escolha uma música para praticar' }),
-    h('p', { class: 'rep-hint', text: 'Importe um áudio ou abra um pacote. Depois, ouça e escolha um trecho para repetir.' }),
+    h('h3', { text: 'Escolha uma música para estudar' }),
+    h('p', { class: 'rep-hint', text: 'Importe um áudio ou MIDI, ou abra um pacote. Depois, ouça e escolha um trecho para repetir.' }),
     h('div', { class: 'rep-row' },
       h('button', { type: 'button', class: 'primary', onclick: () => audioInput.click(), text: 'Importar áudio…' }),
+      h('button', { type: 'button', onclick: () => midiInput.click(), text: 'Importar MIDI…' }),
       h('button', { type: 'button', onclick: () => packageInput.click(), text: 'Abrir pacote…' })),
     h('p', { class: 'rep-hint', text: 'Sem áudio? Takes, setlists, MIDI e pacotes continuam disponíveis nas ferramentas abaixo.' }),
     disclosure('empty-import-help', 'Formatos e limites',
@@ -376,7 +377,7 @@ export function mountRepertoire(container, host) {
   storageDisclosure.classList.add('rep-storage-box');
   const root = h('section', { class: 'rep', 'aria-labelledby': uid('title') },
     h('div', { class: 'rep-header' },
-      h('div', {}, h('p', { class: 'eyebrow', text: 'REPERTÓRIO LOCAL' }), h('h2', { id: uid('title'), text: 'Pratique com uma música' })),
+      h('div', {}, h('p', { class: 'eyebrow', text: 'SEUS ARQUIVOS · PROCESSAMENTO LOCAL' }), h('h2', { id: uid('title'), text: 'Estudar uma música' })),
       storageDisclosure),
     statusLine, jobBox,
     h('div', { class: 'rep-layout' }, library, lab));
@@ -1761,8 +1762,8 @@ export function mountRepertoire(container, host) {
       await saveItem(item);
     }
     const message = item.renderError
-      ? `Tentativa guardada no Repertório sem áudio (${item.renderError}); use “Renderizar de novo”.`
-      : `Tentativa guardada no Repertório como take (${clean.length} ataque(s)).`;
+      ? `Tomada guardada em “Estudar uma música” sem áudio (${item.renderError}); use “Renderizar de novo”.`
+      : `Tomada guardada em “Estudar uma música” (${clean.length} ataque(s)).`;
     setStatus(message, Boolean(item.renderError));
     host.notify(message, Boolean(item.renderError));
     if (state.tab === 'takes') renderTabs();

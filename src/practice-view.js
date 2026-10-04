@@ -194,7 +194,7 @@ export function mountJourney(container, host, options = {}) {
     section.appendChild(createEl('h3', { id: 'journey-tempo-title', text: 'Percurso de tempo' }));
     const runs = state.history.filter(entry => entry.kind === 'attempt');
     if (runs.length === 0) {
-      section.appendChild(createEl('p', { className: 'practice-hint', text: 'Conclua treinos na aba Praticar para ver o bpm evoluir (adaptação com critérios claros, lá exibidos).' }));
+      section.appendChild(createEl('p', { className: 'practice-hint', text: 'Conclua exercícios em “Treinar ritmo” para acompanhar sua evolução de BPM. A adaptação de velocidade pode ser ajustada em “Configurar rotina”.' }));
       return section;
     }
     section.appendChild(bpmJourneyChart(runs.map(entry => entry.bpm)));
@@ -207,7 +207,7 @@ export function mountJourney(container, host, options = {}) {
     section.appendChild(createEl('h3', { id: 'journey-ear-title', text: 'Ouvido' }));
     const earRuns = state.history.filter(entry => entry.kind === 'ear');
     if (earRuns.length === 0) {
-      section.appendChild(createEl('p', { className: 'practice-hint', text: 'Responda aos jogos de ouvido na aba Praticar para acumular este resumo (sem nota única, só contagem honesta).' }));
+      section.appendChild(createEl('p', { className: 'practice-hint', text: 'Abra “Jogos de ouvido” em “Treinar ritmo” para acumular este resumo: contagem de respostas, sem nota única.' }));
       return section;
     }
     const list = createEl('ul', { className: 'journey-summary' });
