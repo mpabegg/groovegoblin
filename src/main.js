@@ -137,7 +137,10 @@ async function preview(notes, options = {}) {
   stop();
   const request = ++generation;
   pending = 'preview'; renderControls();
-  try { await audio.preview(notes, options); }
+  try {
+    const completed = await audio.preview(notes, options);
+    return request === generation ? completed : false;
+  }
   finally { if (request === generation) { pending = null; renderControls(); } }
 }
 async function saveTake(attempts, detail) { return repertoire.captureTake(attempts, detail); }
