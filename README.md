@@ -10,7 +10,9 @@ GrooveGoblin é um estúdio musical local para praticar, tocar com uma banda sin
 - **Repertório**: importe arquivos de áudio e trabalhe trechos, marcadores, análises estimadas, takes, exercícios, setlists e intercâmbio por arquivos.
 - **Percurso**: histórico local, progresso por objetivo e agenda de revisões espaçadas.
 
-As sessões têm compasso e duração configuráveis. A frase usa coordenadas em ticks (4 ticks por semínima), admite subdivisões/quiálteras, swing e atributos expressivos; a pauta rítmica representa durações e pausas, não altura. O histórico de desfazer/refazer cobre a sessão completa. As cinco abas são operadas por teclado ou toque; o estúdio **não** captura microfone, não recebe MIDI ao vivo e não mede velocidade/força física do toque.
+As sessões têm 1–16 compassos, de 1–16 tempos com unidade 2, 4, 8 ou 16, e andamento de 30–300 BPM em semínimas. A frase usa coordenadas em ticks (4 ticks por semínima), admite 1–8 divisões por semínima, swing e atributos expressivos; a pauta rítmica representa durações e pausas, não altura. O histórico de desfazer/refazer cobre a sessão completa. As cinco abas são operadas por teclado ou toque; o estúdio **não** captura microfone, não recebe MIDI ao vivo e não mede velocidade/força física do toque.
+
+Em **Banda**, a forma musical ordena até 32 seções com trechos da frase, repetições e alterações de BPM, compasso e densidade. Introdução, A/B, virada, pausa e final têm comportamentos audíveis; a forma pode repetir ou terminar. Reprodução e renderização de arranjo compartilham o mesmo plano musical. Treino e tomadas de execução usam o loop-fonte no andamento principal, não a forma variável.
 
 Consulte [guide.html](./guide.html) para os controles, formatos aceitos, funcionamento offline e limitações de análise.
 

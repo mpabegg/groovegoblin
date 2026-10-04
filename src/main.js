@@ -240,6 +240,7 @@ function renderControls() {
   $('session-title').textContent = session.name;
   $('session-badge').textContent = `${session.meter.beats}/${session.meter.unit} · ${session.bars} comp. · loop ${session.loop.startBar + 1}–${session.loop.endBar}`;
   $('play').disabled = pending !== null;
+  $('play').textContent = session.form.enabled ? (session.form.loop ? 'Ouvir forma em loop' : 'Ouvir forma') : 'Ouvir em loop';
   $('train').disabled = pending !== null || (session.training.evaluation !== 'free' && !session.notes.some(note => note.start >= session.loop.startBar * barTicks(session) && note.start < session.loop.endBar * barTicks(session)));
   $('stop').disabled = !locked && !repertoire?.isBusy();
   $('train-pad').disabled = !['countin', 'train'].includes(audio.position.mode);

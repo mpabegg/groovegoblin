@@ -510,6 +510,7 @@ export function mountRepertoire(container, host) {
     const next = normalizeItem({ ...item, ...patch });
     saveItem(next);
     refreshLab();
+    if (Object.hasOwn(patch, 'region') || Object.hasOwn(patch, 'processing')) refreshDerivedTabs();
     draw();
     return next;
   }
@@ -1215,6 +1216,23 @@ export function mountRepertoire(container, host) {
     tabButtons[next].focus();
   }
 
+  // A–B e processamento mudam contagens, disponibilidade e ações capturadas
+  // pelos painéis. Recria apenas as ferramentas dependentes, guardando rascunhos
+  // explícitos (não valores derivados, como a grade de andamento).
+  function refreshDerivedTabs() {
+    if (!['analysis', 'exercises', 'setlists', 'share'].includes(state.tab)) return;
+    const drafts = new Map([...tabPanel.querySelectorAll('[data-draft]')].map(control => [
+      control.dataset.draft, { value: control.value, checked: control.checked },
+    ]));
+    renderTabs();
+    for (const control of tabPanel.querySelectorAll('[data-draft]')) {
+      const draft = drafts.get(control.dataset.draft);
+      if (!draft) continue;
+      control.value = draft.value;
+      if (control.type === 'checkbox') control.checked = draft.checked;
+    }
+  }
+
   function renderTabs() {
     tabButtons.forEach((button, index) => {
       const active = TABS[index][0] === state.tab;
@@ -1824,12 +1842,12 @@ export function mountRepertoire(container, host) {
 
   function exercisesTab() {
     const item = current();
-    const nameInput = h('input', { type: 'text', maxLength: 120, placeholder: 'Ex.: Riff do refrão' });
-    const objectiveInput = h('textarea', { rows: 2, maxLength: 2000, placeholder: 'Objetivo: o que observar ao praticar' });
-    const fromInput = h('input', { type: 'number', min: 25, max: 150, step: 5, value: 70 });
-    const toInput = h('input', { type: 'number', min: 25, max: 150, step: 5, value: 100 });
-    const stepInput = h('input', { type: 'number', min: 1, max: 50, step: 1, value: 5 });
-    const loopsInput = h('input', { type: 'number', min: 1, max: 32, step: 1, value: 2 });
+    const nameInput = h('input', { type: 'text', 'data-draft': 'exercise-name', maxLength: 120, placeholder: 'Ex.: Riff do refrão' });
+    const objectiveInput = h('textarea', { rows: 2, 'data-draft': 'exercise-objective', maxLength: 2000, placeholder: 'Objetivo: o que observar ao praticar' });
+    const fromInput = h('input', { type: 'number', 'data-draft': 'exercise-from', min: 25, max: 150, step: 5, value: 70 });
+    const toInput = h('input', { type: 'number', 'data-draft': 'exercise-to', min: 25, max: 150, step: 5, value: 100 });
+    const stepInput = h('input', { type: 'number', 'data-draft': 'exercise-step', min: 1, max: 50, step: 1, value: 5 });
+    const loopsInput = h('input', { type: 'number', 'data-draft': 'exercise-loops', min: 1, max: 32, step: 1, value: 2 });
     const create = () => {
       try {
         const analysis = analyses.get(item.id);
@@ -1937,9 +1955,9 @@ export function mountRepertoire(container, host) {
   }
 
   function setlistsTab() {
-    const nameInput = h('input', { type: 'text', maxLength: 120, placeholder: 'Ex.: Ensaio de sábado' });
+    const nameInput = h('input', { type: 'text', 'data-draft': 'setlist-name', maxLength: 120, placeholder: 'Ex.: Ensaio de sábado' });
     const setlist = state.setlists.find(entry => entry.id === state.setlistId) ?? null;
-    const exerciseSelect = h('select', { 'aria-label': 'Exercício para adicionar' }, state.exercises.map(exercise => h('option', { value: exercise.id }, exercise.name)));
+    const exerciseSelect = h('select', { 'aria-label': 'Exercício para adicionar', 'data-draft': 'setlist-exercise' }, state.exercises.map(exercise => h('option', { value: exercise.id }, exercise.name)));
     const update = next => saveSetlist(next).then(renderTabs);
     const describe = entry => {
       if (entry.kind === 'exercise') {
@@ -2139,13 +2157,13 @@ export function mountRepertoire(container, host) {
           h('button', { type: 'button', class: 'primary', onclick: applyMidi, text: 'Substituir frase da sessão por esta trilha' }),
           h('button', { type: 'button', onclick: () => { state.midi = null; renderTabs(); }, text: 'Descartar' }))) : null));
 
-    const titleInput = h('input', { type: 'text', maxLength: 200, value: item ? `Tarefa: ${item.name}` : 'Tarefa de prática' });
-    const objectiveInput = h('textarea', { rows: 3, maxLength: 5000, placeholder: 'Objetivo para quem recebe: o que praticar, critério de sucesso…' });
-    const includeSession = h('input', { type: 'checkbox', checked: true });
-    const includeReference = h('input', { type: 'checkbox', checked: Boolean(item), disabled: !item });
+    const titleInput = h('input', { type: 'text', 'data-draft': 'package-title', maxLength: 200, value: item ? `Tarefa: ${item.name}` : 'Tarefa de prática' });
+    const objectiveInput = h('textarea', { rows: 3, 'data-draft': 'package-objective', maxLength: 5000, placeholder: 'Objetivo para quem recebe: o que praticar, critério de sucesso…' });
+    const includeSession = h('input', { type: 'checkbox', 'data-draft': 'package-session', checked: true });
+    const includeReference = h('input', { type: 'checkbox', 'data-draft': 'package-reference', checked: Boolean(item), disabled: !item });
     const audioTooBig = !item?.media || item.media.size > MAX_EMBEDDED_AUDIO_BYTES;
-    const includeAudio = h('input', { type: 'checkbox', disabled: audioTooBig });
-    const includeExercises = h('input', { type: 'checkbox', checked: Boolean(item), disabled: !item });
+    const includeAudio = h('input', { type: 'checkbox', 'data-draft': 'package-audio', disabled: audioTooBig });
+    const includeExercises = h('input', { type: 'checkbox', 'data-draft': 'package-exercises', checked: Boolean(item), disabled: !item });
     const options = () => ({ title: titleInput.value, objective: objectiveInput.value, includeSession: includeSession.checked, includeReference: includeReference.checked,
       includeAudio: includeAudio.checked && includeReference.checked, includeExercises: includeExercises.checked && includeReference.checked });
     const canShareFiles = typeof globalThis.navigator?.canShare === 'function' && typeof globalThis.navigator?.share === 'function';
