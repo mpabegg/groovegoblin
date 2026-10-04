@@ -1,8 +1,12 @@
-import { BAR_OPTIONS, DEFAULT_BARS, validPhrase } from './model.js';
+// Leitores do formato legado groovegoblin-phrase v1 (arquivo e link #phrase=).
+// Exportação e compartilhamento atuais usam a sessão v2 (session.js), que
+// chama estes leitores para migrar arquivos e links antigos com rigor.
+import { validPhrase } from './model.js';
 
 export const PORTABLE_FORMAT = 'groovegoblin-phrase';
 export const PORTABLE_VERSION = 1;
 
+const LEGACY_BAR_OPTIONS = [1, 2, 4];
 const DOCUMENT_KEYS = ['format', 'version', 'bpm', 'bars', 'notes'];
 const NOTE_KEYS = ['id', 'start', 'duration'];
 const SHARE_PREFIX = '#phrase=';
@@ -20,31 +24,12 @@ function isValidBpm(bpm) {
   return Number.isInteger(bpm) && bpm >= 40 && bpm <= 240;
 }
 
+// v1 tinha somente ticks inteiros de semicolcheia em 4/4.
 function hasValidNotes(notes, bars) {
   return validPhrase(notes, bars) && notes.every((note) => (
     hasOnlyKeys(note, NOTE_KEYS) && NOTE_KEYS.every((key) => Object.hasOwn(note, key))
+    && Number.isInteger(note.start) && Number.isInteger(note.duration) && note.duration >= 1
   ));
-}
-
-function portableDocument(state) {
-  if (!isObject(state) || !isValidBpm(state.bpm) || !BAR_OPTIONS.includes(state.bars)
-      || !hasValidNotes(state.notes, state.bars)) {
-    throw new TypeError('A frase deve conter notas válidas, BPM inteiro entre 40 e 240 e 1, 2 ou 4 compassos.');
-  }
-
-  return {
-    format: PORTABLE_FORMAT,
-    version: PORTABLE_VERSION,
-    bpm: state.bpm,
-    bars: state.bars,
-    notes: state.notes.map(({ id, start, duration }) => ({ id, start, duration })),
-  };
-}
-
-// Exporta somente o estado portátil, sem mutar nem reordenar as notas/IDs.
-// As notas também são estritas na exportação, evitando perda silenciosa de dados.
-export function serializePhrase(state) {
-  return JSON.stringify(portableDocument(state), null, 2);
 }
 
 // Importação atômica: só entrega estado após validar o documento inteiro.
@@ -76,8 +61,8 @@ export function parsePhrase(text) {
     return { ok: false, error: 'O BPM deve ser um número inteiro entre 40 e 240.' };
   }
 
-  const bars = Object.hasOwn(document, 'bars') ? document.bars : DEFAULT_BARS;
-  if (!BAR_OPTIONS.includes(bars)) {
+  const bars = Object.hasOwn(document, 'bars') ? document.bars : 1;
+  if (!LEGACY_BAR_OPTIONS.includes(bars)) {
     return { ok: false, error: 'A frase deve ter 1, 2 ou 4 compassos.' };
   }
   if (!hasValidNotes(document.notes, bars)) {
@@ -85,17 +70,6 @@ export function parsePhrase(text) {
   }
 
   return { ok: true, notes: document.notes, bpm: document.bpm, bars };
-}
-
-// O formato/versionamento é o mesmo do arquivo; somente o fragmento muda.
-export function serializeShare(state, baseUrl) {
-  const encoded = encodeURIComponent(JSON.stringify(portableDocument(state)));
-  if (encoded.length > SHARE_MAX_LENGTH) {
-    throw new RangeError('A frase excede o limite de 32768 caracteres do link compartilhado.');
-  }
-  const url = new URL(baseUrl);
-  url.hash = `${SHARE_PREFIX}${encoded}`;
-  return url.href;
 }
 
 // Apenas valida: aplicar a frase e persistir o estado são decisões do consumidor.

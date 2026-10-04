@@ -1,18 +1,25 @@
 import { REPETITIONS } from './feedback.js';
 
-// Projeção pura da avaliação: uma janela por frase repetida, não por compasso.
-// Os metadados de matched pertencem a cada bloco (uma repetição pode conter
-// várias notas); expected e actual recebem cópias independentes desses dados.
-// Não recalculamos classificação nem deltas: ataque e término continuam
-// independentes, inclusive quando a geometria real precisa ser recortada.
-// clamped:true significa que a tentativa ultrapassou o FIM da janela. O fim
-// visual é limitado a windowSeconds; uma extra inteiramente após a janela
-// fica com start=end=windowSeconds. Onsets antecipados podem ser negativos:
-// preservamos esses tempos relativos e recortamos só a geometria no render.
-export function buildTimelineData(results, { bpm, bars }) {
-  const barSeconds = 240 / bpm;
-  const windowSeconds = bars * barSeconds;
-  const repetitions = Array.from({ length: REPETITIONS }, (_, index) => ({
+// Projeção pura da avaliação: uma janela por repetição do trecho do loop,
+// não por compasso. Os metadados de matched pertencem a cada bloco (uma
+// repetição pode conter várias notas); expected e actual recebem cópias
+// independentes desses dados. Não recalculamos classificação nem deltas:
+// ataque e término continuam independentes, inclusive quando a geometria
+// real precisa ser recortada. clamped:true significa que a tentativa
+// ultrapassou o FIM da janela. O fim visual é limitado a windowSeconds; uma
+// extra inteiramente após a janela fica com start=end=windowSeconds. Onsets
+// antecipados podem ser negativos: preservamos esses tempos relativos e
+// recortamos só a geometria no render. No modo livre, cada toque vira um
+// bloco "free" com o desvio para a subdivisão mais próxima.
+// options: {session} (preferido) ou {bpm, bars} para resultados históricos.
+export function buildTimelineData(results, options = {}) {
+  const { session } = options;
+  const bpm = results.bpm ?? session?.bpm ?? options.bpm;
+  const bars = results.loopBars ?? (session ? session.loop.endBar - session.loop.startBar : options.bars);
+  const barSeconds = results.barSeconds ?? 240 / bpm;
+  const windowSeconds = results.repetitionSeconds ?? bars * barSeconds;
+  const count = results.repetitions ?? REPETITIONS;
+  const repetitions = Array.from({ length: count }, (_, index) => ({
     repetition: index + 1,
     windowSeconds,
     expected: [],
@@ -21,6 +28,7 @@ export function buildTimelineData(results, { bpm, bars }) {
 
   for (const row of results.rows) {
     const repetition = repetitions[row.repetition - 1];
+    if (!repetition) continue;
     const offset = (row.repetition - 1) * windowSeconds;
     if (row.kind === 'matched' || row.kind === 'missed') {
       const expected = {
@@ -32,7 +40,7 @@ export function buildTimelineData(results, { bpm, bars }) {
       if (row.kind === 'matched') copyTiming(row, expected);
       repetition.expected.push(expected);
     }
-    if (row.kind === 'matched' || row.kind === 'extra') {
+    if (row.kind === 'matched' || row.kind === 'extra' || row.kind === 'free') {
       const relativeStart = row.actualStart - offset;
       const relativeEnd = row.actualEnd - offset;
       const actual = {
@@ -47,6 +55,11 @@ export function buildTimelineData(results, { bpm, bars }) {
         actual.noteId = row.noteId;
         copyTiming(row, actual);
       }
+      if (row.kind === 'free') {
+        actual.free = true;
+        actual.onsetMs = row.deviationMs;
+        actual.onset = row.onset;
+      }
       repetition.actual.push(actual);
     }
   }
@@ -57,6 +70,8 @@ export function buildTimelineData(results, { bpm, bars }) {
     matchWindowMs: results.matchWindowMs,
     barSeconds,
     bars,
+    startBar: results.startBar ?? session?.loop.startBar ?? 0,
+    mode: results.mode ?? 'strict',
   };
 }
 
@@ -82,7 +97,7 @@ export function renderTimeline(container, data) {
   const fragment = document.createDocumentFragment();
 
   for (const repetition of data.repetitions) {
-    const label = `Repetição ${repetition.repetition}/${REPETITIONS}`;
+    const label = `Repetição ${repetition.repetition}/${data.repetitions.length}`;
     const section = element(document, 'section', 'timeline-repetition');
     section.setAttribute('aria-label', label);
     section.append(element(document, 'h3', 'timeline-title', label));
@@ -92,7 +107,7 @@ export function renderTimeline(container, data) {
     ruler.style.position = 'relative';
     ruler.style.minHeight = '1.5rem';
     for (let bar = 0; bar < data.bars; bar += 1) {
-      const mark = element(document, 'span', 'timeline-bar', `Compasso ${bar + 1}`);
+      const mark = element(document, 'span', 'timeline-bar', `Compasso ${(data.startBar ?? 0) + bar + 1}`);
       mark.style.position = 'absolute';
       mark.style.left = `${(bar / data.bars) * 100}%`;
       ruler.append(mark);
@@ -104,7 +119,7 @@ export function renderTimeline(container, data) {
     stage.style.minHeight = '7rem';
     const reference = element(document, 'div', 'timeline-reference');
     const actual = element(document, 'div', 'timeline-actual');
-    reference.setAttribute('aria-label', 'Notas esperadas (referência)');
+    reference.setAttribute('aria-label', data.mode === 'free' ? 'Modo livre: sem frase de referência' : 'Notas esperadas (referência)');
     actual.setAttribute('aria-label', 'Notas tocadas');
     for (const layer of [reference, actual]) {
       layer.style.position = 'absolute';
@@ -148,7 +163,8 @@ function interval(document, block, windowSeconds, actual) {
   if (block.missed) node.classList.add('missing');
   if (block.extra) node.classList.add('extra');
   if (block.clamped) node.classList.add('clamped');
-  const kind = actual ? (block.extra ? 'Nota extra' : 'Nota tocada') : 'Nota esperada';
+  if (block.free) node.classList.add('free');
+  const kind = actual ? (block.extra ? 'Nota extra' : block.free ? 'Toque livre' : 'Nota tocada') : 'Nota esperada';
   const note = block.noteId === undefined ? '' : ` ${block.noteId}`;
   const missing = block.missed ? ', não tocada' : '';
   const clamped = block.clamped ? ', recortada no fim da repetição' : '';
@@ -159,10 +175,11 @@ function interval(document, block, windowSeconds, actual) {
 }
 
 function addMarkers(document, node, block, unmatched) {
-  for (const isEnd of [false, true]) {
+  for (const isEnd of block.free ? [false] : [false, true]) {
     const name = isEnd ? 'TÉRMINO' : 'ATAQUE';
     const classification = unmatched ?? (isEnd ? block.ending : block.onset);
     const delta = isEnd ? block.endMs : block.onsetMs;
+    const free = block.free ? ' da subdivisão mais próxima' : '';
     const text = unmatched === 'missing' ? 'ausente'
       : unmatched === 'extra' ? 'extra'
         : formatDelta(delta);
@@ -175,7 +192,7 @@ function addMarkers(document, node, block, unmatched) {
         : classification === 'late' ? 'atrasado' : text;
     const note = block.noteId === undefined ? '' : ` da nota ${block.noteId}`;
     const clamped = isEnd && block.clamped ? ', posição recortada no fim da repetição' : '';
-    marker.setAttribute('aria-label', `${name}${note}: ${text}, ${status}${clamped}`);
+    marker.setAttribute('aria-label', `${name}${note}: ${text}${free}, ${status}${clamped}`);
     marker.append(element(document, 'span', 'timeline-marker-label', `${name} ${text}`));
     node.append(marker);
   }

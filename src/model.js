@@ -1,51 +1,51 @@
-// Modelo de frase ritmica quantizada (4/4, TICKS_PER_BAR semicolcheias por compasso).
-// Frases tem 1, 2 ou 4 compassos (BAR_OPTIONS): total de ticks = bars * TICKS_PER_BAR.
-// Notas: {id: string, start: integer, duration: integer}, intervalo semiaberto
-// [start, start+duration). Adjacencia (fim de uma == inicio da outra) e permitida
-// pois intervalos semiabertos nao se tocam logicamente. Sobreposicao e proibida.
+// Modelo de frase monofônica em qualquer fórmula de compasso.
+// Coordenada: 4 ticks = semínima (ticksPerBar = beats * 16 / unit); ticks
+// podem ser fracionários para quiálteras. Notas:
+// {id, start, duration, pitch (MIDI), velocity (0..1), articulation, offsetMs}
+// em intervalo semiaberto [start, start+duration). Adjacência é permitida;
+// sobreposição é proibida (a execução por teclado/toque é monofônica).
+// offsetMs é microtempo expressivo (antecipa/atrasa a nota sem mudar a grade).
+// O "span" das funções é uma sessão (ou {bars, meter}); um número de
+// compassos é aceito como atalho legado em 4/4.
 // Todas as operacoes de edicao sao imutaveis: em caso de rejeicao retornam o
 // MESMO array recebido (mesma referencia); em caso de sucesso retornam um novo
 // array (e, quando aplicavel, um novo objeto de nota), nunca mutando a entrada.
 
-export const TICKS_PER_BAR = 16;
-export const BAR_OPTIONS = [1, 2, 4];
+import { EPSILON, ticksPerBar, roundTick } from './meter.js';
+
+export const TICKS_PER_BAR = 16; // 4/4, usado apenas pelo atalho legado numérico
+export const MIN_BARS = 1;
+export const MAX_BARS = 16;
 export const DEFAULT_BARS = 1;
+export const MIN_DURATION = 0.05;
+export const OFFSET_LIMIT_MS = 80;
+export const ARTICULATIONS = Object.freeze(['normal', 'accent', 'ghost', 'staccato', 'tenuto', 'legato']);
+export const NOTE_DEFAULTS = Object.freeze({ pitch: 69, velocity: 0.8, articulation: 'normal', offsetMs: 0 });
+export const NOTE_KEYS = Object.freeze(['id', 'start', 'duration', 'pitch', 'velocity', 'articulation', 'offsetMs']);
 
-const STORAGE_KEY = 'groovegoblin.v1';
-const BPM_MIN = 40;
-const BPM_MAX = 240;
-const DEFAULT_BPM = 100;
-const PREFERENCES_KEY = 'groovegoblin.preferences.v1';
-const MIXER_KEY = 'groovegoblin.mixer.v1';
-export const MIXER_CHANNELS = ['phrase', 'metronome', 'drums', 'chords'];
-const DEFAULT_PREFERENCES = {
-  metronome: true,
-  density: 'medium',
-  syncopation: 'mixed',
-  lengths: 'mixed',
-  seed: null,
-};
-const DENSITY_OPTIONS = ['sparse', 'medium', 'busy'];
-const SYNCOPATION_OPTIONS = ['straight', 'mixed', 'syncopated'];
-const LENGTH_OPTIONS = ['short', 'mixed', 'long'];
-const PREFERENCE_VALIDATORS = {
-  metronome: (value) => typeof value === 'boolean',
-  density: (value) => DENSITY_OPTIONS.includes(value),
-  syncopation: (value) => SYNCOPATION_OPTIONS.includes(value),
-  lengths: (value) => LENGTH_OPTIONS.includes(value),
-  seed: (value) => isInt(value) && value >= 0 && value <= 0xffffffff,
+const FIELD_VALIDATORS = {
+  pitch: value => Number.isInteger(value) && value >= 0 && value <= 127,
+  velocity: value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1,
+  articulation: value => ARTICULATIONS.includes(value),
+  offsetMs: value => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= OFFSET_LIMIT_MS,
 };
 
-function isInt(value) {
-  return typeof value === 'number' && Number.isInteger(value);
+function isFiniteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value);
 }
 
-function isValidBars(bars) {
-  return BAR_OPTIONS.includes(bars);
+export function isValidBars(bars) {
+  return Number.isInteger(bars) && bars >= MIN_BARS && bars <= MAX_BARS;
 }
 
-function totalTicks(bars) {
-  return TICKS_PER_BAR * bars;
+// Total de ticks do span, ou NaN quando o span é inválido.
+export function spanTicks(span) {
+  if (typeof span === 'number') return isValidBars(span) ? span * TICKS_PER_BAR : NaN;
+  if (span === null || typeof span !== 'object' || !isValidBars(span.bars)) return NaN;
+  const meter = span.meter ?? { beats: 4, unit: 4 };
+  if (!meter || !Number.isInteger(meter.beats) || !Number.isInteger(meter.unit)) return NaN;
+  const ticks = span.bars * ticksPerBar(meter);
+  return Number.isFinite(ticks) && ticks > 0 ? ticks : NaN;
 }
 
 function noteEnd(note) {
@@ -54,278 +54,107 @@ function noteEnd(note) {
 
 function overlaps(a, b) {
   // Semiabertos: tocar nas bordas (adjacencia) nao conta como sobreposicao.
-  return a.start < noteEnd(b) && b.start < noteEnd(a);
+  return a.start < noteEnd(b) - EPSILON && b.start < noteEnd(a) - EPSILON;
 }
 
-function isValidNoteShape(note, limit) {
-  return (
-    note !== null &&
-    typeof note === 'object' &&
-    typeof note.id === 'string' &&
-    note.id.length > 0 &&
-    isInt(note.start) &&
-    note.start >= 0 &&
-    isInt(note.duration) &&
-    note.duration >= 1 &&
-    noteEnd(note) <= limit
-  );
-}
-
-export function validPhrase(notes, bars = DEFAULT_BARS) {
-  if (!Array.isArray(notes) || !isValidBars(bars)) return false;
-  const limit = totalTicks(bars);
-  const ids = new Set();
-  for (const note of notes) {
-    if (!isValidNoteShape(note, limit)) return false;
-    if (ids.has(note.id)) return false;
-    ids.add(note.id);
-  }
-  for (let i = 0; i < notes.length; i += 1) {
-    for (let j = i + 1; j < notes.length; j += 1) {
-      if (overlaps(notes[i], notes[j])) return false;
-    }
+export function isValidNote(note, limit) {
+  if (note === null || typeof note !== 'object' || Array.isArray(note)) return false;
+  if (typeof note.id !== 'string' || note.id.length === 0 || note.id.length > 64) return false;
+  if (!isFiniteNumber(note.start) || note.start < 0) return false;
+  if (!isFiniteNumber(note.duration) || note.duration < MIN_DURATION - EPSILON) return false;
+  if (noteEnd(note) > limit + EPSILON) return false;
+  for (const [field, validate] of Object.entries(FIELD_VALIDATORS)) {
+    if (Object.hasOwn(note, field) && !validate(note[field])) return false;
   }
   return true;
 }
 
+export function validPhrase(notes, span = DEFAULT_BARS) {
+  const limit = spanTicks(span);
+  if (!Array.isArray(notes) || !Number.isFinite(limit)) return false;
+  const ids = new Set();
+  for (const note of notes) {
+    if (!isValidNote(note, limit)) return false;
+    if (ids.has(note.id)) return false;
+    ids.add(note.id);
+  }
+  const sorted = [...notes].sort((a, b) => a.start - b.start);
+  for (let i = 1; i < sorted.length; i += 1) {
+    if (overlaps(sorted[i - 1], sorted[i])) return false;
+  }
+  return true;
+}
+
+// Nota canônica com todos os campos; campos ausentes recebem os padrões.
+export function completeNote(note) {
+  return {
+    id: note.id,
+    start: roundTick(note.start),
+    duration: roundTick(note.duration),
+    pitch: note.pitch ?? NOTE_DEFAULTS.pitch,
+    velocity: note.velocity ?? NOTE_DEFAULTS.velocity,
+    articulation: note.articulation ?? NOTE_DEFAULTS.articulation,
+    offsetMs: note.offsetMs ?? NOTE_DEFAULTS.offsetMs,
+  };
+}
+
 let idCounter = 0;
 
-function generateId() {
+export function generateId() {
   idCounter += 1;
   return `n${Date.now().toString(36)}${idCounter.toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
-export function addNote(notes, start, duration = 1, bars = DEFAULT_BARS) {
-  if (!Array.isArray(notes) || !isValidBars(bars)) return notes;
-  if (!isInt(start) || start < 0) return notes;
-  if (!isInt(duration) || duration < 1) return notes;
-  const candidate = { id: generateId(), start, duration };
-  if (noteEnd(candidate) > totalTicks(bars)) return notes;
-  if (notes.some((n) => overlaps(n, candidate))) return notes;
+function fitsWith(notes, candidate, limit, ignoreId = null) {
+  if (!isValidNote(candidate, limit)) return false;
+  return !notes.some(n => n.id !== ignoreId && overlaps(n, candidate));
+}
+
+export function addNote(notes, start, duration = 1, span = DEFAULT_BARS, fields = {}) {
+  const limit = spanTicks(span);
+  if (!Array.isArray(notes) || !Number.isFinite(limit)) return notes;
+  if (fields === null || typeof fields !== 'object') return notes;
+  const candidate = completeNote({ ...pickFields(fields), id: generateId(), start, duration });
+  if (!isFiniteNumber(start) || !isFiniteNumber(duration)) return notes;
+  if (!fitsWith(notes, candidate, limit)) return notes;
   return [...notes, candidate];
 }
 
-export function moveNote(notes, id, start, bars = DEFAULT_BARS) {
-  if (!Array.isArray(notes) || !isValidBars(bars)) return notes;
-  const existing = notes.find((n) => n.id === id);
-  if (!existing) return notes;
-  if (!isInt(start) || start < 0) return notes;
-  const candidate = { id, start, duration: existing.duration };
-  if (noteEnd(candidate) > totalTicks(bars)) return notes;
-  if (notes.some((n) => n.id !== id && overlaps(n, candidate))) return notes;
-  return notes.map((n) => (n.id === id ? candidate : n));
+export function moveNote(notes, id, start, span = DEFAULT_BARS) {
+  return updateNote(notes, id, { start }, span);
 }
 
-export function resizeNote(notes, id, duration, bars = DEFAULT_BARS) {
-  if (!Array.isArray(notes) || !isValidBars(bars)) return notes;
-  const existing = notes.find((n) => n.id === id);
+export function resizeNote(notes, id, duration, span = DEFAULT_BARS) {
+  return updateNote(notes, id, { duration }, span);
+}
+
+// patch pode conter start, duration, pitch, velocity, articulation, offsetMs.
+export function updateNote(notes, id, patch, span = DEFAULT_BARS) {
+  const limit = spanTicks(span);
+  if (!Array.isArray(notes) || !Number.isFinite(limit)) return notes;
+  if (patch === null || typeof patch !== 'object' || Array.isArray(patch)) return notes;
+  if (Object.keys(patch).some(key => key === 'id' || !NOTE_KEYS.includes(key))) return notes;
+  const existing = notes.find(n => n.id === id);
   if (!existing) return notes;
-  if (!isInt(duration) || duration < 1) return notes;
-  const candidate = { id, start: existing.start, duration };
-  if (noteEnd(candidate) > totalTicks(bars)) return notes;
-  if (notes.some((n) => n.id !== id && overlaps(n, candidate))) return notes;
-  return notes.map((n) => (n.id === id ? candidate : n));
+  for (const key of ['start', 'duration']) {
+    if (Object.hasOwn(patch, key) && !isFiniteNumber(patch[key])) return notes;
+  }
+  const candidate = { ...existing, ...patch };
+  for (const key of ['start', 'duration']) candidate[key] = roundTick(candidate[key]);
+  if (!fitsWith(notes, candidate, limit, id)) return notes;
+  return notes.map(n => (n.id === id ? candidate : n));
 }
 
 export function deleteNote(notes, id) {
   if (!Array.isArray(notes)) return notes;
-  if (!notes.some((n) => n.id === id)) return notes;
-  return notes.filter((n) => n.id !== id);
+  if (!notes.some(n => n.id === id)) return notes;
+  return notes.filter(n => n.id !== id);
 }
 
-function isValidBpm(bpm) {
-  return isInt(bpm) && bpm >= BPM_MIN && bpm <= BPM_MAX;
-}
-
-export function loadState(storage) {
-  let raw;
-  try {
-    storage ??= globalThis.localStorage;
-    raw = storage.getItem(STORAGE_KEY);
-  } catch {
-    return {
-      notes: [],
-      bpm: DEFAULT_BPM,
-      bars: DEFAULT_BARS,
-      warning: 'Nao foi possivel acessar o armazenamento local; usando padroes.',
-      recoveryRaw: null,
-      storageAvailable: false,
-    };
+function pickFields(fields) {
+  const picked = {};
+  for (const key of Object.keys(FIELD_VALIDATORS)) {
+    if (Object.hasOwn(fields, key)) picked[key] = fields[key];
   }
-
-  if (raw == null) {
-    return {
-      notes: [], bpm: DEFAULT_BPM, bars: DEFAULT_BARS,
-      warning: null, recoveryRaw: null, storageAvailable: true,
-    };
-  }
-
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    parsed = undefined;
-  }
-
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    return {
-      notes: [], bpm: DEFAULT_BPM, bars: DEFAULT_BARS,
-      warning: 'Dados salvos corrompidos; usando padroes.',
-      recoveryRaw: raw, storageAvailable: true,
-    };
-  }
-
-  const warnings = [];
-
-  // Estados salvos antes do suporte a multiplos compassos nao trazem "bars":
-  // frases de um compasso continuam validas, então o padrao e retrocompativel.
-  let bars = DEFAULT_BARS;
-  if (Object.hasOwn(parsed, 'bars')) {
-    if (isValidBars(parsed.bars)) {
-      bars = parsed.bars;
-    } else {
-      warnings.push('Numero de compassos salvo invalido; usando 1.');
-    }
-  }
-
-  let notes = [];
-  if (validPhrase(parsed.notes, bars)) {
-    notes = parsed.notes;
-  } else {
-    warnings.push('Frase salva invalida; usando frase vazia.');
-  }
-
-  let bpm = DEFAULT_BPM;
-  if (isValidBpm(parsed.bpm)) {
-    bpm = parsed.bpm;
-  } else {
-    warnings.push('BPM salvo invalido; usando 100.');
-  }
-
-  return {
-    notes, bpm, bars,
-    warning: warnings.length > 0 ? warnings.join(' ') : null,
-    recoveryRaw: warnings.length > 0 ? raw : null,
-    storageAvailable: true,
-  };
-}
-
-export function saveState(notes, bpm, bars, storage) {
-  if (!validPhrase(notes, bars) || !isValidBpm(bpm)) return false;
-  try {
-    storage ??= globalThis.localStorage;
-    storage.setItem(STORAGE_KEY, JSON.stringify({ notes, bpm, bars }));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// Preferências não alteram a frase salva, nem requerem escrita ao carregar.
-export function loadPreferences(storage) {
-  let parsed;
-  try {
-    storage ??= globalThis.localStorage;
-    parsed = JSON.parse(storage.getItem(PREFERENCES_KEY));
-  } catch {
-    return { ...DEFAULT_PREFERENCES };
-  }
-  const preferences = { ...DEFAULT_PREFERENCES };
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    return preferences;
-  }
-  for (const [key, validate] of Object.entries(PREFERENCE_VALIDATORS)) {
-    if (Object.hasOwn(parsed, key) && validate(parsed[key])) {
-      preferences[key] = parsed[key];
-    }
-  }
-  return preferences;
-}
-
-export function savePreferences(preferences, storage) {
-  if (typeof preferences !== 'object' || preferences === null || Array.isArray(preferences)) {
-    return false;
-  }
-  const saved = {};
-  for (const [key, validate] of Object.entries(PREFERENCE_VALIDATORS)) {
-    if (!Object.hasOwn(preferences, key) || !validate(preferences[key])) return false;
-    saved[key] = preferences[key];
-  }
-  try {
-    storage ??= globalThis.localStorage;
-    storage.setItem(PREFERENCES_KEY, JSON.stringify(saved));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function defaultMixer() {
-  return Object.fromEntries(MIXER_CHANNELS.map(channel => [channel, { volume: 1, muted: false }]));
-}
-
-const MIXER_VALIDATORS = {
-  volume: value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1,
-  muted: value => typeof value === 'boolean',
-};
-
-// O mixer tem armazenamento próprio; carregar nunca reescreve dados inválidos.
-export function loadMixer(storage) {
-  const mixer = defaultMixer();
-  const warnings = [];
-  let raw;
-  try {
-    storage ??= globalThis.localStorage;
-    raw = storage.getItem(MIXER_KEY);
-  } catch {
-    return { mixer, warnings: ['Nao foi possivel acessar o mixer salvo; usando padroes.'] };
-  }
-  if (raw == null) return { mixer, warnings };
-
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    parsed = undefined;
-  }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    return { mixer, warnings: ['Mixer salvo invalido; usando padroes.'] };
-  }
-  for (const channel of MIXER_CHANNELS) {
-    const saved = Object.hasOwn(parsed, channel) ? parsed[channel] : null;
-    if (typeof saved !== 'object' || saved === null || Array.isArray(saved)) {
-      warnings.push(`Canal ${channel} salvo invalido; usando padroes.`);
-      continue;
-    }
-    for (const [field, validate] of Object.entries(MIXER_VALIDATORS)) {
-      if (Object.hasOwn(saved, field) && validate(saved[field])) {
-        mixer[channel][field] = saved[field];
-      } else {
-        warnings.push(`Mixer ${channel}.${field} salvo invalido; usando padrao.`);
-      }
-    }
-  }
-  return { mixer, warnings };
-}
-
-export function saveMixer(mixer, storage) {
-  if (typeof mixer !== 'object' || mixer === null || Array.isArray(mixer)) return false;
-  const saved = {};
-  for (const channel of MIXER_CHANNELS) {
-    if (!Object.hasOwn(mixer, channel)) return false;
-    const settings = mixer[channel];
-    if (typeof settings !== 'object' || settings === null || Array.isArray(settings)) return false;
-    saved[channel] = {};
-    for (const [field, validate] of Object.entries(MIXER_VALIDATORS)) {
-      if (!Object.hasOwn(settings, field) || !validate(settings[field])) return false;
-      saved[channel][field] = settings[field];
-    }
-  }
-  try {
-    storage ??= globalThis.localStorage;
-    storage.setItem(MIXER_KEY, JSON.stringify(saved));
-    return true;
-  } catch {
-    return false;
-  }
+  return picked;
 }

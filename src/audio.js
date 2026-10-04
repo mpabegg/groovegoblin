@@ -1,148 +1,181 @@
 /**
- * GrooveAudio — Web Audio engine for GrooveGoblin.
+ * GrooveAudio — transporte único do GrooveGoblin.
  *
- * Architecture
- * ------------
- * - A single lookahead scheduler (classic "setInterval wakes up, schedule a
- *   little further into the future than we already have" pattern) enqueues
- *   oscillator/gain nodes onto the real AudioContext timeline. It never uses
- *   requestAnimationFrame: rAF is reserved for the UI, which should instead
- *   poll `position` on its own rAF loop.
- * - `position` is PULLED, not cached: every read re-derives mode/tick/beat/
- *   repetition from the current output-correlated audio instant (see below)
- *   against the single `#sessionStartTime` anchor recorded when play()/
- *   train() began. `tick` is fractional (smooth playhead), `beat` is 1..4.
- *   Hardware timestamps are a browser-provided *estimate*, not a physical
- *   guarantee — treat `position` as a conservative approximation for UI
- *   animation, not a sample-accurate measurement.
- * - `onState` is PUSHED on transitions: the same lookahead interval re-reads
- *   `position` each tick and fires the callback only when mode/repetition/
- *   held actually changed, plus a one-off watchdog timer closes out training
- *   once the output-correlated clock (not the raw processing clock) reaches
- *   the boundary — see "Output-clock gating" below for why.
- * - A monotonically increasing `#generation` counter guards every `await
- *   ctx.resume()` continuation. stop() always bumps it first, so if stop()
- *   races a pending resume() (or a second play()/train() call races a first
- *   one), the stale continuation notices the mismatch and aborts before
- *   touching the graph or firing callbacks.
+ * Arquitetura
+ * -----------
+ * - Uma sessão canônica (session.js) é tocada por UM transporte: frase,
+ *   bateria, acordes, baixo, metrônomo e pulso polirrítmico saem do mesmo
+ *   relógio e da mesma realização pura (arrangement.js), que também alimenta
+ *   renderSession() offline — o arquivo exportado soa como o transporte.
+ * - Scheduler lookahead clássico: um setInterval acorda a cada 25 ms, gera
+ *   compassos inteiros um pouco antes de começarem (para o modo "follow"
+ *   decidir com os toques mais recentes) e entrega ao grafo Web Audio só os
+ *   eventos dos próximos 100 ms. Assim updateSession()/setTempo() valem quase
+ *   imediatamente: o que ainda não foi entregue é refeito.
+ * - Coordenada do transporte: tick T contínuo desde o início (inclui a
+ *   contagem). time(T) = anchorTime + (T - anchorTick) * secPerTick; mudar o
+ *   andamento só reancora no instante atual. O compasso b do transporte é
+ *   contagem (b < countInBars) ou o compasso de sessão
+ *   loopStart + ((b - barBase) mod loopBars).
+ * - `position` é PUXADO: cada leitura rederiva modo/tick/compasso/tempo do
+ *   instante correlacionado à SAÍDA (getOutputTimestamp), não do relógio de
+ *   processamento. `onState` é EMPURRADO apenas em transições de
+ *   modo/repetição/tecla presa. Um contador #generation invalida
+ *   continuações assíncronas (resume, carregamento de samples) após stop().
  *
- * Timestamp → audio domain mapping (press/release)
- * -------------------------------------------------
- * press()/release() receive a `performance.now()`-domain timestamp (DOM
- * event.timeStamp shares that clock) and must report seconds relative to
- * the start of training's first repetition, in the *audio* clock domain,
- * since that is the clock every scheduled click/boundary is expressed in.
+ * Timestamp → domínio de áudio (press/release)
+ * --------------------------------------------
+ * press()/release() recebem tempo de performance.now()/event.timeStamp e
+ * reportam segundos relativos ao primeiro compasso avaliado do treino.
+ * Correlacionamos com getOutputTimestamp() (o que está nos alto-falantes
+ * agora, já incluindo latência de saída), lendo um par novo a cada
+ * conversão. Sem esse par (ou com stub zerado), lemos um par novo
+ * (performance.now(), currentTime) — sem latência de saída, o que tende a
+ * fazer os toques parecerem ATRASADOS. Não há calibração física aqui.
  *
- * The conservative, non-calibrating way to correlate the two clocks is
- * `AudioContext.getOutputTimestamp()`, which returns a simultaneous
- * (contextTime, performanceTime) pair describing what is physically at the
- * speakers *right now* — i.e. it already reflects the hardware/output
- * latency between scheduling a sound and a user actually hearing it. We
- * read a fresh pair on every conversion (no caching, no drift assumptions,
- * no measurement routine) and linearly project the event timestamp through
- * it: `audioTime = contextTime + (eventMs - performanceTime) / 1000`.
- *
- * Where `getOutputTimestamp` is unavailable or returns a degenerate/zeroed
- * stub, we fall back to reading a fresh (performance.now(), ctx.currentTime)
- * pair at the moment of *each* conversion — never a pair cached once at
- * context creation, because `currentTime` freezes while the context is
- * suspended and a stale anchor would silently desync across a suspend/
- * resume cycle. That fallback still ignores output latency entirely (no
- * output clock to read), and since raw `currentTime` is the processing
- * clock running slightly *ahead* of what is actually audible, events
- * mapped through it tend to read as later in the schedule than what the
- * user really heard — i.e. onsets/releases skew towards appearing late,
- * not early. This is a real limitation worth surfacing in the UI/report,
- * not something this module tries to auto-correct.
- *
- * Output-clock gating (position / press-release / train finish)
- * ----------------------------------------------------------------
- * `position`'s mode/tick/repetition (and therefore the press()/release()
- * mode gate, since both call the `position` getter) and the training
- * finish watchdog are all derived from the same output-correlated instant
- * used to map press/release timestamps, not from raw `ctx.currentTime`.
- * Raw `currentTime` is the processing clock and runs ahead of what is
- * physically audible; gating on it would flip to 'idle' (and fire
- * onFinish) slightly before the user has actually heard the final click,
- * potentially discarding a last release the user makes in direct response
- * to a sound they are only now hearing. The lookahead scheduler itself
- * (enqueuing oscillators ahead of time) still uses raw `ctx.currentTime`,
- * since Web Audio scheduling is necessarily expressed on that clock.
- *
- * Note envelopes (attack contrast + held sustain)
- * ----------------------------------------------
- * Each model note ramps from zero to an attack peak, decays to a lower
- * nonzero sustain level, then releases to zero exactly at its nominal end.
- * The peak makes each new onset stand out from the preceding sustain,
- * including adjacent notes and the loop seam, without inserting a rest or
- * moving an onset/end. Notation ties are parts of one model note, so they
- * share one envelope: there is no re-attack at a beat or internal barline.
- * Each ramp is capped at a quarter of the duration to keep short notes'
- * stages ordered and leave a held sustain before release.
+ * Fechamento do treino
+ * --------------------
+ * O fim do treino e o gate de press/release usam o mesmo relógio
+ * correlacionado à saída, para não descartar uma soltura feita em resposta
+ * ao último som que a pessoa ainda está ouvindo.
  */
 
-import { TICKS_PER_BAR, BAR_OPTIONS, MIXER_CHANNELS } from './model.js';
-import { DRUM_INSTRUMENTS } from './drums.js';
-
-const TICKS_PER_BEAT = 4;
+import { validateSession, MIXER_CHANNELS, BPM_MIN, BPM_MAX } from './session.js';
+import { EPSILON, ticksPerBar, beatTicks, secondsPerTick, sessionTicks } from './meter.js';
+import { prepareArrangement } from './arrangement.js';
+import { playTone, playChord, playClick, playDrum, loadDrumSamples } from './synth.js';
 
 const LOOKAHEAD_INTERVAL_SEC = 0.025;
 const SCHEDULE_AHEAD_SEC = 0.1;
 const SESSION_PRIME_SEC = 0.06;
-
-const NOTE_ATTACK_SEC = 0.004;
-const NOTE_DECAY_SEC = 0.025;
-const NOTE_RELEASE_SEC = 0.015;
-const NOTE_FREQUENCY_HZ = 440;
-const NOTE_PEAK_GAIN = 0.55;
-const NOTE_SUSTAIN_GAIN = 0.22;
-
-const CLICK_DURATION_SEC = 0.035;
-const CLICK_GAIN = 0.4;
-const CLICK_ACCENT_GAIN = 0.55;
-const CLICK_FREQUENCY_HZ = 1500;
-const CLICK_ACCENT_FREQUENCY_HZ = 2200;
-
-const DRUM_SAMPLE_URLS = Object.freeze({
-  kick: new URL('../assets/drums/kick.wav', import.meta.url),
-  snare: new URL('../assets/drums/snare.wav', import.meta.url),
-  hihat: new URL('../assets/drums/hihat.wav', import.meta.url),
-});
-// Peaks leave room for the reference; original decoded samples stay untouched.
-const DRUM_PEAK_GAINS = Object.freeze({ kick: 0.24, snare: 0.2, hihat: 0.1 });
+const BAR_EARLY_SEC = 0.1; // maior que o microtempo negativo máximo (80 ms)
+const LATE_DROP_SEC = 0.05;
 const GAIN_FADE_SEC = 0.01;
+const MONITOR_MAX_SEC = 8;
+const PREVIEW_TAIL_SEC = 0.05;
+
+function freezeDeep(value) {
+  if (value && typeof value === 'object') {
+    Object.values(value).forEach(freezeDeep);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+function checkedSession(session) {
+  const result = validateSession(session);
+  if (!result.ok) throw new TypeError(result.error);
+  return freezeDeep(result.session);
+}
+
+function mod(value, base) {
+  return ((value % base) + base) % base;
+}
+
+// Master com compressor suave para mixes com muitas vozes simultâneas.
+function createBuses(ctx, mixer) {
+  const master = ctx.createGain();
+  master.gain.value = 0.9;
+  const compressor = ctx.createDynamicsCompressor();
+  compressor.threshold.value = -10;
+  compressor.knee.value = 6;
+  compressor.ratio.value = 4;
+  compressor.attack.value = 0.003;
+  compressor.release.value = 0.2;
+  master.connect(compressor);
+  compressor.connect(ctx.destination);
+  const buses = {};
+  for (const channel of MIXER_CHANNELS) {
+    const bus = ctx.createGain();
+    const { volume, muted } = mixer[channel];
+    bus.gain.value = muted ? 0 : volume;
+    bus.connect(master);
+    buses[channel] = bus;
+  }
+  return { master, buses };
+}
+
+// Entrega um evento do arranjo ao grafo; devolve as entradas a rastrear.
+function dispatch(ctx, buses, samples, event, time, secPerTick) {
+  const duration = event.duration * secPerTick;
+  switch (event.kind) {
+    case 'note':
+    case 'pulse':
+      return [playTone(ctx, buses[event.channel], {
+        time, duration, pitch: event.pitch, velocity: event.velocity, timbre: event.timbre, articulation: event.articulation,
+      })];
+    case 'chord':
+      return playChord(ctx, buses.chords, {
+        time, duration, pitches: event.pitches, velocity: event.velocity, timbre: event.timbre, articulation: event.articulation,
+      });
+    case 'drum':
+      return [playDrum(ctx, buses.drums, { time, instrument: event.instrument, velocity: event.velocity }, samples)];
+    case 'click':
+      return [playClick(ctx, buses.metronome, { time, accent: event.accent, velocity: event.velocity })];
+    default:
+      return [];
+  }
+}
+
+// Atividade real de teclado/toque nos dois compassos anteriores (modo follow).
+function activityFor(onsets, bar, barTicks) {
+  const local = index => onsets
+    .filter(tick => tick >= index * barTicks - EPSILON && tick < (index + 1) * barTicks - EPSILON)
+    .map(tick => tick - index * barTicks);
+  return { previous: local(bar - 1), earlier: local(bar - 2) };
+}
+
+// Altura de referência mais próxima (para o retorno sonoro de toques sem altura).
+function referencePitch(session, sessionTick) {
+  let best = null;
+  for (const note of session.notes) {
+    const distance = Math.abs(note.start - sessionTick);
+    if (!best || distance < best.distance) best = { distance, pitch: note.pitch };
+  }
+  return best ? best.pitch : 69;
+}
 
 export class GrooveAudio {
   #onStateCb;
   #onFinishCb;
 
   #ctx = null;
-  #masterGain = null;
-  #channelGains = {};
+  #buses = null;
   #mixer = Object.fromEntries(MIXER_CHANNELS.map(channel => [channel, { volume: 1, muted: false }]));
 
   #generation = 0;
   #timerId = null;
   #finishTimeoutId = null;
 
-  #sessionKind = null; // null | 'play' | 'progression' | 'train'
-  #sessionStartTime = 0; // ctx.currentTime anchor for the active session
+  #mode = null; // null | 'loop' | 'train' | 'preview'
+  #session = null;
+  #arrangement = null;
+  #samples = null;
+  #sampleStatus = 'unloaded';
+  #startedAt = 0;
+
+  #anchorTime = 0;
+  #anchorTick = 0;
   #secPerTick = 0;
-  #scheduleCursor = 0; // next tick index not yet handed to the audio graph
-  #notes = [];
-  #metronomeEnabled = false;
-  #drumHits = [];
-  #drumsEnabled = false;
-  #drumGain = null;
-  #drumBuffers = null;
-  #drumLoad = null;
-  #drumGeneration = 0;
-  #totalTicks = TICKS_PER_BAR; // ticks por repeticao/loop: bars * TICKS_PER_BAR
+  #barTicks = 16;
+  #countInBars = 0;
+  #loopStart = 0;
+  #loopBars = 1;
+  #repetitions = 0;
+  #barBase = 0;
+  #nextBar = 0;
+  #endBar = Infinity;
+  #pending = [];
+  #dispatchedTime = 0;
+  #onsets = [];
 
   #attempts = [];
   #heldAttempt = null;
   #held = false;
+  #heldPitch = null;
   #keyDown = false;
+  #monitor = null;
+  #previewResolve = null;
 
   #activeNodes = new Set();
   #lastSnapshot = null;
@@ -152,91 +185,145 @@ export class GrooveAudio {
     this.#onFinishCb = onFinish;
   }
 
+  get context() {
+    return this.#ctx;
+  }
+
+  // 'unloaded' | 'loaded' | 'failed' (falha => bateria sintetizada).
+  get drumSamples() {
+    return this.#sampleStatus;
+  }
+
+  get session() {
+    return this.#session;
+  }
+
   setMixer(mixer) {
     for (const channel of MIXER_CHANNELS) {
+      if (!mixer || !mixer[channel]) continue;
       const { volume, muted } = mixer[channel];
       this.#mixer[channel] = { volume, muted };
-      this.#setGain(this.#channelGains[channel], muted ? 0 : volume);
+      if (this.#buses) this.#setGain(this.#buses[channel], muted ? 0 : volume);
     }
   }
 
-  play(notes, bpm, metronome, bars = 1, drums = {}) {
-    return this.#startLoop(notes, bpm, metronome, TICKS_PER_BAR * this.#validBars(bars), 'play', drums);
-  }
-
-  playProgression(progression, bpm, metronome = false) {
-    // Tétrades são simultâneas; não passam pelo modelo monofônico de frases.
-    const notes = progression.chords.flatMap((chord, index) => chord.notes.map(note => ({
-      start: index * TICKS_PER_BAR, duration: TICKS_PER_BAR,
-      frequency: 440 * 2 ** ((note.midi - 69) / 12), gainScale: 0.25,
-    })));
-    return this.#startLoop(notes, bpm, metronome, progression.chords.length * TICKS_PER_BAR, 'progression');
-  }
-
-  async #startLoop(notes, bpm, metronome, totalTicks, kind, { hits = [], enabled = false } = {}) {
+  async playSession(session, { mode = 'loop' } = {}) {
+    if (mode !== 'loop' && mode !== 'train') throw new TypeError('O modo de reprodução deve ser loop ou train.');
+    const valid = checkedSession(session);
     this.stop();
     const gen = this.#generation;
     const ctx = this.#ensureContext();
-
-    this.#notes = notes;
-    this.#secPerTick = 60 / bpm / TICKS_PER_BEAT;
-    this.#metronomeEnabled = !!metronome;
-    this.#totalTicks = totalTicks;
-    this.#drumHits = hits;
-    this.#drumsEnabled = !!enabled;
-    this.#setDrumGain(0, true);
+    this.#session = valid;
+    this.setMixer(valid.mixer);
 
     await Promise.all([
       ctx.state === 'suspended' ? ctx.resume() : Promise.resolve(),
-      enabled ? this.#loadDrums() : Promise.resolve(),
+      valid.drums.enabled ? this.#loadSamples() : Promise.resolve(),
     ]);
-    if (gen !== this.#generation) return; // stop() won during resume/sample loading
-    this.#setDrumGain(enabled ? 1 : 0);
+    if (gen !== this.#generation) return; // stop() venceu durante resume/carregamento
 
-    this.#sessionKind = kind;
-    this.#scheduleCursor = 0;
-    this.#sessionStartTime = ctx.currentTime + SESSION_PRIME_SEC;
-    this.#emitState();
-    this.#runScheduler(gen);
-  }
-
-  async train(notes, bpm, bars = 1) {
-    this.stop();
-    const gen = this.#generation;
-    const ctx = this.#ensureContext();
-
-    void notes; // training is never sonified; kept for signature parity with play()
-    this.#notes = [];
-    this.#secPerTick = 60 / bpm / TICKS_PER_BEAT;
-    this.#metronomeEnabled = true;
-    this.#totalTicks = TICKS_PER_BAR * this.#validBars(bars);
-
-    if (ctx.state === 'suspended') {
-      await ctx.resume();
-    }
-    if (gen !== this.#generation) return; // stop() won the race during resume()
-
-    this.#sessionKind = 'train';
-    this.#scheduleCursor = 0;
-    this.#sessionStartTime = ctx.currentTime + SESSION_PRIME_SEC;
+    const train = mode === 'train';
+    this.#arrangement = prepareArrangement(valid);
+    this.#barTicks = ticksPerBar(valid);
+    this.#secPerTick = secondsPerTick(valid.bpm);
+    this.#countInBars = train ? valid.training.countInBars : 0;
+    this.#loopStart = valid.loop.startBar;
+    this.#loopBars = valid.loop.endBar - valid.loop.startBar;
+    this.#repetitions = train ? valid.training.repetitions : 0;
+    this.#endBar = train ? this.#countInBars + this.#loopBars * this.#repetitions : Infinity;
+    this.#barBase = this.#countInBars;
+    this.#nextBar = 0;
+    this.#pending = [];
+    this.#onsets = [];
+    this.#anchorTick = 0;
+    this.#anchorTime = ctx.currentTime + SESSION_PRIME_SEC;
+    this.#dispatchedTime = this.#anchorTime;
     this.#attempts = [];
     this.#heldAttempt = null;
     this.#held = false;
-    this.#keyDown = false;
+    this.#heldPitch = null;
+    this.#startedAt = Date.now();
+    this.#mode = mode;
     this.#emitState();
     this.#runScheduler(gen);
+    if (train) this.#scheduleFinish(gen);
+  }
 
-    const totalDuration = (TICKS_PER_BAR + this.#totalTicks * 4) * this.#secPerTick;
-    this.#scheduleFinish(gen, totalDuration);
+  // Aplica mudanças ao vivo. Em 'loop' tudo vale (andamento, notas, compasso,
+  // loop, banda...); mudanças estruturais (compasso/loop) entram no próximo
+  // compasso. Em 'train' a grade avaliada fica congelada: só mixer, banda,
+  // metrônomo, pulso e timbres mudam.
+  updateSession(session) {
+    let valid = checkedSession(session);
+    this.setMixer(valid.mixer);
+    if (this.#mode !== 'loop' && this.#mode !== 'train') {
+      this.#session = valid;
+      return;
+    }
+    const previous = this.#session;
+    if (this.#mode === 'train') {
+      valid = checkedSession({
+        ...valid, bpm: previous.bpm, bars: previous.bars, meter: previous.meter, loop: previous.loop, notes: previous.notes,
+        training: previous.training, swing: previous.swing, swingUnit: previous.swingUnit, subdivision: previous.subdivision,
+      });
+    }
+    const ctx = this.#ctx;
+    const structural = ticksPerBar(valid) !== this.#barTicks
+      || valid.loop.startBar !== previous.loop.startBar || valid.loop.endBar !== previous.loop.endBar;
+    if (valid.bpm !== previous.bpm) this.#reanchor(ctx.currentTime, secondsPerTick(valid.bpm));
+
+    const dispatchedTick = this.#tickAtTime(this.#dispatchedTime);
+    const currentBar = Math.max(0, Math.floor((dispatchedTick + EPSILON) / this.#barTicks));
+    this.#session = valid;
+    this.#arrangement = prepareArrangement(valid);
+    if (valid.drums.enabled && !this.#samples) this.#loadSamples().catch(() => {});
+
+    if (structural) {
+      // O compasso em curso termina como estava; o novo layout começa no próximo.
+      const nextBar = Math.max(currentBar + 1, this.#countInBars);
+      const boundary = nextBar * this.#barTicks;
+      this.#pending = this.#pending.filter(item => item.transportTick < boundary - EPSILON);
+      const boundaryTime = this.#timeOfTick(boundary);
+      const sessionBar = this.#sessionBarOf(Math.max(currentBar, this.#countInBars));
+      const newTicks = ticksPerBar(valid);
+      // Eventos restantes do compasso atual mudam para a nova coordenada.
+      const shift = nextBar * newTicks - boundary;
+      for (const item of this.#pending) {
+        item.transportTick += shift;
+        item.key += shift;
+      }
+      this.#barTicks = newTicks;
+      this.#anchorTime = boundaryTime;
+      this.#anchorTick = nextBar * newTicks;
+      this.#onsets = [];
+      this.#loopStart = valid.loop.startBar;
+      this.#loopBars = valid.loop.endBar - valid.loop.startBar;
+      const following = sessionBar + 1;
+      const target = following >= this.#loopStart && following < valid.loop.endBar ? following : this.#loopStart;
+      this.#barBase = nextBar - (target - this.#loopStart);
+      this.#nextBar = nextBar;
+    } else {
+      this.#pending = [];
+      this.#nextBar = currentBar;
+      if (currentBar < this.#endBar) this.#generateBar(currentBar, this.#dispatchedTime);
+      this.#nextBar = currentBar + 1;
+    }
+  }
+
+  // Muda o andamento no loop sem reiniciar (não permitido durante o treino).
+  setTempo(bpm) {
+    if (!Number.isInteger(bpm) || bpm < BPM_MIN || bpm > BPM_MAX) throw new TypeError(`O BPM deve ser um inteiro entre ${BPM_MIN} e ${BPM_MAX}.`);
+    if (this.#mode !== 'loop') {
+      if (this.#session && this.#mode === null) this.#session = checkedSession({ ...this.#session, bpm });
+      return this.#mode === null;
+    }
+    this.updateSession({ ...this.#session, bpm });
+    return true;
   }
 
   stop() {
-    const wasActive = this.#sessionKind !== null;
-    this.#generation += 1; // invalidates any in-flight resume()/finish continuation
-    this.#drumGeneration += 1;
-    this.#drumsEnabled = false;
-    this.#setDrumGain(0);
-
+    const wasActive = this.#mode !== null;
+    this.#generation += 1; // invalida resume()/finish em andamento
     if (this.#timerId !== null) {
       clearInterval(this.#timerId);
       this.#timerId = null;
@@ -245,214 +332,309 @@ export class GrooveAudio {
       clearTimeout(this.#finishTimeoutId);
       this.#finishTimeoutId = null;
     }
-
     this.#silenceActiveNodes();
-
-    this.#sessionKind = null;
-    this.#sessionStartTime = 0;
+    this.#stopMonitor();
+    this.#mode = null;
+    this.#pending = [];
+    this.#onsets = [];
     this.#attempts = [];
     this.#heldAttempt = null;
     this.#held = false;
+    this.#heldPitch = null;
     this.#keyDown = false;
-    this.#scheduleCursor = 0;
-
-    if (wasActive) this.#emitState(); // interrupted training delivers no onFinish
+    const resolve = this.#previewResolve;
+    this.#previewResolve = null;
+    if (resolve) resolve();
+    if (wasActive) this.#emitState(); // treino interrompido não entrega onFinish
   }
 
-  setMetronome(enabled) {
-    this.#metronomeEnabled = !!enabled;
-  }
-
-  async setDrumsEnabled(enabled) {
-    const request = ++this.#drumGeneration;
-    const gen = this.#generation;
-    this.#drumsEnabled = !!enabled;
-    this.#setDrumGain(0);
-    if (!enabled || this.#sessionKind !== 'play') return true;
-    try {
-      await this.#loadDrums();
-    } catch (error) {
-      if (request !== this.#drumGeneration || gen !== this.#generation) return false;
-      this.#drumsEnabled = false;
-      throw error;
+  // Toque avulso (jogos de ouvido, prévias): notas podem se sobrepor.
+  // notes: [{start, duration (ticks), pitch, velocity?, articulation?}].
+  async preview(notes, { bpm = 100, timbre = 'soft-lead', channel = 'phrase' } = {}) {
+    if (!Array.isArray(notes) || notes.some(note => !note || !Number.isFinite(note.start) || note.start < 0
+      || !Number.isFinite(note.duration) || note.duration <= 0 || !Number.isInteger(note.pitch ?? 69))) {
+      throw new TypeError('A prévia requer notas com início, duração e altura válidos.');
     }
-    if (request !== this.#drumGeneration || gen !== this.#generation) return false;
-    this.#setDrumGain(1);
-    return true;
+    if (!Number.isInteger(bpm) || bpm < BPM_MIN || bpm > BPM_MAX) throw new TypeError(`O BPM deve ser um inteiro entre ${BPM_MIN} e ${BPM_MAX}.`);
+    if (!MIXER_CHANNELS.includes(channel)) throw new TypeError('Canal de prévia desconhecido.');
+    this.stop();
+    const gen = this.#generation;
+    const ctx = this.#ensureContext();
+    if (ctx.state === 'suspended') await ctx.resume();
+    if (gen !== this.#generation) return;
+    const secPerTick = secondsPerTick(bpm);
+    const start = ctx.currentTime + SESSION_PRIME_SEC;
+    let end = start;
+    for (const note of notes) {
+      const entry = playTone(ctx, this.#buses[channel], {
+        time: start + note.start * secPerTick, duration: note.duration * secPerTick, pitch: note.pitch ?? 69,
+        velocity: note.velocity ?? 0.8, timbre, articulation: note.articulation ?? 'normal',
+      });
+      this.#track(entry);
+      end = Math.max(end, entry.end);
+    }
+    this.#mode = 'preview';
+    await new Promise(resolve => {
+      this.#previewResolve = resolve;
+      this.#finishTimeoutId = setTimeout(() => {
+        if (gen !== this.#generation) return;
+        this.#finishTimeoutId = null;
+        this.#previewResolve = null;
+        this.#mode = null;
+        resolve();
+      }, Math.max(0, (end - ctx.currentTime + PREVIEW_TAIL_SEC) * 1000));
+    });
   }
 
-  press(eventTimeStamp = performance.now()) {
-    if (this.#keyDown) return; // OS key-repeat guard, independent of mode
+  press(eventTimeStamp = performance.now(), pitch = null) {
+    if (this.#keyDown) return; // repetição de tecla do SO, independente do modo
     this.#keyDown = true;
-    if (this.position.mode !== 'train') return; // ignores idle/countin/play
+    if (pitch !== null && (!Number.isInteger(pitch) || pitch < 0 || pitch > 127)) pitch = null;
+    const mode = this.position.mode;
+    const audioTime = this.#ctx ? this.#toAudioTime(eventTimeStamp) : 0;
+    let sessionTick = 0;
+    if (mode === 'loop' || mode === 'train' || mode === 'countin') {
+      const tick = this.#tickAtTime(audioTime);
+      this.#onsets.push(tick);
+      const keep = tick - this.#barTicks * 3;
+      this.#onsets = this.#onsets.filter(value => value >= keep);
+      const bar = Math.floor(tick / this.#barTicks);
+      if (bar >= this.#countInBars) sessionTick = this.#sessionBarOf(bar) * this.#barTicks + (tick - bar * this.#barTicks);
+    }
+    this.#startMonitor(pitch ?? (this.#session ? referencePitch(this.#session, sessionTick) : 69));
+    if (mode !== 'train') return; // ignora idle/contagem/loop
 
-    const t = this.#toAudioTime(eventTimeStamp) - this.#trainStartAudioTime();
-    const attempt = { start: t, end: null };
+    const attempt = { start: audioTime - this.#trainStartTime(), end: null, pitch };
     this.#attempts.push(attempt);
     this.#heldAttempt = attempt;
     this.#held = true;
+    this.#heldPitch = pitch;
     this.#emitState();
   }
 
   release(eventTimeStamp = performance.now()) {
     if (!this.#keyDown) return;
     this.#keyDown = false;
-    if (!this.#heldAttempt) return; // the matching press was ignored (repeat/countin)
+    this.#stopMonitor();
+    if (!this.#heldAttempt) return; // o press correspondente foi ignorado
 
-    const t = this.#toAudioTime(eventTimeStamp) - this.#trainStartAudioTime();
+    const t = this.#toAudioTime(eventTimeStamp) - this.#trainStartTime();
     this.#heldAttempt.end = Math.max(t, this.#heldAttempt.start);
     this.#heldAttempt = null;
     this.#held = false;
+    this.#heldPitch = null;
     this.#emitState();
   }
 
+  // {mode, tick (sessão), bar (1-based, compasso da sessão), beat (1-based na
+  // unidade do compasso), repetition (treino 1..N; loop: passagem 1..),
+  // repetitions (treino), held, pitch, startTick/endTick do loop,
+  // ticksPerBar, countInBar/countInBars, bpm, previewing}.
   get position() {
-    const ctx = this.#ctx;
-    if (!ctx || this.#sessionKind === null) {
-      return { mode: 'idle', tick: 0, repetition: 0, bar: 1, beat: 1, held: false };
+    const idle = {
+      mode: 'idle', tick: 0, bar: 1, beat: 1, repetition: 0, repetitions: 0, held: false, pitch: null,
+      startTick: 0, endTick: this.#session ? sessionTicks(this.#session) : 16, ticksPerBar: this.#session ? ticksPerBar(this.#session) : 16,
+      countInBar: 0, countInBars: 0, bpm: this.#session?.bpm ?? 0, previewing: this.#mode === 'preview',
+    };
+    if (!this.#ctx || this.#mode === null || this.#mode === 'preview') return idle;
+    const tick = Math.max(0, this.#tickAtTime(this.#nowAudioTime()));
+    const bar = Math.floor(tick / this.#barTicks);
+    if (bar >= this.#endBar) return idle;
+    const local = tick - bar * this.#barTicks;
+    const beat = Math.floor(local / beatTicks(this.#session)) + 1;
+    const base = {
+      held: this.#held, pitch: this.#heldPitch, beat, ticksPerBar: this.#barTicks,
+      startTick: this.#loopStart * this.#barTicks, endTick: (this.#loopStart + this.#loopBars) * this.#barTicks,
+      repetitions: this.#repetitions, countInBars: this.#countInBars, bpm: this.#session.bpm, previewing: false,
+    };
+    if (bar < this.#countInBars) {
+      return { ...base, mode: 'countin', tick: base.startTick, bar: this.#loopStart + 1, repetition: 0, countInBar: bar + 1 };
     }
-
-    const now = this.#nowAudioTime();
-    const elapsedTicks = Math.max(0, (now - this.#sessionStartTime) / this.#secPerTick);
-
-    if (this.#sessionKind === 'play' || this.#sessionKind === 'progression') {
-      const tick = elapsedTicks % this.#totalTicks;
-      return {
-        mode: this.#sessionKind,
-        tick,
-        repetition: 0,
-        bar: Math.floor(tick / TICKS_PER_BAR) + 1,
-        beat: Math.floor((tick % TICKS_PER_BAR) / TICKS_PER_BEAT) + 1,
-        held: false,
-      };
-    }
-
-    // 'train': one measure of count-in (always a single 4/4 bar), then four
-    // evaluated repetitions of the whole phrase (bars * 16 ticks each).
-    if (elapsedTicks < TICKS_PER_BAR) {
-      return {
-        mode: 'countin',
-        tick: elapsedTicks,
-        repetition: 0,
-        bar: 1,
-        beat: Math.floor(elapsedTicks / TICKS_PER_BEAT) + 1,
-        held: this.#held,
-      };
-    }
-    const trainTicks = elapsedTicks - TICKS_PER_BAR;
-    if (trainTicks < this.#totalTicks * 4) {
-      const tick = trainTicks % this.#totalTicks;
-      return {
-        mode: 'train',
-        tick,
-        repetition: Math.floor(trainTicks / this.#totalTicks) + 1,
-        bar: Math.floor(tick / TICKS_PER_BAR) + 1,
-        beat: Math.floor((tick % TICKS_PER_BAR) / TICKS_PER_BEAT) + 1,
-        held: this.#held,
-      };
-    }
-    return { mode: 'idle', tick: 0, repetition: 0, bar: 1, beat: 1, held: false };
-  }
-
-  get context() {
-    return this.#ctx;
+    const sessionBar = this.#sessionBarOf(bar);
+    const repetition = this.#mode === 'train'
+      ? Math.floor((bar - this.#countInBars) / this.#loopBars) + 1
+      : Math.floor((bar - this.#barBase) / this.#loopBars) + 1;
+    return { ...base, mode: this.#mode, tick: sessionBar * this.#barTicks + local, bar: sessionBar + 1, repetition, countInBar: 0 };
   }
 
   // -- internals ------------------------------------------------------
 
-  #trainStartAudioTime() {
-    return this.#sessionStartTime + TICKS_PER_BAR * this.#secPerTick;
+  #sessionBarOf(bar) {
+    return this.#loopStart + mod(bar - this.#barBase, this.#loopBars);
   }
 
-  #validBars(bars) {
-    return BAR_OPTIONS.includes(bars) ? bars : 1;
+  #timeOfTick(tick) {
+    return this.#anchorTime + (tick - this.#anchorTick) * this.#secPerTick;
+  }
+
+  #tickAtTime(time) {
+    return this.#anchorTick + (time - this.#anchorTime) / this.#secPerTick;
+  }
+
+  #reanchor(time, secPerTick) {
+    this.#anchorTick = this.#tickAtTime(time);
+    this.#anchorTime = time;
+    this.#secPerTick = secPerTick;
+  }
+
+  #trainStartTime() {
+    return this.#timeOfTick(this.#countInBars * this.#barTicks);
   }
 
   #ensureContext() {
     if (!this.#ctx) {
       const Ctor = globalThis.AudioContext || globalThis.webkitAudioContext;
-      const ctx = new Ctor();
-      this.#ctx = ctx;
-      this.#masterGain = ctx.createGain();
-      this.#masterGain.gain.value = 1;
-      this.#masterGain.connect(ctx.destination);
-      for (const channel of MIXER_CHANNELS) {
-        const bus = ctx.createGain();
-        const { volume, muted } = this.#mixer[channel];
-        bus.gain.value = muted ? 0 : volume;
-        bus.connect(this.#masterGain);
-        this.#channelGains[channel] = bus;
-      }
-      this.#drumGain = ctx.createGain();
-      this.#drumGain.gain.value = 0;
-      this.#drumGain.connect(this.#channelGains.drums);
+      this.#ctx = new Ctor();
+      this.#buses = createBuses(this.#ctx, this.#mixer).buses;
     }
     return this.#ctx;
   }
 
-  #setDrumGain(value, immediate = false) {
-    this.#setGain(this.#drumGain, value, immediate);
+  async #loadSamples() {
+    try {
+      this.#samples = await loadDrumSamples(this.#ctx);
+      this.#sampleStatus = 'loaded';
+    } catch {
+      this.#samples = null;
+      this.#sampleStatus = 'failed';
+    }
   }
 
-  #setGain(node, value, immediate = false) {
-    if (!node) return;
+  #setGain(node, value) {
     const gain = node.gain;
     const now = this.#ctx.currentTime;
-    if (!immediate && typeof gain.cancelAndHoldAtTime === 'function') {
+    if (typeof gain.cancelAndHoldAtTime === 'function') {
       gain.cancelAndHoldAtTime(now);
     } else {
       const current = gain.value;
       gain.cancelScheduledValues(now);
       gain.setValueAtTime(current, now);
     }
-    if (immediate) gain.setValueAtTime(value, now);
-    else gain.linearRampToValueAtTime(value, now + GAIN_FADE_SEC);
+    gain.linearRampToValueAtTime(value, now + GAIN_FADE_SEC);
   }
 
-  async #loadDrums() {
-    if (this.#drumBuffers) return;
-    if (!this.#drumLoad) {
-      this.#drumLoad = Promise.all(DRUM_INSTRUMENTS.map(async instrument => {
-        const response = await fetch(DRUM_SAMPLE_URLS[instrument]);
-        if (!response.ok) throw new Error(`${instrument}.wav: HTTP ${response.status}`);
-        const buffer = await this.#ctx.decodeAudioData(await response.arrayBuffer());
-        let peak = 0;
-        for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
-          const data = buffer.getChannelData(channel);
-          for (let index = 0; index < data.length; index += 1) {
-            peak = Math.max(peak, Math.abs(data[index]));
-          }
-        }
-        const makeupGain = peak > 0 ? DRUM_PEAK_GAINS[instrument] / peak : 0;
-        return [instrument, { buffer, makeupGain }];
-      })).then(entries => {
-        this.#drumBuffers = Object.fromEntries(entries);
-      }).catch(error => {
-        throw new Error(`Falha ao carregar samples de bateria: ${error.message}`);
-      }).finally(() => { this.#drumLoad = null; });
+  #generateBar(bar, notBefore = -Infinity) {
+    const train = this.#mode === 'train';
+    const events = bar < this.#countInBars
+      ? this.#arrangement.countInEvents()
+      : this.#arrangement.barEvents(this.#sessionBarOf(bar), {
+        barIndex: bar - this.#countInBars,
+        includePhrase: !train,
+        activity: activityFor(this.#onsets, bar, this.#barTicks),
+      });
+    const barStart = bar * this.#barTicks;
+    for (const event of events) {
+      const transportTick = barStart + event.tick;
+      if (this.#timeOfTick(transportTick) + event.offsetMs / 1000 < notBefore - EPSILON) continue;
+      this.#pending.push({ transportTick, event, key: transportTick + event.offsetMs / 1000 / this.#secPerTick });
     }
-    await this.#drumLoad;
+    this.#pending.sort((a, b) => a.key - b.key);
+  }
+
+  #runScheduler(gen) {
+    this.#tickScheduler(gen);
+    this.#timerId = setInterval(() => this.#tickScheduler(gen), LOOKAHEAD_INTERVAL_SEC * 1000);
+  }
+
+  #tickScheduler(gen) {
+    if (gen !== this.#generation) return;
+    const ctx = this.#ctx;
+    const now = ctx.currentTime;
+    const horizon = now + SCHEDULE_AHEAD_SEC;
+    while (this.#nextBar < this.#endBar && this.#timeOfTick(this.#nextBar * this.#barTicks) - BAR_EARLY_SEC < horizon) {
+      this.#generateBar(this.#nextBar);
+      this.#nextBar += 1;
+    }
+    while (this.#pending.length > 0) {
+      const { transportTick, event } = this.#pending[0];
+      let time = this.#timeOfTick(transportTick) + event.offsetMs / 1000;
+      if (time >= horizon) break;
+      this.#pending.shift();
+      if (time < now) {
+        if (now - time > LATE_DROP_SEC) continue; // aba congelada: não despeja eventos atrasados
+        time = now;
+      }
+      for (const entry of dispatch(ctx, this.#buses, this.#samples, event, time, this.#secPerTick)) this.#track(entry);
+    }
+    this.#dispatchedTime = horizon;
+    if (this.#nextBar >= this.#endBar && this.#pending.length === 0 && this.#timerId !== null) {
+      clearInterval(this.#timerId);
+      this.#timerId = null;
+    }
+    this.#checkTransition();
+  }
+
+  #scheduleFinish(gen) {
+    const check = () => {
+      if (gen !== this.#generation) return;
+      // Relógio correlacionado à saída: ver "Fechamento do treino".
+      const remaining = this.#timeOfTick(this.#endBar * this.#barTicks) - this.#nowAudioTime();
+      if (remaining <= 0) this.#finishTrain(gen);
+      else this.#finishTimeoutId = setTimeout(check, Math.max(4, remaining * 1000));
+    };
+    check();
+  }
+
+  #finishTrain(gen) {
+    if (gen !== this.#generation || this.#mode !== 'train') return;
+    const total = (this.#endBar - this.#countInBars) * this.#barTicks * this.#secPerTick;
+    if (this.#heldAttempt) {
+      this.#heldAttempt.end = total; // segurada até o fim: fecha no limite final
+      this.#heldAttempt = null;
+    }
+    this.#held = false;
+    this.#heldPitch = null;
+    this.#keyDown = false;
+    this.#stopMonitor();
+    const attempts = this.#attempts;
+    this.#attempts = [];
+    if (this.#timerId !== null) {
+      clearInterval(this.#timerId);
+      this.#timerId = null;
+    }
+    this.#finishTimeoutId = null;
+    const session = this.#session;
+    const detail = {
+      session, bpm: session.bpm, repetitions: this.#repetitions, countInBars: this.#countInBars,
+      loop: { startBar: session.loop.startBar, endBar: session.loop.endBar }, startedAt: this.#startedAt,
+    };
+    this.#mode = null;
+    this.#emitState(); // -> idle
+    this.#onFinishCb(attempts, detail);
+  }
+
+  #startMonitor(pitch) {
+    if (!this.#session || !this.#session.training.monitor) return;
+    const ctx = this.#ensureContext();
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    this.#stopMonitor();
+    const entry = playTone(ctx, this.#buses.phrase, {
+      time: ctx.currentTime, duration: MONITOR_MAX_SEC, pitch, velocity: 0.8, timbre: this.#session.timbres.phrase, articulation: 'tenuto',
+    });
+    this.#track(entry);
+    this.#monitor = entry;
+  }
+
+  #stopMonitor() {
+    const entry = this.#monitor;
+    this.#monitor = null;
+    if (!entry || !this.#ctx) return;
+    this.#fadeOut(entry, this.#ctx.currentTime);
+    this.#activeNodes.delete(entry);
   }
 
   #toAudioTime(eventTimeStampMs) {
     const ctx = this.#ctx;
     if (typeof ctx.getOutputTimestamp === 'function') {
       const { contextTime, performanceTime } = ctx.getOutputTimestamp();
-      const valid =
-        Number.isFinite(contextTime) &&
-        Number.isFinite(performanceTime) &&
-        !(contextTime === 0 && performanceTime === 0);
-      if (valid) {
-        return contextTime + (eventTimeStampMs - performanceTime) / 1000;
-      }
+      const valid = Number.isFinite(contextTime) && Number.isFinite(performanceTime)
+        && !(contextTime === 0 && performanceTime === 0);
+      if (valid) return contextTime + (eventTimeStampMs - performanceTime) / 1000;
     }
-    // No (valid) output-clock correlation available: read a fresh
-    // (performance.now(), ctx.currentTime) pair right now rather than a
-    // cached anchor, since currentTime freezes across suspend/resume and a
-    // stale anchor would desync. Still ignores output latency entirely.
+    // Sem correlação de saída válida: par novo (performance.now(), currentTime)
+    // agora, nunca uma âncora em cache (currentTime congela em suspend/resume).
     const fallbackPerfMs = performance.now();
-    const fallbackCtxSec = ctx.currentTime;
-    return fallbackCtxSec + (eventTimeStampMs - fallbackPerfMs) / 1000;
+    return ctx.currentTime + (eventTimeStampMs - fallbackPerfMs) / 1000;
   }
 
   #nowAudioTime() {
@@ -468,195 +650,96 @@ export class GrooveAudio {
   #checkTransition() {
     const pos = this.position;
     const prev = this.#lastSnapshot;
-    if (prev && prev.mode === pos.mode && prev.repetition === pos.repetition && prev.held === pos.held) {
-      return;
-    }
+    if (prev && prev.mode === pos.mode && prev.repetition === pos.repetition && prev.held === pos.held) return;
     this.#lastSnapshot = { mode: pos.mode, repetition: pos.repetition, held: pos.held };
     this.#onStateCb(pos);
   }
 
-  #runScheduler(gen) {
-    this.#tickScheduler(gen);
-    this.#timerId = setInterval(() => this.#tickScheduler(gen), LOOKAHEAD_INTERVAL_SEC * 1000);
-  }
-
-  #tickScheduler(gen) {
-    if (gen !== this.#generation) return;
-    const ctx = this.#ctx;
-    const horizon = ctx.currentTime + SCHEDULE_AHEAD_SEC;
-    const isPlay = this.#sessionKind === 'play' || this.#sessionKind === 'progression';
-    const totalTrainTicks = TICKS_PER_BAR + this.#totalTicks * 4;
-
-    while (true) {
-      const tickTime = this.#sessionStartTime + this.#scheduleCursor * this.#secPerTick;
-      if (tickTime >= horizon) break;
-      if (!isPlay && this.#scheduleCursor >= totalTrainTicks) break;
-
-      if (isPlay) {
-        this.#schedulePlayTick(this.#scheduleCursor, tickTime);
-      } else {
-        this.#scheduleMetronomeTick(this.#scheduleCursor, tickTime);
-      }
-      this.#scheduleCursor += 1;
-    }
-
-    if (!isPlay && this.#scheduleCursor >= totalTrainTicks && this.#timerId !== null) {
-      clearInterval(this.#timerId);
-      this.#timerId = null;
-    }
-
-    this.#checkTransition();
-  }
-
-  #schedulePlayTick(tickIndex, time) {
-    const tick = tickIndex % this.#totalTicks;
-    if (this.#metronomeEnabled && tick % TICKS_PER_BEAT === 0) {
-      this.#scheduleClick(time, tickIndex % TICKS_PER_BAR === 0);
-    }
-    for (const note of this.#notes) {
-      if (note.start === tick) {
-        const channel = this.#sessionKind === 'progression' ? 'chords' : 'phrase';
-        this.#scheduleNote(time, note.duration * this.#secPerTick, note.frequency, note.gainScale, channel);
-      }
-    }
-    if (this.#drumsEnabled && this.#drumBuffers) {
-      for (const hit of this.#drumHits) {
-        if (hit.start === tick) this.#scheduleDrum(time, hit);
-      }
-    }
-  }
-
-  #scheduleMetronomeTick(tickIndex, time) {
-    // Count-in and the four evaluated repetitions share the metronome bus
-    // and one uninterrupted click pattern. Accents mark every bar start.
-    if (tickIndex % TICKS_PER_BEAT === 0) {
-      this.#scheduleClick(time, tickIndex % TICKS_PER_BAR === 0);
-    }
-  }
-
-  #scheduleFinish(gen, totalDurationSec) {
-    const check = () => {
-      if (gen !== this.#generation) return;
-      // Output-correlated, not raw ctx.currentTime: see module comment
-      // "Output-clock gating" — avoids cutting off a release the user makes
-      // in response to a sound they are only now actually hearing.
-      const remaining = this.#sessionStartTime + totalDurationSec - this.#nowAudioTime();
-      if (remaining <= 0) {
-        this.#finishTrain(gen);
-      } else {
-        this.#finishTimeoutId = setTimeout(check, Math.max(4, remaining * 1000));
-      }
-    };
-    check();
-  }
-
-  #finishTrain(gen) {
-    if (gen !== this.#generation) return;
-    if (this.#sessionKind !== 'train') return;
-
-    const totalTrainDuration = this.#totalTicks * 4 * this.#secPerTick;
-    if (this.#heldAttempt) {
-      this.#heldAttempt.end = totalTrainDuration; // held through the end: close at the final boundary
-      this.#heldAttempt = null;
-    }
-    this.#held = false;
-    this.#keyDown = false;
-
-    const attempts = this.#attempts;
-    this.#attempts = [];
-    if (this.#timerId !== null) {
-      clearInterval(this.#timerId);
-      this.#timerId = null;
-    }
-    this.#finishTimeoutId = null;
-    this.#sessionKind = null;
-    this.#sessionStartTime = 0;
-
-    this.#emitState(); // -> idle
-    this.#onFinishCb(attempts);
-  }
-
-  #scheduleClick(time, accent) {
-    const ctx = this.#ctx;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'square';
-    osc.frequency.setValueAtTime(accent ? CLICK_ACCENT_FREQUENCY_HZ : CLICK_FREQUENCY_HZ, time);
-
-    const peak = accent ? CLICK_ACCENT_GAIN : CLICK_GAIN;
-    gain.gain.setValueAtTime(0, time);
-    gain.gain.linearRampToValueAtTime(peak, time + 0.002);
-    gain.gain.linearRampToValueAtTime(0, time + CLICK_DURATION_SEC);
-
-    osc.connect(gain).connect(this.#channelGains.metronome);
-    osc.start(time);
-    osc.stop(time + CLICK_DURATION_SEC + 0.005);
-    this.#trackNode(osc, gain);
-  }
-
-  #scheduleNote(time, durationSec, frequency = NOTE_FREQUENCY_HZ, gainScale = 1, channel = 'phrase') {
-    const ctx = this.#ctx;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(frequency, time);
-
-    const attack = Math.min(NOTE_ATTACK_SEC, durationSec / 4);
-    const decay = Math.min(NOTE_DECAY_SEC, durationSec / 4);
-    const release = Math.min(NOTE_RELEASE_SEC, durationSec / 4);
-    const sustainEnd = time + durationSec - release;
-
-    gain.gain.setValueAtTime(0, time);
-    gain.gain.linearRampToValueAtTime(NOTE_PEAK_GAIN * gainScale, time + attack);
-    gain.gain.linearRampToValueAtTime(NOTE_SUSTAIN_GAIN * gainScale, time + attack + decay);
-    gain.gain.setValueAtTime(NOTE_SUSTAIN_GAIN * gainScale, sustainEnd);
-    gain.gain.linearRampToValueAtTime(0, time + durationSec);
-
-    osc.connect(gain).connect(this.#channelGains[channel]);
-    osc.start(time);
-    osc.stop(time + durationSec + 0.01);
-    this.#trackNode(osc, gain);
-  }
-
-  #scheduleDrum(time, { instrument, velocity }) {
-    const source = this.#ctx.createBufferSource();
-    const gain = this.#ctx.createGain();
-    const sample = this.#drumBuffers[instrument];
-    source.buffer = sample.buffer;
-    gain.gain.setValueAtTime(velocity * sample.makeupGain, time);
-    source.connect(gain).connect(this.#drumGain);
-    source.start(time);
-    this.#trackNode(source, gain);
-  }
-
-  #trackNode(osc, gain) {
-    const entry = { osc, gain };
+  #track(entry) {
     this.#activeNodes.add(entry);
-    osc.onended = () => {
-      this.#activeNodes.delete(entry);
-      try {
-        osc.disconnect();
-        gain.disconnect();
-      } catch {
-        // already disconnected
-      }
-    };
+    let remaining = entry.sources.length;
+    for (const source of entry.sources) {
+      source.onended = () => {
+        remaining -= 1;
+        if (remaining > 0) return;
+        this.#activeNodes.delete(entry);
+        try {
+          for (const node of entry.sources) node.disconnect();
+          entry.gain.disconnect();
+        } catch {
+          // já desconectado
+        }
+      };
+    }
+  }
+
+  #fadeOut(entry, now) {
+    try {
+      entry.gain.gain.cancelScheduledValues(now);
+      entry.gain.gain.setValueAtTime(entry.gain.gain.value, now);
+      entry.gain.gain.linearRampToValueAtTime(0, now + 0.01);
+      for (const source of entry.sources) source.stop(now + 0.015);
+    } catch {
+      // nó já terminado
+    }
   }
 
   #silenceActiveNodes() {
     const ctx = this.#ctx;
     if (!ctx) return;
     const now = ctx.currentTime;
-    for (const { osc, gain } of this.#activeNodes) {
-      try {
-        gain.gain.cancelScheduledValues(now);
-        gain.gain.setValueAtTime(gain.gain.value, now);
-        gain.gain.linearRampToValueAtTime(0, now + 0.01);
-        osc.stop(now + 0.015);
-      } catch {
-        // node already stopped/ended
-      }
-    }
+    for (const entry of this.#activeNodes) this.#fadeOut(entry, now);
     this.#activeNodes.clear();
   }
+}
+
+// Renderização offline real do arranjo (mesma realização do transporte).
+// Com `attempts` ({start,end,pitch?} em segundos desde o primeiro compasso
+// avaliado, como entregues por onFinish), o canal da frase toca a execução
+// real por teclado/toque em vez da referência, após a contagem.
+export async function renderSession(session, {
+  loops = 1, sampleRate = 44100, attempts = null, countIn = Boolean(attempts), tailSeconds = 1, contextFactory = null,
+} = {}) {
+  const valid = checkedSession(session);
+  if (!Number.isInteger(loops) || loops < 1 || loops > 64) throw new TypeError('O número de repetições deve ser de 1 a 64.');
+  if (attempts !== null && (!Array.isArray(attempts) || attempts.some(attempt => !attempt || !Number.isFinite(attempt.start)))) {
+    throw new TypeError('As tentativas devem ser uma lista de {start, end}.');
+  }
+  const arrangement = prepareArrangement(valid);
+  const barTicks = ticksPerBar(valid);
+  const secPerTick = secondsPerTick(valid.bpm);
+  const countInBars = countIn ? valid.training.countInBars : 0;
+  const loopBars = valid.loop.endBar - valid.loop.startBar;
+  const totalBars = countInBars + loopBars * loops;
+  const length = Math.ceil((totalBars * barTicks * secPerTick + tailSeconds) * sampleRate);
+  const ctx = contextFactory
+    ? contextFactory({ numberOfChannels: 2, length, sampleRate })
+    : new OfflineAudioContext({ numberOfChannels: 2, length, sampleRate });
+  const { buses } = createBuses(ctx, valid.mixer);
+  const samples = valid.drums.enabled ? await loadDrumSamples(ctx).catch(() => null) : null;
+  const trainStart = countInBars * barTicks;
+  const onsets = (attempts ?? []).map(attempt => trainStart + attempt.start / secPerTick);
+
+  for (let bar = 0; bar < totalBars; bar += 1) {
+    const events = bar < countInBars
+      ? arrangement.countInEvents()
+      : arrangement.barEvents(valid.loop.startBar + ((bar - countInBars) % loopBars), {
+        barIndex: bar - countInBars, includePhrase: !attempts, activity: activityFor(onsets, bar, barTicks),
+      });
+    for (const event of events) {
+      const time = Math.max(0, (bar * barTicks + event.tick) * secPerTick + event.offsetMs / 1000);
+      dispatch(ctx, buses, samples, event, time, secPerTick);
+    }
+  }
+  for (const attempt of attempts ?? []) {
+    const start = trainStart * secPerTick + attempt.start;
+    if (start < 0) continue;
+    const end = Number.isFinite(attempt.end) ? attempt.end : attempt.start + 0.1;
+    const sessionTick = valid.loop.startBar * barTicks + ((attempt.start / secPerTick) % (loopBars * barTicks));
+    playTone(ctx, buses.phrase, {
+      time: start, duration: Math.max(0.03, end - attempt.start), pitch: attempt.pitch ?? referencePitch(valid, sessionTick),
+      velocity: 0.8, timbre: valid.timbres.phrase, articulation: 'tenuto',
+    });
+  }
+  return ctx.startRendering();
 }

@@ -1,16 +1,26 @@
-import { BAR_OPTIONS, validPhrase } from './model.js';
+import { validateSession } from './session.js';
 
-// Histórico de estados {notes, bpm, bars}; cada nota guarda {id, start, duration}.
-// O primeiro push estabelece a base (não há estado anterior a desfazer). Push
-// distinto descarta o redo e acrescenta um snapshot; push estruturalmente igual
-// ao atual não altera nem o ponteiro nem o redo. A ordem das notas faz parte do
-// estado. O limite conta snapshots, incluindo o atual, e descarta os mais antigos.
-// Snapshots são cópias profundas congeladas: undo/redo devolvem a mesma referência
-// interna, sem permitir que o chamador a modifique. Campos fora do modelo não
-// fazem parte do snapshot. Um limite deve ser inteiro positivo.
+// Histórico de sessões completas (session.js). O primeiro push estabelece a
+// base (não há estado anterior a desfazer). Push distinto descarta o redo e
+// acrescenta um snapshot; push estruturalmente igual ao atual não altera nem
+// o ponteiro nem o redo. A ordem das notas faz parte do estado. O limite
+// conta snapshots, incluindo o atual, e descarta os mais antigos.
+// Snapshots são sessões canônicas profundas e congeladas: undo/redo devolvem
+// a mesma referência interna, sem permitir que o chamador a modifique.
+// Quem consome decide o que é uma edição (ex.: mexer só no mixer não precisa
+// de push). Um limite deve ser inteiro positivo.
+function freezeDeep(value) {
+  if (value && typeof value === 'object') {
+    Object.values(value).forEach(freezeDeep);
+    Object.freeze(value);
+  }
+  return value;
+}
+
 export class History {
   #limit;
   #states = [];
+  #keys = [];
   #index = -1;
 
   constructor(limit = 100) {
@@ -20,41 +30,20 @@ export class History {
     this.#limit = limit;
   }
 
-  push(state) {
-    if (
-      state === null ||
-      typeof state !== 'object' ||
-      !BAR_OPTIONS.includes(state.bars) ||
-      !Number.isInteger(state.bpm) ||
-      state.bpm < 40 ||
-      state.bpm > 240 ||
-      !validPhrase(state.notes, state.bars)
-    ) {
-      throw new TypeError('O histórico requer uma frase válida com BPM entre 40 e 240.');
-    }
+  push(session) {
+    const result = validateSession(session);
+    if (!result.ok) throw new TypeError(`O histórico requer uma sessão válida: ${result.error}`);
+    const key = JSON.stringify(result.session);
+    if (this.#keys[this.#index] === key) return;
 
-    const current = this.#states[this.#index];
-    if (
-      current &&
-      current.bpm === state.bpm &&
-      current.bars === state.bars &&
-      current.notes.length === state.notes.length &&
-      current.notes.every((note, index) => {
-        const next = state.notes[index];
-        return note.id === next.id && note.start === next.start && note.duration === next.duration;
-      })
-    ) {
-      return;
-    }
-
-    const snapshot = Object.freeze({
-      notes: Object.freeze(state.notes.map(({ id, start, duration }) => Object.freeze({ id, start, duration }))),
-      bpm: state.bpm,
-      bars: state.bars,
-    });
     this.#states.length = this.#index + 1;
-    this.#states.push(snapshot);
-    if (this.#states.length > this.#limit) this.#states.shift();
+    this.#keys.length = this.#index + 1;
+    this.#states.push(freezeDeep(result.session));
+    this.#keys.push(key);
+    if (this.#states.length > this.#limit) {
+      this.#states.shift();
+      this.#keys.shift();
+    }
     this.#index = this.#states.length - 1;
   }
 
@@ -68,6 +57,10 @@ export class History {
     if (!this.canRedo) return null;
     this.#index += 1;
     return this.#states[this.#index];
+  }
+
+  get current() {
+    return this.#states[this.#index] ?? null;
   }
 
   get canUndo() {
