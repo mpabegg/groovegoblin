@@ -33,6 +33,7 @@
 
 import { EPSILON, ticksPerBar, gridStep, performTick, secondsPerTick } from './meter.js';
 import { validateSession, createSession, GOALS } from './session.js';
+import { classifyInstrumentPitch } from './instrument-pitch-evaluation.js';
 
 export const REPETITIONS = 4;
 
@@ -160,6 +161,7 @@ function referenceRows(session, attempts, options) {
         expectedStart: exp.expectedStart, expectedEnd: exp.expectedEnd, actualStart: att.start, actualEnd: att.end,
         onsetMs, endMs, onset: classify(onsetMs, toleranceMs), ending: classify(endMs, toleranceMs),
         expectedPitch: exp.pitch, pitch, pitchOk: pitch === null ? null : pitch === exp.pitch,
+        ...('pitchEstimate' in att ? classifyInstrumentPitch(att.pitchEstimate, exp.pitch) : {}),
       });
       i += 1;
       j += 1;
@@ -273,7 +275,8 @@ export function evaluateSession(session, attempts, options = {}) {
       throw new TypeError('Cada tentativa deve ter início e fim finitos, em ordem, e altura MIDI válida.');
     }
   }
-  const normalized = attempts.map(att => ({ start: att.start, end: att.end ?? att.start, pitch: att.pitch ?? null }));
+  const normalized = attempts.map(att => ({ start: att.start, end: att.end ?? att.start, pitch: att.pitch ?? null,
+    ...('pitchEstimate' in att ? { pitchEstimate: att.pitchEstimate } : {}) }));
   const core = mode === 'free'
     ? freeRows(valid, normalized, { repetitions })
     : referenceRows(valid, normalized, { repetitions, mode });
@@ -282,6 +285,7 @@ export function evaluateSession(session, attempts, options = {}) {
     mode,
     goal,
     repetitions,
+    instrument: valid.extensions?.performanceInput?.mode === 'instrument',
     bpm: valid.bpm,
     startBar: valid.loop.startBar,
     loopBars: valid.loop.endBar - valid.loop.startBar,
@@ -313,12 +317,17 @@ export function summarizeFeedback(result) {
   let endOk = 0;
   let pitchChecked = 0;
   let pitchOk = 0;
+  let pitchCorrect = 0, pitchWrong = 0, pitchUnidentified = 0, pitchOctave = 0;
   let free = 0;
   for (const row of result.rows) {
     if (row.kind === 'matched') {
       matched += 1;
       if (row.onset === 'ok') attackOk += 1;
       if (row.ending === 'ok') endOk += 1;
+      if (row.pitchStatus === 'correct') pitchCorrect += 1;
+      else if (row.pitchStatus === 'wrong') pitchWrong += 1;
+      else if (row.pitchStatus === 'unidentified') pitchUnidentified += 1;
+      else if (row.pitchStatus === 'octave') pitchOctave += 1;
       if (row.pitchOk !== null && row.pitchOk !== undefined) {
         pitchChecked += 1;
         if (row.pitchOk) pitchOk += 1;
@@ -357,17 +366,21 @@ export function summarizeFeedback(result) {
         ? 'Alguns ataques variaram em relação ao seu próprio pulso; busque consistência nas posições, mesmo mantendo seu deslocamento.'
         : 'Conte as subdivisões em voz alta e pratique pressionar nos ataques da referência.');
     }
-    if (goal !== 'timing' && endOk < matched) {
+    if (goal !== 'timing' && !result.instrument && endOk < matched) {
       advice.push('Pratique os limites de cada nota: pressione no início e solte no término indicado pela referência.');
     }
     if (goal === 'pitch' && pitchChecked > 0 && pitchOk < pitchChecked) {
-      advice.push(`${pitchChecked - pitchOk} nota(s) tocada(s) com altura diferente da referência; toque a frase devagar conferindo cada altura.`);
+      if (result.instrument) {
+        if (pitchWrong > 0) advice.push(`${pitchWrong} nota(s) errada(s); toque a frase devagar conferindo cada altura.`);
+        if (pitchOctave > 0) advice.push(`${pitchOctave} nota(s) com oitava diferente; confira o registro, separadamente de notas erradas.`);
+      } else advice.push(`${pitchChecked - pitchOk} nota(s) tocada(s) com altura diferente da referência; toque a frase devagar conferindo cada altura.`);
     }
+    if (pitchUnidentified > 0) advice.push(`${pitchUnidentified} altura(s) não identificada(s): toque uma nota por vez, com sinal claro e tempo suficiente para a análise; não adivinhamos alturas de baixa confiança.`);
     if (mode === 'style' && Number.isFinite(stats?.feelMs) && Math.abs(stats.feelMs) > result.toleranceMs) {
       advice.push(`Seu pulso ficou consistentemente ${ms(stats.feelMs)} ${stats.feelMs > 0 ? 'atrás' : 'à frente'} da grade; no modo estilo isso é tratado como escolha, não como erro.`);
     }
-    if (matched === expected && attackOk === matched && (goal === 'timing' || endOk === matched)) {
-      advice.push('Os ataques' + (goal === 'timing' ? '' : ' e términos') + ' das notas esperadas ficaram dentro da tolerância; mantenha essa coordenação e repita a frase.');
+    if (matched === expected && attackOk === matched && (goal === 'timing' || result.instrument || endOk === matched)) {
+      advice.push('Os ataques' + (goal === 'timing' || result.instrument ? '' : ' e términos') + ' das notas esperadas ficaram dentro da tolerância; mantenha essa coordenação e repita a frase.');
     }
   }
   if (stats?.driftMsPerRepetition !== null && stats?.driftMsPerRepetition !== undefined && Math.abs(stats.driftMsPerRepetition) > result.toleranceMs / 2) {
@@ -379,7 +392,7 @@ export function summarizeFeedback(result) {
 
   return {
     expected, matched, missed, extra, attackOk, endOk,
-    pitchChecked, pitchOk: pitchChecked > 0 ? pitchOk : null, free, mode, goal, stats, advice,
+    pitchChecked, pitchOk: pitchChecked > 0 ? pitchOk : null, pitchCorrect, pitchWrong, pitchUnidentified, pitchOctave, free, mode, goal, stats, advice,
   };
 }
 

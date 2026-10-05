@@ -589,6 +589,7 @@ export class GrooveAudio {
     this.#held = true;
     this.#heldPitch = pitch;
     this.#emitState();
+    return attempt; // Stable handle for delayed instrument pitch; release never replaces it.
   }
 
   release(eventTimeStamp = performance.now()) {

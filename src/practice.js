@@ -10,6 +10,7 @@ import { mergeSession } from './studio-state.js';
 import { performTick } from './meter.js';
 import { createSession } from './session.js';
 import { getInstrumentProfile } from './instrument-profile.js';
+import { instrumentPitchCounts } from './instrument-pitch-evaluation.js';
 
 // Only temporary generated execution inherits the current instrument; all other
 // exercise/editor namespaces and the stored source remain untouched.
@@ -666,7 +667,7 @@ export function validateRunEntry(entry) {
     .filter(n => n && Number.isFinite(n.start) && n.start >= 0 && Number.isFinite(n.duration) && n.duration > 0)
     .map((n, index) => ({ id: typeof n.id === 'string' ? n.id.slice(0, 80) : `history-${index}`, start: n.start, duration: n.duration, pitch: clamp(Math.round(numOr(n.pitch, 69)), 21, 108), velocity: clamp(numOr(n.velocity, 0.8), 0, 1) })) : [];
   const metrics = {};
-  for (const key of ['expected', 'matched', 'missed', 'extra', 'attackOk', 'endOk', 'objectiveScore']) {
+  for (const key of ['expected', 'matched', 'missed', 'extra', 'attackOk', 'endOk', 'objectiveScore', 'pitchCorrect', 'pitchWrong', 'pitchUnidentified', 'pitchOctave']) {
     metrics[key] = Math.max(0, Math.round(numOr(entry?.metrics?.[key], 0)));
   }
   if (entry.kind === 'ear') metrics.correct = entry?.metrics?.correct === 1 || entry?.metrics?.correct === true ? 1 : 0;
@@ -1087,7 +1088,7 @@ export function mountPractice(container, host, options = {}) {
       swingUnit: selectedSession?.swingUnit ?? 'eighth',
       subdivision: selectedSession?.subdivision ?? 4,
       metronome: { ...exercise.metronome },
-      training: { goal: exercise.objective === 'durations' ? 'duration' : 'timing', adaptive: state.routine.adaptiveTempo },
+      training: { goal: selectedSession?.training.goal ?? (exercise.objective === 'durations' ? 'duration' : 'timing'), adaptive: state.routine.adaptiveTempo },
       extensions: { practice: { objective: exercise.objective, stage: activeStage()?.name ?? 'execução livre', workspace: 'studio' } },
     };
   }
@@ -1294,7 +1295,7 @@ export function mountPractice(container, host, options = {}) {
     section.appendChild(list);
     if (host.isInstrumentInput?.()) {
       list.value = 'timing'; list.disabled = true;
-      section.appendChild(createEl('p', { className: 'practice-hint', text: 'Instrumento: objetivo Ataques. Durações e alturas não são avaliadas; sua escolha anterior volta ao selecionar Teclado.' }));
+      section.appendChild(createEl('p', { className: 'practice-hint', text: 'Instrumento: esta rotina avalia ataques. Para avaliar alturas, use Treinar esta frase com Ataques e alturas. Durações não são medidas; sua escolha anterior volta ao selecionar Teclado.' }));
     }
     const focus = OBJECTIVES.find(o => o.id === (host.isInstrumentInput?.() ? 'timing' : state.objective));
     section.appendChild(createEl('p', { className: 'practice-focus', role: 'status', text: focus?.focus ?? '' }));
@@ -1654,13 +1655,14 @@ export function mountPractice(container, host, options = {}) {
       ['Sobras (tocadas fora)', String(m.extra)],
       [`Aproveitamento do objetivo (${OBJECTIVES.find(o => o.id === lastRun.objective)?.name ?? lastRun.objective})`, `${m.objectiveScore}%`],
     ];
+    if (lastRun.inputMode === 'instrument' && lastRunSession?.training.goal === 'pitch') rows.push(['Alturas · ±50 cents', instrumentPitchCounts(m)]);
     if (lastRun.tempoDelta !== 0) rows.push(['Adaptação de tempo', `${lastRun.tempoDelta > 0 ? '+' : ''}${lastRun.tempoDelta} bpm`]);
     for (const [dimension, value] of rows) {
       body.appendChild(createEl('tr', {}, [createEl('th', { scope: 'row', text: dimension }), createEl('td', { text: value })]));
     }
     table.appendChild(body);
     section.appendChild(table);
-    if (lastRun.inputMode === 'instrument') section.appendChild(createEl('p', { className: 'practice-hint', text: `Instrumento: términos e alturas não avaliados.${lastRunSession?.extensions?.performanceInput?.calibrated ? '' : ' Sem calibração: calibre a entrada para compensar o atraso residual.'}` }));
+    if (lastRun.inputMode === 'instrument') section.appendChild(createEl('p', { className: 'practice-hint', text: `Instrumento: términos não avaliados; ${lastRunSession?.training.goal === 'pitch' ? 'alturas monofônicas avaliadas; baixa confiança = não identificada' : 'alturas não avaliadas neste objetivo'}.${lastRunSession?.extensions?.performanceInput?.calibrated ? '' : ' Sem calibração: calibre a entrada para compensar o atraso residual.'}` }));
     if (lastRunSession?.extensions?.performanceInput?.mode === 'keyboard' && !lastRunSession.extensions.performanceInput.calibrated) section.appendChild(createEl('p', { className: 'practice-hint', text: 'Teclado/toque sem calibração: calibre a entrada para compensar o atraso residual.' }));
 
     const controls = createEl('div', { className: 'practice-inline-controls' });

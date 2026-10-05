@@ -79,10 +79,7 @@ As seções abaixo registram resultados observados, não verificações antecipa
 - Miniatura apareceu em 16 compassos: clique no compasso 13 moveu a janela para 11–15, sem mudar a posição **Pronto** ou o documento. Home/End e zoom sincronizaram o retângulo; quatro compassos que cabem ocultam a miniatura. O limite da sessão permanece **16 compassos**.
 - A prova real de Ouvir encontrou opção nula do acelerador não normalizada; corrigida como desativada. Três falhas iniciais dos novos testes eram identificação incorreta do oscilador fake e igualdade exata de ponto flutuante; testes agora identificam o clique real, conferem quantidade/frequências e usam tolerância temporal, sem relaxar a regra musical.
 - Verificação final integrada: **547/547 testes**, **132 módulos**, zero falhas. Capturas refeitas: [1440×900](rodada-3-etapa6-1440x900.png), [1280×800](rodada-3-etapa6-1280x800.png). Quatro faixas em Tab com diferenças de bateria: **57 controles visíveis**, transporte **53 px**, numa linha e sem overflow horizontal. Miniatura/navegação e reprodução foram repetidas após integrar baixo/harmonia; nenhum erro do navegador.
-
-
-
-
+- Integração publicada na `main`: `dc1cfe2`; **547/547 testes e check repetidos na main**, push concluído.
 
 ### Etapa 7 — Entrada por instrumento
 
@@ -111,6 +108,20 @@ As seções abaixo registram resultados observados, não verificações antecipa
 - Integração publicada na `main`: `4c2b17f`; **510/510 testes e check repetidos na main**, push concluído. A etapa 8 foi integrada antes de 4–6, conforme a independência autorizada.
 
 
+### Etapa 9 — Avaliação de alturas com instrumento
+
+- Ataques e alturas usa a estimativa monofônica real, com **±50 cents**, confiança mínima **0,85**, oitavas em categoria separada e ausência de estimativa como não identificada. Não usa a nota esperada para detectar. Teclado conserva seu contrato; duração acústica e força física continuam não medidas.
+- Cada estimativa pertence ao ID de captura/ataque e ao intervalo de amostras de origem. A primeira janela confiável precisa começar pelo menos 15 ms após o ataque, terminar antes do próximo e estar no horizonte de 320 ms. Ataques rejeitados também delimitam janelas. Uma nota já solta pode receber sua altura; encerrar o resultado desliga a associação.
+- Chromium isolado com **getUserMedia e AudioWorklet nativos**, alimentados por WAV sintético de 48 kHz. Fundamental fraca e harmônicos `[0,025;0,32;0,16;0,05]`, subida de 15 ms e release de 70 ms. Observadores somente leram eventos/relatórios: nenhuma altura detectada, relógio ou resultado foi injetado.
+- Resultado efetivamente concluído/persistido: guitarra E2/A2/D3/G3 **4/4 certas**; trocar A2 por B2 deu **3 certas/1 errada (+200 cents)**; subir D3 uma oitava deu **3 certas/1 oitava diferente (+1200 cents), zero erradas**. Baixo B0/E1/A1/G2 também deu **4/4 certas**, sem ataques extras nas sequências limpas.
+- Ruído de banda larga no lugar da segunda nota produziu **3 certas/1 não identificada**, sem adivinhar a altura. O ruído também gerou seis ataques extras reais, mantidos no relatório; isso não é uma promessa de ausência de ataques falsos em ruído.
+- Último ataque: a estimativa chegou **187 ms após a soltura escrita e 158 ms após o fim musical**; o relatório ainda recebeu a nota certa, graças à cauda limitada. Depois de concluído, nova leitura real de **439,9998 Hz** pelo afinador e a troca para Teclado mantiveram o HTML do resultado byte a byte.
+- A prova do botão real encontrou `practice.useSession` sobrescrevendo o objetivo escolhido com o objetivo da rotina avançada. Corrigido somente o treino da sessão selecionada; exercícios gerados mantêm o mapeamento anterior. Regressão exercita `useSession` até o snapshot Instrumento executado, sem modificar a frase salva. Removida uma assertiva incidental de velocidade que conflitava com a acentuação já existente da rotina; tempos/alturas e documento original seguem verificados.
+- Verificação após integrar todas as etapas anteriores: **563/563 testes**, **134 módulos**, zero falhas. No navegador integrado, Treinar esta frase executou `goal=pitch`, cauda **0,39 s**, com instrução de ataques e alturas. Contagem normal mostrou **Entrada**, área de treino desabilitada; Espaço cancelou para **Pronto**, preservando a distinção de contagem normal/treino.
+- Quatro compassos em Tab, entrada configurada e objetivo de alturas: documento **900 px**, painel completo até **y=801** em 1440×900. Estúdio integrado: **57 controles visíveis**, transporte **53 px**, numa linha e sem overflow nas duas larguras. `main.js` permanece abaixo das 536 linhas iniciais.
+- Capturas: [guitarra 1440×900](rodada-3-etapa9-guitarra-1440x900.png), [guitarra 1280×800](rodada-3-etapa9-guitarra-1280x800.png), [baixo 1440×900](rodada-3-etapa9-baixo-resultado-1440x900.png), [baixo 1280×800](rodada-3-etapa9-baixo-resultado-1280x800.png), [nota errada](rodada-3-etapa9-wrong-resultado-1440x900.png), [oitava diferente](rodada-3-etapa9-octave-resultado-1440x900.png), [último ataque](rodada-3-etapa9-ultimo-resultado-1440x900.png), [integração 1440×900](rodada-3-etapa9-integrada-1440x900.png), [integração 1280×800](rodada-3-etapa9-integrada-1280x800.png).
+- A sincronização não calibrada do dispositivo simulado variou dezenas de milissegundos entre capturas. As categorias de altura e correspondências foram verificadas separadamente da tolerância rítmica: por exemplo, a captura do baixo teve quatro alturas certas, embora três ataques ficassem fora da tolerância rítmica de ±31 ms. Não houve validação com instrumento físico.
+
 ## Critérios de aceitação
 
 | Nº | Critério | Resultado |
@@ -133,11 +144,11 @@ As seções abaixo registram resultados observados, não verificações antecipa
 | 16 | Entrada lembrada ativa ao entrar em Treinar somente com permissão concedida | Passou: startup sem captura; granted automático; prompt sem captura; explícito abre; foco encerra |
 | 17 | Treinar com entrada configurada e quatro compassos cabe em 1440×900 | Passou após partitura e afinador: documento 900 px, painel até y=823,69 |
 | 18 | Ataques graves com subida de 15 ms: erro até 10 ms e nenhuma repetição falsa em sustentadas | Passou: quatro frequências × quatro taxas, reataques/sustentadas/ruído; WAV harmônico também exercitado |
-| 19 | Alturas sintéticas: certas, nota errada, oitava diferente e não identificada | Pendente |
+| 19 | Alturas sintéticas: certas, nota errada, oitava diferente e não identificada | Passou: fluxo nativo WAV→captura→detectores→relatório, guitarra/baixo 4/4, troca +200 cents, oitava +1200 cents e ruído não identificado |
 | 20 | Miniatura revela conteúdo além de quatro compassos e navega ao clique | Passou: 16 compassos, clique/Home/End/zoom; navega sem mudar transporte/documento e some quando cabe |
 | 21 | Até 62 controles em repouso; transporte em uma linha a 1280 px | Passou até etapa 6: 57 controles realmente visíveis/53 px em 1440 e 1280; repetir no fechamento |
 | 22 | Funcionalidades aprovadas da rodada 2 preservadas | Pendente |
 
 ## Limite de verificação de áudio
 
-Não há guitarra nem baixo físicos disponíveis nesta execução. Detector, afinador e avaliação de alturas serão exercitados com sinais sintéticos e captura real do navegador alimentada por dispositivo simulado. Esses resultados não equivalem a tocar um instrumento físico. Testar entrada e Afinador permanecem disponíveis para a validação do usuário; áudio de entrada não é gravado nem enviado.
+Não há guitarra nem baixo físicos disponíveis nesta execução. Detector, afinador e avaliação de alturas foram exercitados com sinais sintéticos e captura real do navegador alimentada por dispositivo simulado. Esses resultados não equivalem a tocar um instrumento físico. Testar entrada e Afinador permanecem disponíveis para a validação do usuário; áudio de entrada não é gravado nem enviado.

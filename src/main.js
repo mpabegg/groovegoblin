@@ -1,3 +1,4 @@
+import { instrumentPitchCounts, instrumentPitchLabel } from './instrument-pitch-evaluation.js';
 import { GrooveAudio, renderSession } from './audio.js';
 import { loadSession, saveSession, validateSession, serializeSession, parseSession, encodeSessionLink, decodeSessionLink, drumEditStructureError, ticksPerBar as barTicks, METRONOME_PATTERNS, ARTICULATIONS } from './session.js';
 import { evaluateSession, summarizeFeedback } from './feedback.js';
@@ -165,7 +166,7 @@ async function begin(mode = 'loop', practiceSession = null, { listen = false } =
       mode, startTick: mode === 'train' || practiceSession || listen ? null : playback.getStartTick(),
       once: listen, mixer: playback.getMixer(snapshot),
       ...playback.getPlayOptions(mode),
-      ...performanceInput.playOptions(mode),
+      ...performanceInput.playOptions(mode, snapshot),
     });
     if (request !== generation) return;
     if (mode === 'train') performanceInput.started(snapshot);
@@ -462,7 +463,7 @@ function renderFeedback() {
   heading.className = 'timing-counts';
   const counts = summary.mode === 'free'
     ? `${summary.free} ataque(s) observado(s) · execução livre, sem acertos ou erros`
-    : `Ataques: ${summary.attackOk}/${summary.expected} · ${attackOnly ? 'términos e alturas não avaliados' : `términos: ${summary.endOk}/${summary.expected}${summary.pitchChecked > 0 ? ` · alturas: ${summary.pitchOk}/${summary.pitchChecked}` : ' · alturas não avaliadas'}`} · ${summary.mode === 'style' ? 'estilo expressivo' : 'avaliação estrita'}`;
+    : `Ataques: ${summary.attackOk}/${summary.expected} · ${attackOnly ? `términos não avaliados · ${results.goal === 'pitch' ? instrumentPitchCounts(summary) : 'alturas não avaliadas'}` : `términos: ${summary.endOk}/${summary.expected}${summary.pitchChecked > 0 ? ` · alturas: ${summary.pitchOk}/${summary.pitchChecked}` : ' · alturas não avaliadas'}`} · ${summary.mode === 'style' ? 'estilo expressivo' : 'avaliação estrita'}`;
   heading.textContent = `${counts} · referência ${reference.bpm} BPM, ${reference.meter.beats}/${reference.meter.unit}.`;
   $('feedback').append(heading);
   const inputNote = performanceInput.resultNote(reference);
@@ -475,7 +476,7 @@ function renderFeedback() {
   for (const text of summary.advice) { const p = document.createElement('p'); p.textContent = text; $('feedback').append(p); }
   const scroll = document.createElement('div'); scroll.className = 'table-scroll'; const table = document.createElement('table');
   const head = document.createElement('thead'); const tr = document.createElement('tr');
-  for (const label of ['Repetição / nota', 'Ataque', 'Término']) { const th = document.createElement('th'); th.textContent = label; tr.append(th); }
+  for (const label of ['Repetição / nota', 'Ataque', 'Término', ...(attackOnly && results.goal === 'pitch' ? ['Altura · ±50 cents'] : [])]) { const th = document.createElement('th'); th.textContent = label; tr.append(th); }
   head.append(tr); table.append(head); const body = document.createElement('tbody');
   for (const [index, row] of results.rows.entries()) {
     const line = document.createElement('tr'); const label = document.createElement('td'); label.textContent = `${row.repetition ?? 1} · ${row.kind === 'extra' ? 'Extra' : row.kind === 'missed' ? 'Omitida' : `Nota ${index + 1}`}`; line.append(label);
@@ -493,6 +494,7 @@ function renderFeedback() {
       else { cell.textContent = row.kind === 'missed' ? 'Omitida' : type === 'onset' ? 'Ataque extra' : `${Math.round((row.actualEnd - row.actualStart) * 1000)} ms`; cell.className = row.kind === 'missed' ? 'missing' : 'extra'; }
       line.append(cell);
     }
+    if (attackOnly && results.goal === 'pitch') line.append(Object.assign(document.createElement('td'), { textContent: instrumentPitchLabel(row), className: row.pitchStatus === 'correct' ? 'ok' : 'free-observation' }));
     body.append(line);
   }
   table.append(body); scroll.append(table); $('feedback').append(scroll);

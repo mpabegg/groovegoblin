@@ -4,6 +4,7 @@ import { refractorySeconds } from './instrument-onsets.js';
 import { calibrateInput, compensatedTime, detectClickLeak, inputTailSeconds, calibrationCollectionDeadline, CALIBRATION_REFRACTORY_SECONDS, INPUT_PREFERENCES_KEY, readInputPreferences, readCalibration, saveCalibration } from './input-timing.js';
 import { getInstrumentProfile } from './instrument-profile.js';
 import { mountInstrumentTuner } from './instrument-tuner.js';
+import { InstrumentPitchEvaluation, instrumentPitchAvailable, INSTRUMENT_PITCH_TAIL_SECONDS } from './instrument-pitch-evaluation.js';
 
 const $ = id => document.getElementById(id);
 function el(tag, props = {}, ...children) {
@@ -23,6 +24,8 @@ export function mountPerformanceInput(host) {
   const pad = $('train-pad');
   const preferences = readInputPreferences();
   const gate = new InstrumentInputGate(audio);
+  const pitchEvaluation = new InstrumentPitchEvaluation();
+  let unsubscribeEvaluationPitch = null;
   let mode = 'keyboard'; // Intent is remembered; capture never starts at mount.
   let activeInput = null;
   let preparing = false;
@@ -53,7 +56,7 @@ export function mountPerformanceInput(host) {
   const level = el('meter', { id: 'instrument-level', min: 0, max: 1, low: 0.01, high: 0.85, optimum: 0.2, value: 0, 'aria-label': 'Nível da entrada de áudio' });
   const levelText = el('output', { id: 'instrument-level-text', text: 'Entrada inativa' });
   const status = el('p', { id: 'instrument-status', className: 'tool-hint', role: 'status', 'aria-live': 'polite' });
-  const reason = el('p', { id: 'instrument-goal-reason', className: 'tool-hint muted', text: 'Instrumento avalia apenas ataques. Durações e alturas não são medidas; o teclado conserva seus objetivos anteriores.', hidden: true });
+  const reason = el('p', { id: 'instrument-goal-reason', className: 'tool-hint muted', text: 'Instrumento avalia ataques e, em frases monofônicas, alturas (±50 cents; baixa confiança = não identificada). Durações não são medidas; use Teclado para avaliar pressão e soltura.', hidden: true });
   const test = el('button', { id: 'instrument-test', type: 'button', text: 'Testar entrada' });
   const diagnostic = el('ol', { id: 'instrument-diagnostic', className: 'instrument-diagnostic', hidden: true, 'aria-label': 'Ataques detectados: instante e nível' });
   const instrumentPanel = el('div', { id: 'instrument-panel', hidden: true },
@@ -163,7 +166,7 @@ export function mountPerformanceInput(host) {
       if (calibration) { calibration.attacks.push(attack.time); return; }
       const time = compensatedTime(attack.time, storedCalibration ?? 0);
       const currentMode = audio.position.mode;
-      if (trainingActive()) gate.attack(time);
+      if (trainingActive()) pitchEvaluation.attack(attack, gate.attack(time));
       if (trainingActive() && currentMode === 'countin' && !audio.position.held) {
         leakClicks = audio.countInClicks;
         leakAttacks.push(attack.time);
@@ -306,6 +309,7 @@ export function mountPerformanceInput(host) {
   });
 
   function reset() {
+    unsubscribeEvaluationPitch?.(); unsubscribeEvaluationPitch = null; pitchEvaluation.reset();
     if (calibration) {
       status.textContent = 'Calibração cancelada; compensação anterior preservada.';
       $('train-state').textContent = 'Calibração interrompida. Você pode tentar novamente.';
@@ -386,9 +390,10 @@ export function mountPerformanceInput(host) {
     compensation.textContent = storedCalibration === null ? 'Sem calibração. Compensação 0 ms.' : `Compensação ${storedCalibration} ms (${mode === 'instrument' ? 'dispositivo atual' : 'teclado/toque'}).`;
     const goal = $('training-goal');
     if (goal) {
-      for (const option of goal.options) option.disabled = mode === 'instrument' && option.value !== 'timing';
-      if (mode === 'instrument') { goal.value = 'timing'; goal.disabled = true; goal.title = reason.textContent; }
-      else goal.title = '';
+      const pitchAvailable = instrumentPitchAvailable(host.getSession());
+      for (const option of goal.options) option.disabled = mode === 'instrument' && option.value !== 'timing' && !(option.value === 'pitch' && pitchAvailable);
+      if (mode === 'instrument' && goal.value !== 'timing' && !(goal.value === 'pitch' && pitchAvailable)) goal.value = 'timing';
+      goal.title = mode === 'instrument' ? `${reason.textContent}${pitchAvailable ? '' : ' Alturas exigem uma frase de referência sem notas sobrepostas, fora da execução livre.'}` : '';
     }
     $('input-pitch').disabled = mode === 'instrument' || locked;
     const monitor = document.querySelector('[data-path="training.monitor"]');
@@ -402,10 +407,10 @@ export function mountPerformanceInput(host) {
     pad.classList.toggle('active', trainingActive(position) || !!calibration);
     pad.classList.toggle('held', mode === 'instrument' ? performance.now() < flashedUntil : !!position.held || (!!calibration && !!activeInput));
     pad.classList.toggle('instrument-input', mode === 'instrument');
-    $('held-state').textContent = mode === 'instrument' ? 'INSTRUMENTO · ataques e nível' : position.held ? 'PRESSIONADA · nota em curso' : 'ESPAÇO ou toque · pressionar / soltar';
+    $('held-state').textContent = mode === 'instrument' ? `INSTRUMENTO · ${session.training.goal === 'pitch' ? 'ataques e alturas' : 'ataques e nível'}` : position.held ? 'PRESSIONADA · nota em curso' : 'ESPAÇO ou toque · pressionar / soltar';
     if (calibration) $('train-state').textContent = `Calibração · ${calibration.clicks.filter(time => time <= performance.now()).length}/8 cliques · toque junto.`;
     else if (trainingActive(position) && position.mode === 'countin') $('train-state').textContent = mode === 'instrument' ? 'Espere sem tocar durante a contagem. Use fones.' : 'Espere a contagem de entrada. Depois, toque o ritmo.';
-    else if (position.mode === 'train') $('train-state').textContent = `Repetição ${position.repetition}/${session.training.repetitions} · ${mode === 'instrument' ? 'toque cada ataque no instrumento; avaliamos só ataques.' : 'pressione no início de cada nota e solte no final.'}`;
+    else if (position.mode === 'train') $('train-state').textContent = `Repetição ${position.repetition}/${session.training.repetitions} · ${mode === 'instrument' ? `toque uma nota por vez; avaliamos ${session.training.goal === 'pitch' ? 'ataques e alturas' : 'só ataques'}.` : 'pressione no início de cada nota e solte no final.'}`;
   }
   render();
   return {
@@ -420,18 +425,22 @@ export function mountPerformanceInput(host) {
       return mode === 'instrument' ? instrumentSession(value, { compensationMs: storedCalibration })
         : { ...value, extensions: { ...value.extensions, performanceInput: { mode: 'keyboard', calibrated: storedCalibration !== null } } };
     },
-    playOptions(playMode) {
-      return playMode === 'train' ? { inputTailSeconds: inputTailSeconds({ instrument: mode === 'instrument', inputLatencySeconds: mode === 'instrument' ? capture.inputLatencySeconds : 0, compensationMs: storedCalibration ?? 0 }) } : {};
+    playOptions(playMode, value = host.getSession()) {
+      return playMode === 'train' ? { inputTailSeconds: inputTailSeconds({ instrument: mode === 'instrument', inputLatencySeconds: mode === 'instrument' ? capture.inputLatencySeconds : 0, compensationMs: storedCalibration ?? 0 }) + (mode === 'instrument' && value.training.goal === 'pitch' && instrumentPitchAvailable(value) ? INSTRUMENT_PITCH_TAIL_SECONDS : 0) } : {};
     },
     started(value) {
+      unsubscribeEvaluationPitch?.(); unsubscribeEvaluationPitch = null; pitchEvaluation.reset();
+      if (mode === 'instrument' && value.training.goal === 'pitch') {
+        pitchEvaluation.start(); unsubscribeEvaluationPitch = capture.subscribePitch(event => pitchEvaluation.pitch(event));
+      }
       gate.reset(); testing = false; diagnostic.hidden = true; test.textContent = 'Testar entrada';
       leakClicks = audio.countInClicks; leakAttacks = []; leakWarned = false;
       capture.configure({ refractory: refractorySeconds(value), instrumentType: getInstrumentProfile(value).type });
     },
-    instruction() { return mode === 'instrument' ? 'Depois da contagem, toque no instrumento. Avaliamos só ataques; use fones para evitar vazamento.' : 'Depois da contagem, toque com Espaço ou na área de toque. Instrumento é uma entrada opcional, ativada somente por você.'; },
+    instruction() { return mode === 'instrument' ? 'Depois da contagem, toque uma nota por vez no instrumento. Ataques e alturas usa ±50 cents e separa oitavas; baixa confiança fica não identificada. Use fones para evitar vazamento.' : 'Depois da contagem, toque com Espaço ou na área de toque. Instrumento é uma entrada opcional, ativada somente por você.'; },
     resultNote(value) {
       const input = value.extensions?.performanceInput;
-      if (input?.mode === 'instrument') return `Instrumento: términos e alturas não avaliados; os términos mostrados são gates escritos, não sustentações medidas.${input.calibrated ? '' : ' Sem calibração: calibre a entrada para compensar o atraso residual.'}`;
+      if (input?.mode === 'instrument') return `Instrumento: ${value.training.goal === 'pitch' ? 'alturas monofônicas com tolerância de ±50 cents; oitavas diferentes separadas e baixa confiança não identificada' : 'alturas não avaliadas neste objetivo'}. Términos não avaliados: são gates escritos, não sustentações medidas.${input.calibrated ? '' : ' Sem calibração: calibre a entrada para compensar o atraso residual.'}`;
       return input?.mode === 'keyboard' && !input.calibrated ? 'Teclado/toque sem calibração: calibre a entrada para compensar o atraso residual do dispositivo.' : '';
     },
   };

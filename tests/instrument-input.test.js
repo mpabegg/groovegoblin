@@ -11,6 +11,7 @@ import { buildTimelineData } from '../src/timeline.js';
 import { harness, audioContext, deferred, close } from './audio-harness.js';
 import { mountPracticeTracks, practiceVoices } from '../src/practice-tracks.js';
 import { createStudioPlayback } from '../src/studio-playback.js';
+import { mountPractice } from '../src/practice.js';
 
 import { MIN_PITCH_FREQUENCY } from '../src/instrument-pitch.js';
 function signal(rate, seconds, notes = [], noise = 0.001) {
@@ -416,14 +417,24 @@ function performanceUI(t, audio, session = trainingSession()) {
   const nodes = new Map();
   class Node {
     constructor(tag) {
-      this.tag = tag; this.children = []; this.listeners = {}; this.attributes = {}; this.captured = new Set();
+      this.tag = tag; this.children = []; this.listeners = {}; this.attributes = {}; this.dataset = {}; this.captured = new Set(); this.isConnected = false;
       this.hidden = false; this.disabled = false; this.value = ''; this.textContent = ''; this.className = '';
-      this.style = { setProperty() {} }; this.classList = { toggle() {} };
+      this.style = { setProperty() {} }; this.classList = { toggle() {}, add() {} };
       this.open = false;
     }
     set id(value) { this._id = value; nodes.set(value, this); } get id() { return this._id; }
     get options() { return this.children; }
     append(...children) { for (const child of children) { child.parent = this; this.children.push(child); } }
+    appendChild(child) { this.append(child); return child; }
+    contains(node) { return !!node && (node === this || this.children.some(child => child.contains?.(node))); }
+    querySelectorAll(selector) {
+      const descendants = this.children.flatMap(child => [child, ...child.querySelectorAll('*')]);
+      if (selector === '*') return descendants;
+      if (selector.startsWith('details')) return descendants.filter(child => child.tag === 'details' && (selector.includes('[data-disclosure]') ? child.dataset.disclosure !== undefined : true));
+      if (selector === '[data-idle-only]') return descendants.filter(child => child.dataset.idleOnly !== undefined);
+      return descendants.filter(child => ['button', 'input', 'select', 'textarea'].includes(child.tag));
+    }
+    querySelector(selector) { return this.querySelectorAll(selector)[0] ?? null; }
     prepend(...children) { for (const child of children.reverse()) { child.parent = this; this.children.unshift(child); } }
     replaceChildren(...children) { this.children = []; this.append(...children); }
     get lastChild() { return this.children.at(-1); }
@@ -455,7 +466,7 @@ function performanceUI(t, audio, session = trainingSession()) {
   nodes.get('input-pitch').value = '69';
   const win = new Node('window');
   const doc = new Node('document');
-  Object.assign(doc, { body: new Node('body'), getElementById: id => nodes.get(id), createElement: tag => new Node(tag), querySelector: () => null });
+  Object.assign(doc, { body: new Node('body'), getElementById: id => nodes.get(id), createElement: tag => new Node(tag), createTextNode: text => Object.assign(new Node('#text'), { textContent: text }), querySelector: () => null });
   install('document', doc); install('window', win); install('Element', Node);
   const values = new Map();
   const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
@@ -1056,4 +1067,79 @@ test('tuner-only failure never stops or resets a previously active keyboard trai
   capture.denial = 'NotAllowedError'; ui.nodes.get('instrument-profile-tuner').fire('click'); await settleInput();
   assert.equal(ui.stops, 0); assert.equal(h.audio.position.mode, 'train'); assert.equal(h.audio.position.held, true);
   assert.equal(ui.surface.instrument, false); ui.nodes.get('instrument-tuner').close();
+});
+
+test('mounted Instrument offers pitch, receives the shared real stream after final release, and protects finished feedback from stale capture', async t => {
+  let finished, ui;
+  const h = harness(t, { onFinish: (attempts, detail) => { ui.surface.reset(); finished = { attempts, result: evaluateSession(detail.session, attempts) }; } });
+  h.ctx.getOutputTimestamp = () => ({ contextTime: h.ctx.currentTime - 0.035, performanceTime: performance.now() });
+  const source = trainingSession({ training: { goal: 'pitch', countInBars: 0, repetitions: 1 },
+    notes: [{ id: 'last', start: 15.92, duration: 0.08, pitch: 40 }] });
+  ui = performanceUI(t, h.audio, source);
+  const goal = ui.doc.createElement('select'); goal.id = 'training-goal'; goal.value = 'pitch';
+  for (const value of ['timing', 'duration', 'pitch']) { const option = ui.doc.createElement('option'); option.value = value; goal.append(option); }
+  const capture = captureDevices(ui, h.ctx, [inputDevice('a')]); capture.latency = 0.017;
+  saveCalibration('a', 23, ui.storage); ui.mount();
+  assert.equal(capture.requests.length, 0, 'mounting a pitch goal never requests capture');
+  ui.choose('performance-entry', 'instrument'); await settleInput();
+  assert.equal(goal.disabled, false); assert.equal(goal.value, 'pitch');
+  assert.equal(goal.options.find(option => option.value === 'pitch').disabled, false);
+  assert.equal(goal.options.find(option => option.value === 'duration').disabled, true);
+  assert.equal(capture.worklets[0].settings.pitchEnabled, false, 'no evaluation PCM before training');
+  const snapshot = ui.surface.session(source);
+  assert.equal(snapshot.training.goal, 'pitch');
+  await h.audio.playSession(snapshot, { mode: 'train', ...ui.surface.playOptions('train', snapshot) }); ui.surface.started(snapshot);
+  assert.equal(capture.requests.length, 1, 'evaluation reuses the active capture');
+  assert.equal(capture.worklets[0].settings.pitchEnabled, true);
+  const raw = 2125; h.advance(2.135); capture.attack(raw);
+  h.advance(2.17); assert.equal(h.audio.position.held, false); assert.equal(finished, undefined);
+  const rate = capture.contexts[0].sampleRate, samples = new Float32Array(Math.round(rate * 0.3));
+  const frequency = 440 * 2 ** ((40 - 69) / 12);
+  for (let i = 0; i < samples.length; i++) {
+    const time = i / rate, envelope = Math.min(1, time / 0.015);
+    for (const [harmonic, amplitude] of [0.025, 0.32, 0.16, 0.05].entries()) samples[i] += amplitude * envelope * Math.sin(2 * Math.PI * (harmonic + 1) * frequency * time);
+  }
+  h.advance(2.45); capture.pcm(samples, raw / 1000 * rate);
+  assert.equal(finished, undefined, 'waits for declared input delay, residual compensation and pitch delivery tail');
+  h.advance(2.65);
+  assert.ok(finished); assert.equal(finished.result.rows[0].pitchStatus, 'correct');
+  close(finished.attempts[0].start, 1.99); close(finished.attempts[0].end, 2);
+  assert.equal(capture.worklets[0].settings.pitchEnabled, false, 'completion unsubscribes evaluation without stopping an active input');
+  assert.match(ui.surface.resultNote(snapshot), /±50 cents/);
+  const immutable = JSON.stringify(finished), stale = capture.worklets[0].port.onmessage;
+  capture.pcm(signal(rate, 0.3, [{ time: 0, frequency: 110, length: 0.3, sustained: true }]), raw / 1000 * rate);
+  ui.choose('performance-entry', 'keyboard'); await settleInput();
+  stale({ data: { type: 'samples', samples, startFrame: raw / 1000 * rate, channel: 'sum' } });
+  assert.equal(JSON.stringify(finished), immutable); assert.equal(source.training.goal, 'pitch');
+  assert.equal(goal.options.find(option => option.value === 'duration').disabled, false);
+  assert.equal(h.ctx.sources.length, 0, 'instrument evaluation never synthesizes monitoring');
+});
+
+test('Treinar esta frase preserves the selected pitch goal through useSession and the executed Instrument snapshot, while generated routines retain timing', async t => {
+  const h = harness(t);
+  const source = trainingSession({ training: { goal: 'pitch', countInBars: 0, repetitions: 1 },
+    notes: [{ id: 'chosen', start: 1, duration: 2, pitch: 40 }] });
+  const before = serializeSession(source), ui = performanceUI(t, h.audio, source);
+  captureDevices(ui, h.ctx, [inputDevice('a')]); ui.mount();
+  ui.choose('performance-entry', 'instrument'); await settleInput();
+  const executed = [], container = ui.doc.createElement('div');
+  const practice = mountPractice(container, {
+    ...ui.host, isInstrumentInput: () => ui.surface.instrument, updateSession() { throw new Error('Training must not replace the saved phrase.'); },
+    async play(mode, value) {
+      const snapshot = ui.surface.session(value); executed.push(snapshot);
+      await h.audio.playSession(snapshot, { mode, ...ui.surface.playOptions(mode, snapshot) }); ui.surface.started(snapshot);
+    },
+  }, { storage: ui.storage });
+  t.after(() => practice.destroy());
+  practice.useSession({ train: true }); await settleInput();
+  assert.equal(executed.length, 1); assert.equal(executed[0].training.goal, 'pitch');
+  assert.equal(executed[0].extensions.performanceInput.mode, 'instrument');
+  assert.deepEqual(executed[0].notes.map(note => [note.id, note.start, note.duration, note.pitch]),
+    source.notes.map(note => [note.id, note.start, note.duration, note.pitch]));
+  assert.equal(serializeSession(source), before);
+  ui.host.stop();
+  const click = text => { const button = container.querySelectorAll('button').find(node => node.textContent === text); assert.ok(button, text); button.fire('click'); };
+  click('Exercício gerado'); click('Pular etapa'); click('Tocar o ritmo'); await settleInput();
+  assert.equal(executed.length, 2); assert.equal(executed[1].training.goal, 'timing');
+  assert.equal(serializeSession(source), before);
 });
