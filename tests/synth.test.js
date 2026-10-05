@@ -42,3 +42,26 @@ test('every drum voice synthesizes without network samples and click accents hav
   const beat = playClick(ctx, ctx.destination, { time: 1, accent: 'beat' });
   assert.notEqual(downbeat.sources[0].frequency.events[0].value, beat.sources[0].frequency.events[0].value);
 });
+
+test('clean and muted guitars are distinct real builders, not fallback synth aliases', () => {
+  const voices = new Map();
+  for (const timbre of ['soft-lead', 'nylon-guitar', 'clean-guitar', 'muted-guitar']) {
+    assert.ok(TIMBRE_IDS.includes(timbre));
+    const ctx = audioContext();
+    const voice = playTone(ctx, ctx.destination, { time: 1, duration: 1, pitch: 52, timbre });
+    voices.set(timbre, { ctx, voice });
+    assert.ok(voice.sources.every(source => source.startTime === 1 && source.connections.length > 0));
+    assert.ok(voice.gain.connections.includes(ctx.destination));
+  }
+  const clean = voices.get('clean-guitar'); const muted = voices.get('muted-guitar');
+  assert.deepEqual(clean.voice.sources.map(source => source.type), ['sawtooth', 'triangle']);
+  assert.deepEqual(muted.voice.sources.map(source => source.type), ['triangle', 'sine']);
+  close(clean.voice.end, 2.06); close(muted.voice.end, 1.18);
+  close(clean.voice.sources[0].frequency.events[0].value, midiToFrequency(52));
+  close(muted.voice.sources[0].frequency.events[0].value, midiToFrequency(52));
+  const decay = voice => voice.gain.gain.events.find(event => event.kind === 'target').constant;
+  close(decay(clean.voice), 0.95); close(decay(muted.voice), 0.045);
+  assert.notEqual(decay(clean.voice), decay(voices.get('nylon-guitar').voice));
+  assert.notDeepEqual(clean.voice.gain.gain.events, voices.get('soft-lead').voice.gain.gain.events);
+  assert.notDeepEqual(muted.voice.gain.gain.events, clean.voice.gain.gain.events);
+});

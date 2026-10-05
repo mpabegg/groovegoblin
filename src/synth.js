@@ -224,6 +224,35 @@ const TIMBRES = {
     tone.connect(lowpass).connect(out);
     return { sources: [tone], out, end: tail };
   },
+  'clean-guitar'(ctx, { time, end, frequency, amp }) {
+    const tone = osc(ctx, 'sawtooth', frequency, time);
+    const body = osc(ctx, 'triangle', frequency, time);
+    const brightness = gainNode(ctx, 0.22);
+    const lowpass = filter(ctx, 'lowpass', Math.min(10000, frequency * 16), 0.8);
+    lowpass.frequency.setValueAtTime(Math.min(10000, frequency * 16), time);
+    lowpass.frequency.setTargetAtTime(Math.min(5000, frequency * 5), time, 0.18);
+    const tail = end + 0.06;
+    const out = gainNode(ctx);
+    percussive(out.gain, time, tail, { attack: 0.002, peak: 0.46 * amp, tau: 0.95, release: 0.06 });
+    tone.connect(brightness).connect(lowpass);
+    body.connect(lowpass);
+    lowpass.connect(out);
+    return { sources: [tone, body], out, end: tail };
+  },
+  'muted-guitar'(ctx, { time, end, frequency, amp }) {
+    const tone = osc(ctx, 'triangle', frequency, time);
+    const pick = osc(ctx, 'sine', frequency * 3, time);
+    const pickLevel = gainNode(ctx);
+    const stop = Math.min(end, time + 0.18);
+    percussive(pickLevel.gain, time, stop, { attack: 0.001, peak: 0.18, tau: 0.012, release: 0.012 });
+    const lowpass = filter(ctx, 'lowpass', Math.min(4000, frequency * 4), 0.7);
+    const out = gainNode(ctx);
+    percussive(out.gain, time, stop, { attack: 0.001, peak: 0.6 * amp, tau: 0.045, release: 0.02 });
+    tone.connect(lowpass);
+    pick.connect(pickLevel).connect(lowpass);
+    lowpass.connect(out);
+    return { sources: [tone, pick], out, end: stop };
+  },
   'upright-bass'(ctx, { time, end, frequency, amp }) {
     const body = osc(ctx, 'triangle', frequency, time);
     const sub = osc(ctx, 'sine', frequency, time);

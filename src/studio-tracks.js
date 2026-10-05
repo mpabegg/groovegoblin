@@ -1,4 +1,5 @@
 import { TIMBRES, TIMBRE_LABELS, STYLES, DENSITIES, STYLE_LABELS, DENSITY_LABELS } from './session.js';
+import { getInstrumentProfile } from './instrument-profile.js';
 
 const names = { phrase: 'Frase', chords: 'Acordes', drums: 'Bateria', bass: 'Baixo', metronome: 'Metrônomo' };
 
@@ -59,15 +60,23 @@ export function mountStudioTracks(host) {
   }
   function render() {
     const session = host.getSession();
+    const phraseName = getInstrumentProfile(session).type === 'bass' ? 'Baixo (meu)' : 'Guitarra';
+    document.getElementById('editor-title').textContent = phraseName;
+    document.getElementById('track-phrase').setAttribute('aria-label', `Faixa de ${phraseName}`);
     for (const { channel, volume, output, mute, solo, timbre, summary } of controls) {
       const value = session.mixer[channel];
       volume.value = Math.round(value.volume * 100); volume.setAttribute('aria-valuetext', `${volume.value}%`);
       output.textContent = `${volume.value}%`; mute.setAttribute('aria-pressed', String(value.muted));
-      mute.setAttribute('aria-label', `${value.muted ? 'Reativar' : 'Silenciar'} ${names[channel]} (silêncio manual guardado)`);
-      mute.title = `${value.muted ? 'Reativar' : 'Silenciar'} ${names[channel]} (manual)`;
+      const name = channel === 'phrase' ? phraseName : names[channel];
+      mute.setAttribute('aria-label', `${value.muted ? 'Reativar' : 'Silenciar'} ${name} (silêncio manual guardado)`);
+      mute.title = `${value.muted ? 'Reativar' : 'Silenciar'} ${name} (manual)`;
       if (solo) solo.setAttribute('aria-pressed', String(host.isSolo(channel)));
       summary.textContent = 'Som';
-      summary.title = `Timbre e opções avançadas: ${names[channel]}`;
+      summary.title = `Timbre e opções avançadas: ${name}`;
+      summary.setAttribute('aria-label', `Som e opções: ${name}`);
+      volume.setAttribute('aria-label', `Volume: ${name}`);
+      if (solo) { solo.title = `Solo temporário: ${name}`; solo.setAttribute('aria-label', `Solo temporário: ${name}. Não altera os silêncios guardados; o metrônomo continua independente.`); }
+      if (timbre) timbre.setAttribute('aria-label', `Timbre: ${name}`);
       if (timbre) timbre.value = session.timbres[channel];
     }
     for (const [channel, enabled] of [['chords', session.progression.enabled], ['drums', session.drums.enabled], ['bass', session.band.bassEnabled]]) {

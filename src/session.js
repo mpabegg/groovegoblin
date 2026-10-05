@@ -13,6 +13,7 @@ import { CHORD_FUNCTIONS, CHORD_SOURCES, CHORD_QUALITIES, PROGRESSION_KEYS } fro
 import { parsePhrase, parseShare } from './portable.js';
 import { normalizeForm } from './form.js';
 import { DRUM_EDIT_VOICES, MAX_DRUM_EDITS, DRUM_POSITION_EPSILON } from './drum-edits.js';
+import { normalizeInstrumentProfile } from './instrument-profile.js';
 export { DRUM_EDIT_VOICES, MAX_DRUM_EDITS, DRUM_POSITION_EPSILON };
 
 export { ticksPerBar, sessionTicks, beatGroups, ARTICULATIONS, MIN_BARS, MAX_BARS };
@@ -38,7 +39,7 @@ export const GOALS = Object.freeze(['timing', 'duration', 'pitch']);
 export const SYNCOPATIONS = Object.freeze(['straight', 'mixed', 'syncopated']);
 export const LENGTHS = Object.freeze(['short', 'mixed', 'long']);
 export const TIMBRES = Object.freeze({
-  phrase: Object.freeze(['soft-lead', 'pluck', 'marimba', 'electric-piano', 'organ', 'square-lead', 'woodblock']),
+  phrase: Object.freeze(['soft-lead', 'pluck', 'marimba', 'electric-piano', 'organ', 'square-lead', 'woodblock', 'nylon-guitar', 'clean-guitar', 'muted-guitar', 'upright-bass', 'electric-bass', 'synth-bass']),
   chords: Object.freeze(['electric-piano', 'pad', 'organ', 'nylon-guitar', 'pluck']),
   bass: Object.freeze(['upright-bass', 'electric-bass', 'synth-bass']),
 });
@@ -66,6 +67,7 @@ export const TIMBRE_LABELS = Object.freeze({
   'soft-lead': 'Sintetizador suave', pluck: 'Pluck', marimba: 'Marimba', 'electric-piano': 'Piano elétrico',
   organ: 'Órgão', 'square-lead': 'Onda quadrada', woodblock: 'Wood block', pad: 'Pad', 'nylon-guitar': 'Violão de nylon',
   'upright-bass': 'Contrabaixo acústico', 'electric-bass': 'Baixo elétrico', 'synth-bass': 'Baixo sintetizado',
+  'clean-guitar': 'Guitarra limpa', 'muted-guitar': 'Guitarra abafada',
 });
 
 const STORAGE_KEY = 'groovegoblin.session.v2';
@@ -335,6 +337,10 @@ function normalizeMixer(value) {
 function normalizeExtensions(value) {
   if (value === undefined) return {};
   if (!isObject(value)) fail('As extensões da sessão devem ser um objeto.');
+  if (isObject(value.studio) && Object.hasOwn(value.studio, 'instrument')) {
+    try { normalizeInstrumentProfile(value.studio.instrument); }
+    catch (error) { fail(`Perfil do instrumento inválido: ${error.message}`); }
+  }
   let text;
   try {
     text = JSON.stringify(value);
@@ -342,7 +348,11 @@ function normalizeExtensions(value) {
     fail('As extensões da sessão devem ser JSON.');
   }
   if (text.length > EXTENSIONS_MAX_LENGTH) fail('As extensões da sessão são grandes demais.');
-  return JSON.parse(text);
+  const extensions = JSON.parse(text);
+  if (isObject(extensions.studio) && Object.hasOwn(extensions.studio, 'instrument')) {
+    extensions.studio.instrument = normalizeInstrumentProfile(extensions.studio.instrument);
+  }
+  return extensions;
 }
 
 // Constrói uma cópia canônica e profunda, ou lança SessionError.

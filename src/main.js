@@ -22,6 +22,8 @@ import { mountStudioNotices } from './studio-notices.js';
 import { mountStudioForm } from './studio-form.js';
 import { createStudioPlayback, phrasePreviewSession } from './studio-playback.js';
 import { mountPerformanceInput } from './performance-input.js';
+import { withStudioChoices, createStudioSession, initialStudioSession } from './studio-session.js';
+import { mountStudioInstrument } from './studio-instrument.js';
 
 const $ = id => document.getElementById(id);
 const restored = loadSession();
@@ -79,27 +81,6 @@ function persist() {
   sessionSaved = recoveryRaw === null && saveSession(session);
   $('saved').textContent = recoveryRaw !== null ? 'Só na memória · originais protegidos'
     : sessionSaved ? 'Sessão salva neste navegador' : 'Só na memória · exporte para guardar';
-}
-function withStudioChoices(value) {
-  const studio = value.extensions?.studio ?? {};
-  return mergeSession(value, { extensions: { studio: {
-    ...studio,
-    generator: { seed: 0, density: 'medium', syncopation: 'mixed', lengths: 'mixed', ...studio.generator },
-    inputPitch: studio.inputPitch ?? 69,
-    performanceFocus: studio.performanceFocus ?? false,
-    progressionFunction: studio.progressionFunction ?? 'cadence',
-  } } });
-}
-function createStudioSession() {
-  return createSession({ bars: 4, loop: { startBar: 0, endBar: 4 }, progression: { cycleBars: 4 } });
-}
-function initialStudioSession(restored) {
-  try {
-    if (restored.recoveryRaw === null && !localStorage.getItem('groovegoblin.session.v2') && !localStorage.getItem('groovegoblin.v1')) {
-      return mergeSession(restored.session, { bars: 4, loop: { startBar: 0, endBar: 4 }, progression: { cycleBars: 4 } });
-    }
-  } catch { /* Preserve loadSession's recovery and storage-unavailable behavior. */ }
-  return restored.session;
 }
 function updateSession(patch, { notice = null, structural = false, drumDecision = false } = {}) {
   const next = mergeSession(session, patch);
@@ -239,6 +220,7 @@ const studioTimeline = mountStudioTimeline($('studio-editor'), {
   auditionChord: chord => { if (!busy() && !repertoire?.isBusy()) void audio.audition(chord.notes.map(note => ({ pitch: note.midi, velocity: 0.65 })), { bpm: session.bpm, timbre: session.timbres.chords, channel: 'chords' }).catch(error => message(`Prévia indisponível: ${error.message}`, true)); },
 });
 const studioForm = mountStudioForm({ getSession: () => session, isBusy: () => false, updateSession, notify: message });
+const instrument = mountStudioInstrument({ getSession: () => session, updateSession, notify: message });
 function deselectEditor() {
   if (!selected) return;
   const lane = selected.kind === 'note' ? $('grid') : $('chord-lane');
@@ -321,6 +303,7 @@ function renderControls() {
   $('delete-session').disabled ||= !$('session-library').value;
   $('apply-share').disabled ||= !sharedSession;
   inspector.render();
+  instrument.render();
   studioTimeline.renderControls();
   studioForm.renderControls();
   practice?.setBusy(locked);

@@ -1,9 +1,7 @@
 import { sessionTicks, ticksPerBar } from './session.js';
 import { musicalDuration } from './studio-bars.js';
 
-export function pitchName(pitch) {
-  return `${['Dó', 'Dó♯', 'Ré', 'Ré♯', 'Mi', 'Fá', 'Fá♯', 'Sol', 'Sol♯', 'Lá', 'Lá♯', 'Si'][pitch % 12]}${Math.floor(pitch / 12) - 1}`;
-}
+import { getInstrumentProfile, formatInstrumentNote } from './instrument-profile.js';
 
 export function mountStudioInspector(host) {
   const $ = id => document.getElementById(id);
@@ -37,7 +35,7 @@ export function mountStudioInspector(host) {
     $('empty-phrase').hidden = !empty;
     $('phrase-actions').hidden = kind !== null || empty;
     $('selection-text').hidden = kind !== 'note';
-    if (note) $('selection-text').textContent = (selection.ids?.length ?? 1) > 1 ? `${selection.ids.length} notas selecionadas · edição conjunta` : `Nota · ${pitchName(note.pitch)} · compasso ${Math.floor(note.start / ticksPerBar(session)) + 1}`;
+    if (note) $('selection-text').textContent = (selection.ids?.length ?? 1) > 1 ? `${selection.ids.length} notas selecionadas · edição conjunta` : `Nota · ${formatInstrumentNote(note.pitch, getInstrumentProfile(session))} · compasso ${Math.floor(note.start / ticksPerBar(session)) + 1}`;
     $('band-starters').hidden = writing || (session.drums.enabled && session.band.bassEnabled && session.progression.enabled && session.progression.chords.length > 0);
     $('note-detail').hidden = !note;
     $('studio-inspector').hidden = empty && !kind;
@@ -47,7 +45,7 @@ export function mountStudioInspector(host) {
       input.disabled = locked || !note;
       input.title = locked ? 'Pare a reprodução antes de editar a nota' : !note ? 'Selecione uma nota para editar' : '';
     }
-    $('note-pitch-name').textContent = note ? `Altura: ${pitchName(note.pitch)}` : '';
+    $('note-pitch-name').textContent = note ? `Altura: ${formatInstrumentNote(note.pitch, getInstrumentProfile(session))}` : '';
     $('note-start').max = sessionTicks(session); $('note-duration').max = sessionTicks(session);
     $('note-start').step = $('note-duration').step = 'any';
     for (const chip of document.querySelectorAll('#presets button, #extra-presets button')) {

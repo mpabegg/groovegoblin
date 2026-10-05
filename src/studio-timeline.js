@@ -5,7 +5,7 @@ import { generateBass } from './band.js';
 import { mountStudioHarmony } from './studio-harmony.js';
 import { buildRhythmNotation, renderRhythmNotation } from './notation.js';
 import { mountStudioTracks } from './studio-tracks.js';
-import { pitchName } from './studio-inspector.js';
+import { getInstrumentProfile, formatInstrumentNote } from './instrument-profile.js';
 import { timelineWidth, musicalDuration } from './studio-bars.js';
 import { mountStudioRuler } from './studio-ruler.js';
 import { renderPracticeScore } from './studio-score.js';
@@ -34,7 +34,7 @@ export function mountStudioTimeline(root, host) {
     const beatWidth = (canvas.clientWidth - 200) / session.bars / session.meter.beats;
     root.classList.toggle('compact-ruler', beatWidth < 40);
     for (const block of $('bass-lane').querySelectorAll('.bass-note')) {
-      block.textContent = block.getBoundingClientRect().width >= 30 ? pitchName(Number(block.dataset.pitch)).replace(/-?\d+$/, '') : '';
+      block.textContent = block.getBoundingClientRect().width >= 30 ? formatInstrumentNote(Number(block.dataset.pitch), getInstrumentProfile(session)) : '';
     }
   }
   new ResizeObserver(size).observe(scroll);
@@ -92,7 +92,7 @@ export function mountStudioTimeline(root, host) {
       block.setAttribute('role', 'gridcell'); block.tabIndex = selected ? 0 : -1;
       block.style.left = `calc(${note.start / total * 100}% + 2px)`; block.style.width = `max(6px, calc(${note.duration / total * 100}% - 4px))`;
       block.setAttribute('aria-selected', String(selected)); block.setAttribute('aria-disabled', String(host.isBusy()));
-      block.setAttribute('aria-label', `Nota ${pitchName(note.pitch)}: compasso ${Math.floor(note.start / ticksPerBar(session)) + 1}, tempo ${number(note.start % ticksPerBar(session) / (16 / session.meter.unit) + 1)}, duração ${musicalDuration(note.duration, session)}, intensidade ${Math.round(note.velocity * 100)}%, ${ARTICULATION_LABELS[note.articulation]}`);
+      block.setAttribute('aria-label', `Nota ${formatInstrumentNote(note.pitch, getInstrumentProfile(session))}: compasso ${Math.floor(note.start / ticksPerBar(session)) + 1}, tempo ${number(note.start % ticksPerBar(session) / (16 / session.meter.unit) + 1)}, duração ${musicalDuration(note.duration, session)}, intensidade ${Math.round(note.velocity * 100)}%, ${ARTICULATION_LABELS[note.articulation]}`);
       block.textContent = figure(note.duration);
       const handle = document.createElement('span'); handle.className = 'handle'; handle.setAttribute('aria-hidden', 'true');
       if (note.duration / total * grid.getBoundingClientRect().width - 4 >= 12) block.append(handle);
@@ -110,7 +110,7 @@ export function mountStudioTimeline(root, host) {
     for (const note of notes) {
       const block = document.createElement('span'); block.className = 'bass-note'; block.dataset.start = note.start; block.dataset.duration = note.duration; block.dataset.pitch = note.pitch;
       block.style.left = `${note.start / sessionTicks(session) * 100}%`; block.style.width = `${Math.min(note.duration, sessionTicks(session) - note.start) / sessionTicks(session) * 100}%`;
-      block.title = `Baixo ${pitchName(note.pitch)} · tempo ${number(note.start / (16 / session.meter.unit) + 1)} · duração ${musicalDuration(note.duration, session)}`; lane.append(block);
+      block.title = `Baixo ${formatInstrumentNote(note.pitch, getInstrumentProfile(session))} · tempo ${number(note.start / (16 / session.meter.unit) + 1)} · duração ${musicalDuration(note.duration, session)}`; lane.append(block);
     }
   }
   function render() {

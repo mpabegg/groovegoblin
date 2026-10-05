@@ -37,6 +37,13 @@
     <div class="transport-row">
       <button id="play" type="button" class="primary" aria-label="Tocar sessão" title="Tocar / parar (Espaço)">Tocar</button>
       <label>BPM <input id="bpm" data-path="bpm" type="number" min="30" max="300" step="1" title="Semínimas por minuto"></label>
+      <label class="instrument-label">Instrumento <select id="studio-instrument" aria-label="Instrumento da sua parte"><option value="guitar">Guitarra</option><option value="bass">Baixo</option></select></label>
+      <details id="instrument-options" class="transport-disclosure"><summary aria-label="Configurar instrumento" title="Cordas, afinação e nomes das notas">▾</summary><div id="instrument-profile-popover" class="transport-popover instrument-popover">
+        <div class="tool-row"><label id="instrument-strings-label">Cordas<select id="instrument-strings"><option value="4">4</option><option value="5">5</option></select></label><label>Afinação<select id="instrument-tuning"><option value="standard">Padrão</option><option value="drop-d" id="instrument-drop-d">Drop D</option><option value="half-down">Meio tom abaixo</option><option value="custom">Personalizada</option></select></label><label>Nomes<select id="instrument-note-names"><option value="letters">C D E</option><option value="solfege">Dó Ré Mi</option></select></label></div>
+        <div id="instrument-custom" hidden><p class="tool-hint muted">Da corda mais grave à mais aguda. Digite nota e oitava (E2, Dó♯2, Si♭1). Corda 1 é a mais aguda; aplicar preserva as alturas da frase.</p><div id="instrument-strings-notes" class="tool-row instrument-strings-notes"></div><button id="instrument-apply-tuning" type="button">Aplicar afinação</button></div>
+        <p id="instrument-clef" class="tool-hint muted"></p>
+        <p id="instrument-profile-status" class="tool-hint" role="status" aria-live="polite"></p>
+      </div></details>
       <label class="toggle"><input id="metronome" data-path="metronome.enabled" type="checkbox" aria-label="Metrônomo"> Metro</label>
       <details id="metronome-options" class="transport-disclosure"><summary aria-label="Opções do metrônomo" title="Padrão, silêncios e polirritmia">▾</summary><div class="transport-popover">
         <div class="tool-row">
@@ -132,7 +139,7 @@
     </section>
   </section>
   <div class="studio-secondary-options">
-    <details id="band-options" class="control-detail"><summary>Opções da banda</summary><div class="tool-row"><label>Qual parte você vai tocar?<select id="band-role" data-path="band.role" title="A faixa correspondente fica muda para você tocá-la"><option value="solo">Frase / melodia</option><option value="bass">Baixo</option><option value="harmony">Acordes</option><option value="drums">Bateria</option></select></label><label>Como a banda acompanha?<select id="band-mode" data-path="band.mode"><option value="steady">Mantém o pulso</option><option value="follow">Responde ao que você toca</option></select></label></div><p class="tool-hint muted">A faixa correspondente fica muda. A banda mantém o pulso ou responde ao que você toca durante o treino; a linha do tempo mostra a referência gerada. Silenciar não apaga eventos.</p></details>
+    <details id="band-options" class="control-detail"><summary>Opções da banda</summary><div class="tool-row"><label>Como a banda acompanha?<select id="band-mode" data-path="band.mode"><option value="steady">Mantém o pulso</option><option value="follow">Responde ao que você toca</option></select></label></div><p class="tool-hint muted">A banda mantém o pulso ou responde ao que você toca durante o treino; a linha do tempo mostra a referência gerada. Silenciar não apaga eventos. Sessões antigas preservam a parte de acompanhamento guardada.</p></details>
   </div>
     <details id="form-panel" class="panel">
       <summary>Organizar uma música em seções</summary>
@@ -174,6 +181,11 @@
   <footer>Seus dados ficam neste navegador. <a href="./guide.html">Guia e método de avaliação</a></footer>
 </main>
 <div id="studio-toast" class="studio-toast" role="status" aria-live="polite" hidden><span id="message"></span><button id="replacement-undo" type="button" hidden>Desfazer</button><button id="toast-close" type="button" aria-label="Fechar aviso">×</button></div>
+<dialog id="instrument-decision" class="shortcuts-dialog" aria-labelledby="instrument-decision-title" aria-describedby="instrument-decision-description">
+  <h2 id="instrument-decision-title">Trocar instrumento da sua parte</h2>
+  <p id="instrument-decision-description"></p>
+  <div class="tool-row"><button id="instrument-transpose" type="button">Transpor registro</button><button id="instrument-keep" type="button">Manter alturas</button><button id="instrument-cancel" type="button">Cancelar</button></div>
+</dialog>
 <dialog id="phrase-tools-dialog" class="shortcuts-dialog phrase-tools-dialog" aria-labelledby="phrase-tools-title">
   <h2 id="phrase-tools-title">Padrões e gerador de frases</h2>
   <div id="inspiration" class="inspiration-tools"><section><h3>Carregar padrão</h3><div class="tool-row"><select id="groove-library" aria-label="Padrão rítmico"></select><button id="load-groove" type="button">Carregar padrão</button></div><p id="groove-description" class="muted"></p><details><summary>Fontes e detalhes do padrão</summary><div id="groove-details"></div></details></section><section><h3>Gerar frase</h3><div class="tool-row"><label>Densidade<select id="density" data-path="generator.density"><option value="sparse">Poucas notas</option><option value="medium">Média</option><option value="busy">Muitas notas</option></select></label><label>Ataques<select id="syncopation" data-path="generator.syncopation"><option value="straight">Nos tempos</option><option value="mixed">Mistos</option><option value="syncopated">Sincopados</option></select></label><label>Durações<select id="lengths" data-path="generator.lengths"><option value="short">Curtas</option><option value="mixed">Variadas</option><option value="long">Longas</option></select></label></div><button id="variation" type="button">Gerar outra frase</button><details><summary>Avançado</summary><label>Semente <input id="seed" data-path="generator.seed" type="number" min="0" max="4294967295"></label><button id="generate" type="button">Gerar com esta semente</button></details></section></div>
