@@ -29,7 +29,8 @@
  * agora, já incluindo latência de saída), lendo um par novo a cada
  * conversão. Sem esse par (ou com stub zerado), lemos um par novo
  * (performance.now(), currentTime) — sem latência de saída, o que tende a
- * fazer os toques parecerem ATRASADOS. Não há calibração física aqui.
+ * fazer os toques parecerem ATRASADOS. A entrada aplica calibração física
+ * antes de press/release; este transporte não a aplica uma segunda vez.
  *
  * Fechamento do treino
  * --------------------
@@ -39,12 +40,13 @@
  */
 
 import { validateSession, MIXER_CHANNELS, BPM_MIN, BPM_MAX } from './session.js';
-import { EPSILON, ticksPerBar, secondsPerTick, sessionTicks } from './meter.js';
+import { EPSILON, ticksPerBar, secondsPerTick, sessionTicks, performTick } from './meter.js';
 import { prepareArrangement } from './arrangement.js';
 import { playTone, playChord, playClick, playDrum, loadDrumSamples } from './synth.js';
 import { compileBarPlan } from './form.js';
 import { playbackStartTick } from './transport-position.js';
 
+import { contextPerformanceTime } from './input-timing.js';
 const LOOKAHEAD_INTERVAL_SEC = 0.025;
 const SCHEDULE_AHEAD_SEC = 0.1;
 const SESSION_PRIME_SEC = 0.06;
@@ -181,6 +183,7 @@ export class GrooveAudio {
   #secPerTick = 0;
   #barTicks = 16;
   #countInBars = 0;
+  #inputTailSeconds = 0;
   #loopStart = 0;
   #loopBars = 1;
   #repetitions = 0;
@@ -196,6 +199,8 @@ export class GrooveAudio {
   #heldPitch = null;
   #keyDown = false;
   #monitor = null;
+  #calibrationBus = null;
+  #calibrationClockCancel = null;
   #previewResolve = null;
   #auditionRequest = 0;
 
@@ -220,6 +225,97 @@ export class GrooveAudio {
     return this.#session;
   }
 
+  async prepareInput() {
+    const context = this.#ensureContext();
+    if (context.state === 'suspended') await context.resume();
+    return context;
+  }
+
+  // Both input and calibration use this same output-correlated clock.
+  outputClock() {
+    return this.#outputTimestamp() ?? { contextTime: this.#ctx?.currentTime ?? 0, performanceTime: performance.now() };
+  }
+
+  #outputTimestamp() {
+    const ctx = this.#ctx;
+    if (typeof ctx?.getOutputTimestamp === 'function') {
+      const pair = ctx.getOutputTimestamp();
+      const age = performance.now() - pair.performanceTime;
+      if (Number.isFinite(pair.contextTime) && Number.isFinite(pair.performanceTime)
+        && !(pair.contextTime === 0 && pair.performanceTime === 0) && age >= -10 && age < 250
+        && pair.contextTime <= ctx.currentTime + 0.01) return pair;
+    }
+    return null;
+  }
+
+  #calibrationOutputClock() {
+    if (typeof this.#ctx.getOutputTimestamp !== 'function') return Promise.resolve(this.outputClock());
+    this.#calibrationClockCancel?.();
+    const deadline = performance.now() + 1000;
+    return new Promise((resolve, reject) => {
+      let timer = null;
+      const finish = (pair, error) => {
+        clearTimeout(timer); this.#calibrationClockCancel = null;
+        if (error) reject(error); else resolve(pair);
+      };
+      this.#calibrationClockCancel = () => finish(null, new Error('Calibração interrompida.'));
+      const check = () => {
+        const pair = this.#outputTimestamp();
+        if (pair) { finish(pair); return; }
+        if (performance.now() >= deadline) {
+          finish(null, new Error('O relógio de saída ainda não está disponível. Aguarde e tente calibrar novamente.')); return;
+        }
+        timer = setTimeout(check, 10);
+      };
+      check();
+    });
+  }
+
+  async calibrationClicks() {
+    const ctx = this.#ctx;
+    if (!ctx || ctx.state !== 'running') throw new Error('Prepare o áudio antes de calibrar.');
+    const generation = this.#generation;
+    const pair = await this.#calibrationOutputClock();
+    if (generation !== this.#generation || ctx.state !== 'running') throw new Error('Calibração interrompida.');
+    this.#calibrationBus?.disconnect();
+    this.#calibrationBus = ctx.createGain();
+    this.#calibrationBus.gain.value = 0.15;
+    this.#calibrationBus.connect(ctx.destination);
+    return Array.from({ length: 8 }, (_, index) => {
+      const time = ctx.currentTime + 0.5 + index * 0.65;
+      this.#track(playClick(ctx, this.#calibrationBus, { time, accent: index === 0 ? 'bar' : 'beat' }));
+      return contextPerformanceTime(time, pair);
+    });
+  }
+
+  get countInClicks() {
+    if (this.#mode !== 'train') return [];
+    const pair = this.outputClock();
+    const clicks = [];
+    for (let bar = 0; bar < this.#countInBars; bar++) {
+      for (const event of this.#arrangement.countInEvents()) {
+        clicks.push(contextPerformanceTime(this.#timeOfTick(bar * this.#barTicks + event.tick), pair));
+      }
+    }
+    return clicks;
+  }
+
+  // Synthetic gate ends are bookkeeping only, never measured durations.
+  writtenInputDuration(eventTimeStamp) {
+    if (!this.#session || !this.#plan) return 0.1;
+    const tick = this.#tickAtTime(this.#toAudioTime(eventTimeStamp));
+    const bar = Math.max(this.#countInBars, Math.floor(tick / this.#barTicks));
+    const sessionTick = this.#sessionBarOf(bar) * this.#barTicks + tick - Math.floor(tick / this.#barTicks) * this.#barTicks;
+    const start = this.#loopStart * this.#barTicks;
+    const end = start + this.#loopBars * this.#barTicks;
+    let nearest = null;
+    for (const note of this.#session.notes) {
+      if (note.start < start || note.start >= end) continue;
+      if (!nearest || Math.abs(performTick(this.#session, note.start) - sessionTick) < Math.abs(performTick(this.#session, nearest.start) - sessionTick)) nearest = note;
+    }
+    return nearest ? (performTick(this.#session, nearest.start + nearest.duration) - performTick(this.#session, nearest.start)) * this.#secPerTick : 0.1;
+  }
+
   setMixer(mixer) {
     for (const channel of MIXER_CHANNELS) {
       if (!mixer || !mixer[channel]) continue;
@@ -229,7 +325,7 @@ export class GrooveAudio {
     }
   }
 
-  async playSession(session, { mode = 'loop', startTick = null, once = false, mixer = null } = {}) {
+  async playSession(session, { mode = 'loop', startTick = null, once = false, mixer = null, inputTailSeconds = 0 } = {}) {
     if (mode !== 'loop' && mode !== 'train') throw new TypeError('O modo de reprodução deve ser loop ou train.');
     const valid = checkedSession(session);
     this.stop();
@@ -245,6 +341,7 @@ export class GrooveAudio {
     if (gen !== this.#generation) return false; // stop() venceu durante resume/carregamento
 
     const train = mode === 'train';
+    this.#inputTailSeconds = train ? Math.max(0, inputTailSeconds) : 0;
     this.#plan = compileBarPlan(valid, { training: train });
     this.#executedSession = valid;
     this.#arrangement = prepareArrangement(valid);
@@ -354,6 +451,7 @@ export class GrooveAudio {
   stop() {
     const wasActive = this.#mode !== null;
     this.#generation += 1; // invalida resume()/finish em andamento
+    this.#calibrationClockCancel?.();
     if (this.#timerId !== null) {
       clearInterval(this.#timerId);
       this.#timerId = null;
@@ -364,6 +462,8 @@ export class GrooveAudio {
     }
     this.#silenceActiveNodes();
     this.#stopMonitor();
+    this.#calibrationBus?.disconnect();
+    this.#calibrationBus = null;
     this.#mode = null;
     this.#pending = [];
     this.#onsets = [];
@@ -440,7 +540,7 @@ export class GrooveAudio {
     });
   }
 
-  press(eventTimeStamp = performance.now(), pitch = null) {
+  press(eventTimeStamp = performance.now(), pitch = null, { monitor = true } = {}) {
     if (this.#keyDown) return; // repetição de tecla do SO, independente do modo
     this.#keyDown = true;
     if (pitch !== null && (!Number.isInteger(pitch) || pitch < 0 || pitch > 127)) pitch = null;
@@ -455,7 +555,7 @@ export class GrooveAudio {
       const bar = Math.floor(tick / this.#barTicks);
       if (bar >= this.#countInBars) sessionTick = this.#sessionBarOf(bar) * this.#barTicks + (tick - bar * this.#barTicks);
     }
-    this.#startMonitor(pitch ?? (this.#session ? referencePitch(this.#session, sessionTick) : 69));
+    if (monitor) this.#startMonitor(pitch ?? (this.#session ? referencePitch(this.#session, sessionTick) : 69));
     if (mode !== 'train' || audioTime < this.#trainStartTime()
       || audioTime >= this.#timeOfTick(this.#endBar * this.#barTicks)) return;
 
@@ -494,9 +594,13 @@ export class GrooveAudio {
       countInBar: 0, countInBars: 0, bpm: this.#session?.bpm ?? 0, previewing: this.#mode === 'preview',
     };
     if (!this.#ctx || this.#mode === null || this.#mode === 'preview') return idle;
-    const tick = Math.max(this.#anchorTick, this.#tickAtTime(this.#nowAudioTime()));
+    const now = this.#nowAudioTime();
+    let tick = Math.max(this.#anchorTick, this.#tickAtTime(now));
+    if (tick >= this.#endBar * this.#barTicks) {
+      if (this.#mode !== 'train' || now >= this.#timeOfTick(this.#endBar * this.#barTicks) + this.#inputTailSeconds) return idle;
+      tick = this.#endBar * this.#barTicks - EPSILON;
+    }
     const bar = Math.floor(tick / this.#barTicks);
-    if (bar >= this.#endBar) return idle;
     const local = tick - bar * this.#barTicks;
     const descriptor = bar >= this.#countInBars ? this.#plan.at(bar - this.#countInBars) : null;
     const beat = Math.floor(local / this.#barTicks * (descriptor?.meter.beats ?? this.#session.meter.beats)) + 1;
@@ -638,7 +742,7 @@ export class GrooveAudio {
     const check = () => {
       if (gen !== this.#generation) return;
       // Relógio correlacionado à saída: ver "Fechamento do treino".
-      const remaining = this.#timeOfTick(this.#endBar * this.#barTicks) - this.#nowAudioTime();
+      const remaining = this.#timeOfTick(this.#endBar * this.#barTicks) + (this.#mode === 'train' ? this.#inputTailSeconds : 0) - this.#nowAudioTime();
       if (remaining <= 1e-9) {
         if (this.#mode === 'train') this.#finishTrain(gen);
         else this.stop();
@@ -698,19 +802,8 @@ export class GrooveAudio {
   }
 
   #toAudioTime(eventTimeStampMs) {
-    const ctx = this.#ctx;
-    if (typeof ctx.getOutputTimestamp === 'function') {
-      const { contextTime, performanceTime } = ctx.getOutputTimestamp();
-      const age = performance.now() - performanceTime;
-      const valid = Number.isFinite(contextTime) && Number.isFinite(performanceTime)
-        && !(contextTime === 0 && performanceTime === 0) && age >= -10 && age < 250
-        && contextTime <= ctx.currentTime + 0.01;
-      if (valid) return contextTime + (eventTimeStampMs - performanceTime) / 1000;
-    }
-    // Sem correlação de saída válida: par novo (performance.now(), currentTime)
-    // agora, nunca uma âncora em cache (currentTime congela em suspend/resume).
-    const fallbackPerfMs = performance.now();
-    return ctx.currentTime + (eventTimeStampMs - fallbackPerfMs) / 1000;
+    const pair = this.outputClock();
+    return pair.contextTime + (eventTimeStampMs - pair.performanceTime) / 1000;
   }
 
   #nowAudioTime() {

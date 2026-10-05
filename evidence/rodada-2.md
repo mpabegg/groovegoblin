@@ -65,6 +65,20 @@ As seções abaixo recebem decisões e resultados observados ao concluir cada et
 - Exportação MIDI mantém o escopo anterior, frase/acordes, sem adicionar percussão ao módulo de repertório.
 - Interface em 1280 px: **50 controles** com quatro faixas e diferenças presentes; Restaurar contido no cabeçalho e inspetor até y=765. Cliques no baixo e em posição ocupada da frase exibiram explicações, não silêncio.
 - Verificação final na branch: **357/357 testes**, **99 módulos, zero falhas**. Capturas: [1440×900](rodada-2-etapa5-1440x900.png), [1280×800](rodada-2-etapa5-1280x800.png).
+- Integração: `8d174cb` fast-forward na main; **357/357 testes e check** repetidos após merge; push confirmado.
+
+### Etapa 6 — Entrada por instrumento
+
+- Entrada Teclado/Instrumento integrada ao treino e à prática guiada. Dispositivo, canal 1/2/soma, sensibilidade, medidor, diagnóstico e calibração usam preferências próprias; abrir a página sempre começa no Teclado, sem restaurar captura.
+- `getUserMedia` real + AudioWorklet real no Chromium, alimentados por WAV sintético estéreo: silêncio à esquerda e ataques de 110 Hz à direita. Canal 2 detectou ataques periódicos e o medidor respondeu. Isso verifica o caminho de captura, não uma guitarra física.
+- Detector puro por amostra, limiar adaptativo e refratário mínimo de 50 ms. No WAV usado pelo navegador, erro de **0,146 ms**; repetir 30 ciclos manteve exatamente oito ataques por ciclo. A suíte cobre ruído, sustentadas, ataques próximos, quatro taxas de amostragem e blocos de tamanhos diferentes.
+- Ataques passam pelos mesmos `audio.press/release` e relatório existentes. Instrumento avalia só ataques; términos são gates escritos, alturas não são medidas e o monitor de entrada não duplica o som. O navegador apresentou oito ataques extras numa execução sintética propositalmente fora de fase, com términos/alturas marcados como não avaliados.
+- Compensação demonstrada no caminho real: três ataques tiveram exatamente **23 ms** subtraídos antes de `GrooveAudio.press`; no treino seguinte com compensação zero, nenhuma subtração. Dispositivo específico e compensação 23 ms foram restaurados após reload.
+- Calibração com os oito cliques reais e respostas de teclado temporizadas: **23 ms, dispersão 0 ms**, oito ataques capturados e transporte final Pronto. Os dois primeiros são aquecimento; regressões verificam rejeição por dispersão, clock de saída inicialmente zerado, cauda de entrada e ausência de desconto duplicado.
+- Calibração é associada à identidade física resolvida, nunca reaplicada cegamente ao alias `default`; sem identidade distinguível, fica apenas na captura atual com aviso. Falhas de armazenamento também são explícitas.
+- Contador no navegador: **zero** chamadas de captura ao abrir, **uma** depois de selecionar Instrumento. Permissão negada real e ausência simulada retornaram ao Teclado com explicação. Evento de desconexão simulado numa faixa real durante treino interrompeu o transporte, voltou ao Teclado e deixou a faixa em `ended`.
+- Áudio de entrada é processado somente no dispositivo, sem gravação ou envio. Takes sintetizados não são gravações do instrumento. Fones são recomendados; coincidência com cliques só gera aviso de possível vazamento, não separação garantida de fontes.
+- Verificação após integrar as etapas 1–5: **388/388 testes**, **106 módulos, zero falhas**. Capturas: [1440×900](rodada-2-instrumento-1440x900.png), [1280×800](rodada-2-instrumento-1280x800.png).
 
 
 ## Critérios de aceitação
@@ -87,15 +101,15 @@ As seções abaixo recebem decisões e resultados observados ao concluir cada et
 | 14 | Arrastar régua define loop | Passou: arrasto 2–3, faixa proporcional e duplo clique restaura sessão inteira |
 | 15 | Ouvir frase no Treinar e partitura inteira | Passou: áudio real audível mesmo com frase muda, sem persistir alteração; 16 compassos em 4 sistemas sem cortes |
 | 16 | Bateria editável, exportação/importação e migração v3 preservadas | Passou: download/importação reais, reload, áudio com diferenças e 198 casos v3 sem alteração de ataques |
-| 17 | Captura, medidor e diagnóstico de ataques | Pendente; validação física de guitarra depende do usuário |
-| 18 | Detector sintético: erro <=10ms, sem falsos ataques sustentados | Pendente |
-| 19 | Instrumento usa relatório comum; duração/altura não avaliadas | Pendente |
-| 20 | Calibração por dispositivo altera desvio seguinte | Pendente |
-| 21 | Permissão negada/ausência retorna ao Teclado | Pendente |
-| 22 | Nenhuma permissão solicitada antes de escolher Instrumento | Pendente |
-| 23 | Removidas afirmações de que microfone não é usado | Pendente |
+| 17 | Captura, medidor e diagnóstico de ataques | Passou com captura real de dispositivo simulado; guitarra física não testada |
+| 18 | Detector sintético: erro <=10ms, sem falsos ataques sustentados | Passou: suíte de sinais; WAV do navegador com erro de 0,146 ms |
+| 19 | Instrumento usa relatório comum; duração/altura não avaliadas | Passou: navegador e regressões da cadeia até avaliação |
+| 20 | Calibração por dispositivo altera desvio seguinte | Passou: 23 ms/zero aplicados exatamente e compensação específica restaurada após reload |
+| 21 | Permissão negada/ausência retorna ao Teclado | Passou: negação real, ausência simulada e desconexão simulada encerrando faixa real |
+| 22 | Nenhuma permissão solicitada antes de escolher Instrumento | Passou: contador zero ao abrir, uma chamada após seleção |
+| 23 | Removidas afirmações de que microfone não é usado | Textos globais corrigidos; descrições específicas de atividades sem captura permanecem verdadeiras e fora do escopo |
 | 24 | Preservados requisitos da primeira rodada | Pendente |
 
 ## Limite de evidência de áudio
 
-Sinais sintéticos e dispositivos simulados permitem verificar detector, relógio, medidor e integração. Não equivalem a tocar uma guitarra física. O painel de diagnóstico permitirá essa validação posterior sem gravar nem enviar áudio.
+Sinais sintéticos e dispositivos simulados verificam detector, relógio, medidor e integração. Não equivalem a tocar uma guitarra física. O painel de diagnóstico está disponível para essa validação sem gravar nem enviar áudio. Legato, ataque fraco/lento, clipping, ruído e vazamento podem prejudicar a detecção; latências declaradas pelo navegador e compensação humana não são uma medição laboratorial.

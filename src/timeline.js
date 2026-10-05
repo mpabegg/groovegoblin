@@ -75,6 +75,7 @@ export function buildTimelineData(results, options = {}) {
     bars,
     startBar: results.startBar ?? session?.loop.startBar ?? 0,
     mode: results.mode ?? 'strict',
+    attackOnly: session?.extensions?.performanceInput?.mode === 'instrument',
   };
 }
 
@@ -135,12 +136,12 @@ export function renderTimeline(container, data) {
     for (const block of repetition.expected) {
       const node = interval(document, block, repetition.windowSeconds, false);
       reference.append(node);
-      if (block.missed) addMarkers(document, node, block, 'missing');
+      if (block.missed) addMarkers(document, node, block, 'missing', data.attackOnly);
     }
     for (const block of repetition.actual) {
-      const node = interval(document, block, repetition.windowSeconds, true);
+      const node = interval(document, block, repetition.windowSeconds, true, data.attackOnly);
       actual.append(node);
-      addMarkers(document, node, block, block.extra ? 'extra' : null);
+      addMarkers(document, node, block, block.extra ? 'extra' : null, data.attackOnly);
     }
     stage.append(reference, actual);
     section.append(stage);
@@ -157,13 +158,13 @@ function element(document, tag, className, text) {
   return node;
 }
 
-function interval(document, block, windowSeconds, actual) {
+function interval(document, block, windowSeconds, actual, attackOnly = false) {
   const node = element(document, 'div', 'timeline-block');
   const start = Math.max(0, Math.min(block.start, windowSeconds));
   const end = Math.max(start, Math.min(block.end, windowSeconds));
   node.style.position = 'absolute';
   node.style.left = `${(start / windowSeconds) * 100}%`;
-  node.style.width = `${((end - start) / windowSeconds) * 100}%`;
+  node.style.width = attackOnly ? '2px' : `${((end - start) / windowSeconds) * 100}%`;
   node.style.top = actual ? '0.75rem' : '0.25rem';
   node.style.height = '1.25rem';
   if (block.missed) node.classList.add('missing');
@@ -174,14 +175,14 @@ function interval(document, block, windowSeconds, actual) {
   const note = block.noteId === undefined ? '' : ` ${block.noteId}`;
   const missing = block.missed ? ', não tocada' : '';
   const clamped = block.clamped ? ', recortada no fim da repetição' : '';
-  const description = `${kind}${note}: ${block.start.toFixed(3)} a ${block.end.toFixed(3)} segundos${missing}${clamped}`;
+  const description = attackOnly ? `${kind}${note}: ataque em ${block.start.toFixed(3)} segundos; término e altura não avaliados${clamped}` : `${kind}${note}: ${block.start.toFixed(3)} a ${block.end.toFixed(3)} segundos${missing}${clamped}`;
   node.setAttribute('aria-label', description);
   node.title = description;
   return node;
 }
 
-function addMarkers(document, node, block, unmatched) {
-  for (const isEnd of block.free ? [false] : [false, true]) {
+function addMarkers(document, node, block, unmatched, attackOnly = false) {
+  for (const isEnd of block.free || attackOnly ? [false] : [false, true]) {
     const name = isEnd ? 'TÉRMINO' : 'ATAQUE';
     const classification = unmatched ?? (isEnd ? block.ending : block.onset);
     const absoluteDelta = isEnd ? block.endMs : block.onsetMs;

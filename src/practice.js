@@ -676,6 +676,7 @@ export function validateRunEntry(entry) {
       notes,
       metrics,
       tempoDelta: Math.round(clamp(numOr(entry.tempoDelta, 0), -40, 40)),
+      ...(entry.inputMode === 'instrument' ? { inputMode: 'instrument' } : {}),
     },
   };
 }
@@ -1026,7 +1027,8 @@ export function mountPractice(container, host, options = {}) {
   const state = loadInfo.state;
   const session0 = normalizeSession(host.getSession());
 
-  let exercise = generateExercise({ objective: state.objective, seed: 1, bars: 1, bpm: session0.bpm, level: levelFromSkill(state.skills[state.objective]), source: 'generated', session: host.getSession() });
+  let lastInputMode = !!host.isInstrumentInput?.();
+  let exercise = generateExercise({ objective: lastInputMode ? 'timing' : state.objective, seed: 1, bars: 1, bpm: session0.bpm, level: levelFromSkill(state.skills[state.objective]), source: 'generated', session: host.getSession() });
   let exerciseSource = 'generated';
   let selectedSession = null;
   let seedValue = 1;
@@ -1150,7 +1152,7 @@ export function mountPractice(container, host, options = {}) {
     const sourceSession = host.getSession();
     selectedSession = exerciseSource === 'session' ? sourceSession : null;
     exercise = generateExercise({
-      objective: state.objective,
+      objective: host.isInstrumentInput?.() ? 'timing' : state.objective,
       seed: seedValue,
       bars: exercise?.bars === 2 || exercise?.bars === 4 ? exercise.bars : 1,
       bpm: previousBpm ?? sourceSession.bpm ?? 90,
@@ -1201,6 +1203,7 @@ export function mountPractice(container, host, options = {}) {
         objectiveScore: Math.round(metric * 100),
       },
       tempoDelta: adapt?.bpmDelta ?? 0,
+      ...(session.extensions?.performanceInput?.mode === 'instrument' ? { inputMode: 'instrument' } : {}),
     };
     const recorded = recordRun(state, run);
     if (recorded.recorded) save();
@@ -1280,7 +1283,11 @@ export function mountPractice(container, host, options = {}) {
       rerender();
     });
     section.appendChild(list);
-    const focus = OBJECTIVES.find(o => o.id === state.objective);
+    if (host.isInstrumentInput?.()) {
+      list.value = 'timing'; list.disabled = true;
+      section.appendChild(createEl('p', { className: 'practice-hint', text: 'Instrumento: objetivo Ataques. Durações e alturas não são avaliadas; sua escolha anterior volta ao selecionar Teclado.' }));
+    }
+    const focus = OBJECTIVES.find(o => o.id === (host.isInstrumentInput?.() ? 'timing' : state.objective));
     section.appendChild(createEl('p', { className: 'practice-focus', role: 'status', text: focus?.focus ?? '' }));
     const skill = state.skills[state.objective];
     if (skill) section.appendChild(createEl('p', { className: 'practice-hint', text: `Próxima revisão: ${formatDaysFromNow(skill.dueAt)}.` }));
@@ -1633,7 +1640,7 @@ export function mountPractice(container, host, options = {}) {
     const rows = [
       ['Cobertura (notas tocadas)', `${m.matched}/${m.expected}`],
       ['Ataques no tempo', `${m.attackOk}/${m.expected}`],
-      ['Términos no tempo (durações)', `${m.endOk}/${Math.max(1, m.matched)}`],
+      ['Términos no tempo (durações)', lastRun.inputMode === 'instrument' ? 'Não avaliados' : `${m.endOk}/${Math.max(1, m.matched)}`],
       ['Notas perdidas', String(m.missed)],
       ['Sobras (tocadas fora)', String(m.extra)],
       [`Aproveitamento do objetivo (${OBJECTIVES.find(o => o.id === lastRun.objective)?.name ?? lastRun.objective})`, `${m.objectiveScore}%`],
@@ -1644,6 +1651,8 @@ export function mountPractice(container, host, options = {}) {
     }
     table.appendChild(body);
     section.appendChild(table);
+    if (lastRun.inputMode === 'instrument') section.appendChild(createEl('p', { className: 'practice-hint', text: `Instrumento: términos e alturas não avaliados.${lastRunSession?.extensions?.performanceInput?.calibrated ? '' : ' Sem calibração: calibre a entrada para compensar o atraso residual.'}` }));
+    if (lastRunSession?.extensions?.performanceInput?.mode === 'keyboard' && !lastRunSession.extensions.performanceInput.calibrated) section.appendChild(createEl('p', { className: 'practice-hint', text: 'Teclado/toque sem calibração: calibre a entrada para compensar o atraso residual.' }));
 
     const controls = createEl('div', { className: 'practice-inline-controls' });
     const reference = createEl('button', { type: 'button', text: `Ouvir referência do resultado (${lastRun.bpm} BPM)` });
@@ -1676,8 +1685,8 @@ export function mountPractice(container, host, options = {}) {
         const label = { matched: 'Notas tocadas', attackOk: 'Ataques no tempo', endOk: 'Términos no tempo', missed: 'Perdidas', extra: 'Sobras' }[key];
         cmpBody.appendChild(createEl('tr', {}, [
           createEl('th', { scope: 'row', text: label }),
-          createEl('td', { text: String(lastRun.metrics[key] ?? 0) }),
-          createEl('td', { text: String(comparing.metrics[key] ?? 0) }),
+          createEl('td', { text: key === 'endOk' && lastRun.inputMode === 'instrument' ? 'Não avaliado' : String(lastRun.metrics[key] ?? 0) }),
+          createEl('td', { text: key === 'endOk' && comparing.inputMode === 'instrument' ? 'Não avaliado' : String(comparing.metrics[key] ?? 0) }),
         ]));
       }
       cmpBody.appendChild(createEl('tr', {}, [
@@ -1950,7 +1959,9 @@ export function mountPractice(container, host, options = {}) {
   function render() {
     const previousObjective = state.objective;
     Object.assign(state, loadPracticeState(storage).state);
-    if (previousObjective !== state.objective) rebuildExercise();
+    const inputMode = !!host.isInstrumentInput?.();
+    if (previousObjective !== state.objective || inputMode !== lastInputMode) rebuildExercise();
+    lastInputMode = inputMode;
     rerender();
     return api;
   }

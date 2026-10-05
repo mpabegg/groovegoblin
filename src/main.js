@@ -21,6 +21,7 @@ import { mountStudioInspector } from './studio-inspector.js';
 import { mountStudioNotices } from './studio-notices.js';
 import { mountStudioForm } from './studio-form.js';
 import { createStudioPlayback, phrasePreviewSession } from './studio-playback.js';
+import { mountPerformanceInput } from './performance-input.js';
 
 const $ = id => document.getElementById(id);
 const restored = loadSession();
@@ -33,7 +34,7 @@ function noteSelection() { return selected?.kind === 'note' ? selected.id : null
 function chordSelection() { return selected?.kind === 'chord' ? selected.index : null; }
 function setNoteSelection(id) { selected = id === null ? null : { kind: 'note', id, ids: [id] }; }
 function setChordSelection(index) { selected = index === null ? null : { kind: 'chord', index, indices: [index] }; }
-let activeInput = null;
+let performanceInput;
 let generation = 0;
 let pending = null;
 let sharedSession = null;
@@ -52,7 +53,7 @@ const history = new History();
 const library = readSessionLibrary(undefined, parseSession);
 const notices = mountStudioNotices({ isBusy: () => false, canUndo: () => history.canUndo, current: () => history.current, undo: () => travelHistory('undo') });
 const audio = new GrooveAudio({ onState: () => renderControls(), onFinish: (attempts, detail) => {
-  clearInput();
+  performanceInput?.reset();
   const focusResult = $('tab-practice').getAttribute('aria-selected') === 'true'
     && (document.activeElement === $('train-pad') || document.activeElement === document.body);
   reference = detail.session;
@@ -73,7 +74,7 @@ const audio = new GrooveAudio({ onState: () => renderControls(), onFinish: (atte
 const playback = createStudioPlayback({ getSession: () => session, audio, render: renderControls, notify: message, isPending: () => pending !== null });
 
 function message(text, error = false) { notices.show(text, { error }); }
-function busy() { return pending !== null || audio.position.mode !== 'idle'; }
+function busy() { return pending !== null || audio.position.mode !== 'idle' || !!performanceInput?.calibrating || !!performanceInput?.preparing; }
 function persist() {
   sessionSaved = recoveryRaw === null && saveSession(session);
   $('saved').textContent = recoveryRaw !== null ? 'Só na memória · originais protegidos'
@@ -147,12 +148,16 @@ function stop(reason) {
   executionSession = null;
   exercisePlayback = false;
   executionMode = null;
-  clearInput();
+  performanceInput?.reset();
   if (wasDragging) studioTimeline.renderNotes();
   renderControls();
   if (reason) message(reason);
 }
 async function begin(mode = 'loop', practiceSession = null, { listen = false } = {}) {
+  if (mode === 'train' && (performanceInput.preparing || performanceInput.calibrating)) {
+    message('Aguarde a preparação da entrada ou encerre a calibração antes de iniciar outro treino.', true);
+    return false;
+  }
   repertoire?.stop();
   stop();
   const request = ++generation;
@@ -163,19 +168,25 @@ async function begin(mode = 'loop', practiceSession = null, { listen = false } =
   pending = 'play';
   executionMode = mode;
   renderControls();
-  const snapshot = structuredClone(listen ? phrasePreviewSession(session) : practiceSession ?? session);
+  const source = structuredClone(listen ? phrasePreviewSession(session) : practiceSession ?? session);
+  const snapshot = !listen && mode === 'train' ? performanceInput.session(source) : source;
   playback.setListening(listen);
   executionSession = snapshot;
   exercisePlayback = practiceSession !== null || listen;
   if (mode === 'train') { results = null; reference = null; renderFeedback(); }
   try {
-    await audio.playSession(snapshot, { mode, startTick: mode === 'train' || practiceSession || listen ? null : playback.getStartTick(), once: listen, mixer: practiceSession ? snapshot.mixer : playback.getMixer() });
+    await audio.playSession(snapshot, {
+      mode, startTick: mode === 'train' || practiceSession || listen ? null : playback.getStartTick(),
+      once: listen, mixer: practiceSession ? snapshot.mixer : playback.getMixer(),
+      ...performanceInput.playOptions(mode),
+    });
     if (request !== generation) return;
+    if (mode === 'train') performanceInput.started(snapshot);
     if (mode === 'train') {
       $('train-pad').focus({ preventScroll: true });
       $('train-pad').scrollIntoView({ block: 'center', behavior: 'instant' });
     }
-    if (mode === 'train') message('Depois da contagem, toque com Espaço ou na área de toque. Não usamos microfone.');
+    if (mode === 'train') message(performanceInput.instruction());
   } catch (error) {
     if (request === generation) { audio.stop(); message(`Não foi possível iniciar: ${error.message}`, true); }
     throw error;
@@ -197,7 +208,7 @@ async function preview(notes, options = {}) {
 async function saveTake(attempts, detail) { return repertoire.captureTake(attempts, detail); }
 const host = {
   getSession: () => structuredClone(session), updateSession, replaceSession, play: begin, stop, notify: message, preview, saveTake, renderSession,
-  isBusy: busy,
+  isBusy: busy, isInstrumentInput: () => !!performanceInput?.instrument,
 };
 
 const studio = mountStudio({ onActivate: id => {
@@ -314,6 +325,7 @@ function renderControls() {
   studioForm.renderControls();
   practice?.setBusy(locked);
   notices.render();
+  performanceInput?.render();
   for (const input of document.querySelectorAll('#panel-studio button, #panel-studio input, #panel-studio select, #phrase-tools-dialog button, #phrase-tools-dialog input, #phrase-tools-dialog select')) {
     if (input.closest('#form-panel') || input.id.startsWith('note-') || ['undo', 'redo', 'fit-progression'].includes(input.id)) continue;
     if (!input.disabled) {
@@ -359,35 +371,11 @@ $('listen-phrase').addEventListener('click', () => {
   practice.cancel(); void begin('loop', null, { listen: true }).catch(() => {});
 });
 
-// Entradas de treino usam o relógio do evento, nunca um segundo transporte.
-function clearInput() {
-  const input = activeInput; activeInput = null;
-  if (input?.source === 'pointer' && $('train-pad').hasPointerCapture(input.id)) $('train-pad').releasePointerCapture(input.id);
-}
-$('train-pad').addEventListener('pointerdown', event => {
-  if (event.button !== 0 || activeInput || !['countin', 'train'].includes(audio.position.mode)) return;
-  event.preventDefault(); activeInput = { source: 'pointer', id: event.pointerId };
-  $('train-pad').setPointerCapture(event.pointerId); audio.press(event.timeStamp, Number($('input-pitch').value));
-});
-$('train-pad').addEventListener('pointerup', event => {
-  if (activeInput?.source !== 'pointer' || activeInput.id !== event.pointerId) return;
-  audio.release(event.timeStamp); clearInput();
-});
-for (const type of ['pointercancel', 'lostpointercapture']) $('train-pad').addEventListener(type, event => {
-  if (activeInput?.source === 'pointer' && activeInput.id === event.pointerId) stop('Toque cancelado; recomece o treino.');
-});
-window.addEventListener('keydown', event => {
-  if (event.defaultPrevented || event.key === 'Escape' || document.querySelector('dialog[open], [role=dialog][aria-modal=true]')) return;
-  const editing = event.target instanceof Element && (event.target.isContentEditable || !!event.target.closest('input, textarea, select, [contenteditable]:not([contenteditable=false])'));
-  if (editing) return;
-  if (event.code === 'Space' && pending === 'play' && executionMode === 'train') { event.preventDefault(); return; }
-  if ((event.code === 'Space' || (event.code === 'Enter' && event.target === $('train-pad'))) && ['countin', 'train'].includes(audio.position.mode)) {
-    event.preventDefault(); if (!event.repeat && !activeInput) { activeInput = { source: 'keyboard', id: event.code }; audio.press(event.timeStamp, Number($('input-pitch').value)); } return;
-  }
-});
-window.addEventListener('keyup', event => {
-  if (activeInput?.source !== 'keyboard' || activeInput.id !== event.code) return;
-  event.preventDefault(); audio.release(event.timeStamp); clearInput();
+// Input/capture owns press/release; the host remains the single transport.
+performanceInput = mountPerformanceInput({
+  audio, getSession: () => session, isBusy: busy, stop, notify: message,
+  isPreparingTraining: () => pending === 'play' && executionMode === 'train',
+  changed: renderAll,
 });
 window.addEventListener('blur', () => { if (busy()) stop('Sessão interrompida ao perder o foco.'); repertoire.stop(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { stop(); repertoire.stop(); } });
@@ -474,13 +462,16 @@ function renderFeedback() {
   if (!results) { const p = document.createElement('p'); p.className = 'muted'; p.textContent = 'Conclua um treino para comparar cada ataque e término, notas omitidas e extras.'; $('feedback').append(p); return; }
   renderTimeline($('timeline'), buildTimelineData(results, { session: reference }));
   const summary = summarizeFeedback(results);
+  const attackOnly = reference.extensions?.performanceInput?.mode === 'instrument';
   const heading = document.createElement('p');
   heading.className = 'timing-counts';
   const counts = summary.mode === 'free'
     ? `${summary.free} ataque(s) observado(s) · execução livre, sem acertos ou erros`
-    : `Ataques: ${summary.attackOk}/${summary.expected} · términos: ${summary.endOk}/${summary.expected}${summary.pitchChecked > 0 ? ` · alturas: ${summary.pitchOk}/${summary.pitchChecked}` : ' · alturas não avaliadas'} · ${summary.mode === 'style' ? 'estilo expressivo' : 'avaliação estrita'}`;
+    : `Ataques: ${summary.attackOk}/${summary.expected} · ${attackOnly ? 'términos e alturas não avaliados' : `términos: ${summary.endOk}/${summary.expected}${summary.pitchChecked > 0 ? ` · alturas: ${summary.pitchOk}/${summary.pitchChecked}` : ' · alturas não avaliadas'}`} · ${summary.mode === 'style' ? 'estilo expressivo' : 'avaliação estrita'}`;
   heading.textContent = `${counts} · referência ${reference.bpm} BPM, ${reference.meter.beats}/${reference.meter.unit}.`;
   $('feedback').append(heading);
+  const inputNote = performanceInput.resultNote(reference);
+  if (inputNote) $('feedback').append(Object.assign(document.createElement('p'), { className: 'tool-hint muted', textContent: inputNote }));
   const tolerance = document.createElement('p'); tolerance.className = 'tool-hint muted';
   tolerance.textContent = summary.mode === 'free'
     ? 'Os desvios indicam distância à subdivisão mais próxima, não erros de interpretação. Valores negativos = antes; positivos = depois.'
@@ -495,6 +486,7 @@ function renderFeedback() {
     const line = document.createElement('tr'); const label = document.createElement('td'); label.textContent = `${row.repetition ?? 1} · ${row.kind === 'extra' ? 'Extra' : row.kind === 'missed' ? 'Omitida' : `Nota ${index + 1}`}`; line.append(label);
     for (const type of ['onset', 'end']) {
       const cell = document.createElement('td');
+      if (attackOnly && type === 'end') { cell.textContent = 'Não avaliado'; line.append(cell); continue; }
       if (row.kind === 'matched') { const ms = Math.round(type === 'onset' ? row.onsetMs : row.endMs); cell.textContent = `${ms > 0 ? '+' : ''}${ms} ms`; cell.className = Math.abs(ms) <= results.toleranceMs ? 'ok' : 'error-timing'; }
       else if (row.kind === 'free') {
         const ms = Math.round(row.onsetMs);
@@ -521,11 +513,8 @@ function frame() {
   // A parada global usa o mesmo botão do transporte, inclusive na preparação.
   transport.render();
   studioTimeline.position(position, { hidden: exercisePlayback });
-  $('train-pad').classList.toggle('active', ['countin', 'train'].includes(position.mode)); $('train-pad').classList.toggle('held', !!position.held);
-  $('held-state').textContent = position.held ? 'PRESSIONADA · nota em curso' : 'ESPAÇO ou toque · pressionar / soltar';
+  performanceInput.frame(position, playing);
   transport.position({ position, pending, ticksPerBar: barTicks(playing), repetitions: playing.training.repetitions, startTick: playback.getStartTick(), beatTicks: 16 / playing.meter.unit, listening: playback.isListening() });
-  if (position.mode === 'countin') $('train-state').textContent = 'Espere a contagem de entrada. Depois, toque o ritmo.';
-  if (position.mode === 'train') $('train-state').textContent = `Repetição ${position.repetition}/${playing.training.repetitions} · pressione no início de cada nota e solte no final.`;
   requestAnimationFrame(frame);
 }
 repertoire = mountRepertoire($('repertoire-mount'), host);

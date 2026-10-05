@@ -13,7 +13,7 @@ const STEPS = [
   {
     tab: 'tab-practice', target: '#train-pad',
     title: 'Treinar: tocar → comparar → repetir',
-    body: 'Confira a partitura da frase atual, organizada em linhas de quatro compassos. “Ouvir frase” toca uma passagem audível sem mudar mutes, volume ou sessão, com a mesma parada global. Use “Treinar esta frase”; espere a contagem, pressione Espaço ou a área de toque no início de cada nota, segure e solte no final. Durante o treino, Espaço toca o ritmo, não inicia um loop. Os resultados aparecem abaixo. “Editar no Estúdio” volta ao editor; a prática guiada é opcional e seus exercícios não substituem a sessão guardada.',
+    body: 'Confira a partitura da frase atual, organizada em linhas de quatro compassos. “Ouvir frase” toca uma passagem audível sem mudar mutes, volume ou sessão, com a mesma parada global. Use “Treinar esta frase”. Na entrada Teclado, espere a contagem, pressione Espaço ou a área de toque no início e solte no final; Espaço toca o ritmo, não inicia um loop. Para tocar seu instrumento, selecione Instrumento: só essa escolha solicita áudio, analisado localmente sem gravação ou envio. Use fones, escolha dispositivo/canal e calibre a latência. Instrumento avalia apenas ataques, não duração nem altura. Os resultados aparecem abaixo do treino. “Editar no Estúdio” volta ao editor; a prática guiada não substitui a sessão guardada.',
   },
   {
     tab: 'tab-repertoire', target: '#repertoire-mount',
