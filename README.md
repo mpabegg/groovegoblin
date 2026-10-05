@@ -4,19 +4,23 @@ GrooveGoblin é um estúdio musical local para praticar, tocar com uma banda sin
 
 O botão **Como usar**, no topo, abre uma ajuda opcional de quatro passos, começando pela atividade selecionada. Ela não aparece automaticamente nem interrompe a primeira visita. Use **Próximo**, **Voltar** ou as setas; **Fechar ajuda** ou **Esc** encerra. A ajuda funciona em telas pequenas, respeita a preferência de movimento reduzido e restaura a tela anterior sem modificar a sessão ou iniciar áudio.
 
-## Três maneiras de começar
+## Estúdio · Treinar · Músicas
 
-- **Treinar ritmo**: o editor de frase e a partitura rítmica ficam abertos na tela principal. Ajuste o BPM, use **Ouvir frase** com **Metrônomo** ligado e depois **Treinar esta frase**. Toque com Espaço ou na área de toque; os resultados aparecem abaixo do editor.
-- **Tocar com banda**: escolha seu papel, habilite baixo, bateria e harmonia e use **Tocar acompanhamento**. BPM, parada, timbres e mixer ficam nesta atividade.
-- **Estudar uma música**: importe áudio, selecione um trecho A–B e repita-o; velocidade, análise, takes, exercícios, setlists e intercâmbio por arquivos continuam disponíveis.
+- **Estúdio** é a tela inicial e o único lugar de edição da sessão. Frase, banda, harmonia, timbres, mixer e forma musical ficam nesta área, sem transportar o editor entre abas.
+- **Treinar** mostra a partitura da frase atual somente para leitura, as configurações de treino e a área de toque. Use **Treinar esta frase** e toque com Espaço ou na área de toque; **Editar no Estúdio** volta ao editor. Os resultados aparecem abaixo do treino.
+- **Músicas** permite importar áudio, selecionar um trecho A–B e repeti-lo; velocidade, análise, takes, exercícios, setlists e intercâmbio por arquivos continuam disponíveis.
 
-Em **Mais opções**, **Explorar** reúne jogos e experiências musicais, e **Percurso e histórico** mostra progresso e revisões. As cinco áreas continuam navegáveis por teclado e toque, mas só as três atividades principais ocupam a navegação em destaque.
+Em **Mais opções**, **Explorar** reúne jogos e experiências musicais, e **Percurso** mostra progresso e revisões. As cinco áreas continuam navegáveis por teclado e toque; só as três atividades principais ocupam a navegação em destaque.
 
-O treino principal usa a frase da sessão e seu trecho de loop. O metrônomo acompanha o transporte; seu controle fica ao lado do BPM, respeitando as preferências e o mute do mixer. Editor, biblioteca e sessões guardadas não exigem abrir um “Estúdio avançado”. **Prática guiada · objetivos, rotina e jogos de ouvido** é uma opção recolhida abaixo do treino: seus exercícios gerados usam uma sessão temporária e não substituem a frase salva nem seu andamento. Copiar o exercício para a sessão continua sendo uma ação explícita. Rotinas já salvas são preservadas. **Parar som** permanece acessível durante a reprodução.
+O transporte do Estúdio permanece visível no topo enquanto você rola sua área de trabalho. Suas duas linhas reúnem **Tocar/Parar**, BPM, metrônomo e opções de padrão/silêncios/polirritmia, limites do loop, posição, nome, compasso, compassos e desfazer/refazer. **Sessão** reúne nova sessão, abrir, salvar na biblioteca, duplicar, exportar, importar e compartilhar. Nova sessão e duplicação permitem desfazer; duplicar guarda a cópia na biblioteca antes de abri-la e não substitui uma biblioteca original protegida.
+
+No Estúdio, **Espaço** toca ou para fora dos campos, diálogos e controles com ativação própria. Durante a contagem e o treino, Espaço mantém sua função de pressionar/soltar o ritmo. **Ctrl+Z / Ctrl+Shift+Z** desfaz/refaz a sessão (⌘ no macOS); **Delete** exclui a nota selecionada. Setas e teclas de duração continuam disponíveis no editor. **?** ou **Atalhos** abre a ajuda de teclado; **Esc** fecha a ajuda e interrompe todo o som. Ao mudar de atividade com som ativo, o mesmo botão **Parar** fica acessível como parada global, sem criar outro transporte.
+
+O treino principal usa a frase da sessão e seu trecho de loop. O metrônomo acompanha o transporte, respeitando preferências e mute do mixer. **Prática guiada · objetivos, rotina e jogos de ouvido** é uma opção recolhida abaixo do treino: seus exercícios gerados usam uma sessão temporária e não substituem a frase salva nem seu andamento. Copiar o exercício para a sessão continua sendo uma ação explícita. Rotinas já salvas são preservadas.
 
 As sessões têm 1–16 compassos, de 1–16 tempos com unidade 2, 4, 8 ou 16, e andamento de 30–300 BPM em semínimas. A frase usa coordenadas em ticks (4 ticks por semínima), admite 1–8 divisões por semínima, swing e atributos expressivos; a pauta rítmica representa durações e pausas, não altura. O histórico de desfazer/refazer cobre a sessão completa. O estúdio **não** captura microfone, não recebe MIDI ao vivo e não mede velocidade/força física do toque.
 
-Em **Tocar com banda**, a forma musical ordena até 32 seções com trechos da frase, repetições e alterações de BPM, compasso e densidade. Introdução, A/B, virada, pausa e final têm comportamentos audíveis; a forma pode repetir ou terminar. Reprodução e renderização de arranjo compartilham o mesmo plano musical. Treinos e tomadas usam o loop da frase escolhida, no andamento do exercício, não a forma variável.
+No **Estúdio**, a forma musical ordena até 32 seções com trechos da frase, repetições e alterações de BPM, compasso e densidade. Introdução, A/B, virada, pausa e final têm comportamentos audíveis; a forma pode repetir ou terminar. Reprodução e renderização de arranjo compartilham o mesmo plano musical. Treinos e tomadas usam o loop da frase escolhida, no andamento do exercício, não a forma variável.
 
 Consulte [guide.html](./guide.html) para os controles, formatos aceitos, funcionamento offline e limitações de análise.
 

@@ -1,0 +1,83 @@
+{
+  "phase": 1,
+  "verification": {
+    "tests": {
+      "passed": 269,
+      "failed": 0
+    },
+    "check": {
+      "modules": 72,
+      "failed": 0
+    },
+    "build": true,
+    "browser": [
+      "Space inicia e interrompe reprodução",
+      "Space em nome da sessão não reproduz",
+      "Ctrl+Z e Ctrl+Shift+Z recuperam nome",
+      "Delete remove nota e Desfazer recupera",
+      "? abre ajuda e Esc fecha",
+      "Transporte sticky com top=0 no fim da página",
+      "Workspace permanece em panel-studio ao alternar abas",
+      "Treinar mostra partitura e não contém grid",
+      "Treino aceita pressão/soltura durante tempo audível",
+      "Nova, duplicar, guardar, abrir, importar e exportar exercitados",
+      "Tour percorre os quatro passos e restaura Estúdio",
+      "Mesmo botão Parar acessível em Treinar durante reprodução"
+    ],
+    "compatibility": {
+      "version": 2,
+      "musicalFieldsPreserved": true,
+      "audioComparison": {
+        "frames": 85334,
+        "matchingLength": true,
+        "maxDelta": 4.76837158203125e-7,
+        "relativeRmsError": 1.7978351956421002e-7
+      }
+    },
+    "offline": {
+      "prefix": "/groovegoblin/",
+      "reloadWithoutNetwork": true,
+      "studioAndTrainingInteractive": true,
+      "newModules": [
+        {
+          "path": "src/studio.js",
+          "status": 200,
+          "bytes": 1464
+        },
+        {
+          "path": "src/studio-transport.js",
+          "status": 200,
+          "bytes": 4950
+        }
+      ]
+    }
+  },
+  "captures": [
+    {
+      "file": "evidence/studio-phase1-1440x900.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "evidence/studio-phase1-1280x800.png",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "file": "evidence/studio-phase1-sticky-1440x900.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "file": "evidence/studio-phase1-sticky-1280x800.png",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "file": "evidence/studio-phase1-training-1440x900.png",
+      "width": 1440,
+      "height": 900
+    }
+  ],
+  "scope": "Somente fase 1. Grade compacta, faixas integradas, harmonia posicionada, inspetor e vocabulário completo pertencem às fases seguintes."
+}

@@ -6,24 +6,24 @@ export const TOUR_STORAGE_KEY = 'groovegoblin:tour:v1';
 
 const STEPS = [
   {
-    tab: 'tab-practice', target: '#train-pad',
-    title: 'Treinar ritmo: ouvir → tocar → repetir',
-    body: 'Edite sua frase na grade e acompanhe a partitura rítmica. Ajuste o BPM, mantenha o Metrônomo ligado e escolha “Ouvir frase”. Depois, use “Treinar esta frase”: espere a contagem e pressione Espaço ou a área de toque no início de cada nota; segure e solte no final. Os resultados aparecem abaixo do editor. A prática guiada é opcional. Não há gravação por microfone.',
+    tab: 'tab-studio', target: '#studio-editor > summary',
+    title: 'Estúdio: editar e tocar sua sessão',
+    body: 'A frase, a banda, os acordes, o mixer e a forma musical ficam sempre no Estúdio. O transporte no topo reúne Tocar/Parar, BPM, metrônomo, loop e dados da sessão. Espaço toca ou para fora dos campos; “Sessão” abre biblioteca, arquivos e links. Use “Atalhos” ou ? para conhecer as teclas do editor. Não há gravação por microfone.',
   },
   {
-    tab: 'tab-band', target: '#panel-band > .band-setup',
-    title: 'Tocar com banda',
-    body: 'Escolha seu papel e habilite baixo, bateria e harmonia. Logo abaixo, ajuste BPM e use “Tocar acompanhamento” ou “Parar”. Acordes, timbres, mixer, editor e forma musical continuam disponíveis nas opções. Toque seu instrumento junto com a banda; não usamos microfone.',
+    tab: 'tab-practice', target: '#train-pad',
+    title: 'Treinar: tocar → comparar → repetir',
+    body: 'Confira a partitura da frase atual e use “Treinar esta frase”. Espere a contagem, pressione Espaço ou a área de toque no início de cada nota, segure e solte no final. Os resultados aparecem abaixo do treino. “Editar no Estúdio” volta ao editor permanente; a prática guiada é opcional e seus exercícios não substituem a sessão guardada.',
   },
   {
     tab: 'tab-repertoire', target: '#repertoire-mount',
-    title: 'Estudar uma música',
+    title: 'Músicas: estudar um trecho',
     body: 'Importe um áudio, escolha um trecho A–B, repita em loop e ajuste a velocidade para estudar. Análise de pulsos e acordes, tomadas e setlists ficam nesta atividade. A importação de MIDI serve para levar notas à frase do estúdio, não para abrir uma gravação. Seus arquivos são processados neste navegador.',
   },
   {
-    tab: 'tab-practice', target: '.intentions',
+    tab: 'tab-studio', target: '.intentions',
     title: 'Escolha sua atividade',
-    body: 'As três atividades principais ficam no topo. Em “Mais opções”, Explorar reúne jogos e experiências; Percurso e histórico mostra seus treinos e revisões. “Parar som” ou Esc interrompe o áudio. Esta ajuda só abre quando você escolhe “Como usar”.',
+    body: 'Estúdio, Treinar e Músicas ficam no topo. Em “Mais opções”, Explorar reúne jogos e experiências; Percurso mostra seus treinos e revisões. O mesmo botão “Parar” continua acessível quando há som em outras áreas, e Esc interrompe todo o áudio. Esta ajuda só abre quando você escolhe “Como usar”.',
   },
 ];
 
@@ -109,7 +109,7 @@ export function mountTour(button, host) {
     state = {
       index: 0, token: 0, raf: 0, settleTimer: 0, settling: false, animations: [],
       restore: {
-        tab: tab?.id ?? 'tab-practice',
+        tab: tab?.id ?? 'tab-studio',
         open: Object.fromEntries([...document.querySelectorAll('details[id]')].map(details => [details.id, details.open])),
         focusMode: document.body.classList.contains('performance-focus'),
         x: scrollX, y: scrollY,
@@ -117,7 +117,7 @@ export function mountTour(button, host) {
         focus: document.activeElement,
       },
     };
-    // O foco na execução esconde as abas; só a vista muda, não a sessão.
+    // O foco na execução esconde detalhes; só a vista muda, não a sessão.
     document.body.classList.remove('performance-focus');
     document.documentElement.classList.add('tour-active');
     addEventListener('resize', onViewport);

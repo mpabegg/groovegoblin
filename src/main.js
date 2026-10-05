@@ -1,5 +1,5 @@
 import { GrooveAudio, renderSession } from './audio.js';
-import { loadSession, saveSession, validateSession, serializeSession, parseSession, encodeSessionLink, decodeSessionLink, ticksPerBar as barTicks, sessionTicks as totalTicks, STYLES, DENSITIES, METRONOME_PATTERNS, ARTICULATIONS, TIMBRES, TIMBRE_LABELS } from './session.js';
+import { createSession, loadSession, saveSession, validateSession, serializeSession, parseSession, encodeSessionLink, decodeSessionLink, ticksPerBar as barTicks, sessionTicks as totalTicks, STYLES, DENSITIES, METRONOME_PATTERNS, ARTICULATIONS, TIMBRES, TIMBRE_LABELS } from './session.js';
 import { evaluateSession, summarizeFeedback } from './feedback.js';
 import { buildTimelineData, renderTimeline } from './timeline.js';
 import { GROOVES, loadGroove } from './library.js';
@@ -19,6 +19,8 @@ import { FORM_KINDS, FORM_LABELS, FORM_DESCRIPTIONS } from './form.js';
 import { EVALUATION_MODES, EVALUATION_MODE_LABELS, GOALS, GOAL_LABELS } from './session.js';
 import { generateGroove } from './generator.js';
 import { generateDrums, DRUM_VOICES } from './drums.js';
+import { mountStudio } from './studio.js';
+import { mountStudioTransport } from './studio-transport.js';
 
 const $ = id => document.getElementById(id);
 const restored = loadSession();
@@ -36,6 +38,7 @@ let reference = null;
 let lastMode = 'idle';
 let executionSession = null;
 let exercisePlayback = false;
+let executionMode = null;
 let repertoire;
 let practice;
 let playground;
@@ -124,6 +127,7 @@ function stop(reason) {
   audio.setMixer(session.mixer);
   executionSession = null;
   exercisePlayback = false;
+  executionMode = null;
   clearInput();
   if (wasDragging) renderNotes();
   renderControls();
@@ -134,10 +138,11 @@ async function begin(mode = 'loop', practiceSession = null) {
   stop();
   const request = ++generation;
   if (mode === 'train') {
-    activateTab($('tab-practice'));
+    studio.activate($('tab-practice'));
     if (!practiceSession) practice.useSession();
   }
   pending = 'play';
+  executionMode = mode;
   renderControls();
   const snapshot = structuredClone(practiceSession ?? session);
   executionSession = snapshot;
@@ -175,31 +180,20 @@ const host = {
   isBusy: busy,
 };
 
-// Uma única intenção na ordem de tabulação; setas navegam entre abas.
-const tabs = [...document.querySelectorAll('[role=tab]')];
-function activateTab(tab) {
-  for (const item of tabs) {
-    const active = item === tab;
-    item.setAttribute('aria-selected', String(active)); item.tabIndex = active ? 0 : -1;
-    $(item.getAttribute('aria-controls')).hidden = !active;
-  }
-  document.body.dataset.intent = tab.id.slice(4);
-  const slot = tab.id === 'tab-band' ? $('band-session-slot') : $('practice-session-slot');
-  if ($('session-workspace').parentElement !== slot) slot.append($('session-workspace'));
-  if (tab.id === 'tab-band') $('session-title').closest('.performance').querySelector('.eyebrow').textContent = 'ACOMPANHAMENTO DA SESSÃO';
-  else $('session-title').closest('.performance').querySelector('.eyebrow').textContent = 'TREINE SUA FRASE · COM METRÔNOMO';
+const studio = mountStudio({ onActivate: id => {
+  if (id !== 'tab-repertoire') repertoire?.stop();
   renderControls();
-  if (tab.id !== 'tab-repertoire') repertoire.stop();
-}
-for (const tab of tabs) {
-  tab.addEventListener('click', () => activateTab(tab));
-  tab.addEventListener('keydown', event => {
-    const index = tabs.indexOf(tab);
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index - 1 + tabs.length) % tabs.length : null;
-    if (next === null) return;
-    event.preventDefault(); activateTab(tabs[next]); tabs[next].focus();
-  });
-}
+} });
+const transport = mountStudioTransport({
+  getState: () => ({
+    active: busy() || !!repertoire?.isBusy(), locked: busy(),
+    training: ['countin', 'train'].includes(audio.position.mode) || (pending === 'play' && executionMode === 'train'),
+    canUndo: history.canUndo, canRedo: history.canRedo,
+  }),
+  play: () => void begin().catch(() => {}),
+  stop: () => { if (practice) practice.cancel(); else stop(); repertoire?.stop(); renderControls(); message('Som interrompido.'); },
+  travelHistory, removeSelected,
+});
 $('minimal').addEventListener('change', event => {
   session = mergeSession(session, { extensions: { studio: { performanceFocus: event.target.checked } } });
   document.body.classList.toggle('performance-focus', event.target.checked); persist();
@@ -269,18 +263,13 @@ function renderControls() {
   $('loop-start').max = session.bars;
   $('loop-end').max = session.bars;
   $('loop-start').disabled = locked;
-  $('session-title').textContent = session.name;
+  $('practice-session-title').textContent = session.name;
   $('session-badge').textContent = `${session.meter.beats}/${session.meter.unit} · ${session.bars} comp. · loop ${session.loop.startBar + 1}–${session.loop.endBar}`;
-  $('play').disabled = pending !== null;
-  $('play').textContent = session.form.enabled ? (session.form.loop ? 'Tocar forma em loop' : 'Tocar forma') : document.body.dataset.intent === 'band' ? 'Tocar acompanhamento' : 'Ouvir frase';
-  $('band-stop').disabled = !locked;
+  transport.render();
   $('train').disabled = pending !== null || (session.training.evaluation !== 'free' && !session.notes.some(note => note.start >= session.loop.startBar * barTicks(session) && note.start < session.loop.endBar * barTicks(session)));
-  $('stop').disabled = !locked && !repertoire?.isBusy();
   $('train-pad').disabled = !['countin', 'train'].includes(audio.position.mode);
-  $('undo').disabled = locked || !history.canUndo;
-  $('redo').disabled = locked || !history.canRedo;
   $('clear').disabled = locked || session.notes.length === 0;
-  for (const id of ['generate', 'variation', 'load-groove', 'generate-drums', 'generate-progression', 'add-chord', 'save-session', 'restore-session', 'delete-session', 'replace-recovery', 'replace-library-recovery', 'apply-share']) $(id).disabled = locked;
+  for (const id of ['generate', 'variation', 'load-groove', 'generate-drums', 'generate-progression', 'add-chord', 'new-session', 'duplicate-session', 'save-session', 'restore-session', 'delete-session', 'replace-recovery', 'replace-library-recovery', 'apply-share']) $(id).disabled = locked;
   $('load-groove').disabled ||= !$('groove-library').value;
   $('restore-session').disabled ||= !$('session-library').value;
   $('delete-session').disabled ||= !$('session-library').value;
@@ -450,7 +439,9 @@ function renderNotes(previewNotes = session.notes) {
     block.addEventListener('click', () => { if (!busy()) { selected = note.id; renderNotes(); } });
     $('notes').append(block);
   }
-  renderRhythmNotation($('rhythm-score'), buildRhythmNotation(previewNotes, session));
+  const notation = buildRhythmNotation(previewNotes, session);
+  renderRhythmNotation($('rhythm-score'), notation);
+  if (previewNotes === session.notes) renderRhythmNotation($('practice-rhythm-score'), notation);
   if (focusedId) $('notes').querySelector(`[data-id="${CSS.escape(focusedId)}"]`)?.focus({ preventScroll: true });
   renderControls();
 }
@@ -501,11 +492,7 @@ function travelHistory(direction) {
   if (busy()) return;
   const value = history[direction](); if (value) replaceSession(value, { record: false });
 }
-$('undo').addEventListener('click', () => travelHistory('undo')); $('redo').addEventListener('click', () => travelHistory('redo'));
-$('play').addEventListener('click', () => void begin().catch(() => {}));
 $('train').addEventListener('click', () => practice.useSession({ train: true }));
-$('stop').addEventListener('click', () => { practice.cancel(); repertoire.stop(); message('Som interrompido.'); });
-$('band-stop').addEventListener('click', () => { practice.cancel(); message('Acompanhamento parado.'); });
 
 // Entradas de treino usam o relógio do evento, nunca um segundo transporte.
 function clearInput() {
@@ -525,15 +512,14 @@ for (const type of ['pointercancel', 'lostpointercapture']) $('train-pad').addEv
   if (activeInput?.source === 'pointer' && activeInput.id === event.pointerId) stop('Toque cancelado; recomece o treino.');
 });
 window.addEventListener('keydown', event => {
-  const editing = event.target instanceof Element && !!event.target.closest('input, textarea, select, [contenteditable=true]');
-  if (event.key === 'Escape') { practice.cancel(); repertoire.stop(); message('Som interrompido.'); return; }
+  if (event.defaultPrevented || event.key === 'Escape' || document.querySelector('dialog[open], [role=dialog][aria-modal=true]')) return;
+  const editing = event.target instanceof Element && (event.target.isContentEditable || !!event.target.closest('input, textarea, select, [contenteditable]:not([contenteditable=false])'));
   if (editing) return;
+  if (event.code === 'Space' && pending === 'play' && executionMode === 'train') { event.preventDefault(); return; }
   if ((event.code === 'Space' || (event.code === 'Enter' && event.target === $('train-pad'))) && ['countin', 'train'].includes(audio.position.mode)) {
     event.preventDefault(); if (!event.repeat && !activeInput) { activeInput = { source: 'keyboard', id: event.code }; audio.press(event.timeStamp, Number($('input-pitch').value)); } return;
   }
   if (!event.target.closest?.('#studio-editor')) return;
-  if ((event.ctrlKey || event.metaKey) && ['z', 'y'].includes(event.key.toLowerCase())) { event.preventDefault(); travelHistory(event.key.toLowerCase() === 'y' || event.shiftKey ? 'redo' : 'undo'); return; }
-  if (['Delete', 'Backspace'].includes(event.key)) { event.preventDefault(); removeSelected(); return; }
   if (busy() || !selected) return;
   const note = session.notes.find(item => item.id === selected);
   const step = event.shiftKey ? 4 : 4 / session.subdivision;
@@ -714,7 +700,20 @@ function writeLibrary(entries) {
   try { localStorage.setItem(SESSION_LIBRARY_KEY, JSON.stringify(entries)); library.entries = entries; library.warning = null; renderLibrary(); renderControls(); return true; }
   catch { message('Biblioteca não pôde ser salva. Exporte a sessão.', true); return false; }
 }
+$('new-session').addEventListener('click', () => {
+  if (!busy() && replaceSession(createSession())) message('Nova sessão criada. Desfazer recupera a anterior.');
+});
+$('duplicate-session').addEventListener('click', () => {
+  if (busy()) return;
+  const copy = mergeSession(session, { name: `${session.name.slice(0, 112)} · cópia` });
+  const item = { id: crypto.randomUUID(), savedAt: new Date().toISOString(), session: copy };
+  if (writeLibrary([...library.entries, item]) && replaceSession(copy)) {
+    $('session-library').value = item.id; renderControls();
+    message('Cópia guardada na biblioteca e aberta. Desfazer recupera a sessão anterior.');
+  }
+});
 $('save-session').addEventListener('click', () => {
+  if (busy()) return;
   const item = { id: crypto.randomUUID(), savedAt: new Date().toISOString(), session: structuredClone(session) };
   if (writeLibrary([...library.entries, item])) { $('session-library').value = item.id; renderControls(); message('Sessão completa guardada na biblioteca.'); }
 });
@@ -787,13 +786,11 @@ function frame() {
   if (position.mode !== lastMode) { lastMode = position.mode; renderControls(); }
   const repertoireBusy = repertoire.isBusy();
   if (repertoireBusy !== lastRepertoireBusy) { lastRepertoireBusy = repertoireBusy; renderControls(); }
-  // host.stop() may refresh controls during the idle gap between worker
-  // processing and media playback while the cached busy state stays true.
-  const stopDisabled = !busy() && !repertoireBusy;
-  if ($('stop').disabled !== stopDisabled) $('stop').disabled = stopDisabled;
+  // A parada global usa o mesmo botão do transporte, inclusive na preparação.
+  transport.render();
   $('playhead').hidden = exercisePlayback || position.mode === 'idle' || position.mode === 'countin';
   $('playhead').style.left = `${Math.max(0, Math.min(totalTicks(session), position.tick ?? 0)) / totalTicks(session) * 100}%`;
-  if (!exercisePlayback && $('studio-editor').open && ['loop', 'train'].includes(position.mode)) {
+  if (document.body.dataset.intent === 'studio' && !exercisePlayback && $('studio-editor').open && ['loop', 'train'].includes(position.mode)) {
     const scroll = document.querySelector('.grid-scroll');
     const x = (position.tick ?? 0) / totalTicks(playing) * $('grid').clientWidth;
     if (x < scroll.scrollLeft + 16 || x > scroll.scrollLeft + scroll.clientWidth - 32) scroll.scrollLeft = Math.max(0, x - scroll.clientWidth / 3);
@@ -809,26 +806,24 @@ function frame() {
   }
   $('train-pad').classList.toggle('active', ['countin', 'train'].includes(position.mode)); $('train-pad').classList.toggle('held', !!position.held);
   $('held-state').textContent = position.held ? 'PRESSIONADA · nota em curso' : 'ESPAÇO ou toque · pressionar / soltar';
-  $('position-text').textContent = position.mode === 'idle' ? pending ? 'Preparando…' : 'Pronto' : `${position.mode === 'countin' ? 'Entrada' : position.mode === 'train' ? 'Treino' : 'Loop'} · compasso ${position.bar ?? Math.floor((position.tick ?? 0) / barTicks(playing)) + 1} · tempo ${position.beat ?? 1}${position.mode === 'train' ? ` · ${position.repetition}/${playing.training.repetitions}` : ''}`;
+  transport.position({ position, pending, ticksPerBar: barTicks(playing), repetitions: playing.training.repetitions });
   if (position.mode === 'countin') $('train-state').textContent = 'Espere a contagem de entrada. Depois, toque o ritmo.';
   if (position.mode === 'train') $('train-state').textContent = `Repetição ${position.repetition}/${playing.training.repetitions} · pressione no início de cada nota e solte no final.`;
   requestAnimationFrame(frame);
 }
-$('session-workspace').insertBefore($('training-options'), $('studio-editor'));
-for (const id of ['session-status', 'recovery', 'share-preview']) $('studio-notices').append($(id));
 repertoire = mountRepertoire($('repertoire-mount'), host);
 practice = mountPractice($('practice-mount'), host);
 playground = mountPlayground($('playground-mount'), host);
 journey = mountJourney($('journey-mount'), host);
 setupOffline({ isBusy: () => busy() || repertoire.isBusy(), canReload: () => sessionSaved, notify: message });
 history.push(session); audio.setMixer(session.mixer); renderLibrary(); renderAll();
-activateTab($('tab-practice'));
+studio.activate($('tab-studio'));
 $('recovery').hidden = recoveryRaw === null; persist();
 if (restored.warnings?.length) message(restored.warnings.join(' '), true);
 if (library.warning) $('library-status').textContent = library.warning;
 previewShare(); requestAnimationFrame(frame);
 mountTour($('tour-open'), {
-  activateTab: id => activateTab($(id)),
+  activateTab: id => studio.activate($(id)),
   isBusy: () => busy() || repertoire.isBusy(),
   notify: message,
 });

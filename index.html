@@ -15,65 +15,77 @@
 </head>
 <body>
 <main>
-  <header class="masthead"><div><div class="eyebrow">SEU PARCEIRO DE PRÁTICA</div><h1>Groove<span>Goblin</span></h1></div><div class="masthead-actions"><button id="stop" type="button" disabled>Parar som</button><button id="tour-open" type="button" class="help-button" aria-haspopup="dialog"><span aria-hidden="true">?</span>Como usar</button><details class="app-options"><summary>Offline</summary><div id="offline-status" aria-live="polite"></div></details></div></header>
+  <header class="masthead"><div><div class="eyebrow">SEU PARCEIRO DE PRÁTICA</div><h1>Groove<span>Goblin</span></h1></div><div class="masthead-actions"><span id="global-transport" class="global-transport"></span><button id="shortcuts-open" type="button" aria-haspopup="dialog" title="Atalhos de teclado (?)">Atalhos</button><button id="tour-open" type="button" class="help-button" aria-haspopup="dialog"><span aria-hidden="true">?</span>Como usar</button><details class="app-options"><summary>Offline</summary><div id="offline-status" aria-live="polite"></div></details></div></header>
   <nav class="intentions" role="tablist" aria-label="O que você quer fazer?">
     <div class="primary-activities" role="presentation">
-      <button id="tab-practice" role="tab" aria-selected="true" aria-controls="panel-practice"><span>Treinar ritmo</span><small>Ouça, toque e compare</small></button>
-      <button id="tab-band" role="tab" aria-selected="false" aria-controls="panel-band" tabindex="-1"><span>Tocar com banda</span><small>Monte seu acompanhamento</small></button>
-      <button id="tab-repertoire" role="tab" aria-selected="false" aria-controls="panel-repertoire" tabindex="-1"><span>Estudar uma música</span><small>Importe e repita trechos</small></button>
+      <button id="tab-studio" role="tab" aria-selected="true" aria-controls="panel-studio"><span>Estúdio</span><small>Edite e toque sua sessão</small></button>
+      <button id="tab-practice" role="tab" aria-selected="false" aria-controls="panel-practice" tabindex="-1"><span>Treinar</span><small>Toque e compare</small></button>
+      <button id="tab-repertoire" role="tab" aria-selected="false" aria-controls="panel-repertoire" tabindex="-1"><span>Músicas</span><small>Importe e repita trechos</small></button>
     </div>
     <div class="secondary-activities" role="presentation">
       <span class="muted">Mais opções</span>
       <button id="tab-explore" role="tab" aria-selected="false" aria-controls="panel-explore" tabindex="-1">Explorar</button>
-      <button id="tab-journey" role="tab" aria-selected="false" aria-controls="panel-journey" tabindex="-1">Percurso e histórico</button>
+      <button id="tab-journey" role="tab" aria-selected="false" aria-controls="panel-journey" tabindex="-1">Percurso</button>
     </div>
   </nav>
-  <div id="studio-notices" class="studio-notices"></div>
-  <div id="session-workspace">
-  <section class="panel performance" aria-labelledby="session-title">
-    <div class="section-heading"><div><div class="eyebrow">SESSÃO GUARDADA · INDEPENDENTE DO EXERCÍCIO</div><h2 id="session-title">Seu groove</h2></div><span id="session-badge" class="badge"></span></div>
-    <div class="transport"><button id="play" type="button" class="primary">Tocar acompanhamento</button><button id="band-stop" type="button" disabled>Parar</button><button id="train" type="button">Treinar esta frase</button><label>BPM <input id="bpm" data-path="bpm" type="number" min="30" max="300" step="1"></label><label class="toggle"><input id="metronome" data-path="metronome.enabled" type="checkbox"> Metrônomo</label><span id="position-text" class="position-text" role="status">Pronto</span></div>
-    <section id="performance-input" class="practice-input" aria-label="Toque o ritmo">
-      <p class="input-directions">Depois de ouvir, pressione <kbd>Espaço</kbd> ou esta área no início de cada nota. Segure pela duração da nota e solte no final. Não usamos microfone.</p>
-      <button id="train-pad" type="button" class="train-pad" disabled aria-label="Tocar o ritmo: pressione no início da nota e solte no final"><span id="train-state">Ouça a frase e depois escolha Treinar esta frase.</span><span id="held-state" class="held-state">ESPAÇO ou toque</span></button>
-      <details id="input-options" class="control-detail"><summary>Opções de toque</summary><div class="tool-row"><label>Altura ao tocar (MIDI)<input id="input-pitch" type="number" min="21" max="108" value="69"></label><label class="toggle"><input id="minimal" type="checkbox"> Foco na execução</label></div><p class="tool-hint muted">O resultado mede seus toques, não o som de um instrumento. A latência varia com o dispositivo.</p></details>
-    </section>
-    <div id="session-status" class="panel-foot"><span id="message" role="status" aria-live="polite"></span><span id="saved" class="saved"></span></div>
+  <div id="studio-notices" class="studio-notices">
+    <div id="session-status" class="panel-foot"><span id="message" role="status" aria-live="polite"></span></div>
     <section id="recovery" class="notice" hidden><h3>Dados originais protegidos</h3><p>Edições ficam na memória até você autorizar a substituição. Exporte os originais antes de continuar.</p><button id="download-recovery">Baixar originais</button><button id="replace-recovery">Substituir pela sessão atual</button></section>
     <section id="share-preview" class="notice" hidden><h3>Sessão recebida por link</h3><p id="share-description"></p><p>Nada foi substituído. Aplicar permite desfazer depois.</p><button id="apply-share">Aplicar sessão recebida</button><button id="dismiss-share">Dispensar</button></section>
+  </div>
+  <section id="panel-studio" class="intention-panel" role="tabpanel" aria-labelledby="tab-studio">
+  <div id="session-workspace">
+  <section id="studio-transport" class="panel studio-transport" aria-label="Transporte da sessão">
+    <div class="transport-row">
+      <button id="play" type="button" class="primary" aria-label="Tocar sessão" title="Tocar / parar (Espaço)">Tocar</button>
+      <label>BPM <input id="bpm" data-path="bpm" type="number" min="30" max="300" step="1" title="Semínimas por minuto"></label>
+      <label class="toggle"><input id="metronome" data-path="metronome.enabled" type="checkbox"> Metrônomo</label>
+      <details id="metronome-options" class="transport-disclosure"><summary aria-label="Opções do metrônomo" title="Padrão, silêncios e polirritmia">▾</summary><div class="transport-popover">
+        <div class="tool-row">
+          <label>Padrão<select id="metro-pattern" data-path="metronome.pattern"></select></label>
+          <label>Compassos audíveis<input id="audible-bars" data-path="metronome.audibleBars" type="number" min="1" max="8"></label>
+          <label>Compassos silenciosos<input id="silent-bars" data-path="metronome.silentBars" type="number" min="0" max="8"></label>
+          <label class="toggle"><input data-path="companion.enabled" type="checkbox"> Ciclo companheiro</label>
+          <label>Pulsos por ciclo<input data-path="companion.pulses" type="number" min="2" max="12"></label>
+          <label>Duração do ciclo (tempos escritos)<input data-path="companion.spanBeats" type="number" min="1" max="64"></label>
+        </div>
+        <p class="tool-hint muted">Pulsos igualmente espaçados contra o compasso; o acento marca cada novo ciclo. Silêncios alternam com compassos audíveis, no mesmo relógio.</p>
+      </div></details>
+      <label>Loop <input id="loop-start" type="number" min="1" step="1" aria-label="Primeiro compasso do loop"></label>
+      <label>até <input id="loop-end" data-path="loop.endBar" type="number" min="1" step="1" aria-label="Último compasso do loop"></label>
+      <span id="position-text" class="position-text" role="status">Pronto</span>
+    </div>
+    <div class="transport-row transport-session">
+      <label class="session-name-label">Sessão <input id="session-name" data-path="name" type="text" maxlength="120"></label>
+      <label>Compasso <input id="meter-beats" data-path="meter.beats" type="number" min="1" max="16" step="1" aria-label="Tempos por compasso"></label>
+      <label>/<select id="meter-unit" data-path="meter.unit" aria-label="Unidade do compasso"><option value="2">2</option><option value="4">4</option><option value="8">8</option><option value="16">16</option></select></label>
+      <label>Compassos <input id="bars" data-path="bars" type="number" min="1" max="16" step="1"></label>
+      <button id="undo" type="button" title="Desfazer (Ctrl+Z)">Desfazer</button><button id="redo" type="button" title="Refazer (Ctrl+Shift+Z)">Refazer</button>
+      <span id="saved" class="saved" role="status"></span>
+    <details id="session-storage" class="transport-disclosure"><summary>Sessão</summary>
+    <section class="session-library transport-popover" aria-label="Sessões guardadas e compartilhamento"><div class="tool-row"><button id="new-session" type="button">Nova</button><button id="duplicate-session" type="button">Duplicar</button><button id="save-session">Salvar na biblioteca</button><select id="session-library" aria-label="Sessões guardadas"><option value="">Escolha uma sessão</option></select><button id="restore-session">Abrir</button><button id="delete-session">Excluir sessão guardada</button><button id="export">Exportar sessão</button><button id="import">Importar sessão</button><button id="share">Compartilhar link</button><input id="import-file" type="file" accept=".json,application/json" hidden></div><p id="library-status" role="status"></p><div id="library-recovery" hidden><button id="download-library-recovery">Baixar biblioteca original</button><button id="replace-library-recovery">Substituir biblioteca pela sessão atual</button></div><div id="share-output" class="notice" hidden><label for="share-url">Link completo, sem servidor</label><input id="share-url" type="text" readonly><p>Quem recebe pode ler a sessão inteira, incluindo opções e mixer.</p></div></section>
+    </details>
+    </div>
   </section>
   <details id="studio-editor" class="panel studio-detail" open>
-    <summary>Editar frase e organizar sessões</summary>
+    <summary>Editar frase</summary>
     <section aria-labelledby="editor-title"><h2 id="editor-title">Frase musical</h2>
       <div class="tool-row">
-        <label>Nome da sessão<input id="session-name" data-path="name" type="text" maxlength="120"></label>
-        <label>Compassos<input id="bars" data-path="bars" type="number" min="1" max="16" step="1"></label>
-        <label>Tempos por compasso<input id="meter-beats" data-path="meter.beats" type="number" min="1" max="16" step="1"></label>
-        <label>Unidade<select id="meter-unit" data-path="meter.unit"><option value="2">Mínima / 2</option><option value="4">Semínima / 4</option><option value="8">Colcheia / 8</option><option value="16">Semicolcheia / 16</option></select></label>
         <label>Divisões por semínima<select id="subdivision" data-path="subdivision"><option value="1">1</option><option value="2">2</option><option value="3">3 · tercina</option><option value="4">4</option><option value="5">5 · quintina</option><option value="6">6</option><option value="7">7 · septina</option><option value="8">8</option></select></label>
         <label>Swing<input id="swing" data-path="swing" type="number" min="0" max="0.75" step="0.05"></label>
         <label>Base do swing<select id="swing-unit" data-path="swingUnit"><option value="eighth">Colcheia</option><option value="sixteenth">Semicolcheia</option></select></label>
-        <label>Loop: primeiro compasso<input id="loop-start" type="number" min="1" step="1"></label><label>Último compasso<input id="loop-end" data-path="loop.endBar" type="number" min="1" step="1"></label>
       </div>
-      <p class="tool-hint muted">BPM mede semínimas. Posições e durações abaixo usam ticks: 4 ticks = uma semínima. Grade respeita quiálteras; notas podem cruzar barras, mas não se sobrepor.</p>
-      <div class="grid-scroll"><div class="grid-shell"><div id="beat-labels" class="beat-labels" aria-hidden="true"></div><div id="grid" class="grid" aria-label="Editor de frase"><div id="cells" class="cells"></div><div id="marks" class="marks" aria-hidden="true"></div><div id="notes" class="notes"></div><div id="playhead" class="playhead" hidden aria-hidden="true"></div></div><div id="subdivision-labels" class="subdivision-labels" aria-hidden="true"></div><div id="drum-lanes" class="drum-lanes"><div id="drum-rows"></div></div><div class="score-heading">Partitura rítmica <span>Ligaduras sustentam o mesmo ataque</span></div><div id="rhythm-score" class="rhythm-score"></div></div></div>
-      <div class="editor"><span id="selection-text"></span><div id="presets" class="presets" role="group" aria-label="Durações"></div><label>Início (ticks)<input id="note-start" type="number" min="0" step="any"></label><label>Duração (ticks)<input id="note-duration" type="number" min="0.01" step="any"></label><label>Altura (MIDI)<input id="note-pitch" type="number" min="21" max="108"></label><label>Velocidade<input id="note-velocity" type="number" min="0" max="1" step="0.05"></label><label>Articulação<select id="note-articulation"><option value="normal">Normal</option><option value="staccato">Staccato</option><option value="legato">Legato</option><option value="accent">Acento</option></select></label><button id="delete">Excluir nota</button><button id="clear">Limpar frase</button><button id="undo">Desfazer</button><button id="redo">Refazer</button></div>
+      <div class="grid-scroll" title="Clique para criar; arraste para mover e use a borda direita para mudar a duração. ? abre todos os atalhos."><div class="grid-shell"><div id="beat-labels" class="beat-labels" aria-hidden="true"></div><div id="grid" class="grid" aria-label="Editor de frase"><div id="cells" class="cells"></div><div id="marks" class="marks" aria-hidden="true"></div><div id="notes" class="notes"></div><div id="playhead" class="playhead" hidden aria-hidden="true"></div></div><div id="subdivision-labels" class="subdivision-labels" aria-hidden="true"></div><div id="drum-lanes" class="drum-lanes"><div id="drum-rows"></div></div><div class="score-heading">Partitura rítmica <span>Ligaduras sustentam o mesmo ataque</span></div><div id="rhythm-score" class="rhythm-score"></div></div></div>
+      <div class="editor"><span id="selection-text"></span><div id="presets" class="presets" role="group" aria-label="Durações"></div><label>Início (ticks)<input id="note-start" type="number" min="0" step="any"></label><label>Duração (ticks)<input id="note-duration" type="number" min="0.01" step="any"></label><label>Altura (MIDI)<input id="note-pitch" type="number" min="21" max="108"></label><label>Velocidade<input id="note-velocity" type="number" min="0" max="1" step="0.05"></label><label>Articulação<select id="note-articulation"><option value="normal">Normal</option><option value="staccato">Staccato</option><option value="legato">Legato</option><option value="accent">Acento</option></select></label><button id="delete">Excluir nota</button><button id="clear">Limpar frase</button></div>
       <div class="tool-row"><label>Microtempo (ms)<input id="note-offsetMs" type="number" min="-80" max="80" step="1"></label><span class="tool-hint muted">Deslocamento expressivo da nota, sem mover sua posição notada.</span></div>
       <div class="tool-row"><label for="transpose-semitones">Transposição da frase (semitons)<input id="transpose-semitones" type="number" min="-24" max="24" step="1" value="0"></label><button id="transpose-phrase" type="button">Transpor frase</button></div>
-      <p class="tool-hint muted">Clique numa célula para criar. Arraste para mover; borda direita muda duração. Setas esquerda/direita movem; cima/baixo mudam duração; Shift = semínima. Delete exclui, Ctrl+Z desfaz. Teclas 1/2/3/4/6/8 escolhem duração.</p>
     </section>
     <details id="inspiration" class="inspiration"><summary>Biblioteca de grooves e gerador com semente</summary><div class="inspiration-tools"><section><h3>Padrões de referência</h3><div class="tool-row"><select id="groove-library" aria-label="Padrão rítmico"><option value="">Escolha um padrão</option></select><button id="load-groove">Carregar padrão</button></div><div id="groove-description" class="muted"></div></section><section><h3>Gerador</h3><div class="tool-row"><label>Densidade<select id="density" data-path="generator.density"><option value="sparse">Poucas notas</option><option value="medium">Média</option><option value="busy">Muitas notas</option></select></label><label>Ataques<select id="syncopation" data-path="generator.syncopation"><option value="straight">Nos tempos</option><option value="mixed">Mistos</option><option value="syncopated">Sincopados</option></select></label><label>Durações<select id="lengths" data-path="generator.lengths"><option value="short">Curtas</option><option value="mixed">Variadas</option><option value="long">Longas</option></select></label><label>Semente<input id="seed" data-path="generator.seed" type="number" min="0" max="4294967295"></label></div><button id="generate">Gerar com semente</button><button id="variation">Nova variação</button></section></div></details>
-    <details id="session-storage" class="control-detail"><summary>Sessões guardadas e compartilhamento</summary>
-    <section class="session-library"><h3>Sessões completas</h3><div class="tool-row"><button id="save-session">Guardar sessão na biblioteca</button><select id="session-library" aria-label="Sessões guardadas"><option value="">Escolha uma sessão</option></select><button id="restore-session">Restaurar</button><button id="delete-session">Excluir sessão guardada</button><button id="export">Exportar sessão</button><button id="import">Importar sessão</button><button id="share">Compartilhar link</button><input id="import-file" type="file" accept=".json,application/json" hidden></div><p id="library-status" role="status"></p><div id="library-recovery" hidden><button id="download-library-recovery">Baixar biblioteca original</button><button id="replace-library-recovery">Substituir biblioteca pela sessão atual</button></div><div id="share-output" class="notice" hidden><label for="share-url">Link completo, sem servidor</label><input id="share-url" type="text" readonly><p>Quem recebe pode ler a sessão inteira, incluindo opções e mixer.</p></div></section>
-    </details>
   </details>
-  </div>
-  <section id="panel-practice" class="intention-panel" role="tabpanel" aria-labelledby="tab-practice"><div id="practice-session-slot"></div><details id="feedback-detail" class="panel feedback" hidden><summary>Ataques e términos · ver detalhes</summary><div id="timeline"></div><div id="feedback"></div></details><details id="practice-studio" class="panel studio-detail"><summary>Prática guiada · objetivos, rotina e jogos de ouvido</summary><p class="muted">Um exercício gerado à parte da sua frase guardada. Abra para escolher objetivo, seguir uma rotina em etapas ou jogar os jogos de ouvido.</p><div id="practice-mount"></div></details></section>
-  <section id="panel-band" class="intention-panel" role="tabpanel" aria-labelledby="tab-band" hidden>
     <section class="panel band-setup"><h2>Monte seu acompanhamento</h2><p class="muted">Escolha seu papel e ligue os instrumentos que vão tocar com você.</p>
       <div class="tool-row"><label>Seu papel<select id="band-role" data-path="band.role"><option value="solo">Solista / frase</option><option value="bass">Baixista</option><option value="harmony">Harmonia</option><option value="drums">Baterista</option></select></label><label class="toggle"><input id="bass-enabled" data-path="band.bassEnabled" type="checkbox"> Baixo</label><label>Estilo do baixo<select id="bass-style" data-path="band.style"></select></label><label>Densidade do baixo<select id="bass-density" data-path="band.density"></select></label><label>Resposta<select id="band-mode" data-path="band.mode"><option value="steady">Pulso estável</option><option value="follow">Segue a frase</option></select></label></div>
       <div class="tool-row"><label class="toggle"><input id="drums-enabled" data-path="drums.enabled" type="checkbox"> Bateria</label><label>Estilo<select id="drum-style" data-path="drums.style"></select></label><label>Densidade<select id="drum-density" data-path="drums.density"></select></label><label>Semente<input id="drum-seed" data-path="drums.seed" type="number" min="0" max="4294967295"></label><button id="generate-drums">Variar bateria</button></div>
-      <div class="tool-row"><label class="toggle"><input id="chords-enabled" data-path="progression.enabled" type="checkbox"> Harmonia</label><span class="tool-hint muted">Escolha os acordes em “Acordes e progressões”. Depois use “Tocar acompanhamento” abaixo.</span></div>
+      <div class="tool-row"><label class="toggle"><input id="chords-enabled" data-path="progression.enabled" type="checkbox"> Harmonia</label><span class="tool-hint muted">Escolha os acordes em “Acordes e progressões”; use Tocar no transporte acima.</span></div>
       <details class="control-detail" id="harmony-options"><summary>Acordes e progressões</summary>
       <h3>Harmonia manual e funcional</h3><div class="tool-row"><label>Tonalidade<select id="progression-key" data-path="progression.keyId"></select></label><label>Funções<select id="progression-function"><option value="cadence">Tônica → subdominante → dominante → tônica</option><option value="turnaround">Turnaround I–vi–ii–V</option><option value="random">Diatônica livre</option></select></label><button id="generate-progression">Gerar progressão</button><button id="add-chord">Adicionar acorde</button></div><ol id="progression-chords" class="progression-chords"></ol><p id="progression-status" class="tool-hint"></p>
       </details>
@@ -81,24 +93,7 @@
       <h3>Som e síntese</h3><div id="synth-controls" class="tool-row"></div>
       </details>
     </section>
-    <div id="band-session-slot"></div>
     <details id="mixer" class="panel mixer"><summary>Mixer · volume e silenciamento</summary><div id="mixer-channels" class="mixer-channels"></div><p id="mixer-status" role="status"></p></details>
-    <details id="training-options" class="panel control-detail"><summary>Configurar treino, metrônomo e polirritmia</summary>
-      <div class="tool-row">
-        <label>Padrão<select id="metro-pattern" data-path="metronome.pattern"></select></label>
-        <label>Compassos audíveis<input id="audible-bars" data-path="metronome.audibleBars" type="number" min="1" max="8"></label>
-        <label>Compassos silenciosos<input id="silent-bars" data-path="metronome.silentBars" type="number" min="0" max="8"></label>
-        <label>Entrada (compassos)<input id="count-in" data-path="training.countInBars" type="number" min="0" max="4"></label>
-        <label>Repetições<input id="repetitions" data-path="training.repetitions" type="number" min="1" max="64"></label>
-        <label>Avaliação<select id="training-evaluation" data-path="training.evaluation"></select></label>
-        <label>Objetivo<select id="training-goal" data-path="training.goal"></select></label>
-        <label class="toggle"><input data-path="companion.enabled" type="checkbox"> Ciclo companheiro</label>
-        <label>Pulsos por ciclo<input data-path="companion.pulses" type="number" min="2" max="12"></label>
-        <label>Duração do ciclo (tempos escritos)<input data-path="companion.spanBeats" type="number" min="1" max="64"></label>
-      </div>
-      <p class="tool-hint muted">Silêncios alternam com compassos audíveis. Polirritmo: pulsos igualmente espaçados contra os tempos do compasso (ex.: 3 em 4). Polimetria: um ciclo de outra duração atravessa as barras (ex.: 3 em 3 sobre 4/4); o acento marca cada novo ciclo. Não há um segundo relógio.</p>
-      <p class="tool-hint muted">O treino e sua tomada usam sempre o loop da fonte selecionado no editor, no BPM e compasso principais, com entrada e repetições — não percorrem a forma variável. A resposta da banda acompanha somente toques reais no teclado ou na tela.</p>
-    </details>
     <details id="form-panel" class="panel">
       <summary>Organizar uma música em seções</summary>
       <div class="tool-row"><label class="toggle"><input id="form-enabled" data-path="form.enabled" type="checkbox"> Tocar a forma</label><label class="toggle"><input id="form-loop" data-path="form.loop" type="checkbox"> Repetir a forma (desmarque para terminar)</label><button id="add-section">Adicionar seção</button></div>
@@ -106,11 +101,45 @@
       <ol id="form-sections" class="form-sections"></ol>
       <p id="form-position" role="status" aria-live="polite">Forma desativada.</p>
     </details>
+  </div>
+  </section>
+  <section id="panel-practice" class="intention-panel" role="tabpanel" aria-labelledby="tab-practice" hidden>
+    <section class="panel" aria-labelledby="practice-session-title">
+      <div class="section-heading"><div><div class="eyebrow">FRASE ATUAL · SOMENTE LEITURA</div><h2 id="practice-session-title">Sua frase</h2></div><span id="session-badge" class="badge"></span></div>
+      <div class="training-controls"><button id="train" type="button" class="primary">Treinar esta frase</button><button id="edit-in-studio" type="button">Editar no Estúdio</button></div>
+      <div id="practice-rhythm-score" class="rhythm-score" aria-label="Partitura rítmica da frase atual"></div>
+      <section id="performance-input" class="practice-input" aria-label="Toque o ritmo">
+        <button id="train-pad" type="button" class="train-pad" disabled aria-label="Tocar o ritmo: pressione no início da nota e solte no final" title="Espaço: pressione no ataque, segure e solte no término"><span id="train-state">Escolha Treinar esta frase para começar.</span><span id="held-state" class="held-state">ESPAÇO ou toque</span></button>
+        <details id="input-options" class="control-detail"><summary>Opções de toque</summary><div class="tool-row"><label>Altura ao tocar (MIDI)<input id="input-pitch" type="number" min="21" max="108" value="69"></label><label class="toggle"><input id="minimal" type="checkbox"> Foco na execução</label></div><p class="tool-hint muted">O resultado mede seus toques, não o som de um instrumento. Não usamos microfone; a latência varia com o dispositivo.</p></details>
+      </section>
+      <details id="training-options" class="control-detail"><summary>Configurar treino</summary><div class="tool-row">
+        <label>Entrada (compassos)<input id="count-in" data-path="training.countInBars" type="number" min="0" max="4"></label>
+        <label>Repetições<input id="repetitions" data-path="training.repetitions" type="number" min="1" max="64"></label>
+        <label>Avaliação<select id="training-evaluation" data-path="training.evaluation"></select></label>
+        <label>Objetivo<select id="training-goal" data-path="training.goal"></select></label>
+      </div><p class="tool-hint muted">Treinos usam o loop da fonte, no BPM e compasso da sessão, sem percorrer a forma variável. Metrônomo e polirritmia são configurados no Estúdio.</p></details>
+    </section>
+    <details id="feedback-detail" class="panel feedback" hidden><summary>Ataques e términos · ver detalhes</summary><div id="timeline"></div><div id="feedback"></div></details>
+    <details id="practice-studio" class="panel studio-detail"><summary>Prática guiada · objetivos, rotina e jogos de ouvido</summary><p class="muted">Um exercício gerado à parte da sua frase guardada. Abra para escolher objetivo, seguir uma rotina em etapas ou jogar os jogos de ouvido.</p><div id="practice-mount"></div></details>
   </section>
   <section id="panel-explore" class="intention-panel" role="tabpanel" aria-labelledby="tab-explore" hidden><div id="playground-mount"></div></section>
   <section id="panel-repertoire" class="intention-panel" role="tabpanel" aria-labelledby="tab-repertoire" hidden><div id="repertoire-mount"></div></section>
   <section id="panel-journey" class="intention-panel" role="tabpanel" aria-labelledby="tab-journey" hidden><div id="journey-mount"></div></section>
   <footer>Seus dados ficam neste navegador. <a href="./guide.html">Guia e método de avaliação</a></footer>
 </main>
+<dialog id="shortcuts-dialog" class="shortcuts-dialog" aria-labelledby="shortcuts-title" aria-describedby="shortcuts-scope">
+  <h2 id="shortcuts-title">Atalhos de teclado</h2>
+  <p id="shortcuts-scope">No Estúdio, fora dos campos de edição. Durante o treino, Espaço continua sendo o toque do ritmo.</p>
+  <dl>
+    <dt><kbd>Espaço</kbd></dt><dd>Tocar / parar a sessão no Estúdio.</dd>
+    <dt><kbd>Esc</kbd></dt><dd>Interromper todo o som; fechar esta ajuda.</dd>
+    <dt><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Shift+Z</kbd></dt><dd>Desfazer / refazer a sessão (⌘ no macOS).</dd>
+    <dt><kbd>Delete</kbd></dt><dd>Excluir a nota selecionada.</dd>
+    <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>No editor, mover a nota; <kbd>↑</kbd> <kbd>↓</kbd> mudam a duração. Shift usa uma semínima.</dd>
+    <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> <kbd>6</kbd> <kbd>8</kbd></dt><dd>No editor, escolher a duração em ticks. 4 ticks = uma semínima.</dd>
+    <dt><kbd>?</kbd></dt><dd>Abrir esta ajuda. Clique numa célula para criar; arraste a nota para mover ou a borda direita para mudar a duração.</dd>
+  </dl>
+  <button id="shortcuts-close" type="button" autofocus>Fechar atalhos</button>
+</dialog>
 </body>
 </html>
