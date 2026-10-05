@@ -53,14 +53,16 @@ export function detectClickLeak(clicks, attacks, { toleranceMs = 12, minimum = 3
 
 export const INPUT_PREFERENCES_KEY = 'groovegoblin.input.v1';
 export const CALIBRATION_KEY = 'groovegoblin.input-calibration.v1';
-export function readInputPreferences(storage = globalThis.localStorage) {
+export function readInputPreferences(storage) {
   try {
+    storage ??= globalThis.localStorage;
     const value = JSON.parse(storage.getItem(INPUT_PREFERENCES_KEY) ?? '{}');
-    return { deviceId: typeof value.deviceId === 'string' ? value.deviceId : '', channel: ['1', '2', 'sum'].includes(value.channel) ? value.channel : 'sum', sensitivity: Number.isFinite(value.sensitivity) && value.sensitivity >= 0.5 && value.sensitivity <= 2 ? value.sensitivity : 1 };
-  } catch { return { deviceId: '', channel: 'sum', sensitivity: 1 }; }
+    return { deviceId: typeof value.deviceId === 'string' ? value.deviceId : '', channel: ['1', '2', 'sum'].includes(value.channel) ? value.channel : 'sum', sensitivity: Number.isFinite(value.sensitivity) && value.sensitivity >= 0.5 && value.sensitivity <= 2 ? value.sensitivity : 1, lastMode: value.lastMode === 'instrument' ? 'instrument' : 'keyboard' };
+  } catch { return { deviceId: '', channel: 'sum', sensitivity: 1, lastMode: 'keyboard' }; }
 }
-export function readCalibration(deviceId, storage = globalThis.localStorage) {
+export function readCalibration(deviceId, storage) {
   try {
+    storage ??= globalThis.localStorage;
     const value = JSON.parse(storage.getItem(CALIBRATION_KEY) ?? '{}')[deviceId];
     return Number.isFinite(value) && Math.abs(value) <= 500 ? value : null;
   } catch { return null; }

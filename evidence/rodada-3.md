@@ -17,6 +17,20 @@ As seções abaixo registram resultados observados, não verificações antecipa
 - Novos timbres têm síntese real. OfflineAudioContext do Chromium: picos de **0,4985** (guitarra limpa), **0,4679** (abafada) e **0,6850** (baixo elétrico). Entre 200–350 ms, RMS da limpa foi **0,2310**, contra **0** da abafada, verificando o decaimento distinto.
 - `main.js` passou de **536 para 519 linhas**, extraindo a composição de sessão. Verificação: **411/411 testes**, **110 módulos**, zero falhas.
 - Capturas: [1440×900](rodada-3-etapa1-1440x900.png), [1280×800](rodada-3-etapa1-1280x800.png). Quatro faixas ligadas: **51 controles**, transporte de **53 px** e inspetor até **y=765**, sem overflow horizontal.
+- Integração publicada na `main`: `40d4582`; **411/411 testes e check repetidos na main**, push concluído.
+
+### Etapa 7 — Entrada por instrumento
+
+- Integrada logo após o perfil: a etapa é independente das etapas 2–6 e libera o afinador em paralelo, conforme as dependências solicitadas.
+- A preferência lembra a intenção Instrumento, dispositivo e canal, mas montar/recarregar o app não consulta permissão, enumera dispositivos nem abre captura. Entrar em Treinar consulta a permissão e reabre somente quando já concedida.
+- Chromium real com dispositivo simulado: **zero chamadas de captura na abertura e recarga**; na entrada em Treinar com permissão concedida, uma consulta e uma captura. Com permissão efetivamente `prompt`, **zero capturas**, botão Ativar instrumento visível; ativação explícita abriu uma captura.
+- Trocar o foco para outra aba real encerrou todas as tracks, mantendo a preferência Instrumento. Canal 1 do WAV estéreo ficou silencioso; canal 2 alimentou medidor e Testar entrada. O resumo de canal agora muda imediatamente, com regressão cobrindo a falha encontrada no navegador.
+- Entrada configurada ocupa uma linha de **40 px**; Configurar recolhe dispositivo, canal, sensibilidade, calibração e avisos. Quatro compassos em **1440×900**: documento de **900 px**, painel principal termina em **y=704,47**, sem rolagem vertical. O botão Afinador será integrado na etapa 8, sem controle fictício nesta etapa.
+- Interruptores de faixas disponíveis compõem mute/volume/solo sem modificar a sessão. Durante treino real, o bus de metrônomo foi observado em **1 → 0 → 1**, mantendo a posição **C1/T1/repetição 1/2** e os estados pressionados correspondentes.
+- Detector grave separado do ajuste de guitarra: origem observada da subida, memória de picos entre ciclos e término dessa memória após silêncio sustentado. Um caso de reataque após golpe rejeitado pelo refratário falhou inicialmente; a correção mantém as mesmas assertivas.
+- Testes sintéticos: **30,87/41,2/55/98 Hz**, subida de **15 ms**, sinais sustentados/repetidos, fases, ruído e blocos distintos em **8/44,1/48/96 kHz**, dentro de **10 ms** e sem ataques extras. No WAV usado pelo navegador, com fundamental fraca e segundo/terceiro harmônicos, os quatro graves tiveram erro puro de **0,042–0,063 ms**.
+- Verificação da branch: **450/450 testes**, **111 módulos**, zero falhas; `main.js` tem **529 linhas**, abaixo das 536 iniciais. Estúdio com quatro faixas: **52 controles medidos**, transporte de **53 px** em 1280 px.
+- Capturas: [1440×900](rodada-3-etapa7-1440x900.png), [1280×800](rodada-3-etapa7-1280x800.png). Nenhum erro da aplicação registrado pelo navegador.
 
 ## Critérios de aceitação
 
@@ -37,9 +51,9 @@ As seções abaixo registram resultados observados, não verificações antecipa
 | 13 | Contagem de um compasso antes de Tocar | Pendente |
 | 14 | Acelerador +5 a cada duas voltas; BPM salvo permanece intacto | Pendente |
 | 15 | Afinador de 30,87 a 1318,5 Hz: erro até 5 cents e corda correta | Pendente |
-| 16 | Entrada lembrada ativa ao entrar em Treinar somente com permissão concedida | Pendente |
-| 17 | Treinar com entrada configurada e quatro compassos cabe em 1440×900 | Pendente |
-| 18 | Ataques graves com subida de 15 ms: erro até 10 ms e nenhuma repetição falsa em sustentadas | Pendente |
+| 16 | Entrada lembrada ativa ao entrar em Treinar somente com permissão concedida | Passou: startup sem captura; granted automático; prompt sem captura; explícito abre; foco encerra |
+| 17 | Treinar com entrada configurada e quatro compassos cabe em 1440×900 | Passou na etapa 7: documento 900 px, painel até y=704,47; repetir após partitura/afinador |
+| 18 | Ataques graves com subida de 15 ms: erro até 10 ms e nenhuma repetição falsa em sustentadas | Passou: quatro frequências × quatro taxas, reataques/sustentadas/ruído; WAV harmônico também exercitado |
 | 19 | Alturas sintéticas: certas, nota errada, oitava diferente e não identificada | Pendente |
 | 20 | Miniatura revela conteúdo além de quatro compassos e navega ao clique | Pendente |
 | 21 | Até 62 controles em repouso; transporte em uma linha a 1280 px | Passou na etapa 1: 51 controles/53 px; verificar novamente ao final |

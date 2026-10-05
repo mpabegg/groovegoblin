@@ -394,14 +394,25 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 .creation-figures-popover .preset[data-duration^="0."], .creation-figures-popover .preset[data-duration^="1."] { font-size: 11px; }
 
 /* Local instrument input: status remains available while playing. */
-.performance-entry { padding: 8px 0; }
+.performance-entry { padding: 4px 0; }
 .performance-entry .tool-row { margin-bottom: 8px; gap: 10px; }
 .performance-entry select { max-width: min(420px, 100%); }
-.instrument-meter { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
-.instrument-meter meter { width: min(320px, 60%); height: 18px; accent-color: var(--accent); }
+.input-compact { display: flex; flex-wrap: nowrap; align-items: center; gap: 10px; min-height: 38px; font-size: 12px; }
+.input-compact > label { display: flex; align-items: center; gap: 6px; }
+.input-compact select { padding: 4px 6px; }
+#instrument-summary { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.instrument-meter { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.instrument-meter meter { width: 90px; height: 14px; accent-color: var(--accent); }
+#input-configuration { padding: 8px 0; border-top: 1px solid var(--line); }
+.practice-audible-tracks { display: flex; align-items: center; gap: 6px; margin: 4px 0; font-size: 12px; }
+.practice-audible-tracks button { padding: 3px 8px; font-size: 11px; }
+.practice-audible-tracks button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+#panel-practice .practice-input { margin-top: 6px; }
+#panel-practice .train-pad { min-height: 80px; padding: 12px; }
 .instrument-diagnostic { max-height: 180px; overflow: auto; font: 12px ui-monospace, monospace; padding-left: 32px; }
 .instrument-diagnostic li { padding: 3px 0; }
 .train-pad.instrument-input { background-image: linear-gradient(to right, #b9ef8030, #b9ef8030); background-repeat: no-repeat; background-size: calc(var(--input-level, 0) * 100%) 100%; }
-#instrument-status { color: var(--blue); min-height: 1.4em; }
+#instrument-status { color: var(--blue); margin: 2px 0; font-size: 11px; }
+#instrument-status:empty { display: none; }
 #input-compensation-status { display: block; color: var(--accent); font-size: 12px; }
 @media(max-width: 640px) { .performance-entry .tool-row > label { width: 100%; } .performance-entry select { width: 100%; } }

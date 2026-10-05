@@ -24,11 +24,18 @@ export function phrasePreviewSession(session) {
   };
 }
 
-export function createStudioPlayback({ getSession, audio, render, notify, isPending = () => false }) {
+export function createStudioPlayback({ getSession, getPlaybackSession = getSession, audio, render, notify, isPending = () => false }) {
   const solos = new Set();
+  const audible = new Map();
   let startTick = null;
   let listening = false;
-  const mixer = () => listening ? phrasePreviewSession(getSession()).mixer : effectiveMixer(getSession().mixer, solos);
+  const mixer = (session = getPlaybackSession()) => {
+    const base = listening ? phrasePreviewSession(session).mixer : session.mixer;
+    const manual = Object.fromEntries(MIXER_CHANNELS.map(channel => [channel, audible.has(channel)
+      ? { ...base[channel], muted: !audible.get(channel), volume: audible.get(channel) && base[channel].volume === 0 ? 1 : base[channel].volume }
+      : base[channel]]));
+    return listening ? manual : effectiveMixer(manual, solos);
+  };
   function playableTick(tick) {
     const session = getSession(); const plan = compileBarPlan(session);
     const measure = ticksPerBar(session); const offset = playbackStartTick(session, plan, tick);
@@ -40,6 +47,12 @@ export function createStudioPlayback({ getSession, audio, render, notify, isPend
     isSolo: channel => solos.has(channel),
     applyMixer: () => audio.setMixer(mixer()),
     toggleSolo(channel) { if (solos.has(channel)) solos.delete(channel); else solos.add(channel); audio.setMixer(mixer()); render(); },
+    toggleAudible(channel) {
+      const enabled = !mixer()[channel].muted && mixer()[channel].volume > 0;
+      audible.set(channel, !enabled);
+      if (!enabled && channel !== 'metronome' && solos.size) solos.add(channel);
+      audio.setMixer(mixer()); render();
+    },
     setListening(value) { listening = value; audio.setMixer(mixer()); render(); },
     seek(tick) {
       if (isPending()) { notify('Aguarde a preparação ou pare o transporte antes de escolher o início.'); return; }

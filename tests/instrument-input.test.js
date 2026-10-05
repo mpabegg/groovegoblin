@@ -9,6 +9,8 @@ import { createSession, serializeSession } from '../src/session.js';
 import { evaluateSession, summarizeFeedback } from '../src/feedback.js';
 import { buildTimelineData } from '../src/timeline.js';
 import { harness, audioContext, deferred, close } from './audio-harness.js';
+import { mountPracticeTracks, practiceVoices } from '../src/practice-tracks.js';
+import { createStudioPlayback } from '../src/studio-playback.js';
 
 function signal(rate, seconds, notes = [], noise = 0.001) {
   const samples = new Float32Array(Math.ceil(rate * seconds));
@@ -22,8 +24,10 @@ function signal(rate, seconds, notes = [], noise = 0.001) {
     const length = Math.round((note.length ?? 0.3) * rate);
     for (let i = 0; i < length && start + i < samples.length; i++) {
       const t = i / rate;
-      const envelope = (note.amplitude ?? 0.45) * (note.sustained ? 1 : Math.exp(-t / (note.decay ?? 0.05)));
-      samples[start + i] += envelope * Math.sin(2 * Math.PI * (note.frequency ?? 440) * t);
+      const rise = note.rise ? Math.min(1, t / note.rise) : 1;
+      const release = note.release ? Math.min(1, Math.max(0, (length - i) / rate / note.release)) : 1;
+      const envelope = (note.amplitude ?? 0.45) * rise * release * (note.sustained ? 1 : Math.exp(-t / (note.decay ?? 0.05)));
+      samples[start + i] += envelope * Math.sin(2 * Math.PI * (note.frequency ?? 440) * t + (note.phase ?? 0));
     }
   }
   return samples;
@@ -31,12 +35,15 @@ function signal(rate, seconds, notes = [], noise = 0.001) {
 function analyze(samples, rate, options = {}, blockSize = 128) {
   let state = createOnsetState(rate);
   const events = [];
-  for (let offset = 0; offset < samples.length; offset += blockSize) {
+  let block = 0;
+  for (let offset = 0; offset < samples.length;) {
+    const size = Array.isArray(blockSize) ? blockSize[block++ % blockSize.length] : blockSize;
     const previous = state;
     const snapshot = { ...state };
-    const result = detectOnsets(state, samples.subarray(offset, offset + blockSize), options);
+    const result = detectOnsets(state, samples.subarray(offset, offset + size), options);
     assert.deepEqual(previous, snapshot, 'detector never mutates the supplied state');
     state = result.state; events.push(...result.events);
+    offset += size;
   }
   return { state, events };
 }
@@ -81,6 +88,37 @@ for (const frequency of [41.2, 82.41, 220, 440, 880]) {
 test('silence and steady low background noise have no false positives', () => {
   for (const amplitude of [0, 0.0005, 0.001, 0.003]) {
     for (const sensitivity of [0.5, 1, 2]) assert.deepEqual(analyze(signal(48000, 1, [], amplitude), 48000, { sensitivity }).events, []);
+  }
+});
+for (const rate of [8000, 44100, 48000, 96000]) {
+  for (const frequency of [30.87, 41.2, 55, 98]) {
+    test(`bass ${frequency} Hz 15 ms rises, sustained notes, releases and same-pitch reattacks at ${rate} Hz`, () => {
+      const times = [0.107, 1.007, 1.907];
+      for (const phase of [0, Math.PI / 2, Math.PI]) {
+        const samples = signal(rate, 2.8, times.map(time => ({ time, frequency, phase, rise: 0.015, release: 0.07, length: 0.65, sustained: true, amplitude: 0.3 })));
+        for (const sensitivity of [0.5, 1, 2]) {
+          const options = { instrumentType: 'bass', sensitivity };
+          const result = analyze(samples, rate, options);
+          located(result.events, times, rate);
+          assert.deepEqual(analyze(samples, rate, options, [1, 17, 251, 64, 513]).events, result.events, 'rising candidates survive arbitrary block partitions');
+        }
+      }
+      const held = signal(rate, 2.5, [{ time: 0.123, frequency, rise: 0.015, sustained: true, length: 1.9, release: 0.07 }]);
+      located(analyze(held, rate, { instrumentType: 'bass' }, [31, 128, 3, 1000]).events, [0.123], rate);
+      assert.deepEqual(analyze(signal(rate, 0.6, [], 0.003), rate, { instrumentType: 'bass', sensitivity: 2 }).events, []);
+    });
+  }
+}
+
+test('bass detector keeps the minimum/grid refractory and reports an observed origin rather than a fixed ramp offset', () => {
+  const rate = 48000;
+  for (const rise of [0, 0.005, 0.015]) {
+    const times = [0.1, 0.14, 0.2, 0.9];
+    const samples = signal(rate, 1.2, times.map(time => ({ time, frequency: 98, rise, decay: 0.006, length: 0.025 })), 0);
+    const result = analyze(samples, rate, { instrumentType: 'bass', refractory: 0.001 });
+    located(result.events, [0.1, 0.2, 0.9], rate);
+    assert.ok(result.events[0].frame >= Math.round(times[0] * rate), 'never blindly backdate an abrupt attack');
+    located(analyze(samples, rate, { instrumentType: 'bass', refractory: 0.8 }).events, [0.1, 0.9], rate);
   }
 });
 
@@ -137,7 +175,7 @@ test('calibration is independent per device and keyboard, with manual zero/reset
   saveCalibration('__proto__', 31, storage); assert.equal(readCalibration('__proto__', storage), 31);
   assert.throws(() => saveCalibration('bad', 501, storage), /500/);
   storage.setItem(INPUT_PREFERENCES_KEY, JSON.stringify({ deviceId: 'interface-b', channel: '2', sensitivity: 1.5, mode: 'instrument' }));
-  assert.deepEqual(readInputPreferences(storage), { deviceId: 'interface-b', channel: '2', sensitivity: 1.5 });
+  assert.deepEqual(readInputPreferences(storage), { deviceId: 'interface-b', channel: '2', sensitivity: 1.5, lastMode: 'keyboard' });
 });
 
 test('input policy changes only the executed snapshot, preserving session format and keyboard preferences', () => {
@@ -443,10 +481,11 @@ function performanceUI(t, audio, session = trainingSession()) {
 
 function captureDevices(ui, outputContext, initialDevices) {
   const requests = []; const streams = []; const worklets = []; const contexts = [];
-  let devices = initialDevices; let enumeration = null; let denial = null; let enumerations = 0;
+  let devices = initialDevices; let enumeration = null; let denial = null; let enumerations = 0; let permissionRequest = null;
   const media = {
     async getUserMedia(constraints) {
       requests.push(constraints);
+      if (permissionRequest) await permissionRequest.promise;
       const id = constraints.audio.deviceId?.exact;
       const selected = id ? devices.find(device => device.deviceId === id) : devices[0];
       if (denial || !selected) throw Object.assign(new Error('capture rejected'), { name: denial ?? 'OverconstrainedError' });
@@ -481,7 +520,7 @@ function captureDevices(ui, outputContext, initialDevices) {
   return {
     media, requests, streams, worklets, contexts,
     get enumerations() { return enumerations; },
-    set devices(value) { devices = value; }, set enumeration(value) { enumeration = value; }, set denial(value) { denial = value; },
+    set devices(value) { devices = value; }, set enumeration(value) { enumeration = value; }, set denial(value) { denial = value; }, set permissionRequest(value) { permissionRequest = value; },
     attack(time) {
       const ctx = contexts.at(-1); ctx.currentTime = performance.now() / 1000;
       worklets.at(-1).port.onmessage({ data: { level: 0.5, channels: 2, events: [{ frame: time / 1000 * ctx.sampleRate, level: 0.5 }] } });
@@ -638,4 +677,202 @@ test('mounted Instrument retains uncompensated calibration attacks and count-in 
   for (const click of h.audio.countInClicks.slice(0, 3)) { h.advance(click / 1000); capture.attack(click); assert.equal(h.audio.position.held, false); }
   assert.match(ui.nodes.get('instrument-status').textContent, /Possível vazamento/);
   assert.ok(ui.notices.some(message => /Possível vazamento/.test(message)));
+});
+
+function microphonePermission(state = 'granted', pending = null) {
+  const listeners = new Map();
+  const permission = {
+    state, addEventListener: (type, listener) => listeners.set(type, listener),
+    removeEventListener: (type, listener) => { if (listeners.get(type) === listener) listeners.delete(type); },
+  };
+  let queries = 0;
+  navigator.permissions = { async query(options) {
+    assert.deepEqual(options, { name: 'microphone' }); queries++;
+    return pending ? pending.promise : permission;
+  } };
+  return { permission, listeners, get queries() { return queries; }, revoke() { permission.state = 'denied'; listeners.get('change')?.(); } };
+}
+
+test('remembered instrument restores only on granted Practice entry; repeated activation preserves the live stream', async t => {
+  const h = harness(t); const ui = performanceUI(t, h.audio);
+  const capture = captureDevices(ui, h.ctx, [inputDevice('a')]); const permissions = microphonePermission();
+  ui.storage.setItem(INPUT_PREFERENCES_KEY, JSON.stringify({ lastMode: 'instrument', deviceId: 'a' }));
+  ui.mount();
+  assert.equal(permissions.queries, 0); assert.equal(capture.requests.length, 0); assert.equal(capture.enumerations, 0);
+  await ui.surface.activate('tab-studio'); assert.equal(permissions.queries, 0);
+  const opening = ui.surface.activate('tab-practice'); const ready = ui.surface.prepareTraining();
+  await opening; assert.equal(await ready, true);
+  assert.equal(ui.surface.instrument, true); assert.equal(capture.requests.length, 1);
+  const source = trainingSession({ extensions: { studio: { instrument: { type: 'bass', strings: 4, tuning: [28, 33, 38, 43], noteNames: 'letters' }, other: { keep: true } }, other: { keep: true } } });
+  const executed = ui.surface.session(source);
+  assert.deepEqual(executed.extensions.studio, source.extensions.studio); assert.deepEqual(executed.extensions.other, source.extensions.other);
+  await h.audio.playSession(executed, { mode: 'train' }); const stops = ui.stops;
+  await ui.surface.activate('tab-practice'); ui.nodes.get('instrument-activate').fire('click'); await settleInput();
+  assert.equal(capture.requests.length, 1); assert.equal(ui.stops, stops); assert.equal(h.audio.position.mode, 'train');
+  assert.equal(capture.streams[0].track.stops, 0);
+  await ui.surface.activate('tab-studio');
+  assert.equal(capture.streams[0].track.stops, 1); assert.equal(ui.surface.instrument, false);
+  assert.equal(readInputPreferences(ui.storage).lastMode, 'instrument');
+});
+
+for (const state of ['prompt', 'denied', 'unsupported', 'rejected']) test(`remembered ${state} permission requires explicit activation without automatic capture/enumeration`, async t => {
+  const h = harness(t); const ui = performanceUI(t, h.audio);
+  const capture = captureDevices(ui, h.ctx, [inputDevice('a')]);
+  if (state !== 'unsupported') microphonePermission(state);
+  if (state === 'rejected') navigator.permissions.query = async () => { throw new TypeError('unsupported permission'); };
+  ui.storage.setItem(INPUT_PREFERENCES_KEY, JSON.stringify({ lastMode: 'instrument' }));
+  ui.mount(); await ui.surface.activate('tab-practice');
+  assert.equal(capture.requests.length, 0); assert.equal(capture.enumerations, 0);
+  assert.equal(ui.nodes.get('instrument-activate').checkVisibility(), true); assert.equal(ui.surface.instrument, false);
+  ui.nodes.get('instrument-activate').fire('click'); await settleInput();
+  assert.equal(capture.requests.length, 1); assert.equal(ui.surface.instrument, true);
+  assert.equal(readInputPreferences(ui.storage).lastMode, 'instrument');
+});
+
+test('default/last Keyboard preference never queries permission on Practice entry', async t => {
+  const h = harness(t); const ui = performanceUI(t, h.audio);
+  const capture = captureDevices(ui, h.ctx, [inputDevice('a')]); const permissions = microphonePermission();
+  ui.mount(); await ui.surface.activate('tab-practice');
+  assert.equal(permissions.queries, 0); assert.equal(capture.requests.length, 0); assert.equal(capture.enumerations, 0);
+  ui.nodes.get('instrument-activate').fire('click'); await settleInput(); ui.choose('performance-entry', 'keyboard');
+  assert.equal(readInputPreferences(ui.storage).lastMode, 'keyboard');
+  await ui.surface.activate('tab-studio'); await ui.surface.activate('tab-practice');
+  assert.equal(permissions.queries, 0); assert.equal(capture.requests.length, 1);
+});
+
+function cancelInput(ui, cancellation) {
+  if (cancellation === 'leave') ui.surface.activate('tab-studio');
+  else if (cancellation === 'blur') ui.win.fire('blur');
+  else if (cancellation === 'hidden') { ui.doc.hidden = true; ui.doc.fire('visibilitychange'); }
+  else ui.choose('performance-entry', 'keyboard');
+}
+for (const cancellation of ['leave', 'blur', 'hidden', 'keyboard']) {
+  test(`late permission query cannot open capture after ${cancellation}`, async t => {
+    const h = harness(t); const ui = performanceUI(t, h.audio);
+    const capture = captureDevices(ui, h.ctx, [inputDevice('a')]); const pending = deferred();
+    const permissions = microphonePermission('granted', pending);
+    ui.storage.setItem(INPUT_PREFERENCES_KEY, JSON.stringify({ lastMode: 'instrument' }));
+    ui.mount(); const opening = ui.surface.activate('tab-practice'); cancelInput(ui, cancellation);
+    pending.resolve(permissions.permission); await opening; await settleInput();
+    assert.equal(capture.requests.length, 0); assert.equal(capture.enumerations, 0); assert.equal(ui.surface.instrument, false);
+    assert.equal(readInputPreferences(ui.storage).lastMode, cancellation === 'keyboard' ? 'keyboard' : 'instrument');
+  });
+  test(`late granted start is stopped after ${cancellation} without reopening`, async t => {
+    const h = harness(t); const ui = performanceUI(t, h.audio);
+    const capture = captureDevices(ui, h.ctx, [inputDevice('a')]); const pending = deferred();
+    capture.permissionRequest = pending; microphonePermission();
+    ui.storage.setItem(INPUT_PREFERENCES_KEY, JSON.stringify({ lastMode: 'instrument' }));
+    ui.mount(); const opening = ui.surface.activate('tab-practice'); await settleInput();
+    assert.equal(capture.requests.length, 1); cancelInput(ui, cancellation);
+    pending.resolve(); await opening; await settleInput();
+    assert.equal(capture.streams[0].track.stops, 1); assert.equal(capture.worklets.length, 0);
+    assert.equal(capture.requests.length, 1); assert.equal(ui.surface.instrument, false); assert.equal(ui.surface.preparing, false);
+  });
+}
+
+test('revoked permission closes capture without replacing remembered intent', async t => {
+  const h = harness(t); const ui = performanceUI(t, h.audio);
+  const capture = captureDevices(ui, h.ctx, [inputDevice('a')]); const permissions = microphonePermission();
+  ui.storage.setItem(INPUT_PREFERENCES_KEY, JSON.stringify({ lastMode: 'instrument' }));
+  ui.mount(); await ui.surface.activate('tab-practice'); permissions.revoke();
+  assert.equal(capture.streams[0].track.stops, 1); assert.equal(ui.surface.instrument, false);
+  assert.equal(permissions.listeners.size, 0); assert.equal(readInputPreferences(ui.storage).lastMode, 'instrument');
+  assert.equal(ui.nodes.get('instrument-activate').checkVisibility(), true);
+});
+
+test('configured input is compact; settings, test and privacy remain behind Configurar', async t => {
+  const h = harness(t); const ui = performanceUI(t, h.audio);
+  const capture = captureDevices(ui, h.ctx, [inputDevice('a')]); saveCalibration('a', -23, ui.storage);
+  ui.mount(); ui.nodes.get('instrument-activate').fire('click'); await settleInput();
+  assert.equal(ui.nodes.get('input-configuration').hidden, true);
+  for (const id of ['instrument-device', 'instrument-test', 'instrument-privacy']) assert.equal(ui.nodes.get(id).checkVisibility(), false);
+  assert.equal(ui.nodes.get('instrument-level').checkVisibility(), true);
+  assert.match(ui.nodes.get('instrument-summary').textContent, /Instrumento.*Interface a.*Soma.*-23 ms/);
+  ui.nodes.get('input-configure').fire('click');
+  assert.equal(ui.nodes.get('input-configuration').hidden, false);
+  assert.equal(ui.nodes.get('input-configure').attributes['aria-expanded'], 'true');
+  assert.equal(ui.nodes.get('instrument-device').checkVisibility(), true);
+  ui.choose('instrument-channel', '2');
+  assert.match(ui.nodes.get('instrument-summary').textContent, /Canal 2/);
+  assert.equal(readInputPreferences(ui.storage).channel, '2');
+  ui.nodes.get('input-configure').fire('click');
+  assert.equal(ui.nodes.get('input-configuration').hidden, true); assert.equal(capture.requests.length, 1);
+});
+
+test('remembered unavailable device opens compact recovery without replacing intent/calibration', async t => {
+  const h = harness(t); const ui = performanceUI(t, h.audio);
+  const capture = captureDevices(ui, h.ctx, [inputDevice('b')]); microphonePermission();
+  ui.storage.setItem(INPUT_PREFERENCES_KEY, JSON.stringify({ lastMode: 'instrument', deviceId: 'missing' }));
+  saveCalibration('missing', 99, ui.storage); saveCalibration('b', -12, ui.storage);
+  ui.mount(); await ui.surface.activate('tab-practice'); await settleInput();
+  assert.equal(ui.nodes.get('input-configuration').hidden, false); assert.equal(ui.nodes.get('instrument-device').checkVisibility(), true);
+  assert.equal(readInputPreferences(ui.storage).lastMode, 'instrument'); assert.equal(readInputPreferences(ui.storage).deviceId, 'missing');
+  ui.choose('instrument-device', 'b'); assert.equal(capture.requests.length, 1);
+  ui.nodes.get('instrument-activate').fire('click'); await settleInput();
+  assert.equal(capture.requests.length, 2); assert.equal(Number(ui.nodes.get('input-compensation').value), -12);
+});
+
+test('Practice audible controls operate the real metronome bus without restarting training or changing saved mix', async t => {
+  const h = harness(t);
+  const session = trainingSession({ metronome: { enabled: true }, companion: { enabled: true, pulses: 3, spanBeats: 4, pitch: 84 } });
+  const saved = serializeSession(session); const ui = performanceUI(t, h.audio, session);
+  const playback = createStudioPlayback({ getSession: () => session, audio: h.audio, render() {}, notify() {} });
+  const tracks = mountPracticeTracks(ui.nodes.get('performance-input'), { getSession: () => session, getMixer: playback.getMixer, toggleAudible: playback.toggleAudible });
+  await h.audio.playSession(session, { mode: 'train', mixer: playback.getMixer() });
+  const bus = h.ctx.sources[0].connections[0].connections[0]; const clock = [...h.intervals][0];
+  const button = ui.nodes.get('practice-audible-metronome');
+  assert.equal(button.textContent, 'Metrônomo / polirritmia');
+  assert.equal(button.attributes['aria-pressed'], 'true');
+  button.fire('click'); assert.equal(bus.gain.events.at(-1).value, 0);
+  assert.equal(button.attributes['aria-pressed'], 'false');
+  button.fire('click'); assert.equal(bus.gain.events.at(-1).value, 1);
+  assert.equal(button.attributes['aria-pressed'], 'true');
+  assert.equal(h.audio.position.mode, 'train'); assert.equal([...h.intervals][0], clock);
+  assert.equal(serializeSession(session), saved);
+  assert.equal(ui.nodes.get('practice-audible-phrase'), undefined, 'no change to phrase suppression');
+  assert.equal(ui.nodes.get('practice-audible-drums').disabled, true);
+  tracks.render();
+});
+
+test('actual Practice backing voices respect legacy roles; transient audible toggles compose with saved mute/zero and solos', () => {
+  const session = createSession({ drums: { enabled: true }, band: { bassEnabled: true, role: 'bass' }, companion: { enabled: false }, metronome: { enabled: false }, mixer: { drums: { muted: true, volume: 0 }, bass: { muted: false }, chords: { muted: false } } });
+  const voices = practiceVoices(session);
+  assert.equal(voices.find(voice => voice.channel === 'bass').available, false);
+  assert.equal(voices.find(voice => voice.channel === 'drums').available, true);
+  assert.equal(voices.find(voice => voice.channel === 'metronome').available, false);
+  assert.ok(!voices.some(voice => voice.channel === 'phrase'));
+  const saved = serializeSession(session); const calls = [];
+  const playback = createStudioPlayback({ getSession: () => session, audio: { setMixer: value => calls.push(value) }, render() {}, notify() {} });
+  playback.toggleSolo('bass');
+  playback.toggleAudible('drums');
+  assert.equal(playback.getMixer().drums.muted, false); assert.equal(playback.getMixer().drums.volume, 1);
+  assert.equal(playback.isSolo('drums'), true, 'enabling an excluded voice includes it in the current solo overlay');
+  playback.toggleAudible('drums'); assert.equal(playback.getMixer().drums.muted, true);
+  playback.toggleSolo('bass'); playback.toggleSolo('drums');
+  assert.equal(playback.getMixer().drums.muted, true);
+  assert.equal(serializeSession(session), saved); assert.ok(calls.length > 0);
+});
+
+test('leaving Practice releases the training preparation barrier before a stale permission query completes', async t => {
+  const h = harness(t); const ui = performanceUI(t, h.audio);
+  const capture = captureDevices(ui, h.ctx, [inputDevice('a')]); const pending = deferred();
+  const permissions = microphonePermission('granted', pending);
+  ui.storage.setItem(INPUT_PREFERENCES_KEY, JSON.stringify({ lastMode: 'instrument' }));
+  ui.mount(); ui.surface.activate('tab-practice');
+  const ready = ui.surface.prepareTraining(); await ui.surface.activate('tab-studio');
+  assert.equal(await ready, false);
+  pending.resolve(permissions.permission); await settleInput();
+  assert.equal(capture.requests.length, 0);
+});
+
+test('repeated explicit activation while opening neither cancels preparation nor stops/reopens capture', async t => {
+  const h = harness(t); const ui = performanceUI(t, h.audio);
+  const capture = captureDevices(ui, h.ctx, [inputDevice('a')]); const pending = deferred();
+  capture.permissionRequest = pending; ui.mount(); await ui.surface.activate('tab-practice');
+  ui.nodes.get('instrument-activate').fire('click'); await settleInput(); const stops = ui.stops;
+  let ready = false; const preparation = ui.surface.prepareTraining().then(value => { ready = value; });
+  ui.nodes.get('instrument-activate').fire('click'); ui.surface.activate('tab-practice'); await settleInput();
+  assert.equal(capture.requests.length, 1); assert.equal(ui.stops, stops); assert.equal(ready, false);
+  pending.resolve(); await preparation;
+  assert.equal(ready, true); assert.equal(capture.streams[0].track.stops, 0); assert.equal(capture.requests.length, 1);
 });

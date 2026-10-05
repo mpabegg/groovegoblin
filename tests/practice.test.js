@@ -4,6 +4,7 @@ import {
   OBJECTIVES,
   VARIANT_DIMENSIONS,
   generateExercise,
+  inheritPracticeInstrument,
   partialVariant,
   evaluationFromDetail,
   objectiveMetric,
@@ -406,3 +407,17 @@ test('generated exercises and one-dimension variants are valid Engine phrases', 
   }
 });
 
+
+test('generated practice execution inherits the current bass profile without replacing exercise or studio metadata', () => {
+  const profile = { type: 'bass', strings: 5, tuning: [23, 28, 33, 38, 43], noteNames: 'letters' };
+  const current = createSession({ extensions: { studio: { instrument: profile, editorOnly: 'not copied' }, unrelated: { source: true } } });
+  const execution = createSession({ extensions: { studio: { other: { keep: true } }, practice: { workspace: 'exercise', objective: 'timing' }, unrelated: { exercise: true } } });
+  const beforeSource = JSON.stringify(current); const beforeExecution = JSON.stringify(execution);
+  const inherited = inheritPracticeInstrument(execution, current);
+  assert.deepEqual(inherited.extensions.studio.instrument, profile);
+  assert.deepEqual(inherited.extensions.studio.other, { keep: true });
+  assert.equal(inherited.extensions.studio.editorOnly, undefined);
+  assert.deepEqual(inherited.extensions.practice, execution.extensions.practice);
+  assert.deepEqual(inherited.extensions.unrelated, execution.extensions.unrelated);
+  assert.equal(JSON.stringify(current), beforeSource); assert.equal(JSON.stringify(execution), beforeExecution);
+});

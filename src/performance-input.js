@@ -2,6 +2,7 @@ import { InstrumentCapture } from './instrument-capture.js';
 import { InstrumentInputGate, instrumentSession } from './instrument-input.js';
 import { refractorySeconds } from './instrument-onsets.js';
 import { calibrateInput, compensatedTime, detectClickLeak, inputTailSeconds, calibrationCollectionDeadline, CALIBRATION_REFRACTORY_SECONDS, INPUT_PREFERENCES_KEY, readInputPreferences, readCalibration, saveCalibration } from './input-timing.js';
+import { getInstrumentProfile } from './instrument-profile.js';
 
 const $ = id => document.getElementById(id);
 function el(tag, props = {}, ...children) {
@@ -20,10 +21,15 @@ export function mountPerformanceInput(host) {
   const pad = $('train-pad');
   const preferences = readInputPreferences();
   const gate = new InstrumentInputGate(audio);
-  let mode = 'keyboard'; // Never restore permission/capture automatically.
+  let mode = 'keyboard'; // Intent is remembered; capture never starts at mount.
   let activeInput = null;
   let preparing = false;
   let selectionGeneration = 0;
+  let inPractice = false;
+  let preparation = Promise.resolve();
+  let cancelPreparation = () => {};
+  let permissionStatus = null;
+  let permissionListener = null;
   let recoveringDevices = false;
   let enumeratingDevices = false;
   let calibration = null;
@@ -50,21 +56,31 @@ export function mountPerformanceInput(host) {
   const diagnostic = el('ol', { id: 'instrument-diagnostic', className: 'instrument-diagnostic', hidden: true, 'aria-label': 'Ataques detectados: instante e nível' });
   const instrumentPanel = el('div', { id: 'instrument-panel', hidden: true },
     el('div', { className: 'tool-row' }, label('Dispositivo', device), label('Canal', channel), label('Sensibilidade', sensitivity)),
-    el('div', { className: 'instrument-meter' }, level, levelText),
     el('p', { className: 'tool-hint muted', text: 'Use fones: o clique e a banda podem vazar no microfone e gerar ataques falsos. Durante a contagem, espere sem tocar para diagnosticar vazamento.' }), test, diagnostic);
   const calibrate = el('button', { id: 'input-calibrate', type: 'button', text: 'Calibrar latência · 8 cliques' });
   const cancelCalibration = el('button', { id: 'input-calibration-cancel', type: 'button', text: 'Cancelar calibração', hidden: true });
   const manual = el('input', { id: 'input-compensation', type: 'number', min: '-500', max: '500', step: '1', value: storedCalibration ?? 0 });
   const clearCalibration = el('button', { id: 'input-calibration-reset', type: 'button', text: 'Zerar calibração' });
   const compensation = el('output', { id: 'input-compensation-status' });
-  const panel = el('section', { className: 'performance-entry', 'aria-label': 'Entrada e calibração' },
-    el('div', { className: 'tool-row' }, label('Entrada', entry)), reason, instrumentPanel,
+  const activateInstrument = el('button', { id: 'instrument-activate', type: 'button', text: 'Ativar instrumento' });
+  const summary = el('output', { id: 'instrument-summary' });
+  const configure = el('button', { id: 'input-configure', type: 'button', text: 'Configurar', 'aria-controls': 'input-configuration', 'aria-expanded': 'false' });
+  const configuration = el('div', { id: 'input-configuration', hidden: true },
+    reason, instrumentPanel,
     el('details', { id: 'input-calibration', className: 'control-detail' },
       el('summary', { text: 'Calibração de latência (teclado ou instrumento)' }),
       el('p', { className: 'tool-hint muted', text: 'Toque junto dos oito cliques. Os dois primeiros são aquecimento; a mediana dos seis restantes compensa o atraso residual. Use fones e pulso estável. A calibração inclui seu tempo de resposta, não é uma medição laboratorial.' }),
       el('div', { className: 'tool-row' }, calibrate, cancelCalibration, label('Compensação manual (ms)', manual), clearCalibration), compensation),
-    status, el('p', { id: 'instrument-privacy', className: 'tool-hint muted', text: 'Privacidade: o áudio da entrada é analisado apenas neste dispositivo, não é gravado nem enviado. Só selecionar Instrumento solicita acesso; voltar a Teclado encerra a captura.' }));
+    el('p', { id: 'instrument-privacy', className: 'tool-hint muted', text: 'Privacidade: áudio analisado somente neste dispositivo, sem gravação ou envio. Ativar instrumento pode pedir permissão. A última entrada escolhida é lembrada; ao entrar em Praticar, reabrimos somente se a permissão já estiver concedida. Teclado, sair de Praticar ou perder foco encerra a captura.' }));
+  const panel = el('section', { className: 'performance-entry', 'aria-label': 'Entrada e calibração' },
+    el('div', { className: 'input-compact' }, label('Entrada', entry), activateInstrument, summary,
+      el('div', { className: 'instrument-meter' }, level, levelText), configure),
+    configuration, status);
   $('performance-input').prepend(panel);
+  configure.addEventListener('click', () => {
+    configuration.hidden = !configuration.hidden;
+    configure.setAttribute('aria-expanded', String(!configuration.hidden));
+  });
 
   const key = () => mode === 'instrument' ? capture.calibrationDeviceId : 'keyboard';
   function persistPreferences() {
@@ -117,14 +133,17 @@ export function mountPerformanceInput(host) {
     },
     onError(message, { recoverDevices: recover = false } = {}) {
       const request = ++selectionGeneration;
+      watchPermission(null);
       preparing = false; mode = 'keyboard'; entry.value = mode;
       testing = false; diagnostic.hidden = true; test.textContent = 'Testar entrada';
       recoveringDevices = recover; enumeratingDevices = recover;
+      if (recover) { configuration.hidden = false; configure.setAttribute('aria-expanded', 'true'); }
       if (recover) {
         device.replaceChildren(el('option', { value: '', text: 'Procurando entradas disponíveis…', disabled: true }));
         device.value = '';
       }
-      host.stop(); reset(); loadCompensation(); status.textContent = `${message} Voltamos ao Teclado.`;
+      if (audio.position.mode !== 'idle' || calibration) host.stop();
+      reset(); loadCompensation(); status.textContent = `${message} Voltamos ao Teclado.`;
       host.notify(status.textContent, true); host.changed();
       if (recover) void recoverDevices(request);
     },
@@ -151,32 +170,73 @@ export function mountPerformanceInput(host) {
     },
   });
 
-  async function selectMode(value) {
+  function watchPermission(value) {
+    if (permissionStatus && permissionListener) permissionStatus.removeEventListener?.('change', permissionListener);
+    permissionStatus = value;
+    permissionListener = () => { if (value.state !== 'granted') endCapture('Permissão da entrada revogada. Ative instrumento para tentar novamente.'); };
+    value?.addEventListener?.('change', permissionListener);
+  }
+  async function selectMode(value, { automatic = false, reopen = false } = {}) {
+    if (!automatic) { preferences.lastMode = value; persistPreferences(); }
+    if (value === 'instrument' && !reopen && (capture.active || preparing)) return preparation;
     const request = ++selectionGeneration;
     recoveringDevices = false; enumeratingDevices = false;
-    host.stop(); reset(); capture.stop(); testing = false; diagnostic.hidden = true;
+    if (!automatic) host.stop();
+    reset(); capture.stop(); testing = false; diagnostic.hidden = true;
     test.textContent = 'Testar entrada';
     mode = value; entry.value = value; preparing = value === 'instrument';
     status.textContent = preparing ? 'Abrindo entrada de áudio…' : 'Entrada por teclado/toque; captura encerrada.';
     loadCompensation(); host.changed();
     if (value !== 'instrument') return;
-    const started = await capture.start({ ...preferences, refractory: refractorySeconds(host.getSession()) });
+    const started = await capture.start({ ...preferences, instrumentType: getInstrumentProfile(host.getSession()).type, refractory: refractorySeconds(host.getSession()) });
     if (request !== selectionGeneration) return;
     preparing = false;
     if (started) {
       preferences.deviceId = capture.deviceId; persistPreferences(); loadCompensation();
-      status.textContent = 'Entrada ativa. Ajuste o canal e a sensibilidade, teste os ataques e calibre antes de treinar.';
+      status.textContent = '';
     }
     render(); host.changed();
   }
-  entry.addEventListener('change', () => { void selectMode(entry.value); });
+  function trackPreparation(operation) {
+    cancelPreparation();
+    preparation = Promise.race([operation, new Promise(resolve => { cancelPreparation = resolve; })]);
+    return preparation;
+  }
+  function chooseMode(value, options) {
+    if (value === 'instrument' && !options?.reopen && (capture.active || preparing)) {
+      preferences.lastMode = 'instrument'; persistPreferences();
+      return preparation;
+    }
+    return trackPreparation(selectMode(value, options));
+  }
+  async function restoreInstrument(request) {
+    if (preferences.lastMode !== 'instrument' || !navigator.permissions?.query || document.hidden) return;
+    try {
+      const permission = await navigator.permissions.query({ name: 'microphone' });
+      if (request !== selectionGeneration || !inPractice || document.hidden) return;
+      if (permission.state !== 'granted') return;
+      watchPermission(permission);
+      await selectMode('instrument', { automatic: true });
+    } catch { /* Unsupported microphone permission queries never prompt. */ }
+  }
+  function activate(id) {
+    const entered = id === 'tab-practice';
+    if (entered === inPractice) return preparation;
+    inPractice = entered;
+    if (!entered) { endCapture('Captura encerrada ao sair de Praticar.'); return preparation; }
+    if (capture.active || preparing) return preparation;
+    const request = ++selectionGeneration;
+    return trackPreparation(restoreInstrument(request));
+  }
+  entry.addEventListener('change', () => { void chooseMode(entry.value); });
+  activateInstrument.addEventListener('click', () => { void chooseMode('instrument'); });
   device.addEventListener('change', () => {
     if (!device.value) return;
     preferences.deviceId = device.value; persistPreferences();
-    if (mode === 'instrument') void selectMode('instrument');
-    else { status.textContent = 'Entrada selecionada. Selecione Instrumento para abri-la; o teclado continua ativo.'; render(); host.changed(); }
+    if (mode === 'instrument') void chooseMode('instrument', { reopen: true });
+    else { status.textContent = 'Entrada selecionada. Ative instrumento para abri-la; o teclado continua ativo.'; render(); host.changed(); }
   });
-  channel.addEventListener('change', () => { preferences.channel = channel.value; capture.configure({ channel: channel.value }); persistPreferences(); });
+  channel.addEventListener('change', () => { preferences.channel = channel.value; capture.configure({ channel: channel.value }); persistPreferences(); render(); });
   sensitivity.addEventListener('input', () => { preferences.sensitivity = Number(sensitivity.value); capture.configure({ sensitivity: preferences.sensitivity }); persistPreferences(); });
   test.addEventListener('click', () => {
     testing = !testing; diagnostic.hidden = !testing; diagnostic.replaceChildren();
@@ -258,11 +318,16 @@ export function mountPerformanceInput(host) {
     if (activeInput?.source !== 'keyboard' || activeInput.id !== event.code) return;
     event.preventDefault(); keyboardRelease(event.timeStamp);
   });
-  function endCapture() {
-    if (mode !== 'instrument' && !calibration && !recoveringDevices) return;
-    ++selectionGeneration; preparing = false; recoveringDevices = false; enumeratingDevices = false;
+  function endCapture(message = 'Captura encerrada ao perder foco. Ative instrumento para reabrir.') {
+    ++selectionGeneration;
+    watchPermission(null);
+    cancelPreparation();
+    preparation = Promise.resolve();
+    const hadCapture = mode === 'instrument' || preparing || !!calibration || recoveringDevices;
+    preparing = false; recoveringDevices = false; enumeratingDevices = false;
     capture.stop(); mode = 'keyboard'; entry.value = mode;
-    host.stop(); loadCompensation(); status.textContent = 'Captura encerrada ao sair da página ou perder o foco. Selecione Instrumento para reabrir.'; host.changed();
+    if (hadCapture) host.stop();
+    reset(); loadCompensation(); status.textContent = typeof message === 'string' ? message : 'Captura encerrada ao perder foco. Ative instrumento para reabrir.'; host.changed();
   }
   window.addEventListener('pagehide', endCapture);
   window.addEventListener('blur', endCapture);
@@ -270,6 +335,13 @@ export function mountPerformanceInput(host) {
 
   function render() {
     instrumentPanel.hidden = mode !== 'instrument' && !recoveringDevices; reason.hidden = mode !== 'instrument';
+    activateInstrument.hidden = mode === 'instrument';
+    activateInstrument.disabled = preparing;
+    const selectedDevice = [...device.options].find(option => option.value === capture.deviceId);
+    summary.textContent = mode === 'instrument'
+      ? `Instrumento · ${selectedDevice?.textContent || 'Entrada de áudio'} · ${channel.options[[ '1', '2', 'sum' ].indexOf(preferences.channel)]?.textContent ?? preferences.channel} · ${storedCalibration ?? 0} ms`
+      : `Teclado · ${storedCalibration ?? 0} ms`;
+    level.hidden = levelText.hidden = mode !== 'instrument';
     const locked = host.isBusy();
     $('train').disabled ||= preparing || !!calibration;
     entry.options[1].disabled = recoveringDevices && enumeratingDevices;
@@ -305,7 +377,8 @@ export function mountPerformanceInput(host) {
   }
   render();
   return {
-    reset, render, frame,
+    reset, render, frame, activate,
+    async prepareTraining() { await preparation; return inPractice && !document.hidden; },
     get instrument() { return mode === 'instrument'; },
     get calibrating() { return !!calibration; },
     get preparing() { return preparing; },
@@ -319,7 +392,7 @@ export function mountPerformanceInput(host) {
     started(value) {
       gate.reset(); testing = false; diagnostic.hidden = true; test.textContent = 'Testar entrada';
       leakClicks = audio.countInClicks; leakAttacks = []; leakWarned = false;
-      capture.configure({ refractory: refractorySeconds(value) });
+      capture.configure({ refractory: refractorySeconds(value), instrumentType: getInstrumentProfile(value).type });
     },
     instruction() { return mode === 'instrument' ? 'Depois da contagem, toque no instrumento. Avaliamos só ataques; use fones para evitar vazamento.' : 'Depois da contagem, toque com Espaço ou na área de toque. Instrumento é uma entrada opcional, ativada somente por você.'; },
     resultNote(value) {

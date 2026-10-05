@@ -1,5 +1,5 @@
 import { GrooveAudio, renderSession } from './audio.js';
-import { createSession, loadSession, saveSession, validateSession, serializeSession, parseSession, encodeSessionLink, decodeSessionLink, drumEditStructureError, ticksPerBar as barTicks, METRONOME_PATTERNS, ARTICULATIONS } from './session.js';
+import { loadSession, saveSession, validateSession, serializeSession, parseSession, encodeSessionLink, decodeSessionLink, drumEditStructureError, ticksPerBar as barTicks, METRONOME_PATTERNS, ARTICULATIONS } from './session.js';
 import { evaluateSession, summarizeFeedback } from './feedback.js';
 import { buildTimelineData, renderTimeline } from './timeline.js';
 import { getDiatonicChords, invertChord } from './progression.js';
@@ -24,6 +24,7 @@ import { createStudioPlayback, phrasePreviewSession } from './studio-playback.js
 import { mountPerformanceInput } from './performance-input.js';
 import { withStudioChoices, createStudioSession, initialStudioSession } from './studio-session.js';
 import { mountStudioInstrument } from './studio-instrument.js';
+import { mountPracticeTracks } from './practice-tracks.js';
 
 const $ = id => document.getElementById(id);
 const restored = loadSession();
@@ -37,6 +38,7 @@ function chordSelection() { return selected?.kind === 'chord' ? selected.index :
 function setNoteSelection(id) { selected = id === null ? null : { kind: 'note', id, ids: [id] }; }
 function setChordSelection(index) { selected = index === null ? null : { kind: 'chord', index, indices: [index] }; }
 let performanceInput;
+let practiceTracks;
 let generation = 0;
 let pending = null;
 let sharedSession = null;
@@ -73,7 +75,7 @@ const audio = new GrooveAudio({ onState: () => renderControls(), onFinish: (atte
     summary.scrollIntoView({ block: 'center', behavior: 'instant' });
   }
 } });
-const playback = createStudioPlayback({ getSession: () => session, audio, render: renderControls, notify: message, isPending: () => pending !== null });
+const playback = createStudioPlayback({ getSession: () => session, getPlaybackSession: () => exercisePlayback && executionSession ? executionSession : session, audio, render: renderControls, notify: message, isPending: () => pending !== null });
 
 function message(text, error = false) { notices.show(text, { error }); }
 function busy() { return pending !== null || audio.position.mode !== 'idle' || !!performanceInput?.calibrating || !!performanceInput?.preparing; }
@@ -135,8 +137,8 @@ function stop(reason) {
   if (reason) message(reason);
 }
 async function begin(mode = 'loop', practiceSession = null, { listen = false } = {}) {
-  if (mode === 'train' && (performanceInput.preparing || performanceInput.calibrating)) {
-    message('Aguarde a preparação da entrada ou encerre a calibração antes de iniciar outro treino.', true);
+  if (mode === 'train' && performanceInput.calibrating) {
+    message('Encerre a calibração antes de iniciar outro treino.', true);
     return false;
   }
   repertoire?.stop();
@@ -149,6 +151,9 @@ async function begin(mode = 'loop', practiceSession = null, { listen = false } =
   pending = 'play';
   executionMode = mode;
   renderControls();
+  const inputReady = mode !== 'train' || await performanceInput.prepareTraining();
+  if (request !== generation) return false;
+  if (!inputReady) { stop(); return false; }
   const source = structuredClone(listen ? phrasePreviewSession(session) : practiceSession ?? session);
   const snapshot = !listen && mode === 'train' ? performanceInput.session(source) : source;
   playback.setListening(listen);
@@ -158,7 +163,7 @@ async function begin(mode = 'loop', practiceSession = null, { listen = false } =
   try {
     await audio.playSession(snapshot, {
       mode, startTick: mode === 'train' || practiceSession || listen ? null : playback.getStartTick(),
-      once: listen, mixer: practiceSession ? snapshot.mixer : playback.getMixer(),
+      once: listen, mixer: playback.getMixer(snapshot),
       ...performanceInput.playOptions(mode),
     });
     if (request !== generation) return;
@@ -195,6 +200,7 @@ const host = {
 const studio = mountStudio({ onActivate: id => {
   notices.close();
   if (id !== 'tab-repertoire') repertoire?.stop();
+  void performanceInput?.activate(id);
   renderControls();
 } });
 const transport = mountStudioTransport({
@@ -309,6 +315,7 @@ function renderControls() {
   practice?.setBusy(locked);
   notices.render();
   performanceInput?.render();
+  practiceTracks?.render();
   for (const input of document.querySelectorAll('#panel-studio button, #panel-studio input, #panel-studio select, #phrase-tools-dialog button, #phrase-tools-dialog input, #phrase-tools-dialog select')) {
     if (input.closest('#form-panel') || input.id.startsWith('note-') || ['undo', 'redo', 'fit-progression'].includes(input.id)) continue;
     if (!input.disabled) {
@@ -359,6 +366,9 @@ performanceInput = mountPerformanceInput({
   audio, getSession: () => session, isBusy: busy, stop, notify: message,
   isPreparingTraining: () => pending === 'play' && executionMode === 'train',
   changed: renderAll,
+});
+practiceTracks = mountPracticeTracks($('practice-audible-mount'), {
+  getSession: () => executionSession ?? session, getMixer: playback.getMixer, toggleAudible: playback.toggleAudible,
 });
 window.addEventListener('blur', () => { if (busy()) stop('Sessão interrompida ao perder o foco.'); repertoire.stop(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { stop(); repertoire.stop(); } });

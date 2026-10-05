@@ -9,6 +9,13 @@ import { generateGroove } from './generator.js';
 import { mergeSession } from './studio-state.js';
 import { performTick } from './meter.js';
 import { createSession } from './session.js';
+import { getInstrumentProfile } from './instrument-profile.js';
+
+// Only temporary generated execution inherits the current instrument; all other
+// exercise/editor namespaces and the stored source remain untouched.
+export function inheritPracticeInstrument(execution, current) {
+  return mergeSession(execution, { extensions: { studio: { instrument: getInstrumentProfile(current) } } });
+}
 
 // ---------------------------------------------------------------------------
 // Utilidades compartilhadas (usadas também por playground.js e practice-view.js)
@@ -1090,7 +1097,7 @@ export function mountPractice(container, host, options = {}) {
     // seções ou acordes que dependem do compasso da sessão guardada.
     const base = selectedSession ?? createSession();
     const config = exercisePatch();
-    return mergeSession(mergeSession(base, config), mergeSession({
+    const snapshot = mergeSession(mergeSession(base, config), mergeSession({
       training: { ...current.training, ...config.training },
       mixer: current.mixer,
       timbres: current.timbres,
@@ -1098,6 +1105,7 @@ export function mountPractice(container, host, options = {}) {
       extensions: { practice: { workspace: 'exercise' } },
       form: { enabled: false, sections: [] },
     }, patch));
+    return selectedSession ? snapshot : inheritPracticeInstrument(snapshot, current);
   }
 
   function previewReference(snapshot = exerciseSession()) {
