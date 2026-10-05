@@ -67,7 +67,7 @@ export function mountStudioTransport(host) {
   window.addEventListener('keydown', event => {
     if (event.key !== 'Escape') return;
     host.stop();
-    if (!dialogOpen() && document.body.dataset.intent === 'studio' && !editingTarget(event.target)) host.deselect?.();
+    if (document.body.dataset.intent === 'studio') host.deselect?.();
     if (dialog.open) { event.preventDefault(); dialog.close(); }
   }, { capture: true });
   window.addEventListener('keydown', event => {
@@ -76,8 +76,9 @@ export function mountStudioTransport(host) {
       event.preventDefault(); if (!event.repeat) openShortcuts(); return;
     }
     const state = host.getState();
-    if (document.body.dataset.intent !== 'studio' || state.training) return;
+    if (document.body.dataset.intent !== 'studio') return;
     if (event.code === 'Space' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      if (state.training) return;
       // Espaço nos controles mantém sua ativação nativa; notas/células são o editor.
       if (event.target instanceof Element && event.target.closest('button:not(.note):not(.cell), a, summary, [role=button], [role=tab]')) return;
       event.preventDefault(); if (!event.repeat) toggle(); return;

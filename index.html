@@ -87,13 +87,14 @@
         </section>
         <section id="track-phrase" class="studio-track" aria-label="Faixa de frase">
           <header class="track-header"><strong class="track-name" id="editor-title">Frase</strong><div class="track-extra">
+            <div id="creation-duration" class="creation-duration" role="group" aria-label="Duração ativa para criar notas"></div>
             <details id="phrase-options" class="track-disclosure"><summary>Grade e swing</summary><div class="track-popover"><div class="tool-row">
               <label>Divisões por semínima<select id="subdivision" data-path="subdivision"><option value="1">1</option><option value="2">2</option><option value="3">3 · tercina</option><option value="4">4</option><option value="5">5 · quintina</option><option value="6">6</option><option value="7">7 · septina</option><option value="8">8</option></select></label>
               <label>Swing<input id="swing" data-path="swing" type="number" min="0" max="0.75" step="0.05"></label><label>Base do swing<select id="swing-unit" data-path="swingUnit"><option value="eighth">Colcheia</option><option value="sixteenth">Semicolcheia</option></select></label>
               <label>Zoom <select id="timeline-zoom" aria-label="Zoom de todas as faixas e da partitura"><option value="1">Ajustar tudo</option><option value="1.5">150%</option><option value="2">200%</option><option value="4">400%</option></select></label><button id="open-phrase-tools" type="button" aria-haspopup="dialog">Biblioteca e gerador</button>
             </div></div></details>
             <div id="track-phrase-sound" class="track-sound-controls"></div>
-          </div></header><div id="grid" class="track-lane grid" role="grid" tabindex="0" aria-label="Editor de frase"><div id="marks" class="marks" aria-hidden="true"></div><div id="grid-cursor" aria-hidden="true"></div><div id="notes" class="notes" role="row"></div></div>
+          </div></header><div id="grid" class="track-lane grid" role="grid" tabindex="0" aria-label="Editor de frase"><div id="marks" class="marks" aria-hidden="true"></div><div id="grid-cursor" aria-hidden="true"></div><div id="notes" class="notes" role="row"></div><div id="note-marquee" aria-hidden="true" hidden></div></div>
         </section>
         <section id="track-drums" class="studio-track" aria-label="Faixa de bateria">
           <header class="track-header"><label class="toggle track-name"><input id="drums-enabled" data-path="drums.enabled" type="checkbox"> Bateria</label><div class="track-extra">
@@ -138,7 +139,7 @@
     <details id="form-panel" class="panel">
       <summary>Organizar uma música em seções</summary>
       <div class="tool-row"><label class="toggle"><input id="form-enabled" type="checkbox" aria-describedby="form-empty"> Tocar a forma</label><label class="toggle"><input id="form-loop" type="checkbox"> Repetir a forma (desmarque para terminar)</label><button id="add-section" type="button">Adicionar seção</button></div>
-      <p class="tool-hint muted">Cada seção toca um trecho da sessão em ordem. Os limites são inclusivos: 1–2 toca os compassos 1 e 2. Em Mais, BPM e compasso em branco herdam a sessão; outro compasso redimensiona posições e durações proporcionalmente. A densidade muda bateria, baixo e acordes habilitados. Edite com a reprodução parada.</p>
+      <p class="tool-hint muted">Cada seção toca um trecho da sessão em ordem. Os limites são inclusivos: 1–2 toca os compassos 1 e 2. Em Mais, BPM e compasso em branco herdam a sessão; outro compasso redimensiona posições e durações proporcionalmente. A densidade muda bateria, baixo e acordes habilitados. Alterações da forma param a reprodução automaticamente e são aplicadas.</p>
       <p id="form-empty" class="tool-hint muted">Adicione uma seção para habilitar Tocar a forma.</p>
       <table id="form-table" class="form-table" hidden>
         <caption class="sr-only">Seções da forma musical, na ordem de reprodução. Os compassos de início e fim são inclusivos.</caption>
@@ -185,14 +186,16 @@
   <p id="shortcuts-scope">No Estúdio, fora dos campos de edição. Durante o treino, Espaço continua sendo o toque do ritmo.</p>
   <dl>
     <dt><kbd>Espaço</kbd></dt><dd>Tocar / parar a sessão no Estúdio.</dd>
-    <dt><kbd>Esc</kbd></dt><dd>Interromper todo o som; fechar esta ajuda.</dd>
+    <dt><kbd>Esc</kbd></dt><dd>Interromper todo o som e limpar seleção/inspetor, inclusive nos campos; fechar esta ajuda.</dd>
     <dt><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Shift+Z</kbd></dt><dd>Desfazer / refazer a sessão (⌘ no macOS).</dd>
-    <dt><kbd>Delete</kbd></dt><dd>Excluir a nota ou o acorde selecionado.</dd>
+    <dt><kbd>Delete</kbd></dt><dd>Excluir todas as notas ou acordes selecionados.</dd>
+    <dt><kbd>Shift+clique</kbd> / arrastar no fundo</dt><dd>Alternar seleção múltipla / selecionar por retângulo. Ctrl+A seleciona toda a faixa com foco.</dd>
+    <dt><kbd>Ctrl+C</kbd> / <kbd>Ctrl+V</kbd> / <kbd>Ctrl+D</kbd></dt><dd>Na faixa com foco, copiar internamente / colar no cursor da grade / duplicar logo após a seleção. Não pede acesso à área de transferência.</dd>
     <dt><kbd>Enter</kbd> / <kbd>↓</kbd></dt><dd>Na grade, criar na posição navegada / entrar nas notas. PageUp e PageDown escolhem a nota anterior e seguinte.</dd>
-    <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>No editor, mover a nota; <kbd>↑</kbd> <kbd>↓</kbd> mudam a duração. Shift usa uma semínima.</dd>
+    <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>No editor, mover todas as notas selecionadas; <kbd>↑</kbd> <kbd>↓</kbd> mudam a duração. Shift usa uma semínima. Intensidade no inspetor aplica a toda a seleção.</dd>
     <dt><kbd>←</kbd> <kbd>→</kbd> / <kbd>Shift+←</kbd> <kbd>Shift+→</kbd></dt><dd>Na harmonia, mover / redimensionar um tempo escrito. Enter seleciona um acorde; na faixa vazia, cria uma tônica.</dd>
     <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> <kbd>6</kbd> <kbd>8</kbd></dt><dd>Na frase: semicolcheia, colcheia, colcheia pontuada, semínima, semínima pontuada e mínima, respectivamente.</dd>
-    <dt><kbd>?</kbd></dt><dd>Abrir esta ajuda. Clique numa célula para criar; arraste a nota para mover ou a borda direita para mudar a duração.</dd>
+    <dt><kbd>?</kbd></dt><dd>Abrir esta ajuda. Clique no fundo para criar com a duração ativa do cabeçalho; arraste o meio da nota para mover ou a alça direita de 6 px para mudar a duração. Em notas menores que 12 px, use ↑/↓ para duração.</dd>
   </dl>
   <button id="shortcuts-close" type="button" autofocus>Fechar atalhos</button>
 </dialog>

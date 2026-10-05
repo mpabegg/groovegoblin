@@ -36,7 +36,7 @@ export function mountStudioInspector(host) {
     $('empty-phrase').hidden = !empty;
     $('phrase-actions').hidden = kind !== null || empty;
     $('selection-text').hidden = kind !== 'note';
-    if (note) $('selection-text').textContent = `Nota · ${pitchName(note.pitch)} · compasso ${Math.floor(note.start / ticksPerBar(session)) + 1}`;
+    if (note) $('selection-text').textContent = (selection.ids?.length ?? 1) > 1 ? `${selection.ids.length} notas selecionadas · edição conjunta` : `Nota · ${pitchName(note.pitch)} · compasso ${Math.floor(note.start / ticksPerBar(session)) + 1}`;
     $('band-starters').hidden = writing || (session.drums.enabled && session.band.bassEnabled && session.progression.enabled && session.progression.chords.length > 0);
     $('note-detail').hidden = !note;
     $('studio-inspector').hidden = empty && !kind;

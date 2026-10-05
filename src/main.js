@@ -11,7 +11,7 @@ import { setupOffline } from './offline.js';
 import { mountTour } from './tour.js';
 import { mergeSession, readSessionLibrary, SESSION_LIBRARY_KEY } from './studio-state.js';
 import { History } from './history.js';
-import { updateNote, deleteNote } from './model.js';
+import { playbackEditPolicy } from './studio-editing.js';
 import { EVALUATION_MODES, EVALUATION_MODE_LABELS, GOALS, GOAL_LABELS } from './session.js';
 import { mountStudioPatterns } from './studio-patterns.js';
 import { mountStudio } from './studio.js';
@@ -27,11 +27,11 @@ let session = withStudioChoices(initialStudioSession(restored));
 let recoveryRaw = restored.recoveryRaw;
 let sessionSaved = false;
 let selected = null;
-// Exactly one editor selection; indices refer to canonical progression.chords.
+// One editor selection, with a primary item and an optional same-lane group.
 function noteSelection() { return selected?.kind === 'note' ? selected.id : null; }
 function chordSelection() { return selected?.kind === 'chord' ? selected.index : null; }
-function setNoteSelection(id) { selected = id === null ? null : { kind: 'note', id }; }
-function setChordSelection(index) { selected = index === null ? null : { kind: 'chord', index }; }
+function setNoteSelection(id) { selected = id === null ? null : { kind: 'note', id, ids: [id] }; }
+function setChordSelection(index) { selected = index === null ? null : { kind: 'chord', index, indices: [index] }; }
 let activeInput = null;
 let generation = 0;
 let pending = null;
@@ -49,7 +49,7 @@ let journey;
 let lastRepertoireBusy = false;
 const history = new History();
 const library = readSessionLibrary(undefined, parseSession);
-const notices = mountStudioNotices({ isBusy: busy, canUndo: () => history.canUndo, current: () => history.current, undo: () => travelHistory('undo') });
+const notices = mountStudioNotices({ isBusy: () => false, canUndo: () => history.canUndo, current: () => history.current, undo: () => travelHistory('undo') });
 const audio = new GrooveAudio({ onState: () => renderControls(), onFinish: (attempts, detail) => {
   clearInput();
   const focusResult = $('tab-practice').getAttribute('aria-selected') === 'true'
@@ -98,27 +98,32 @@ function initialStudioSession(restored) {
   } catch { /* Preserve loadSession's recovery and storage-unavailable behavior. */ }
   return restored.session;
 }
-function liveChoice(key) {
-  return ['mixer', 'metronome', 'band', 'drums', 'timbres'].includes(key) || (key === 'bpm' && audio.position.mode === 'loop');
-}
-function updateSession(patch, { notice = null } = {}) {
-  const live = !exercisePlayback && pending === null && audio.position.mode !== 'idle' && Object.keys(patch).every(liveChoice);
-  const applied = replaceSession(mergeSession(session, patch), { stopPlayback: !live, notice, resetEmpty: false });
-  if (applied && live) audio.updateSession(session);
+function updateSession(patch, { notice = null, structural = false } = {}) {
+  const next = mergeSession(session, patch);
+  const policy = playbackEditPolicy(session, next, { mode: audio.position.mode, pending: pending !== null, exercise: exercisePlayback, structural });
+  const applied = replaceSession(next, { stopPlayback: policy.stop, notice: [policy.reason, notice].filter(Boolean).join(' ') || null, resetEmpty: false });
+  if (applied && policy.live) audio.updateSession(session);
   return applied;
 }
 function replaceSession(value, { record = true, stopPlayback = true, notice = 'Sessão substituída.', resetEmpty = true } = {}) {
   const checked = validateSession(withStudioChoices(value));
   if (!checked.ok) { message(`Alteração rejeitada: ${checked.error}`, true); renderControls(); return false; }
-  if (stopPlayback) stop();
+  if (stopPlayback) {
+    if (busy() && !notice?.includes('interrompido') && !notice?.includes('Reprodução parada')) notice = `Reprodução parada para substituir a sessão. ${notice ?? ''}`.trim();
+    stop();
+  }
   session = checked.session;
   const previousEntry = history.current;
   if (record) history.push(session);
   if (resetEmpty) inspector.resetEmpty();
-  if (history.current !== previousEntry) notices.changed(history.current, record ? notice : null);
+  if (history.current !== previousEntry || !record) notices.changed(history.current, notice);
   if ((selected?.kind === 'note' && !session.notes.some(note => note.id === selected.id))
     || (selected?.kind === 'chord' && !session.progression.chords[selected.index])) selected = null;
   audio.setMixer(session.mixer);
+  if (selected?.kind === 'note') {
+    selected.ids = (selected.ids ?? [selected.id]).filter(id => session.notes.some(note => note.id === id));
+    if (!selected.ids.length) selected = null; else selected.id = selected.ids.includes(selected.id) ? selected.id : selected.ids[0];
+  }
   persist();
   renderAll();
   notices.render();
@@ -196,7 +201,7 @@ const studio = mountStudio({ onActivate: id => {
 } });
 const transport = mountStudioTransport({
   getState: () => ({
-    active: busy() || !!repertoire?.isBusy(), locked: busy(),
+    active: busy() || !!repertoire?.isBusy(), locked: false,
     training: ['countin', 'train'].includes(audio.position.mode) || (pending === 'play' && executionMode === 'train'),
     canUndo: history.canUndo, canRedo: history.canRedo,
   }),
@@ -204,19 +209,21 @@ const transport = mountStudioTransport({
   stop: () => { if (practice) practice.cancel(); else stop(); repertoire?.stop(); renderControls(); },
   travelHistory, removeSelected, deselect: deselectEditor,
 });
-const inspector = mountStudioInspector({ getSession: () => session, getSelection: () => selected, isBusy: busy, commitNote, notify: message });
+const inspector = mountStudioInspector({ getSession: () => session, getSelection: () => selected, isBusy: () => false, commitNote, notify: message });
 const studioTimeline = mountStudioTimeline($('studio-editor'), {
-  getSession: () => session, isBusy: busy, updateSession,
+  getSession: () => session, isBusy: () => false, updateSession,
   getSelection: noteSelection, setSelection: setNoteSelection,
   getChordSelection: chordSelection, setChordSelection,
   getEditorSelection: () => selected, setEditorSelection: value => { selected = value; },
   selectionChanged: () => { renderControls(); studioTimeline.renderSelection(); }, commitNote, notify: message,
+  auditionNotes: notes => { if (!busy() && !repertoire?.isBusy()) void audio.audition(notes, { bpm: session.bpm, timbre: session.timbres.phrase }).catch(error => message(`Prévia indisponível: ${error.message}`, true)); },
+  auditionChord: chord => { if (!busy() && !repertoire?.isBusy()) void audio.audition(chord.notes.map(note => ({ pitch: note.midi, velocity: 0.65 })), { bpm: session.bpm, timbre: session.timbres.chords, channel: 'chords' }).catch(error => message(`Prévia indisponível: ${error.message}`, true)); },
 });
-const studioForm = mountStudioForm({ getSession: () => session, isBusy: busy, updateSession, notify: message });
+const studioForm = mountStudioForm({ getSession: () => session, isBusy: () => false, updateSession, notify: message });
 function deselectEditor() {
   if (!selected) return;
   const lane = selected.kind === 'note' ? $('grid') : $('chord-lane');
-  if (lane.contains(document.activeElement)) lane.focus({ preventScroll: true });
+  lane.focus({ preventScroll: true });
   selected = null;
   renderControls(); studioTimeline.renderSelection();
 }
@@ -276,7 +283,7 @@ function renderControls() {
   for (const input of document.querySelectorAll('[data-path]')) {
     const value = getPath(session, input.dataset.path);
     if (input.type === 'checkbox') input.checked = !!value; else input.value = value ?? '';
-    input.disabled = locked && !(pending === null && liveChoice(input.dataset.path.split('.')[0]));
+    input.disabled = false;
   }
   $('input-pitch').value = session.extensions.studio.inputPitch;
   $('minimal').checked = !!session.extensions.studio.performanceFocus;
@@ -284,14 +291,14 @@ function renderControls() {
   $('loop-start').value = session.loop.startBar + 1;
   $('loop-start').max = session.bars;
   $('loop-end').max = session.bars;
-  $('loop-start').disabled = locked;
+  $('loop-start').disabled = false;
   $('practice-session-title').textContent = session.name;
   $('session-badge').textContent = `${session.meter.beats}/${session.meter.unit} · ${session.bars} comp. · loop ${session.loop.startBar + 1}–${session.loop.endBar}`;
   transport.render();
   $('train').disabled = pending !== null || (session.training.evaluation !== 'free' && !session.notes.some(note => note.start >= session.loop.startBar * barTicks(session) && note.start < session.loop.endBar * barTicks(session)));
   $('train-pad').disabled = !['countin', 'train'].includes(audio.position.mode);
-  $('clear').disabled = locked || session.notes.length === 0;
-  for (const id of ['generate', 'variation', 'load-groove', 'generate-drums', 'generate-progression', 'new-session', 'duplicate-session', 'save-session', 'restore-session', 'delete-session', 'replace-recovery', 'replace-library-recovery', 'apply-share']) $(id).disabled = locked;
+  $('clear').disabled = session.notes.length === 0;
+  for (const id of ['generate', 'variation', 'load-groove', 'generate-drums', 'generate-progression', 'new-session', 'duplicate-session', 'save-session', 'restore-session', 'delete-session', 'replace-recovery', 'replace-library-recovery', 'apply-share']) $(id).disabled = false;
   $('load-groove').disabled ||= !$('groove-library').value;
   $('restore-session').disabled ||= !$('session-library').value;
   $('delete-session').disabled ||= !$('session-library').value;
@@ -312,16 +319,10 @@ function renderControls() {
   }
 }
 
-function commitNote(patch) {
-  if (busy() || !noteSelection()) return;
-  const notes = updateNote(session.notes, noteSelection(), patch, session);
-  if (notes === session.notes) { message('Sem sobreposição e sem ultrapassar o fim da frase.', true); renderControls(); return; }
-  updateSession({ notes });
-}
+function commitNote(patch) { return studioTimeline.commitNote(patch); }
 const phraseDialog = $('phrase-tools-dialog');
 let phraseDialogFocus = null;
 function openPhraseTools(focusId = 'groove-library') {
-  if (busy()) return;
   phraseDialogFocus = document.activeElement;
   $('phrase-options').open = false;
   phraseDialog.showModal(); $(focusId).focus();
@@ -331,22 +332,21 @@ $('open-phrase-tools').addEventListener('click', () => openPhraseTools('density'
 $('phrase-tools-close').addEventListener('click', () => phraseDialog.close());
 phraseDialog.addEventListener('close', () => { phraseDialogFocus?.focus({ preventScroll: true }); phraseDialogFocus = null; });
 function removeSelected() {
-  if (busy()) return;
   if (selected?.kind === 'chord') studioTimeline.removeChord();
-  else if (noteSelection()) updateSession({ notes: deleteNote(session.notes, noteSelection()) });
+  else studioTimeline.removeNotes();
 }
 $('delete').addEventListener('click', removeSelected);
-$('clear').addEventListener('click', () => { if (!busy()) updateSession({ notes: [] }, { notice: 'Frase limpa.' }); });
+$('clear').addEventListener('click', () => updateSession({ notes: [] }, { notice: 'Frase limpa.' }));
 $('transpose-phrase').addEventListener('click', () => {
-  if (busy()) return;
   const input = $('transpose-semitones');
   if (input.value === '' || !input.checkValidity()) { message('Informe uma transposição inteira entre −24 e +24 semitons.', true); return; }
   const shift = Number(input.value);
   if (updateSession({ notes: session.notes.map(note => ({ ...note, pitch: note.pitch + shift })) })) message(`Frase transposta em ${shift > 0 ? '+' : ''}${shift} semitons.`);
 });
 function travelHistory(direction) {
-  if (busy()) return;
-  const value = history[direction](); if (value) replaceSession(value, { record: false });
+  const value = history[direction](); if (!value) return;
+  const policy = playbackEditPolicy(session, value, { mode: audio.position.mode, pending: pending !== null, exercise: exercisePlayback });
+  if (replaceSession(value, { record: false, stopPlayback: policy.stop, notice: policy.reason }) && policy.live) audio.updateSession(session);
 }
 $('train').addEventListener('click', () => practice.useSession({ train: true }));
 
@@ -421,7 +421,6 @@ $('apply-share').addEventListener('click', () => { if (sharedSession && replaceS
 $('dismiss-share').addEventListener('click', dismissShare); window.addEventListener('hashchange', previewShare);
 $('download-recovery').addEventListener('click', () => { if (recoveryRaw !== null) download(recoveryRaw, 'groovegoblin-originais.json'); });
 $('replace-recovery').addEventListener('click', () => {
-  if (busy()) return;
   if (!saveSession(session)) { message('Armazenamento indisponível; originais preservados.', true); return; }
   recoveryRaw = null; $('recovery').hidden = true; persist();
 });
@@ -439,10 +438,9 @@ function writeLibrary(entries) {
   catch { message('Biblioteca não pôde ser salva. Exporte a sessão.', true); return false; }
 }
 $('new-session').addEventListener('click', () => {
-  if (!busy()) replaceSession(createStudioSession(), { notice: 'Nova sessão de quatro compassos criada.' });
+  replaceSession(createStudioSession(), { notice: 'Nova sessão de quatro compassos criada.' });
 });
 $('duplicate-session').addEventListener('click', () => {
-  if (busy()) return;
   const copy = mergeSession(session, { name: `${session.name.slice(0, 112)} · cópia` });
   const item = { id: crypto.randomUUID(), savedAt: new Date().toISOString(), session: copy };
   if (writeLibrary([...library.entries, item]) && replaceSession(copy, { notice: 'Cópia guardada na biblioteca e aberta.' })) {
@@ -450,16 +448,14 @@ $('duplicate-session').addEventListener('click', () => {
   }
 });
 $('save-session').addEventListener('click', () => {
-  if (busy()) return;
   const item = { id: crypto.randomUUID(), savedAt: new Date().toISOString(), session: structuredClone(session) };
   if (writeLibrary([...library.entries, item])) { $('session-library').value = item.id; renderControls(); message('Sessão completa guardada na biblioteca.'); }
 });
 $('session-library').addEventListener('change', renderControls);
-$('restore-session').addEventListener('click', () => { const item = library.entries.find(entry => entry.id === $('session-library').value); if (item && !busy()) replaceSession(item.session, { notice: 'Sessão guardada aberta.' }); });
+$('restore-session').addEventListener('click', () => { const item = library.entries.find(entry => entry.id === $('session-library').value); if (item) replaceSession(item.session, { notice: 'Sessão guardada aberta.' }); });
 $('delete-session').addEventListener('click', () => writeLibrary(library.entries.filter(entry => entry.id !== $('session-library').value)));
 $('download-library-recovery').addEventListener('click', () => { if (library.recoveryRaw !== null) download(library.recoveryRaw, 'groovegoblin-biblioteca-original.json'); });
 $('replace-library-recovery').addEventListener('click', () => {
-  if (busy()) return;
   const original = library.recoveryRaw; library.recoveryRaw = null;
   if (!writeLibrary([{ id: crypto.randomUUID(), savedAt: new Date().toISOString(), session: structuredClone(session) }])) library.recoveryRaw = original;
   renderLibrary();
@@ -531,7 +527,7 @@ playground = mountPlayground($('playground-mount'), host);
 journey = mountJourney($('journey-mount'), host);
 setupOffline({ isBusy: () => busy() || repertoire.isBusy(), canReload: () => sessionSaved, notify: message });
 history.push(session); audio.setMixer(session.mixer); renderLibrary(); renderAll();
-mountStudioPatterns({ getSession: () => session, isBusy: busy, updateSession, notify: message, renderControls });
+mountStudioPatterns({ getSession: () => session, isBusy: () => false, updateSession, notify: message, renderControls });
 studio.activate($('tab-studio'));
 $('recovery').hidden = recoveryRaw === null; persist();
 if (restored.warnings?.length) message(restored.warnings.join(' '), true);

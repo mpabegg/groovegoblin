@@ -339,3 +339,13 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 #form-panel { position: relative; padding: 10px 16px; }
 #form-panel > summary { font-size: 11px; }
 #track-metronome-sound .track-sound-popover { position: static; box-shadow: none; margin-top: 6px; }
+/* Live phrase editing: fixed figure palette and a narrow, unambiguous resize target. */
+#track-phrase { height: 110px; }
+.creation-duration { display: flex; flex-wrap: wrap; gap: 2px; width: 100%; }
+.creation-duration .preset { padding: 1px 4px; min-width: 25px; height: 23px; font: 15px system-ui; }
+.creation-duration .preset[data-duration^="0."] { font-size: 9px; }
+.creation-duration .preset[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #182717; }
+.note .handle, .chord-handle { width: 6px; }
+.note .handle:after { right: 2px; }
+.chord-handle:after { left: 2px; }
+#note-marquee, .chord-marquee { position: absolute; border: 1px solid var(--blue); background: #8bcced22; pointer-events: none; z-index: 4; }

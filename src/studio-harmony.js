@@ -1,5 +1,6 @@
 import { ticksPerBar, sessionTicks } from './session.js';
 import { PROGRESSION_KEYS, CHORD_QUALITIES, chordTimeline, getDiatonicChords, getBorrowedChords, getSecondaryDominants, parseChordSymbol, generateProgression, invertChord } from './progression.js';
+import { mountStudioChordSelection } from './studio-chord-selection.js';
 
 const EPSILON = 1e-8;
 const number = value => String(Math.round(value * 1000) / 1000);
@@ -51,18 +52,20 @@ export function mountStudioHarmony(root, host) {
   let inspectorSignature = '';
   const selectedIndex = () => host.getChordSelection();
   const focusChord = index => (lane.querySelector(`[data-index="${index}"][tabindex="0"]`) ?? lane.querySelector(`[data-index="${index}"]`))?.focus({ preventScroll: true });
+  const group = mountStudioChordSelection(lane, host);
 
   for (const key of PROGRESSION_KEYS) {
     const option = document.createElement('option'); option.value = key.id; option.textContent = key.label; $('progression-key').append(option);
   }
   function select(index) {
     host.setChordSelection(index); host.selectionChanged?.(); renderLane(); renderInspector();
+    const chord = host.getSession().progression.chords[index]; if (chord) host.auditionChord?.(chord);
   }
-  function apply(chords, index, extra = {}, notice = null) {
+  function apply(chords, index, extra = {}, notice = null, structural = false) {
     const previous = host.getEditorSelection();
     host.setChordSelection(index);
     const session = host.getSession();
-    if (!host.updateSession({ progression: { ...session.progression, chords, cycleBars: session.progression.cycleBars, ...extra } }, { notice })) {
+    if (!host.updateSession({ progression: { ...session.progression, chords, cycleBars: session.progression.cycleBars, ...extra } }, { notice, structural })) {
       host.setEditorSelection(previous); host.selectionChanged?.(); render(); return false;
     }
     return true;
@@ -72,15 +75,9 @@ export function mountStudioHarmony(root, host) {
     const session = host.getSession(); const index = selectedIndex(); const chord = session.progression.chords[index];
     if (!chord) return;
     const next = { ...replacement, startBar: chord.startBar, durationBars: chord.durationBars };
-    apply(session.progression.chords.map((value, i) => i === index ? next : value), index);
+    if (apply(session.progression.chords.map((value, i) => i === index ? next : value), index)) host.auditionChord?.(next);
   }
-  function removeSelected() {
-    if (host.isBusy() || selectedIndex() === null) return;
-    const index = selectedIndex();
-    if (apply(host.getSession().progression.chords.filter((_, i) => i !== index), null)) {
-      lane.focus({ preventScroll: true }); host.notify('Acorde excluído; a posição fica em silêncio.');
-    }
-  }
+  function removeSelected() { group.remove(); }
   function create(bar) {
     if (host.isBusy()) return;
     const session = host.getSession(); const progression = session.progression;
@@ -93,7 +90,7 @@ export function mountStudioHarmony(root, host) {
     }
     const chord = { ...getDiatonicChords(progression.keyId)[0], startBar, durationBars, inversion: 0 };
     const chords = [...progression.chords, chord].sort((a, b) => a.startBar - b.startBar);
-    if (apply(chords, chords.indexOf(chord), { enabled: true })) focusChord(chords.indexOf(chord));
+    if (apply(chords, chords.indexOf(chord), { enabled: true })) { focusChord(chords.indexOf(chord)); host.auditionChord?.(chord); }
   }
   function generate() {
     if (host.isBusy()) return;
@@ -101,7 +98,7 @@ export function mountStudioHarmony(root, host) {
     const diatonic = getDiatonicChords(session.progression.keyId);
     const degrees = mode === 'cadence' ? [1, 4, 5, 1] : [1, 6, 2, 5];
     const base = mode === 'random' ? generateProgression({ keyId: session.progression.keyId }).chords : degrees.map(degree => diatonic[degree - 1]);
-    if (apply(fitHarmony(base, session), null, { enabled: true, cycleBars: session.bars }, `Progressão aplicada aos ${session.bars} compassos.`)) {
+    if (apply(fitHarmony(base, session), null, { enabled: true, cycleBars: session.bars }, `Progressão aplicada aos ${session.bars} compassos.`, true)) {
       $('harmony-options').open = false;
     }
   }
@@ -130,7 +127,7 @@ export function mountStudioHarmony(root, host) {
   });
   lane.addEventListener('focusin', event => {
     const block = event.target.closest('.studio-chord');
-    if (block && !drag && !host.isBusy() && selectedIndex() !== Number(block.dataset.index)) select(Number(block.dataset.index));
+    if (block && !drag && !host.isBusy() && !group.indices().includes(Number(block.dataset.index))) select(Number(block.dataset.index));
   });
   lane.addEventListener('keydown', event => {
     if (host.isBusy() || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -146,10 +143,11 @@ export function mountStudioHarmony(root, host) {
     const index = Number(block.dataset.index);
     if (event.key === 'Enter') { event.preventDefault(); select(index); return; }
     if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); host.setChordSelection(index); removeSelected(); return; }
-    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
     event.preventDefault();
-    const session = host.getSession(); const chord = session.progression.chords[index]; const delta = (event.key === 'ArrowRight' ? 1 : -1) / session.meter.beats;
-    const edited = editHarmony(session.progression, index, event.shiftKey ? chord.startBar : snap(chord.startBar + delta, session.meter.beats), event.shiftKey ? snap(chord.durationBars + delta, session.meter.beats) : chord.durationBars, !event.shiftKey);
+    const session = host.getSession(); const chord = session.progression.chords[index]; const delta = (['ArrowRight', 'ArrowUp'].includes(event.key) ? 1 : -1) / session.meter.beats;
+    const resize = event.shiftKey || ['ArrowUp', 'ArrowDown'].includes(event.key);
+    const edited = editHarmony(session.progression, index, resize ? chord.startBar : snap(chord.startBar + delta, session.meter.beats), resize ? snap(chord.durationBars + delta, session.meter.beats) : chord.durationBars, !resize);
     if (edited && edited.chords[edited.index].durationBars >= 1 / session.meter.beats - EPSILON) { apply(edited.chords, edited.index); focusChord(edited.index); }
     else host.notify('Sem sobreposição e sem ultrapassar os limites do ciclo.', true);
   });
@@ -160,6 +158,7 @@ export function mountStudioHarmony(root, host) {
     event.preventDefault();
     const index = Number(block.dataset.index); const session = host.getSession();
     host.setChordSelection(index);
+    host.auditionChord?.(session.progression.chords[index]);
     drag = { pointer: event.pointerId, x: event.clientX, index, original: session, next: null, resize: !!event.target.closest('.chord-handle'), occurrence: Number(block.dataset.start) / ticksPerBar(session) - session.progression.chords[index].startBar, moved: false };
     lane.setPointerCapture(event.pointerId); host.selectionChanged?.(); renderLane(); renderInspector(); focusChord(index);
   });
@@ -191,9 +190,9 @@ export function mountStudioHarmony(root, host) {
   lane.addEventListener('pointercancel', () => { cancelDrag(); renderLane(); });
   lane.addEventListener('lostpointercapture', event => { if (drag?.pointer === event.pointerId) { cancelDrag(); renderLane(); } });
   function cancelDrag() {
-    const previous = drag; drag = null; lane.classList.remove('invalid-drop');
+    const previous = drag; drag = null; lane.classList.remove('invalid-drop'); const grouped = group.cancelDrag();
     if (previous && lane.hasPointerCapture(previous.pointer)) lane.releasePointerCapture(previous.pointer);
-    return previous !== null;
+    return previous !== null || grouped;
   }
   function renderLane(preview, previewIndex) {
     const session = host.getSession(); const progression = preview ?? session.progression; const index = previewIndex ?? selectedIndex();
@@ -210,29 +209,31 @@ export function mountStudioHarmony(root, host) {
     }
     markers.forEach((event, marker) => {
       silence(end, event.start - end); end = event.start + event.duration;
-      const block = document.createElement('div'); block.className = `studio-chord${event.index === index ? ' selected' : ''}`; block.dataset.index = event.index; block.dataset.marker = marker; block.dataset.start = event.start; block.dataset.duration = event.duration;
-      block.setAttribute('role', 'option'); block.setAttribute('aria-selected', String(event.index === index)); block.setAttribute('aria-disabled', String(host.isBusy()));
+      const chosen = preview ? event.index === index : group.indices().includes(event.index);
+      const block = document.createElement('div'); block.className = `studio-chord${chosen ? ' selected' : ''}`; block.dataset.index = event.index; block.dataset.marker = marker; block.dataset.start = event.start; block.dataset.duration = event.duration;
+      block.setAttribute('role', 'option'); block.setAttribute('aria-selected', String(chosen)); block.setAttribute('aria-disabled', String(host.isBusy()));
       block.tabIndex = marker === tabMarker ? 0 : -1; block.textContent = event.chord.symbol;
       block.style.left = `${event.start / total * 100}%`; block.style.width = `${event.duration / total * 100}%`;
       block.setAttribute('aria-label', `${event.chord.symbol}, compasso ${number(event.start / ticksPerBar(session) + 1)}, duração ${number(event.duration / ticksPerBar(session))} compassos. Setas movem; Shift+setas redimensiona; Delete exclui.`);
       block.title = `${event.chord.roman || event.chord.symbol} · arraste para mover/reordenar; borda direita redimensiona`;
-      const handle = document.createElement('span'); handle.className = 'chord-handle'; handle.setAttribute('aria-hidden', 'true'); block.append(handle); lane.append(block);
+      const handle = document.createElement('span'); handle.className = 'chord-handle'; handle.setAttribute('aria-hidden', 'true');
+      if (event.duration / total * lane.getBoundingClientRect().width >= 12) block.append(handle); lane.append(block);
     });
     silence(end, total - end);
     for (let bar = progression.cycleBars; bar < session.bars - EPSILON; bar += progression.cycleBars) {
       const boundary = document.createElement('span'); boundary.className = 'harmony-cycle-boundary'; boundary.style.left = `${bar / session.bars * 100}%`; boundary.title = 'Recomeço do ciclo harmônico'; boundary.setAttribute('aria-hidden', 'true'); lane.append(boundary);
     }
-    if (focusedStart !== undefined) (lane.querySelector(`[data-start="${focusedStart}"][data-index="${index}"]`) ?? lane.querySelector(`[data-index="${index}"]`))?.focus({ preventScroll: true });
+    if (focusedStart !== undefined && group.indices().includes(Number(focused.dataset.index))) (lane.querySelector(`[data-start="${focusedStart}"][data-index="${focused.dataset.index}"]`) ?? lane.querySelector(`[data-index="${index}"]`))?.focus({ preventScroll: true });
   }
   function renderInspector() {
     const session = host.getSession(); const chord = session.progression.chords[selectedIndex()]; const locked = host.isBusy();
     $('chord-inspector').hidden = !chord;
     if (!chord) { inspectorSignature = ''; return; }
-    const signature = JSON.stringify([selectedIndex(), chord, session.progression.keyId]);
+    const signature = JSON.stringify([group.indices(), chord, session.progression.keyId]);
     if (signature !== inspectorSignature) {
       inspectorSignature = signature;
       const focus = document.activeElement; const focusId = focus?.id; const focusChoice = focus?.dataset.chordChoice; const focusInversion = focus?.dataset.inversion;
-      $('chord-selection-title').textContent = `${chord.symbol} · compasso ${number(chord.startBar + 1)} · ${number(chord.durationBars)} comp.`;
+      $('chord-selection-title').textContent = group.indices().length > 1 ? `${group.indices().length} acordes selecionados` : `${chord.symbol} · compasso ${number(chord.startBar + 1)} · ${number(chord.durationBars)} comp.`;
       $('chord-symbol').value = chord.symbol;
       for (const [id, choices] of [['chord-diatonic', getDiatonicChords(session.progression.keyId)], ['chord-borrowed', getBorrowedChords(session.progression.keyId)], ['chord-secondary', getSecondaryDominants(session.progression.keyId)]]) {
         const group = $(id); group.replaceChildren();

@@ -97,7 +97,7 @@ export function mountStudioPatterns(host) {
     if (patch.meter && (patch.meter.beats !== session.meter.beats || patch.meter.unit !== session.meter.unit)) changes.push(`${session.meter.beats}/${session.meter.unit} → ${patch.meter.beats}/${patch.meter.unit}`);
     if (patch.subdivision !== undefined && patch.subdivision !== session.subdivision) changes.push(`subdivisão ${session.subdivision} → ${patch.subdivision}`);
     if (patch.bpm !== undefined && patch.bpm !== session.bpm) changes.push(`${session.bpm} → ${patch.bpm} BPM`);
-    const applied = host.updateSession(patch, { notice: `${changes.join('; ')}.` });
+    const applied = host.updateSession(patch, { structural: true, notice: `${changes.join('; ')}.` });
     if (applied) phraseDialog.close();
     return applied;
   }
@@ -140,7 +140,7 @@ export function mountStudioPatterns(host) {
     const session = host.getSession();
     const options = { ...session.extensions.studio.generator, seed: variation ? crypto.getRandomValues(new Uint32Array(1))[0] : Number($('seed').value) };
     try {
-      if (host.updateSession(generatedPhrasePatch(session, options), { notice: `Frase gerada em ${session.bars} compassos.` })) phraseDialog.close();
+      if (host.updateSession(generatedPhrasePatch(session, options), { structural: true, notice: `Frase gerada em ${session.bars} compassos.` })) phraseDialog.close();
     } catch (error) { host.notify(error.message, true); }
   }
   $('generate').addEventListener('click', () => generate(false));

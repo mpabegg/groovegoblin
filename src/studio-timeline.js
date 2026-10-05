@@ -1,6 +1,5 @@
 import { ticksPerBar, sessionTicks, ARTICULATION_LABELS } from './session.js';
-import { addNote, updateNote } from './model.js';
-import { quantizeTick } from './meter.js';
+import { mountStudioNoteEditor } from './studio-note-editor.js';
 import { generateDrums } from './drums.js';
 import { generateBass } from './band.js';
 import { mountStudioHarmony } from './studio-harmony.js';
@@ -19,11 +18,9 @@ export function mountStudioTimeline(root, host) {
   const canvas = $('studio-canvas');
   const tracks = mountStudioTracks(host);
   const harmony = mountStudioHarmony(root, host);
-  let drag = null;
   let cursor = 0;
   let creationTicks = [];
   let zoom = 1;
-  let suppressClick = false;
 
   function size() {
     const width = scroll.clientWidth;
@@ -31,18 +28,17 @@ export function mountStudioTimeline(root, host) {
   }
   new ResizeObserver(size).observe(scroll);
   $('timeline-zoom').addEventListener('change', event => { zoom = Number(event.target.value); size(); });
-  function select(id) { host.setSelection(id); renderNotes(); host.selectionChanged?.(); }
   function focusNote(id) { $('notes').querySelector(`[data-id="${CSS.escape(id)}"]`)?.focus({ preventScroll: true }); }
-  function create(tick) {
-    if (host.isBusy()) return;
-    const session = host.getSession();
-    const notes = addNote(session.notes, tick, Math.min(4 / session.subdivision, sessionTicks(session) - tick), session, {
-      pitch: session.extensions?.studio?.inputPitch ?? 69, velocity: 0.8, articulation: 'normal',
-    });
-    if (notes === session.notes) { host.notify('Posição ocupada ou duração ultrapassa a frase.', true); return; }
-    const id = notes.find(note => !session.notes.some(previous => previous.id === note.id)).id;
-    host.setSelection(id); host.updateSession({ notes }); focusNote(id);
-  }
+  const editor = mountStudioNoteEditor(grid, host, {
+    renderNotes, focusNote, getCursor: () => cursor,
+    setCursor: tick => { cursor = tick; cursorPosition(); },
+    navigate: (key, shift) => {
+      const direction = key === 'ArrowRight' ? 1 : -1;
+      const index = creationTicks.indexOf(cursor);
+      cursor = key === 'Home' ? 0 : key === 'End' ? creationTicks.at(-1) : shift ? cursor + direction * 4 : creationTicks[Math.max(0, Math.min(creationTicks.length - 1, index + direction))];
+      cursorPosition();
+    },
+  });
   function cursorPosition() {
     const session = host.getSession();
     const total = sessionTicks(session);
@@ -50,85 +46,6 @@ export function mountStudioTimeline(root, host) {
     $('grid-cursor').style.left = `${cursor / total * 100}%`;
     $('grid-cursor').style.width = `${Math.min(4 / session.subdivision, total - cursor) / total * 100}%`;
     grid.setAttribute('aria-label', `Frase: compasso ${Math.floor(cursor / ticksPerBar(session)) + 1}, tempo ${number(cursor % ticksPerBar(session) / (16 / session.meter.unit) + 1)}. Setas navegam; Enter cria; seta para baixo entra nas notas.`);
-  }
-  grid.addEventListener('click', event => {
-    if (suppressClick) { suppressClick = false; return; }
-    const block = event.target.closest('.note');
-    if (block) { if (!host.isBusy()) select(block.dataset.id); return; }
-    const session = host.getSession();
-    const box = grid.getBoundingClientRect();
-    cursor = (event.clientX - box.left) / box.width * sessionTicks(session);
-    cursorPosition(); create(cursor);
-  });
-  grid.addEventListener('focusin', event => {
-    const block = event.target.closest('.note');
-    if (block && !host.isBusy() && block.dataset.id !== host.getSelection()) select(block.dataset.id);
-  });
-  grid.addEventListener('keydown', event => {
-    if (host.isBusy() || event.ctrlKey || event.metaKey || event.altKey) return;
-    const block = event.target.closest('.note');
-    const session = host.getSession();
-    const step = event.shiftKey ? 4 : 4 / session.subdivision;
-    if (!block) {
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Home' || event.key === 'End') {
-        event.preventDefault();
-        const direction = event.key === 'ArrowRight' ? 1 : -1;
-        const index = creationTicks.indexOf(cursor);
-        cursor = event.key === 'Home' ? 0 : event.key === 'End' ? creationTicks.at(-1)
-          : event.shiftKey ? cursor + direction * 4 : creationTicks[Math.max(0, Math.min(creationTicks.length - 1, index + direction))];
-        cursorPosition();
-      } else if (event.key === 'Enter') { event.preventDefault(); create(cursor); }
-      else if (event.key === 'ArrowDown' && session.notes.length) {
-        event.preventDefault(); const note = [...session.notes].sort((a, b) => a.start - b.start).find(item => item.start >= cursor) ?? session.notes[0];
-        select(note.id); focusNote(note.id);
-      }
-      return;
-    }
-    if (event.key === 'Enter') { event.preventDefault(); select(block.dataset.id); return; }
-    if (event.key === 'PageUp' || event.key === 'PageDown') {
-      event.preventDefault(); const notes = [...session.notes].sort((a, b) => a.start - b.start);
-      const index = notes.findIndex(note => note.id === block.dataset.id);
-      const next = notes[index + (event.key === 'PageDown' ? 1 : -1)];
-      if (next) { select(next.id); focusNote(next.id); }
-      return;
-    }
-    const note = session.notes.find(item => item.id === block.dataset.id);
-    const patch = event.key === 'ArrowLeft' ? { start: note.start - step } : event.key === 'ArrowRight' ? { start: note.start + step }
-      : event.key === 'ArrowDown' ? { duration: note.duration - step } : event.key === 'ArrowUp' ? { duration: note.duration + step }
-        : ['1', '2', '3', '4', '6', '8'].includes(event.key) ? { duration: Number(event.key) } : null;
-    if (patch) { event.preventDefault(); host.setSelection(note.id); host.commitNote(patch); }
-  });
-  grid.addEventListener('pointerdown', event => {
-    suppressClick = false;
-    const block = event.target.closest('.note');
-    if (!block || host.isBusy() || event.button !== 0) return;
-    event.preventDefault();
-    const session = host.getSession();
-    const note = session.notes.find(item => item.id === block.dataset.id);
-    host.setSelection(note.id);
-    drag = { id: note.id, x: event.clientX, start: note.start, duration: note.duration, resize: !!event.target.closest('.handle'), original: session, next: session.notes, pointer: event.pointerId };
-    grid.setPointerCapture(event.pointerId); renderNotes(); focusNote(note.id); host.selectionChanged?.();
-  });
-  grid.addEventListener('pointermove', event => {
-    if (!drag || drag.pointer !== event.pointerId || host.isBusy()) return;
-    const delta = quantizeTick((event.clientX - drag.x) / grid.getBoundingClientRect().width * sessionTicks(drag.original), drag.original.subdivision);
-    drag.next = updateNote(drag.original.notes, drag.id, drag.resize ? { duration: drag.duration + delta } : { start: drag.start + delta }, drag.original);
-    renderNotes(drag.next);
-  });
-  grid.addEventListener('pointerup', event => {
-    if (!drag || drag.pointer !== event.pointerId) return;
-    const { next, original } = drag;
-    // Pointer capture retargets even a stationary note click to the grid.
-    cancelDrag(); suppressClick = true;
-    if (!host.isBusy() && next !== original.notes) host.updateSession({ notes: next });
-    else renderNotes();
-  });
-  grid.addEventListener('pointercancel', () => { cancelDrag(); renderNotes(); });
-  grid.addEventListener('lostpointercapture', event => { if (drag?.pointer === event.pointerId) { cancelDrag(); renderNotes(); } });
-  function cancelDrag() {
-    const previous = drag; drag = null;
-    if (previous && grid.hasPointerCapture(previous.pointer)) grid.releasePointerCapture(previous.pointer);
-    return previous !== null;
   }
   function renderGrid(session) {
     const total = sessionTicks(session); const measure = ticksPerBar(session); const step = 4 / session.subdivision;
@@ -155,20 +72,21 @@ export function mountStudioTimeline(root, host) {
     const focusedId = document.activeElement?.closest('.note')?.dataset.id;
     $('notes').replaceChildren();
     for (const note of [...notes].sort((a, b) => a.start - b.start)) {
-      const selected = note.id === host.getSelection();
+      const selected = editor.ids().includes(note.id);
       const block = document.createElement('div'); block.className = `note${selected ? ' selected' : ''}`; block.dataset.id = note.id;
       block.setAttribute('role', 'gridcell'); block.tabIndex = selected ? 0 : -1;
       block.style.left = `calc(${note.start / total * 100}% + 2px)`; block.style.width = `max(6px, calc(${note.duration / total * 100}% - 4px))`;
       block.setAttribute('aria-selected', String(selected)); block.setAttribute('aria-disabled', String(host.isBusy()));
       block.setAttribute('aria-label', `Nota ${pitchName(note.pitch)}: compasso ${Math.floor(note.start / ticksPerBar(session)) + 1}, tempo ${number(note.start % ticksPerBar(session) / (16 / session.meter.unit) + 1)}, duração ${number(note.duration / (16 / session.meter.unit))} tempos, intensidade ${Math.round(note.velocity * 100)}%, ${ARTICULATION_LABELS[note.articulation]}`);
       block.textContent = figure(note.duration);
-      const handle = document.createElement('span'); handle.className = 'handle'; handle.setAttribute('aria-hidden', 'true'); block.append(handle);
+      const handle = document.createElement('span'); handle.className = 'handle'; handle.setAttribute('aria-hidden', 'true');
+      if (note.duration / total * grid.getBoundingClientRect().width - 4 >= 12) block.append(handle);
       $('notes').append(block);
     }
     const notation = buildRhythmNotation(notes, session); renderRhythmNotation($('rhythm-score'), notation);
     const svg = $('rhythm-score').querySelector('svg'); svg.style.minWidth = '0'; svg.setAttribute('preserveAspectRatio', 'none');
     if (!previewNotes) renderRhythmNotation($('practice-rhythm-score'), notation);
-    if (focusedId) focusNote(focusedId);
+    if (focusedId && editor.ids().includes(focusedId)) focusNote(focusedId);
   }
   function renderDrums(session) {
     const rows = $('drum-rows'); rows.replaceChildren();
@@ -212,5 +130,5 @@ export function mountStudioTimeline(root, host) {
       if (x < scroll.scrollLeft + 216 || x > scroll.scrollLeft + scroll.clientWidth - 24) scroll.scrollLeft = Math.max(0, x - scroll.clientWidth / 2);
     }
   }
-  return { render, renderNotes, renderControls, position, cancelDrag: () => { const notes = cancelDrag(); const chords = harmony.cancelDrag(); if (chords) harmony.renderLane(); return notes || chords; }, removeChord: harmony.removeSelected, renderSelection: () => { renderNotes(); harmony.render(); } };
+  return { render, renderNotes, renderControls, position, commitNote: editor.commit, removeNotes: editor.remove, cancelDrag: () => { const notes = editor.cancelDrag(); const chords = harmony.cancelDrag(); if (chords) harmony.renderLane(); return notes || chords; }, removeChord: harmony.removeSelected, renderSelection: () => { renderNotes(); harmony.render(); } };
 }

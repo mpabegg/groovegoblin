@@ -196,6 +196,7 @@ export class GrooveAudio {
   #keyDown = false;
   #monitor = null;
   #previewResolve = null;
+  #auditionRequest = 0;
 
   #activeNodes = new Set();
   #lastSnapshot = null;
@@ -351,6 +352,24 @@ export class GrooveAudio {
     this.#previewResolve = null;
     if (resolve) resolve(false);
     if (wasActive) this.#emitState(); // treino interrompido não entrega onFinish
+  }
+  // Editor feedback is not a transport mode. A resume race cannot interrupt a loop or train.
+  async audition(notes, { bpm = 100, timbre = 'soft-lead', channel = 'phrase' } = {}) {
+    if (this.#mode !== null) return false;
+    if (!Array.isArray(notes) || notes.some(note => !note || !Number.isInteger(note.pitch) || note.pitch < 0 || note.pitch > 127)) throw new TypeError('Alturas inválidas para a prévia.');
+    if (!Number.isInteger(bpm) || bpm < BPM_MIN || bpm > BPM_MAX || !['phrase', 'chords'].includes(channel)) throw new TypeError('Opções inválidas para a prévia.');
+    const gen = this.#generation; const request = ++this.#auditionRequest;
+    const ctx = this.#ensureContext();
+    if (ctx.state === 'suspended') await ctx.resume();
+    if (gen !== this.#generation || request !== this.#auditionRequest || this.#mode !== null) return false;
+    const time = ctx.currentTime + 0.01;
+    const duration = Math.min(0.35, Math.max(0.12, secondsPerTick(bpm) * 2));
+    if (channel === 'chords') {
+      for (const entry of playChord(ctx, this.#buses.chords, { time, duration, pitches: notes.map(note => note.pitch), velocity: notes[0]?.velocity ?? 0.65, timbre })) this.#track(entry);
+    } else {
+      for (const note of notes) this.#track(playTone(ctx, this.#buses.phrase, { time, duration, pitch: note.pitch, velocity: note.velocity ?? 0.8, articulation: note.articulation ?? 'normal', timbre }));
+    }
+    return true;
   }
 
   // Toque avulso (jogos de ouvido, prévias): notas podem se sobrepor.
