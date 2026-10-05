@@ -15,21 +15,21 @@
 </head>
 <body>
 <main>
-  <header class="masthead"><div><div class="eyebrow">SEU PARCEIRO DE PRÁTICA</div><h1>Groove<span>Goblin</span></h1></div><div class="masthead-actions"><span id="global-transport" class="global-transport"></span><button id="shortcuts-open" type="button" aria-haspopup="dialog" title="Atalhos de teclado (?)">Atalhos</button><button id="tour-open" type="button" class="help-button" aria-haspopup="dialog"><span aria-hidden="true">?</span>Como usar</button><details class="app-options"><summary>Offline</summary><div id="offline-status" aria-live="polite"></div></details></div></header>
+  <header class="masthead"><div><div class="eyebrow">SEU PARCEIRO DE PRÁTICA</div><h1>Groove<span>Goblin</span></h1></div><div class="masthead-actions"><span id="global-transport" class="global-transport"></span><details id="app-menu" class="app-options"><summary>Ajuda e app</summary><div class="app-menu-content"><button id="shortcuts-open" type="button" aria-haspopup="dialog" title="Atalhos de teclado (?)">Atalhos</button><button id="tour-open" type="button" class="help-button" aria-haspopup="dialog">Como usar</button><details><summary>Offline</summary><div id="offline-status" aria-live="polite"></div></details></div></details></div></header>
   <nav class="intentions" role="tablist" aria-label="O que você quer fazer?">
     <div class="primary-activities" role="presentation">
       <button id="tab-studio" role="tab" aria-selected="true" aria-controls="panel-studio"><span>Estúdio</span><small>Edite e toque sua sessão</small></button>
       <button id="tab-practice" role="tab" aria-selected="false" aria-controls="panel-practice" tabindex="-1"><span>Treinar</span><small>Toque e compare</small></button>
       <button id="tab-repertoire" role="tab" aria-selected="false" aria-controls="panel-repertoire" tabindex="-1"><span>Músicas</span><small>Importe e repita trechos</small></button>
     </div>
-    <div class="secondary-activities" role="presentation">
-      <span class="muted">Mais opções</span>
+    <details class="secondary-activities"><summary>Mais opções</summary><div class="activity-menu">
       <button id="tab-explore" role="tab" aria-selected="false" aria-controls="panel-explore" tabindex="-1">Explorar</button>
       <button id="tab-journey" role="tab" aria-selected="false" aria-controls="panel-journey" tabindex="-1">Percurso</button>
-    </div>
+    </div></details>
   </nav>
   <div id="studio-notices" class="studio-notices">
     <div id="session-status" class="panel-foot"><span id="message" role="status" aria-live="polite"></span></div>
+    <div id="replacement-notice" class="replacement-notice" role="status" aria-live="polite" hidden><span id="replacement-text"></span><button id="replacement-undo" type="button">Desfazer</button><span id="replacement-retired" hidden>Outra edição foi feita; use o histórico para voltar.</span></div>
     <section id="recovery" class="notice" hidden><h3>Dados originais protegidos</h3><p>Edições ficam na memória até você autorizar a substituição. Exporte os originais antes de continuar.</p><button id="download-recovery">Baixar originais</button><button id="replace-recovery">Substituir pela sessão atual</button></section>
     <section id="share-preview" class="notice" hidden><h3>Sessão recebida por link</h3><p id="share-description"></p><p>Nada foi substituído. Aplicar permite desfazer depois.</p><button id="apply-share">Aplicar sessão recebida</button><button id="dismiss-share">Dispensar</button></section>
   </div>
@@ -68,15 +68,19 @@
     </details>
     </div>
   </section>
+  <section id="empty-phrase" class="panel empty-phrase" aria-label="Começar uma frase" hidden>
+    <strong>Sua frase está vazia. Como quer começar?</strong>
+    <div class="empty-choices"><div class="empty-pattern-choice"><select id="empty-pattern" aria-label="Padrão para começar"></select><button id="start-pattern" type="button">Começar de um padrão</button><p id="empty-pattern-description" class="muted"></p></div><button id="empty-generate" type="button">Gerar uma frase</button><button id="write-from-scratch" type="button">Escrever do zero</button></div>
+  </section>
+  <div id="band-starters" class="empty-band-actions" hidden><button id="start-band" type="button">Ligar bateria e baixo</button><button id="start-full-band" type="button" title="Liga bateria e baixo padrão; cria acordes somente se a progressão estiver vazia">Ligar banda completa (bateria, baixo e acordes)</button><span class="muted">O acompanhamento é gerado; sua frase continua sendo sua.</span></div>
   <section id="studio-editor" class="panel studio-timeline" aria-labelledby="studio-timeline-title">
-    <h2 id="studio-timeline-title" class="timeline-heading">Linha do tempo · sua banda</h2>
-    <div class="timeline-toolbar"><span class="muted">Uma régua para toda a sessão</span><label>Zoom <select id="timeline-zoom" aria-label="Zoom de todas as faixas e da partitura"><option value="1">Ajustar tudo</option><option value="1.5">150%</option><option value="2">200%</option><option value="4">400%</option></select></label></div>
+    <h2 id="studio-timeline-title" class="sr-only">Linha do tempo da sessão</h2>
     <div id="studio-scroll" class="studio-scroll"><div id="studio-canvas" class="studio-canvas">
       <div id="studio-lanes" class="studio-lanes">
         <div class="studio-ruler"><div class="track-header ruler-heading">Faixas</div><div id="beat-labels" class="beat-labels"></div></div>
-        <section id="track-chords" class="studio-track" aria-label="Faixa de harmonia">
+        <section id="track-chords" class="studio-track" aria-label="Faixa de acordes">
           <header class="track-header">
-            <label class="toggle track-name"><input id="chords-enabled" data-path="progression.enabled" type="checkbox"> Harmonia</label>
+            <label class="toggle track-name"><input id="chords-enabled" data-path="progression.enabled" type="checkbox"> Acordes</label>
             <div class="track-extra"><label class="track-key">Tom <select id="progression-key" data-path="progression.keyId" aria-label="Tonalidade"></select></label>
               <details id="harmony-options" class="track-disclosure"><summary>Progressões prontas</summary><div class="track-popover"><div class="tool-row"><label>Funções<select id="progression-function"><option value="cadence">Tônica → subdominante → dominante → tônica</option><option value="turnaround">Turnaround I–vi–ii–V</option><option value="random">Diatônica livre</option></select></label><button id="generate-progression">Gerar progressão</button></div><p class="tool-hint muted">Preenche exatamente a sessão, em tempos inteiros, sem mudar seus compassos. Para inserir com pausas, clique na faixa.</p></div></details>
               <div id="track-chords-sound" class="track-sound-controls"></div>
@@ -88,10 +92,8 @@
             <details id="phrase-options" class="track-disclosure"><summary>Grade e swing</summary><div class="track-popover"><div class="tool-row">
               <label>Divisões por semínima<select id="subdivision" data-path="subdivision"><option value="1">1</option><option value="2">2</option><option value="3">3 · tercina</option><option value="4">4</option><option value="5">5 · quintina</option><option value="6">6</option><option value="7">7 · septina</option><option value="8">8</option></select></label>
               <label>Swing<input id="swing" data-path="swing" type="number" min="0" max="0.75" step="0.05"></label><label>Base do swing<select id="swing-unit" data-path="swingUnit"><option value="eighth">Colcheia</option><option value="sixteenth">Semicolcheia</option></select></label>
-              <label>Transposição (semitons)<input id="transpose-semitones" type="number" min="-24" max="24" step="1" value="0"></label><button id="transpose-phrase" type="button">Transpor frase</button><button id="clear">Limpar frase</button>
-            </div><p class="tool-hint muted">Clique para criar; arraste a nota para mover ou sua borda direita para mudar a duração. Enter cria na posição navegada pelas setas. ↓ entra nas notas; PageUp/PageDown selecionam a nota anterior/seguinte. ? mostra os atalhos.</p>
-    <details id="inspiration" class="inspiration"><summary>Biblioteca e gerador de frases</summary><div class="inspiration-tools"><section><h3>Padrões de referência</h3><div class="tool-row"><select id="groove-library" aria-label="Padrão rítmico"><option value="">Escolha um padrão</option></select><button id="load-groove">Carregar padrão</button></div><div id="groove-description" class="muted"></div></section><section><h3>Gerador</h3><div class="tool-row"><label>Densidade<select id="density" data-path="generator.density"><option value="sparse">Poucas notas</option><option value="medium">Média</option><option value="busy">Muitas notas</option></select></label><label>Ataques<select id="syncopation" data-path="generator.syncopation"><option value="straight">Nos tempos</option><option value="mixed">Mistos</option><option value="syncopated">Sincopados</option></select></label><label>Durações<select id="lengths" data-path="generator.lengths"><option value="short">Curtas</option><option value="mixed">Variadas</option><option value="long">Longas</option></select></label><label>Semente<input id="seed" data-path="generator.seed" type="number" min="0" max="4294967295"></label></div><button id="generate">Gerar com semente</button><button id="variation">Nova variação</button></section></div></details>
-            </div></details>
+              <label>Zoom <select id="timeline-zoom" aria-label="Zoom de todas as faixas e da partitura"><option value="1">Ajustar tudo</option><option value="1.5">150%</option><option value="2">200%</option><option value="4">400%</option></select></label><button id="open-phrase-tools" type="button" aria-haspopup="dialog">Biblioteca e gerador</button>
+            </div></div></details>
             <div id="track-phrase-sound" class="track-sound-controls"></div>
           </div></header><div id="grid" class="track-lane grid" role="grid" tabindex="0" aria-label="Editor de frase"><div id="marks" class="marks" aria-hidden="true"></div><div id="grid-cursor" aria-hidden="true"></div><div id="notes" class="notes" role="row"></div></div>
         </section>
@@ -114,24 +116,26 @@
   <div id="harmony-context" class="harmony-context" hidden><span id="progression-status" role="status"></span><button id="fit-progression" type="button">Ajustar ao tamanho da sessão</button></div>
   <section id="studio-inspector" class="panel studio-inspector" aria-label="Inspetor da seleção">
     <span id="selection-text"></span>
-    <details id="note-detail"><summary>Editar nota selecionada</summary><div id="inspector-content">
-      <div class="editor"><div id="presets" class="presets" role="group" aria-label="Durações"></div><label>Início (ticks)<input id="note-start" type="number" min="0" step="any"></label><label>Duração (ticks)<input id="note-duration" type="number" min="0.01" step="any"></label><label>Altura (MIDI)<input id="note-pitch" type="number" min="21" max="108"></label><label>Velocidade<input id="note-velocity" type="number" min="0" max="1" step="0.05"></label><label>Articulação<select id="note-articulation"></select></label><label>Microtempo (ms)<input id="note-offsetMs" type="number" min="-80" max="80" step="1"></label><button id="delete">Excluir nota</button></div>
-      <p class="tool-hint muted">Microtempo desloca expressivamente a nota, sem mover sua posição notada.</p>
-    </div></details>
+    <div id="phrase-actions" class="phrase-actions"><button id="open-pattern" type="button" aria-haspopup="dialog">Carregar padrão</button><button id="generate-phrase" type="button">Gerar frase</button><button id="clear" type="button">Limpar</button><details id="transpose-options"><summary>Transpor</summary><div class="inspector-popover"><label>Semitons <input id="transpose-semitones" type="number" min="-24" max="24" step="1" value="0"></label><button id="transpose-phrase" type="button">Transpor frase</button></div></details></div>
+    <section id="note-detail" aria-label="Editar nota selecionada" hidden><div id="inspector-content" class="note-inspector-row">
+      <div id="presets" class="presets" role="group" aria-label="Durações em figuras musicais"></div><details id="more-durations"><summary>Mais durações</summary><div id="extra-presets" class="inspector-popover presets" role="group" aria-label="Durações pontuadas e quiálteras"></div></details>
+      <label>Intensidade <input id="note-velocity" type="number" min="0" max="100" step="1"> %</label><label>Articulação <select id="note-articulation"></select></label><button id="delete" type="button">Excluir nota</button>
+      <details id="note-advanced"><summary>Avançado</summary><div class="inspector-popover"><span id="note-pitch-name"></span><div class="tool-row"><label>Altura (número MIDI)<input id="note-pitch" type="number" min="21" max="108" step="1"></label><label>Posição exata (ticks)<input id="note-start" type="number" min="0" step="any"></label><label>Duração exata (ticks)<input id="note-duration" type="number" min="0.01" step="any"></label><label>Microtempo (ms)<input id="note-offsetMs" type="number" min="-80" max="80" step="1"></label></div><p class="tool-hint muted">Microtempo é o deslocamento do ataque em milissegundos: negativo antecipa e positivo atrasa, sem mudar a posição escrita.</p></div></details>
+    </div></section>
     <section id="chord-inspector" class="chord-inspector" aria-label="Editar acorde selecionado" hidden>
       <div class="chord-inspector-heading"><strong id="chord-selection-title"></strong><button id="delete-chord" type="button">Excluir acorde</button></div>
       <div id="chord-diatonic" class="chord-choices chord-diatonic" role="group" aria-label="Graus diatônicos"></div>
-      <div class="chord-inspector-options">
+      <details class="chord-advanced"><summary>Avançado · cifras e inversões</summary><div class="inspector-popover chord-inspector-options">
         <details><summary>Empréstimos</summary><div id="chord-borrowed" class="chord-choices" role="group" aria-label="Empréstimos modais"></div></details>
         <details><summary>Dominantes secundárias</summary><div id="chord-secondary" class="chord-choices" role="group" aria-label="Dominantes secundárias"></div></details>
         <label>Outro símbolo <input id="chord-symbol" type="text" maxlength="30" aria-label="Outro símbolo de acorde" placeholder="Ex.: Dm7, G7/B"></label>
         <div id="chord-inversions" class="chord-inversions" role="group" aria-label="Inversão do acorde"></div>
-      </div>
-      <p id="harmony-help" class="tool-hint muted">Clique no vazio para criar uma tônica nesse compasso. Arraste para mover ou reordenar; a borda direita muda a duração. Setas ←/→ movem um tempo; Shift+setas redimensiona. Enter seleciona; Delete exclui. Espaço toca/para.</p>
+      </div></details>
+      <p id="harmony-help" class="sr-only">Clique no vazio para criar uma tônica nesse compasso. Arraste para mover ou reordenar; a borda direita muda a duração. Setas ←/→ movem um tempo; Shift+setas redimensiona. Enter seleciona; Delete exclui. Espaço toca/para.</p>
     </section>
   </section>
   <div class="studio-secondary-options">
-    <details id="band-options" class="control-detail"><summary>Opções da banda</summary><div class="tool-row"><label>Seu papel<select id="band-role" data-path="band.role"><option value="solo">Solista / frase</option><option value="bass">Baixista</option><option value="harmony">Harmonia</option><option value="drums">Baterista</option></select></label><label>Resposta<select id="band-mode" data-path="band.mode"><option value="steady">Pulso estável</option><option value="follow">Segue a frase</option></select></label></div><p class="tool-hint muted">O instrumento do seu papel fica silencioso para você tocá-lo. A resposta “Segue a frase” reage à execução no treino; a linha do tempo mostra o padrão de referência. Os botões M silenciados não apagam eventos.</p></details>
+    <details id="band-options" class="control-detail"><summary>Opções da banda</summary><div class="tool-row"><label>Qual parte você vai tocar?<select id="band-role" data-path="band.role" title="A faixa correspondente fica muda para você tocá-la"><option value="solo">Frase / melodia</option><option value="bass">Baixo</option><option value="harmony">Acordes</option><option value="drums">Bateria</option></select></label><label>Como a banda acompanha?<select id="band-mode" data-path="band.mode"><option value="steady">Mantém o pulso</option><option value="follow">Responde ao que você toca</option></select></label></div><p class="tool-hint muted">A faixa correspondente fica muda. A banda mantém o pulso ou responde ao que você toca durante o treino; a linha do tempo mostra a referência gerada. Silenciar não apaga eventos.</p></details>
   </div>
     <details id="form-panel" class="panel">
       <summary>Organizar uma música em seções</summary>
@@ -167,6 +171,11 @@
   <section id="panel-journey" class="intention-panel" role="tabpanel" aria-labelledby="tab-journey" hidden><div id="journey-mount"></div></section>
   <footer>Seus dados ficam neste navegador. <a href="./guide.html">Guia e método de avaliação</a></footer>
 </main>
+<dialog id="phrase-tools-dialog" class="shortcuts-dialog phrase-tools-dialog" aria-labelledby="phrase-tools-title">
+  <h2 id="phrase-tools-title">Padrões e gerador de frases</h2>
+  <div id="inspiration" class="inspiration-tools"><section><h3>Carregar padrão</h3><div class="tool-row"><select id="groove-library" aria-label="Padrão rítmico"></select><button id="load-groove" type="button">Carregar padrão</button></div><p id="groove-description" class="muted"></p><details><summary>Fontes e detalhes do padrão</summary><div id="groove-details"></div></details></section><section><h3>Gerar frase</h3><div class="tool-row"><label>Densidade<select id="density" data-path="generator.density"><option value="sparse">Poucas notas</option><option value="medium">Média</option><option value="busy">Muitas notas</option></select></label><label>Ataques<select id="syncopation" data-path="generator.syncopation"><option value="straight">Nos tempos</option><option value="mixed">Mistos</option><option value="syncopated">Sincopados</option></select></label><label>Durações<select id="lengths" data-path="generator.lengths"><option value="short">Curtas</option><option value="mixed">Variadas</option><option value="long">Longas</option></select></label></div><button id="variation" type="button">Gerar outra frase</button><details><summary>Avançado</summary><label>Semente <input id="seed" data-path="generator.seed" type="number" min="0" max="4294967295"></label><button id="generate" type="button">Gerar com esta semente</button></details></section></div>
+  <button id="phrase-tools-close" type="button">Fechar</button>
+</dialog>
 <dialog id="shortcuts-dialog" class="shortcuts-dialog" aria-labelledby="shortcuts-title" aria-describedby="shortcuts-scope">
   <h2 id="shortcuts-title">Atalhos de teclado</h2>
   <p id="shortcuts-scope">No Estúdio, fora dos campos de edição. Durante o treino, Espaço continua sendo o toque do ritmo.</p>

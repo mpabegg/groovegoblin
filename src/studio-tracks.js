@@ -1,6 +1,6 @@
 import { TIMBRES, TIMBRE_LABELS, STYLES, DENSITIES, STYLE_LABELS, DENSITY_LABELS } from './session.js';
 
-const names = { phrase: 'Frase', chords: 'Harmonia', drums: 'Bateria', bass: 'Baixo', metronome: 'Metrônomo' };
+const names = { phrase: 'Frase', chords: 'Acordes', drums: 'Bateria', bass: 'Baixo', metronome: 'Metrônomo' };
 
 // Controls use the same validated session/history/live-audio path as the transport.
 export function mountStudioTracks(host) {
@@ -14,12 +14,12 @@ export function mountStudioTracks(host) {
     }
   }
   document.getElementById('generate-drums').addEventListener('click', () => {
-    if (!host.isBusy()) host.updateSession({ drums: { enabled: true, seed: crypto.getRandomValues(new Uint32Array(1))[0] } });
+    if (!host.isBusy()) host.updateSession({ drums: { enabled: true, seed: crypto.getRandomValues(new Uint32Array(1))[0] } }, { notice: 'Nova variação da bateria aplicada.' });
   });
   for (const [channel, name] of Object.entries(names)) {
     const container = document.getElementById(`track-${channel}-sound`);
     const sound = document.createElement('details'); sound.className = 'track-sound'; sound.id = `track-${channel}-mix`;
-    const summary = document.createElement('summary'); summary.textContent = 'Som'; summary.setAttribute('aria-label', `Volume e mute: ${name}`);
+    const summary = document.createElement('summary'); summary.textContent = 'Som'; summary.setAttribute('aria-label', `Som e opções: ${name}`);
     const popover = document.createElement('div'); popover.className = 'track-sound-popover';
     sound.append(summary, popover);
     const volumeLabel = document.createElement('label'); volumeLabel.className = 'track-volume';
@@ -40,8 +40,9 @@ export function mountStudioTracks(host) {
       for (const value of TIMBRES[channel]) {
         const option = document.createElement('option'); option.value = value; option.textContent = TIMBRE_LABELS[value]; timbre.append(option);
       }
-      container.append(timbre);
+      const label = document.createElement('label'); label.className = 'track-timbre-label'; label.append(document.createTextNode('Timbre'), timbre); popover.append(label);
     }
+    if (channel === 'drums') popover.append(document.getElementById('drum-advanced'));
     controls.push({ channel, volume, output, mute, timbre, summary });
   }
   function render() {

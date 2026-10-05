@@ -8,6 +8,9 @@ import { prepareArrangement } from '../src/arrangement.js';
 import { readSessionLibrary, SESSION_LIBRARY_KEY } from '../src/studio-state.js';
 import { History } from '../src/history.js';
 import { sessionToMidi, parseMidi, MIDI_PPQ } from '../src/repertoire-formats.js';
+import { compileBarPlan } from '../src/form.js';
+import { renderSession } from '../src/audio.js';
+import { audioContext } from './audio-harness.js';
 
 const fixtures = JSON.parse(readFileSync(new URL('./fixtures/session-v2-arrangements.json', import.meta.url), 'utf8'));
 const storageKey = 'groovegoblin.session.v2';
@@ -77,6 +80,38 @@ for (const fixture of fixtures) {
     const arrangement = prepareArrangement(session);
     const events = Array.from({ length: session.bars }, (_, bar) => arrangement.barEvents(bar, { barIndex: bar }));
     assert.deepEqual(events, fixture.events);
+  });
+}
+
+for (const length of [3, 64]) {
+  test(`v2 migration retains accumulated duration tolerance for ${length} chords after v3 persistence`, () => {
+    const durationBars = 1.0000001;
+    const old = { version: 2, progression: { enabled: true, chords: Array.from({ length }, () => ({
+      symbol: 'C', notes: [{ name: 'C', midi: 48 }], durationBars,
+    })) } };
+    const result = validateSession(old);
+    assert.equal(result.ok, true);
+    const migrated = result.session;
+    let cursor = 0;
+    for (const item of migrated.progression.chords) {
+      assert.equal(item.startBar, cursor);
+      assert.equal(item.durationBars, durationBars);
+      cursor += durationBars;
+    }
+    assert.equal(migrated.progression.cycleBars, cursor);
+    const db = storage();
+    assert.equal(saveSession(migrated, db), true);
+    assert.equal(JSON.parse(db.getItem(storageKey)).version, 3);
+    assert.deepEqual(loadSession(db).session, migrated);
+    assert.deepEqual(validateSession(migrated).session, migrated);
+    assert.deepEqual(parseSession(serializeSession(migrated)), migrated);
+    assert.deepEqual(decodeSessionLink(encodeSessionLink(migrated)), migrated);
+    const invalidDuration = { ...migrated, progression: { ...migrated.progression,
+      chords: [{ ...migrated.progression.chords[0], durationBars: 1.0000003 }] } };
+    assert.equal(validateSession(invalidDuration).ok, false);
+    const overlap = { ...migrated, progression: { ...migrated.progression,
+      chords: [migrated.progression.chords[0], { ...migrated.progression.chords[1], startBar: 0.999996 }] } };
+    assert.equal(validateSession(overlap).ok, false);
   });
 }
 
@@ -226,4 +261,103 @@ test('MIDI exports explicit intervals across the full session, with gaps, repeti
   assert.equal(parseMidi(sessionToMidi(session, { includeChords: false })).tracks.length, 2);
   const invisible = createSession({ progression: { enabled: true, cycleBars: 4, chords: [chord('C', 2)] } });
   assert.equal(parseMidi(sessionToMidi(invisible)).tracks.length, 2);
+});
+
+test('steady and follow harmony and bass carry a hard audible boundary to the compiled plan', () => {
+  for (const mode of ['steady', 'follow']) {
+    const session = createSession({ bpm: 100, progression: { enabled: true, cycleBars: 1, chords: [chord('C', 0.25, 0.5)] },
+      band: { mode, bassEnabled: true, style: 'pop', density: 'busy' }, timbres: { chords: 'pad' }, metronome: { enabled: false } });
+    const options = mode === 'follow' ? { activity: { previous: [], earlier: [11] } } : {};
+    const arranged = prepareArrangement(session).barEvents(0, options);
+    for (const channel of ['chords', 'bass']) {
+      const events = arranged.filter(event => event.channel === channel);
+      assert.ok(events.length > 0);
+      assert.ok(events.every(event => event.stopTick === 12));
+    }
+    const bar = compileBarPlan(session).bars[0];
+    for (const event of bar.events(options)) {
+      assert.equal(event.stopTick, 12);
+      assert.ok(Math.abs(event.tick * bar.secPerTick + event.maxSeconds - 1.8) < 1e-8);
+    }
+    if (mode === 'follow') {
+      const answer = bar.events(options).find(event => event.channel === 'chords');
+      assert.equal(answer.tick, 11);
+      assert.ok(Math.abs(answer.maxSeconds - 0.15) < 1e-8);
+    }
+  }
+});
+
+test('the hard pause boundary follows section BPM/meter conversion and is minimized with the section edge', () => {
+  const section = { id: 'a', kind: 'A', startBar: 0, endBar: 1, repeats: 1, bpm: 60, meter: { beats: 3, unit: 8 } };
+  const session = createSession({ bpm: 100, progression: { enabled: true, cycleBars: 1, chords: [chord('C', 0.25, 0.5)] },
+    band: { bassEnabled: true, style: 'pop', density: 'busy' }, metronome: { enabled: false }, form: { enabled: true, sections: [section] } });
+  const bar = compileBarPlan(session).bars[0];
+  assert.equal(bar.ticks, 6);
+  assert.equal(bar.secPerTick, 0.25);
+  assert.ok(bar.events().length > 0);
+  for (const event of bar.events()) {
+    assert.equal(event.stopTick, 4.5);
+    assert.ok(Math.abs(event.tick * bar.secPerTick + event.maxSeconds - 1.125) < 1e-8);
+  }
+  const longer = createSession({ bars: 2, bpm: 100, progression: { enabled: true, cycleBars: 2, chords: [chord('C', 0, 1.75)] },
+    band: { style: 'complement' }, metronome: { enabled: false }, form: { enabled: true, sections: [section] } });
+  const clipped = compileBarPlan(longer).bars[0];
+  assert.ok(clipped.events().length > 0);
+  for (const event of clipped.events()) {
+    assert.equal(event.stopTick, 10.5);
+    assert.ok(Math.abs(event.tick * clipped.secPerTick + event.maxSeconds - clipped.duration) < 1e-8);
+  }
+});
+
+test('contiguous chords share their next pause boundary across bars; fully continuous v2 keeps its original tails', () => {
+  const session = createSession({ bars: 2, progression: { enabled: true, cycleBars: 2, chords: [chord('C', 0), chord('G', 1, 0.5)] },
+    band: { style: 'complement' }, metronome: { enabled: false } });
+  const arrangement = prepareArrangement(session);
+  assert.equal(arrangement.barEvents(0)[0].stopTick, 24);
+  assert.equal(arrangement.barEvents(1)[0].stopTick, 8);
+  for (const fixture of fixtures) {
+    const continuous = validateSession(fixture.session).session;
+    const plan = compileBarPlan(continuous);
+    for (const bar of plan.bars) {
+      for (const event of bar.events()) {
+        if (event.channel !== 'chords' && event.channel !== 'bass') continue;
+        assert.equal(Object.hasOwn(event, 'stopTick'), false);
+        assert.equal(event.maxSeconds, Infinity);
+      }
+    }
+  }
+});
+
+test('offline dispatch hard-stops pad and piano sources at the explicit pause rather than their timbre tail', async () => {
+  for (const timbre of ['pad', 'electric-piano']) {
+    const session = createSession({ bpm: 100, progression: { enabled: true, cycleBars: 1, chords: [chord('C', 0.25, 0.5)] },
+      band: { style: 'complement' }, timbres: { chords: timbre }, metronome: { enabled: false } });
+    const rendered = await renderSession(session, { sampleRate: 8000, tailSeconds: 0, contextFactory: audioContext });
+    assert.ok(rendered.context.sources.length > 0);
+    for (const source of rendered.context.sources) assert.ok(Math.abs(source.stops.at(-1) - 1.8) < 1e-8);
+  }
+});
+
+test('offline follow responses inherit the hard pause boundary for every chord voice', async () => {
+  const session = createSession({ bars: 3, bpm: 100, training: { countInBars: 0 },
+    progression: { enabled: true, cycleBars: 1, chords: [chord('C', 0.25, 0.5)] },
+    band: { mode: 'follow', style: 'complement' }, timbres: { chords: 'pad' }, metronome: { enabled: false } });
+  const rendered = await renderSession(session, { loops: 1, countIn: false, attempts: [{ start: 1.65, end: 1.7, pitch: 60 }],
+    sampleRate: 8000, tailSeconds: 0, contextFactory: audioContext });
+  const responses = rendered.context.sources.filter(source => source.startTime > 4.8);
+  assert.ok(responses.length > 0);
+  for (const source of responses) {
+    assert.ok(Math.abs(source.startTime - 6.45) < 1e-8);
+    assert.ok(Math.abs(source.stops.at(-1) - 6.6) < 1e-8);
+  }
+});
+
+test('a source-loop leading pause hard-stops voices clipped from a longer harmonic cycle at the loop seam', () => {
+  const session = createSession({ progression: { enabled: true, cycleBars: 2, chords: [chord('C', 0.25, 1.5)] },
+    band: { style: 'complement' }, metronome: { enabled: false } });
+  const events = prepareArrangement(session).barEvents(0);
+  assert.ok(events.length > 0);
+  assert.ok(events.every(event => event.stopTick === 16));
+  const bar = compileBarPlan(session).bars[0];
+  for (const event of bar.events()) assert.ok(Math.abs(event.tick * bar.secPerTick + event.maxSeconds - bar.duration) < 1e-8);
 });

@@ -95,12 +95,27 @@ export function prepareArrangement(session) {
     && (progression.chords[0].startBar > EPSILON
       || progression.chords.some((chord, index, chords) => chord.startBar + chord.durationBars
         < (chords[index + 1]?.startBar ?? progression.cycleBars) - EPSILON));
-  const harmony = session.band.mode === 'follow' && hasHarmonyGaps
+  const harmony = hasHarmonyGaps
     ? chordTimeline(session).map(event => ({
       ...event,
       start: tripletBand ? event.start : performTick(session, event.start),
       end: tripletBand ? event.start + event.duration : performTick(session, event.start + event.duration),
+      releaseBoundary: tripletBand ? event.start + event.chord.durationBars * barTicks
+        : performTick(session, event.start + event.chord.durationBars * barTicks),
     })) : [];
+  // A release can outlive its notated duration. Bound every voice in a
+  // contiguous harmonic run at the next explicit pause, not at chord changes.
+  let stopTick = null;
+  for (let index = harmony.length - 1; index >= 0; index -= 1) {
+    const interval = harmony[index];
+    const endBar = interval.chord.startBar + interval.chord.durationBars;
+    const nextBar = progression.chords[interval.index + 1]?.startBar
+      ?? progression.cycleBars + progression.chords[0].startBar;
+    if (endBar < nextBar - EPSILON) stopTick = interval.releaseBoundary;
+    interval.stopTick = stopTick;
+  }
+  const loopStartsInGap = hasHarmonyGaps
+    && !harmony.some(interval => loopStartTick >= interval.start - EPSILON && loopStartTick < interval.end - EPSILON);
   const clicks = metronomeTicks(session, session.metronome.pattern);
   const countClicks = metronomeTicks(session, 'quarters');
   const clipToLoop = (start, duration) => Math.max(0.01, Math.min(start + duration, loopEndTick) - start);
@@ -219,7 +234,19 @@ export function prepareArrangement(session) {
       const { enabled, audibleBars, silentBars } = session.metronome;
       if (enabled && (silentBars === 0 || barIndex % (audibleBars + silentBars) < audibleBars)) events.push(...clickEvents(clicks));
       if (session.companion.enabled) events.push(...companionEvents(barIndex));
-      return follow(events, activity, sessionBar).sort((a, b) => a.tick - b.tick);
+      const realized = follow(events, activity, sessionBar);
+      if (hasHarmonyGaps) {
+        for (const event of realized) {
+          if (event.channel !== 'chords' && event.channel !== 'bass') continue;
+          const absoluteTick = barStart + event.tick;
+          const interval = harmony.find(item => absoluteTick >= item.start - EPSILON && absoluteTick < item.end - EPSILON);
+          if (interval) {
+            const boundary = Math.min(interval.stopTick ?? Infinity, loopStartsInGap ? loopEndTick : Infinity);
+            if (Number.isFinite(boundary)) event.stopTick = boundary - barStart;
+          }
+        }
+      }
+      return realized.sort((a, b) => a.tick - b.tick);
     },
   };
 }

@@ -9,6 +9,9 @@ export function mountStudio({ onActivate }) {
       document.getElementById(item.getAttribute('aria-controls')).hidden = !active;
     }
     document.body.dataset.intent = tab.id.slice(4);
+    const more = tab.closest('.secondary-activities');
+    if (more) more.open = true;
+    else document.querySelector('.secondary-activities').open = false;
     onActivate(tab.id);
   }
   for (const tab of tabs) {

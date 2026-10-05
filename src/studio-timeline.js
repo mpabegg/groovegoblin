@@ -1,4 +1,4 @@
-import { ticksPerBar, sessionTicks } from './session.js';
+import { ticksPerBar, sessionTicks, ARTICULATION_LABELS } from './session.js';
 import { addNote, updateNote } from './model.js';
 import { quantizeTick } from './meter.js';
 import { generateDrums } from './drums.js';
@@ -6,6 +6,7 @@ import { generateBass } from './band.js';
 import { mountStudioHarmony } from './studio-harmony.js';
 import { buildRhythmNotation, renderRhythmNotation } from './notation.js';
 import { mountStudioTracks } from './studio-tracks.js';
+import { pitchName } from './studio-inspector.js';
 
 const figure = duration => ({ 1: '𝅘𝅥𝅯', 2: '♪', 3: '♪·', 4: '♩', 6: '♩·', 8: '𝅗𝅥', 12: '𝅗𝅥·', 16: '𝅝' })[duration] ?? '';
 const number = value => String(Math.round(value * 1000) / 1000);
@@ -48,7 +49,7 @@ export function mountStudioTimeline(root, host) {
     cursor = creationTicks.findLast(tick => tick <= cursor + 1e-8) ?? 0;
     $('grid-cursor').style.left = `${cursor / total * 100}%`;
     $('grid-cursor').style.width = `${Math.min(4 / session.subdivision, total - cursor) / total * 100}%`;
-    grid.setAttribute('aria-label', `Frase: compasso ${Math.floor(cursor / ticksPerBar(session)) + 1}, posição ${number(cursor % ticksPerBar(session))} ticks. Setas navegam; Enter cria; seta para baixo entra nas notas.`);
+    grid.setAttribute('aria-label', `Frase: compasso ${Math.floor(cursor / ticksPerBar(session)) + 1}, tempo ${number(cursor % ticksPerBar(session) / (16 / session.meter.unit) + 1)}. Setas navegam; Enter cria; seta para baixo entra nas notas.`);
   }
   grid.addEventListener('click', event => {
     if (suppressClick) { suppressClick = false; return; }
@@ -156,10 +157,10 @@ export function mountStudioTimeline(root, host) {
     for (const note of [...notes].sort((a, b) => a.start - b.start)) {
       const selected = note.id === host.getSelection();
       const block = document.createElement('div'); block.className = `note${selected ? ' selected' : ''}`; block.dataset.id = note.id;
-      block.setAttribute('role', 'gridcell'); block.tabIndex = selected || (!host.getSelection() && note === notes[0]) ? 0 : -1;
+      block.setAttribute('role', 'gridcell'); block.tabIndex = selected ? 0 : -1;
       block.style.left = `calc(${note.start / total * 100}% + 2px)`; block.style.width = `max(6px, calc(${note.duration / total * 100}% - 4px))`;
       block.setAttribute('aria-selected', String(selected)); block.setAttribute('aria-disabled', String(host.isBusy()));
-      block.setAttribute('aria-label', `Nota MIDI ${note.pitch}: início ${number(note.start)}, duração ${number(note.duration)} ticks, velocidade ${number(note.velocity)}, ${note.articulation}`);
+      block.setAttribute('aria-label', `Nota ${pitchName(note.pitch)}: compasso ${Math.floor(note.start / ticksPerBar(session)) + 1}, tempo ${number(note.start % ticksPerBar(session) / (16 / session.meter.unit) + 1)}, duração ${number(note.duration / (16 / session.meter.unit))} tempos, intensidade ${Math.round(note.velocity * 100)}%, ${ARTICULATION_LABELS[note.articulation]}`);
       block.textContent = figure(note.duration);
       const handle = document.createElement('span'); handle.className = 'handle'; handle.setAttribute('aria-hidden', 'true'); block.append(handle);
       $('notes').append(block);
@@ -182,7 +183,7 @@ export function mountStudioTimeline(root, host) {
       for (const hit of hits) {
         const mark = document.createElement('span'); mark.className = 'drum-hit'; mark.dataset.voice = hit.instrument; mark.dataset.start = hit.start; mark.dataset.position = hit.start / sessionTicks(session);
         mark.style.left = `${hit.start / sessionTicks(session) * 100}%`; mark.style.opacity = String(Math.max(0.25, hit.velocity));
-        mark.title = `${hit.instrument} · posição ${number(hit.start)} · intensidade ${Math.round(hit.velocity * 100)}%`; mark.setAttribute('aria-hidden', 'true'); row.append(mark);
+        mark.title = `${hit.instrument} · tempo ${number(hit.start / (16 / session.meter.unit) + 1)} · intensidade ${Math.round(hit.velocity * 100)}%`; mark.setAttribute('aria-hidden', 'true'); row.append(mark);
       }
       row.append(label); rows.append(row);
     }
@@ -194,7 +195,7 @@ export function mountStudioTimeline(root, host) {
     for (const note of notes) {
       const block = document.createElement('span'); block.className = 'bass-note'; block.dataset.start = note.start; block.dataset.duration = note.duration; block.dataset.pitch = note.pitch;
       block.style.left = `${note.start / sessionTicks(session) * 100}%`; block.style.width = `${Math.min(note.duration, sessionTicks(session) - note.start) / sessionTicks(session) * 100}%`;
-      block.title = `Baixo MIDI ${note.pitch} · posição ${number(note.start)} · duração ${number(note.duration)}`; lane.append(block);
+      block.title = `Baixo ${pitchName(note.pitch)} · tempo ${number(note.start / (16 / session.meter.unit) + 1)} · duração ${number(note.duration / (16 / session.meter.unit))} tempos`; lane.append(block);
     }
   }
   function render() {

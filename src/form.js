@@ -75,7 +75,8 @@ export function compileBarPlan(session, { training = false, repetitions = sessio
           events({ barIndex = index, includePhrase = true, activity = null } = {}) {
             let events = arrangement.barEvents(sourceBar, { barIndex, includePhrase: includePhrase && section.kind !== 'intro', activity })
               .filter(event => event.channel !== 'metronome')
-              .map(event => ({ ...event, tick: event.tick * ratio, duration: event.duration * ratio }));
+              .map(event => ({ ...event, tick: event.tick * ratio, duration: event.duration * ratio,
+                ...(event.stopTick !== undefined && { stopTick: event.stopTick * ratio }) }));
             if (section.kind === 'intro') events = events.filter(event => event.tick < EPSILON);
             if (section.kind === 'break') events = events.filter(event => event.channel === 'phrase');
             if (section.kind === 'end') events = events.filter(event => event.channel === 'phrase' || event.tick < EPSILON);
@@ -89,9 +90,11 @@ export function compileBarPlan(session, { training = false, repetitions = sessio
             for (const event of events) {
               const fromSectionStart = ((sourceBar - section.startBar) * barTicks + event.tick) * secPerTick;
               // O loop-fonte mantém microtempo através das barras e voltas.
-              // Só as seções explícitas impõem uma fronteira musical rígida.
+              // Seções explícitas e pausas harmônicas impõem fronteiras rígidas.
               event.offsetMs = useForm ? Math.max(event.offsetMs ?? 0, -fromSectionStart * 1000) : event.offsetMs ?? 0;
-              event.maxSeconds = useForm ? ((section.endBar - sourceBar) * barTicks - event.tick) * secPerTick - event.offsetMs / 1000 : Infinity;
+              const sectionLimit = useForm ? ((section.endBar - sourceBar) * barTicks - event.tick) * secPerTick - event.offsetMs / 1000 : Infinity;
+              const pauseLimit = event.stopTick === undefined ? Infinity : (event.stopTick - event.tick) * secPerTick - event.offsetMs / 1000;
+              event.maxSeconds = Math.min(sectionLimit, pauseLimit);
               if (training) {
                 // A captura começa em zero e termina após todas as repetições.
                 // Cortar só essas bordas externas; entre voltas, manter o offset.

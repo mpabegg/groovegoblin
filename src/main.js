@@ -1,5 +1,5 @@
 import { GrooveAudio, renderSession } from './audio.js';
-import { createSession, loadSession, saveSession, validateSession, serializeSession, parseSession, encodeSessionLink, decodeSessionLink, ticksPerBar as barTicks, sessionTicks as totalTicks, DENSITIES, METRONOME_PATTERNS, ARTICULATIONS } from './session.js';
+import { createSession, loadSession, saveSession, validateSession, serializeSession, parseSession, encodeSessionLink, decodeSessionLink, ticksPerBar as barTicks, DENSITIES, METRONOME_PATTERNS, ARTICULATIONS } from './session.js';
 import { evaluateSession, summarizeFeedback } from './feedback.js';
 import { buildTimelineData, renderTimeline } from './timeline.js';
 import { GROOVES, loadGroove } from './library.js';
@@ -19,10 +19,13 @@ import { generateGroove } from './generator.js';
 import { mountStudio } from './studio.js';
 import { mountStudioTransport } from './studio-transport.js';
 import { mountStudioTimeline } from './studio-timeline.js';
+import { mountStudioInspector } from './studio-inspector.js';
+import { mountStudioNotices } from './studio-notices.js';
+import { fitHarmony } from './studio-harmony.js';
 
 const $ = id => document.getElementById(id);
 const restored = loadSession();
-let session = withStudioChoices(restored.session);
+let session = withStudioChoices(initialStudioSession(restored));
 let recoveryRaw = restored.recoveryRaw;
 let sessionSaved = false;
 let selected = null;
@@ -48,6 +51,7 @@ let journey;
 let lastRepertoireBusy = false;
 const history = new History();
 const library = readSessionLibrary(undefined, parseSession);
+const notices = mountStudioNotices({ isBusy: busy, canUndo: () => history.canUndo, current: () => history.current, undo: () => travelHistory('undo') });
 const audio = new GrooveAudio({ onState: () => renderControls(), onFinish: (attempts, detail) => {
   clearInput();
   const focusResult = $('tab-practice').getAttribute('aria-selected') === 'true'
@@ -88,26 +92,41 @@ function withStudioChoices(value) {
     progressionFunction: studio.progressionFunction ?? 'cadence',
   } } });
 }
+function createStudioSession() {
+  return createSession({ bars: 4, loop: { startBar: 0, endBar: 4 }, progression: { cycleBars: 4 } });
+}
+function initialStudioSession(restored) {
+  try {
+    if (restored.recoveryRaw === null && !localStorage.getItem('groovegoblin.session.v2') && !localStorage.getItem('groovegoblin.v1')) {
+      return mergeSession(restored.session, { bars: 4, loop: { startBar: 0, endBar: 4 }, progression: { cycleBars: 4 } });
+    }
+  } catch { /* Preserve loadSession's recovery and storage-unavailable behavior. */ }
+  return restored.session;
+}
 function liveChoice(key) {
   return ['mixer', 'metronome', 'band', 'drums', 'timbres'].includes(key) || (key === 'bpm' && audio.position.mode === 'loop');
 }
-function updateSession(patch) {
+function updateSession(patch, { notice = null } = {}) {
   const live = !exercisePlayback && pending === null && audio.position.mode !== 'idle' && Object.keys(patch).every(liveChoice);
-  const applied = replaceSession(mergeSession(session, patch), { stopPlayback: !live });
+  const applied = replaceSession(mergeSession(session, patch), { stopPlayback: !live, notice, resetEmpty: false });
   if (applied && live) audio.updateSession(session);
   return applied;
 }
-function replaceSession(value, { record = true, stopPlayback = true } = {}) {
+function replaceSession(value, { record = true, stopPlayback = true, notice = 'Sessão substituída.', resetEmpty = true } = {}) {
   const checked = validateSession(withStudioChoices(value));
   if (!checked.ok) { message(`Alteração rejeitada: ${checked.error}`, true); renderControls(); return false; }
   if (stopPlayback) stop();
   session = checked.session;
+  const previousEntry = history.current;
   if (record) history.push(session);
+  if (resetEmpty) inspector.resetEmpty();
+  if (history.current !== previousEntry) notices.changed(history.current, record ? notice : null);
   if ((selected?.kind === 'note' && !session.notes.some(note => note.id === selected.id))
     || (selected?.kind === 'chord' && !session.progression.chords[selected.index])) selected = null;
   audio.setMixer(session.mixer);
   persist();
   renderAll();
+  notices.render();
   return true;
 }
 function renderAll() {
@@ -187,8 +206,9 @@ const transport = mountStudioTransport({
   }),
   play: () => void begin().catch(() => {}),
   stop: () => { if (practice) practice.cancel(); else stop(); repertoire?.stop(); renderControls(); message('Som interrompido.'); },
-  travelHistory, removeSelected,
+  travelHistory, removeSelected, deselect: deselectEditor,
 });
+const inspector = mountStudioInspector({ getSession: () => session, getSelection: () => selected, isBusy: busy, commitNote, notify: message });
 const studioTimeline = mountStudioTimeline($('studio-editor'), {
   getSession: () => session, isBusy: busy, updateSession,
   getSelection: noteSelection, setSelection: setNoteSelection,
@@ -196,9 +216,18 @@ const studioTimeline = mountStudioTimeline($('studio-editor'), {
   getEditorSelection: () => selected, setEditorSelection: value => { selected = value; },
   selectionChanged: () => { renderControls(); studioTimeline.renderSelection(); }, commitNote, notify: message,
 });
+function deselectEditor() {
+  if (!selected) return;
+  const lane = selected.kind === 'note' ? $('grid') : $('chord-lane');
+  if (lane.contains(document.activeElement)) lane.focus({ preventScroll: true });
+  selected = null;
+  renderControls(); studioTimeline.renderSelection();
+}
+for (const id of ['bass-lane', 'drum-lanes', 'beat-labels']) $(id).addEventListener('click', deselectEditor);
 $('minimal').addEventListener('change', event => {
   session = mergeSession(session, { extensions: { studio: { performanceFocus: event.target.checked } } });
   document.body.classList.toggle('performance-focus', event.target.checked); persist();
+  notices.changed(null);
 });
 function fillOptions(select, values, labels) {
   select.replaceChildren();
@@ -219,6 +248,7 @@ $('input-pitch').addEventListener('change', event => {
   if (event.target.value === '' || !event.target.checkValidity()) { event.target.value = session.extensions.studio.inputPitch; message('Escolha uma altura MIDI entre 21 e 108.', true); return; }
   session = mergeSession(session, { extensions: { studio: { inputPitch: Number(event.target.value) } } });
   persist();
+  notices.changed(null);
 });
 
 const numericPaths = new Set(['bpm', 'bars', 'meter.beats', 'meter.unit', 'subdivision', 'swing', 'loop.endBar', 'extensions.studio.generator.seed', 'drums.seed', 'metronome.audibleBars', 'metronome.silentBars', 'training.countInBars', 'training.repetitions', 'companion.pulses', 'companion.spanBeats']);
@@ -239,7 +269,8 @@ for (const input of document.querySelectorAll('[data-path]')) {
       patch.progression.cycleBars = session.progression.cycleBars;
       patch.progression.chords = session.progression.chords.map(chord => chord.source !== 'diatonic' ? chord : invertChord({ ...chords[(chord.degree ?? 1) - 1], startBar: chord.startBar, durationBars: chord.durationBars }, chord.inversion));
     }
-    updateSession(patch);
+    const notice = ['drums.style', 'drums.density', 'drums.seed'].includes(path) ? 'Padrão da bateria substituído.' : path === 'progression.keyId' ? 'Tom e acordes diatônicos atualizados.' : null;
+    updateSession(patch, { notice });
   });
 }
 $('loop-start').addEventListener('change', event => updateSession({ loop: { startBar: Number(event.target.value) - 1 } }));
@@ -269,27 +300,22 @@ function renderControls() {
   $('restore-session').disabled ||= !$('session-library').value;
   $('delete-session').disabled ||= !$('session-library').value;
   $('apply-share').disabled ||= !sharedSession;
-  const note = session.notes.find(item => item.id === noteSelection());
-  const chord = session.progression.chords[chordSelection()];
-  $('selection-text').textContent = note ? `Nota selecionada · MIDI ${note.pitch} · ${format(note.duration)} ticks` : chord ? 'Acorde selecionado · edição harmônica' : 'Clique numa faixa para criar; selecione uma nota ou acorde para editar.';
-  $('note-detail').hidden = !note;
-  if (!note) $('note-detail').open = false;
-  for (const field of ['start', 'duration', 'pitch', 'velocity', 'articulation', 'offsetMs']) {
-    const input = $(`note-${field}`); input.value = note?.[field] ?? ''; input.disabled = locked || !note;
-  }
-  $('note-start').max = $('note-duration').max = totalTicks(session);
-  $('transpose-semitones').disabled = locked;
-  $('transpose-phrase').disabled = locked || !session.notes.length;
-  $('note-start').step = $('note-duration').step = 4 / session.subdivision;
-  $('note-duration').min = 0;
-  $('delete').disabled = locked || !note;
-  for (const preset of $('presets').children) preset.disabled = locked || !note;
+  inspector.render();
   studioTimeline.renderControls();
   $('add-section').disabled = locked || session.form.sections.length >= 32;
   for (const input of document.querySelectorAll('#form-sections input, #form-sections select, #form-sections button')) input.disabled = locked || input.dataset.boundary === 'true';
   practice?.setBusy(locked);
+  notices.render();
+  for (const input of document.querySelectorAll('#panel-studio button, #panel-studio input, #panel-studio select, #phrase-tools-dialog button, #phrase-tools-dialog input, #phrase-tools-dialog select')) {
+    if (input.id.startsWith('note-') || ['undo', 'redo', 'fit-progression'].includes(input.id)) continue;
+    if (!input.disabled) {
+      if (Object.hasOwn(input.dataset, 'enabledTitle')) { input.title = input.dataset.enabledTitle; delete input.dataset.enabledTitle; }
+      continue;
+    }
+    input.dataset.enabledTitle ??= input.title;
+    input.title = locked ? 'Pare a reprodução antes de fazer esta alteração' : input.id === 'clear' || input.id === 'transpose-phrase' ? 'A frase está vazia; escreva ou carregue notas primeiro' : ['restore-session', 'delete-session'].includes(input.id) ? 'Escolha uma sessão guardada primeiro' : input.id === 'add-section' ? 'A forma já tem o limite de 32 seções' : input.dataset.boundary === 'true' ? 'A seção já está no limite desta direção' : input.title || 'Selecione um item para usar esta ação';
+  }
 }
-function format(number) { return String(Math.round(number * 1000) / 1000); }
 
 function renderForm() {
   const list = $('form-sections');
@@ -357,18 +383,25 @@ function commitNote(patch) {
   if (notes === session.notes) { message('Sem sobreposição e sem ultrapassar o fim da frase.', true); renderControls(); return; }
   updateSession({ notes });
 }
-for (const field of ['start', 'duration', 'pitch', 'velocity', 'articulation', 'offsetMs']) $(`note-${field}`).addEventListener('change', event => commitNote({ [field]: field === 'articulation' ? event.target.value : Number(event.target.value) }));
-for (const [ticks, label] of [[1, '1/16'], [2, '1/8'], [3, '1/8.'], [4, '1/4'], [6, '1/4.'], [8, '1/2'], [12, '1/2.'], [16, '1/1'], [4 / 3, 'Tercina'], [4 / 5, 'Quintina'], [4 / 7, 'Septina']]) {
-  const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'preset'; chip.textContent = label;
-  chip.addEventListener('click', () => commitNote({ duration: ticks })); $('presets').append(chip);
+const phraseDialog = $('phrase-tools-dialog');
+let phraseDialogFocus = null;
+function openPhraseTools(focusId = 'groove-library') {
+  if (busy()) return;
+  phraseDialogFocus = document.activeElement;
+  $('phrase-options').open = false;
+  phraseDialog.showModal(); $(focusId).focus();
 }
+$('open-pattern').addEventListener('click', () => openPhraseTools());
+$('open-phrase-tools').addEventListener('click', () => openPhraseTools('density'));
+$('phrase-tools-close').addEventListener('click', () => phraseDialog.close());
+phraseDialog.addEventListener('close', () => { phraseDialogFocus?.focus({ preventScroll: true }); phraseDialogFocus = null; });
 function removeSelected() {
   if (busy()) return;
   if (selected?.kind === 'chord') studioTimeline.removeChord();
   else if (noteSelection()) updateSession({ notes: deleteNote(session.notes, noteSelection()) });
 }
 $('delete').addEventListener('click', removeSelected);
-$('clear').addEventListener('click', () => { if (!busy()) updateSession({ notes: [] }); });
+$('clear').addEventListener('click', () => { if (!busy()) updateSession({ notes: [] }, { notice: 'Frase limpa.' }); });
 $('transpose-phrase').addEventListener('click', () => {
   if (busy()) return;
   const input = $('transpose-semitones');
@@ -416,33 +449,54 @@ window.addEventListener('blur', () => { if (busy()) stop('Sessão interrompida a
 document.addEventListener('visibilitychange', () => { if (document.hidden) { stop(); repertoire.stop(); } });
 
 for (const groove of GROOVES) {
-  const option = document.createElement('option'); option.value = groove.id; option.textContent = groove.name; $('groove-library').append(option);
+  for (const id of ['groove-library', 'empty-pattern']) {
+    const option = document.createElement('option'); option.value = groove.id; option.textContent = groove.name; $(id).append(option);
+  }
 }
-$('groove-library').addEventListener('change', () => {
-  const groove = GROOVES.find(item => item.id === $('groove-library').value);
-  $('groove-description').replaceChildren();
+function describePattern(value) {
+  const groove = GROOVES.find(item => item.id === value);
+  $('groove-library').value = $('empty-pattern').value = value;
+  $('groove-description').textContent = $('empty-pattern-description').textContent = groove?.description ?? '';
+  $('groove-details').replaceChildren();
   if (groove) {
-    for (const text of [groove.description, groove.durationNote]) { const p = document.createElement('p'); p.textContent = text; $('groove-description').append(p); }
-    for (const source of groove.sources) { const link = document.createElement('a'); link.href = source.url; link.textContent = source.title; link.target = '_blank'; link.rel = 'noopener noreferrer'; $('groove-description').append(link); }
+    const detail = document.createElement('p'); detail.textContent = groove.durationNote; $('groove-details').append(detail);
+    for (const source of groove.sources) { const link = document.createElement('a'); link.href = source.url; link.textContent = source.title; link.target = '_blank'; link.rel = 'noopener noreferrer'; $('groove-details').append(link); }
   }
   renderControls();
-});
-$('load-groove').addEventListener('click', () => {
+}
+for (const id of ['groove-library', 'empty-pattern']) $(id).addEventListener('change', event => describePattern(event.target.value));
+function loadPattern() {
+  if (busy()) return;
   const groove = loadGroove($('groove-library').value);
-  updateSession({ ...groove, loop: { startBar: 0, endBar: groove.bars } });
-});
+  if (updateSession({ ...groove, loop: { startBar: 0, endBar: groove.bars } }, { notice: 'Padrão carregado na frase. Acordes preservados.' })) phraseDialog.close();
+}
+$('load-groove').addEventListener('click', loadPattern);
+$('start-pattern').addEventListener('click', loadPattern);
 const newSeed = () => crypto.getRandomValues(new Uint32Array(1))[0];
 function generate(variation) {
   if (busy()) return;
   const options = { ...session.extensions.studio.generator, seed: variation ? newSeed() : Number($('seed').value) };
   try {
     const generated = generateGroove({ ...options, bars: session.bars, meter: session.meter, subdivision: session.subdivision });
-    updateSession({ notes: generated.notes, extensions: { studio: { generator: options } } });
-    message(`Groove gerado com semente ${options.seed}.`);
+    if (updateSession({ notes: generated.notes, extensions: { studio: { generator: options } } }, { notice: 'Frase gerada.' })) phraseDialog.close();
   }
   catch (error) { message(error.message, true); }
 }
 $('generate').addEventListener('click', () => generate(false)); $('variation').addEventListener('click', () => generate(true));
+$('generate-phrase').addEventListener('click', () => generate(true));
+$('empty-generate').addEventListener('click', () => generate(true));
+function startBand(full) {
+  if (busy()) return;
+  const patch = { drums: { enabled: true, style: 'pop', density: 'medium', seed: 1 }, band: { bassEnabled: true, style: 'pop', density: 'medium', role: 'solo', mode: 'steady' }, mixer: { drums: { muted: false }, bass: { muted: false } } };
+  if (full) {
+    patch.progression = { enabled: true };
+    patch.mixer.chords = { muted: false };
+    if (!session.progression.chords.length) patch.progression = { enabled: true, cycleBars: session.bars, chords: fitHarmony([1, 4, 5, 1].map(degree => getDiatonicChords(session.progression.keyId)[degree - 1]), session) };
+  }
+  updateSession(patch, { notice: full ? 'Banda completa ligada. Progressão existente preservada; acordes padrão criados apenas se estava vazia.' : 'Bateria e baixo ligados no estilo Pop. Frase e acordes preservados.' });
+}
+$('start-band').addEventListener('click', () => startBand(false));
+$('start-full-band').addEventListener('click', () => startBand(true));
 
 
 
@@ -459,7 +513,7 @@ $('import-file').addEventListener('change', async event => {
     const text = await file.text(); if (request !== generation) return;
     const imported = parseSession(text); if (request !== generation) return;
     pending = null;
-    if (replaceSession(imported)) message('Sessão inteira importada. Desfazer recupera a anterior.');
+    replaceSession(imported, { notice: 'Sessão inteira importada.' });
   } catch (error) { if (request === generation) message(`Importação rejeitada: ${error.message}. Sessão preservada.`, true); }
   finally { if (request === generation) { pending = null; renderControls(); } }
 });
@@ -477,7 +531,7 @@ function previewShare() {
   renderControls();
 }
 function dismissShare() { sharedSession = null; $('share-preview').hidden = true; window.history.replaceState(null, '', `${location.pathname}${location.search}`); renderControls(); }
-$('apply-share').addEventListener('click', () => { if (sharedSession && replaceSession(sharedSession)) { dismissShare(); message('Sessão recebida aplicada.'); } });
+$('apply-share').addEventListener('click', () => { if (sharedSession && replaceSession(sharedSession, { notice: 'Sessão recebida aplicada.' })) dismissShare(); });
 $('dismiss-share').addEventListener('click', dismissShare); window.addEventListener('hashchange', previewShare);
 $('download-recovery').addEventListener('click', () => { if (recoveryRaw !== null) download(recoveryRaw, 'groovegoblin-originais.json'); });
 $('replace-recovery').addEventListener('click', () => {
@@ -499,15 +553,14 @@ function writeLibrary(entries) {
   catch { message('Biblioteca não pôde ser salva. Exporte a sessão.', true); return false; }
 }
 $('new-session').addEventListener('click', () => {
-  if (!busy() && replaceSession(createSession())) message('Nova sessão criada. Desfazer recupera a anterior.');
+  if (!busy()) replaceSession(createStudioSession(), { notice: 'Nova sessão de quatro compassos criada.' });
 });
 $('duplicate-session').addEventListener('click', () => {
   if (busy()) return;
   const copy = mergeSession(session, { name: `${session.name.slice(0, 112)} · cópia` });
   const item = { id: crypto.randomUUID(), savedAt: new Date().toISOString(), session: copy };
-  if (writeLibrary([...library.entries, item]) && replaceSession(copy)) {
+  if (writeLibrary([...library.entries, item]) && replaceSession(copy, { notice: 'Cópia guardada na biblioteca e aberta.' })) {
     $('session-library').value = item.id; renderControls();
-    message('Cópia guardada na biblioteca e aberta. Desfazer recupera a sessão anterior.');
   }
 });
 $('save-session').addEventListener('click', () => {
@@ -516,7 +569,7 @@ $('save-session').addEventListener('click', () => {
   if (writeLibrary([...library.entries, item])) { $('session-library').value = item.id; renderControls(); message('Sessão completa guardada na biblioteca.'); }
 });
 $('session-library').addEventListener('change', renderControls);
-$('restore-session').addEventListener('click', () => { const item = library.entries.find(entry => entry.id === $('session-library').value); if (item) replaceSession(item.session); });
+$('restore-session').addEventListener('click', () => { const item = library.entries.find(entry => entry.id === $('session-library').value); if (item && !busy()) replaceSession(item.session, { notice: 'Sessão guardada aberta.' }); });
 $('delete-session').addEventListener('click', () => writeLibrary(library.entries.filter(entry => entry.id !== $('session-library').value)));
 $('download-library-recovery').addEventListener('click', () => { if (library.recoveryRaw !== null) download(library.recoveryRaw, 'groovegoblin-biblioteca-original.json'); });
 $('replace-library-recovery').addEventListener('click', () => {
@@ -600,6 +653,7 @@ playground = mountPlayground($('playground-mount'), host);
 journey = mountJourney($('journey-mount'), host);
 setupOffline({ isBusy: () => busy() || repertoire.isBusy(), canReload: () => sessionSaved, notify: message });
 history.push(session); audio.setMixer(session.mixer); renderLibrary(); renderAll();
+describePattern(GROOVES[0].id);
 studio.activate($('tab-studio'));
 $('recovery').hidden = recoveryRaw === null; persist();
 if (restored.warnings?.length) message(restored.warnings.join(' '), true);

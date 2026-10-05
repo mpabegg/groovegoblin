@@ -77,6 +77,9 @@ const EXTENSIONS_MAX_LENGTH = 65536;
 const MAX_NOTES = 512;
 const MAX_CHORDS = 64;
 const MAX_CYCLE_BARS = MAX_CHORDS * MAX_BARS;
+// Starts/cycles can sum up to 64 individually valid legacy durations.
+// Retain those exact values after saving v3; do not quantize during migration.
+const POSITION_GRID_EPSILON = MAX_CHORDS * EPSILON;
 
 class SessionError extends TypeError {}
 
@@ -253,7 +256,7 @@ function normalizeChord(chord, beats, legacy) {
   }
   const startBar = chord.startBar === undefined ? 0 : chord.startBar;
   if (!legacy && (!isNumber(startBar) || startBar < 0 || startBar > MAX_CYCLE_BARS
-    || Math.abs(startBar * beats - Math.round(startBar * beats)) > EPSILON)) {
+    || Math.abs(startBar * beats - Math.round(startBar * beats)) > POSITION_GRID_EPSILON)) {
     fail(`O início do acorde ${chord.symbol} deve ser um número inteiro de tempos.`);
   }
   const degree = chord.degree ?? null;
@@ -356,7 +359,7 @@ function normalize(value, version = SESSION_VERSION) {
   if (!legacy) {
     if (!Object.hasOwn(value.progression ?? {}, 'cycleBars')) session.progression.cycleBars = session.bars;
     const { cycleBars, chords } = session.progression;
-    if (Math.abs(cycleBars * session.meter.beats - Math.round(cycleBars * session.meter.beats)) > EPSILON) {
+    if (Math.abs(cycleBars * session.meter.beats - Math.round(cycleBars * session.meter.beats)) > POSITION_GRID_EPSILON) {
       fail('O ciclo harmônico deve ser um número inteiro de tempos.');
     }
     let endBar = 0;

@@ -37,6 +37,8 @@ export function mountStudioTransport(host) {
     play.classList.toggle('is-playing', state.active);
     $('undo').disabled = state.locked || !state.canUndo;
     $('redo').disabled = state.locked || !state.canRedo;
+    $('undo').title = state.locked ? 'Pare a reprodução antes de desfazer' : !state.canUndo ? 'Nenhuma alteração para desfazer' : 'Desfazer (Ctrl+Z)';
+    $('redo').title = state.locked ? 'Pare a reprodução antes de refazer' : !state.canRedo ? 'Nenhuma alteração para refazer' : 'Refazer (Ctrl+Shift+Z)';
   }
   function position({ position, pending, ticksPerBar, repetitions }) {
     const text = position.mode === 'idle' ? pending ? 'Preparando…' : 'Pronto'
@@ -65,6 +67,7 @@ export function mountStudioTransport(host) {
   window.addEventListener('keydown', event => {
     if (event.key !== 'Escape') return;
     host.stop();
+    if (!dialogOpen() && document.body.dataset.intent === 'studio' && !editingTarget(event.target)) host.deselect?.();
     if (dialog.open) { event.preventDefault(); dialog.close(); }
   }, { capture: true });
   window.addEventListener('keydown', event => {
