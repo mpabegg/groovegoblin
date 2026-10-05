@@ -55,6 +55,19 @@ As seções abaixo registram resultados observados, não verificações antecipa
 - Parâmetros/diferenças da bateria são preservados; Complementar pode responder naturalmente à frase nova, sem congelar seu gerador. Solfejo mudou o bloco do baixo para **Dó**, com tooltip **Dó2**.
 - Verificação após integrar partitura e afinador: **522/522 testes**, **123 módulos**, zero falhas. Capturas: [1440×900](rodada-3-etapa4-1440x900.png), [1280×800](rodada-3-etapa4-1280x800.png).
 - Após recarga da integração, as 32 notas e tônicas permaneceram; partitura mostrou **F8vb, quatro linhas, 32 casas e quatro cifras**. Capturas refeitas com partitura recolhida: **53 controles realmente visíveis** (`checkVisibility`), quatro faixas ligadas e transporte **53 px**, numa linha em ambas as larguras. A contagem preliminar por `getClientRects` incluía quatro controles não pintados dentro de detalhes fechados; não foi usada como métrica final.
+- Integração publicada na `main`: `9452e83`; **522/522 testes e check repetidos na main**, push concluído.
+
+### Etapa 5 — Harmonia para estudar
+
+- Braço recolhível com afinação real e casas 0–12/12–24. No navegador, C selecionado mostrou T/3/5 e raízes fortes; tocar F com C ainda selecionado mudou o braço para **F · tocando**, priorizando o acorde executado. Pausas mostraram a escala; ciclos repetidos, acordes fracionários e reinício do loop seguiram a posição real do áudio.
+- Drop D alterou a sexta linha para D2. Baixo de cinco cordas em solfejo mostrou Sol2/Ré2/Lá1/Mi1/Si0; personalizar a grave para C1 mudou a linha/casa aberta para **Dó1/T**. Csus4 mostrou T/4/5, e Cm7♭5 mostrou T/♭3/♭5/♭7, sem inventar funções.
+- Desenhos observados, grave→aguda: **C x32010; G 32000x; D xx0232; Am x02210; Em 022000; F 103211; B7 x21202**. Contêm as notas necessárias e até quatro dedos, considerando pestanas possíveis. Afinação personalizada sem G nas casas 0–5 não mostrou desenho fictício de C. Isso verifica geometria/regras, não conforto num instrumento físico.
+- Blues maior em quatro compassos ofereceu ajustar para 12, repetir/cortar ou cancelar. Ajustar produziu **C7×4/F7×2/C7×2/G7/F7/C7/G7**, preservando frase, bateria e forma. Menor produziu **Cm7×4/Fm7×2/Cm7×2/A♭7/G7/Cm7/G7**, com dominante maior literal. Cancelar e repetir/cortar preservaram os demais dados.
+- Redução que apagaria notas, diferenças de bateria ou seções ficou indisponível com explicação; repetir/cortar a harmonia continuou possível sem perder esses dados.
+- Decisões: templates maiores/menores usam o modo anunciado na mesma tônica. Menor harmônico/melódico fica **adiado conforme autorizado**: exigiria regras de validação e ponderação do gerador, não só novos dados. Corrigido rótulo acessível singular “1 dedo”.
+- Verificação integrada às etapas anteriores: **533/533 testes**, **128 módulos**, zero falhas. Novo smoke confirmou B7, funções/raízes e desenho com quatro dedos após a integração.
+- Capturas atualizadas: [braço/desenho 1440×900](rodada-3-etapa5-1440x900.png), [repouso 1280×800](rodada-3-etapa5-1280x800.png). Quatro faixas, Tab e diferenças de bateria: **55 controles visíveis**, transporte de **53 px** em uma linha; nenhum erro de navegador.
+
 
 
 
@@ -97,9 +110,9 @@ As seções abaixo registram resultados observados, não verificações antecipa
 | 6 | Cifras, ritmo e tablatura alinhados em sistemas de quatro compassos nas duas vistas | Passou: quatro sistemas numa sessão de 16 compassos, alinhamento exato e cursor/ligadura em reprodução e treino |
 | 7 | Linha Rock sobre C–F–G–C vira frase editável no registro do baixo | Passou: 32 notas, tônicas C2/F1/G1/C2, edição/undo e afinações de quatro/cinco cordas |
 | 8 | Estudar esta linha copia baixo e troca perfil | Passou: confirmação/cancelamento, perfil/timbre, shuffle sem swing duplo, cópia monofônica e undo atômico |
-| 9 | Braço mostra funções do acorde selecionado e acompanha reprodução | Pendente |
-| 10 | Desenhos tocáveis para C, G, D, Am, Em, F e B7 | Pendente |
-| 11 | Blues ocupa 12 compassos; oferece ajuste quando a sessão tem quatro | Pendente |
+| 9 | Braço mostra funções do acorde selecionado e acompanha reprodução | Passou: seleção, prioridade do acorde tocado, pausas/ciclos, afinações reais e funções alteradas |
+| 10 | Desenhos tocáveis para C, G, D, Am, Em, F e B7 | Passou: sete desenhos completos com até quatro dedos/pestanas; afinação impossível não inventa desenho |
+| 11 | Blues ocupa 12 compassos; oferece ajuste quando a sessão tem quatro | Passou: blues maior/menor completos, decisão de tamanho e proteção contra perda de dados |
 | 12 | Filtro Ritmo/Guitarra/Baixo; padrões de baixo seguem harmonia | Passou: 11/8/10 opções; graus resolvidos contra C–F–G–C e D–G–A–D pelo fluxo real |
 | 13 | Contagem de um compasso antes de Tocar | Pendente |
 | 14 | Acelerador +5 a cada duas voltas; BPM salvo permanece intacto | Pendente |

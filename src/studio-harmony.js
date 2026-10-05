@@ -2,6 +2,8 @@ import { ticksPerBar, sessionTicks } from './session.js';
 import { PROGRESSION_KEYS, CHORD_QUALITIES, chordTimeline, getDiatonicChords, getBorrowedChords, getSecondaryDominants, parseChordSymbol, generateProgression, invertChord } from './progression.js';
 import { mountStudioChordSelection } from './studio-chord-selection.js';
 import { musicalDuration } from './studio-bars.js';
+import { mountStudioFretboard } from './studio-fretboard.js';
+import { mountNamedProgressions } from './studio-progressions.js';
 
 const EPSILON = 1e-8;
 const number = value => String(Math.round(value * 1000) / 1000);
@@ -54,6 +56,8 @@ export function mountStudioHarmony(root, host) {
   const selectedIndex = () => host.getChordSelection();
   const focusChord = index => (lane.querySelector(`[data-index="${index}"][tabindex="0"]`) ?? lane.querySelector(`[data-index="${index}"]`))?.focus({ preventScroll: true });
   const group = mountStudioChordSelection(lane, host);
+  const fretboard = mountStudioFretboard(host);
+  const named = mountNamedProgressions(host);
 
   for (const key of PROGRESSION_KEYS) {
     const option = document.createElement('option'); option.value = key.id; option.textContent = key.label; $('progression-key').append(option);
@@ -96,9 +100,10 @@ export function mountStudioHarmony(root, host) {
   function generate() {
     if (host.isBusy()) return;
     const session = host.getSession(); const mode = $('progression-function').value;
+    if (named.generate(mode)) return;
     const diatonic = getDiatonicChords(session.progression.keyId);
     const degrees = mode === 'cadence' ? [1, 4, 5, 1] : [1, 6, 2, 5];
-    const base = mode === 'random' ? generateProgression({ keyId: session.progression.keyId }).chords : degrees.map(degree => diatonic[degree - 1]);
+    const base = mode === 'random' ? generateProgression({ keyId: session.progression.keyId }).chords : degrees.map(degree => degree === 5 && session.progression.keyId.endsWith('-minor') ? getBorrowedChords(session.progression.keyId).find(chord => chord.roman === 'V7') : diatonic[degree - 1]);
     if (apply(fitHarmony(base, session), null, { enabled: true, cycleBars: session.bars }, `Progressão aplicada aos ${session.bars} compassos.`, true)) {
       $('harmony-options').open = false;
     }
@@ -235,6 +240,7 @@ export function mountStudioHarmony(root, host) {
   function renderInspector() {
     const session = host.getSession(); const chord = session.progression.chords[selectedIndex()]; const locked = host.isBusy();
     $('chord-inspector').hidden = !chord;
+    fretboard.render(session, chord, markers);
     if (!chord) { inspectorSignature = ''; return; }
     const signature = JSON.stringify([group.indices(), chord, session.progression.keyId]);
     if (signature !== inspectorSignature) {
@@ -279,6 +285,7 @@ export function mountStudioHarmony(root, host) {
   function renderControls() { renderInspector(); renderContext(); lane.setAttribute('aria-disabled', String(host.isBusy())); }
   function render() { renderLane(); renderControls(); }
   function position(value, { hidden = false } = {}) {
+    fretboard.position(value, { hidden });
     const visible = !hidden && !['idle', 'countin'].includes(value.mode);
     const index = visible ? markers.findIndex(event => value.tick >= event.start && value.tick < event.start + event.duration) : -1;
     if (index === activeChord) return;
