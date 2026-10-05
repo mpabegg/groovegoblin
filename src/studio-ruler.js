@@ -1,4 +1,6 @@
 import { clearBar, copyBar, duplicateBar, materializeHarmony, repeatPhraseInNewBars } from './studio-bars.js';
+import { mountRulerPlayback } from './studio-ruler-playback.js';
+import { ticksPerBar } from './session.js';
 
 // Native event dispatch may run a microtask checkpoint between listeners.
 // A task runs only after the canonical data-path listener has applied the change.
@@ -60,19 +62,24 @@ export function mountStudioRuler(root, host) {
     dialog.showModal();
   }
   const ruler = document.getElementById('beat-labels');
-  // No seek or loop gesture is claimed here: future transport interactions remain independent.
+  const playback = mountRulerPlayback(ruler, host);
   ruler.addEventListener('contextmenu', event => {
     const bar = event.target.closest('[data-bar]'); if (!bar) return;
-    event.preventDefault(); open(Number(bar.dataset.bar), bar);
+    event.preventDefault(); open(Number(bar.dataset.bar), ruler);
   });
   ruler.addEventListener('keydown', event => {
-    const bar = event.target.closest('[data-bar]'); if (!bar) return;
-    if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10') || event.key === 'Enter') { event.preventDefault(); open(Number(bar.dataset.bar), bar); }
+    if (event.target !== ruler) return;
+    if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10') || event.key === 'Enter') {
+      event.preventDefault();
+      const bar = playback.selectedBar();
+      playback.reveal(bar * ticksPerBar(host.getSession()));
+      open(bar, ruler);
+    }
   });
   let pendingOffer = null;
   document.getElementById('bars').addEventListener('change', event => {
     clearTimeout(pendingOffer);
     pendingOffer = offerBarIncrease(host, host.getSession(), Number(event.target.value));
   });
-  return { offerMaterialize: (bar, anchor) => open(bar, anchor, true) };
+  return { offerMaterialize: (bar, anchor) => open(bar, anchor, true), render: playback.render, cancelDrag: playback.cancelDrag };
 }

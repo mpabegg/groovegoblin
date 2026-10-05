@@ -276,7 +276,7 @@ export function renderRhythmNotation(container, model) {
     const barline = element('g', { class: 'rhythm-barline' }, staff);
     line(barline, x, 53, x, 87, index === model.bars ? 3 : 1.5);
     if (index === model.bars) line(barline, x - 6, 53, x - 6, 87, 1);
-    else number(staff, index + 1, x + 18, 16);
+    else number(staff, index + 1 + (model.barOffset ?? 0), x + 18, 16);
   }
 
   function drawNote(group, event, x) {
@@ -362,7 +362,7 @@ export function renderRhythmNotation(container, model) {
       const group = element('g', attributes, svg);
       const tupletText = event.tuplet ? `; quiáltera ${event.tuplet.actual}:${event.tuplet.normal}` : '';
       const articulation = event.kind === 'note' && event.articulation && event.articulation !== 'normal' ? `; articulação ${event.articulation}` : '';
-      title(group, `${event.kind === 'note' ? `Nota ${event.noteId}` : 'Pausa'}: início ${formatTicks(event.start)} semicolcheia(s), duração ${formatTicks(event.duration)} semicolcheia(s), compasso ${measure.index}${tupletText}${articulation}${event.approximate ? '; grafia aproximada' : ''}${event.tieFromPrevious ? '; continuação ligada' : ''}${event.tieToNext ? '; segue ligada' : ''}.`);
+      title(group, `${event.kind === 'note' ? `Nota ${event.noteId}` : 'Pausa'}: início ${formatTicks(event.start)} semicolcheia(s), duração ${formatTicks(event.duration)} semicolcheia(s), compasso ${measure.index + (model.barOffset ?? 0)}${tupletText}${articulation}${event.approximate ? '; grafia aproximada' : ''}${event.tieFromPrevious ? '; continuação ligada' : ''}${event.tieToNext ? '; segue ligada' : ''}.`);
       if (event.kind === 'note') {
         drawNote(group, event, x);
         if (event.tieFromPrevious && previousNote && previousNote.event.noteId === event.noteId && previousNote.event.tieToNext) {
@@ -375,6 +375,10 @@ export function renderRhythmNotation(container, model) {
             d: `M ${fromX} 81 C ${fromX + span / 3} 98, ${toX - span / 3} 98, ${toX} 81 C ${toX - span / 3} 94, ${fromX + span / 3} 94, ${fromX} 81 Z`,
             fill: 'currentColor',
           }, ties);
+        }
+        if (event.tieFromPrevious && !previousNote) {
+          element('path', { class: 'rhythm-tie rhythm-tie-incoming', 'data-note-id': event.noteId,
+            d: `M ${LEFT + 4} 81 Q ${(LEFT + x) / 2} 100 ${x - 5} 81`, fill: 'none', stroke: 'currentColor', 'stroke-width': 2 }, ties);
         }
         previousNote = { event, x };
       } else {
@@ -391,6 +395,10 @@ export function renderRhythmNotation(container, model) {
         groups.set(event.tuplet.id, entry);
       }
     }
+  }
+  if (previousNote?.event.tieToNext) {
+    element('path', { class: 'rhythm-tie rhythm-tie-outgoing', 'data-note-id': previousNote.event.noteId,
+      d: `M ${previousNote.x + 5} 81 Q ${(previousNote.x + width - 24) / 2} 100 ${width - 24} 81`, fill: 'none', stroke: 'currentColor', 'stroke-width': 2 }, ties);
   }
   const brackets = element('g', { class: 'rhythm-tuplets' }, svg);
   for (const { tuplet, first, last } of groups.values()) {

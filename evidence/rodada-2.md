@@ -37,6 +37,19 @@ As seções abaixo recebem decisões e resultados observados ao concluir cada et
 - Bateria tem nomes à esquerda; baixo mostra nomes das notas quando cabem. Durações harmônicas usam tempos/compassos; Polirritmia e Partitura da frase substituem os termos anteriores.
 - Cabeçalho da Frase mantém quatro figuras e Mais com outras sete em popover ancorado; Som deixou de ficar cortado. O baixo somente leitura explica onde ajustar seu conteúdo ao receber clique.
 - Verificação na branch: **333/333 testes**, **90 módulos, zero falhas**. Capturas: [1440×900](rodada-2-etapa3-1440x900.png), [1280×800](rodada-2-etapa3-1280x800.png).
+- Integração: `fc670ce` fast-forward na main; **333/333 testes e check** repetidos após merge; push confirmado.
+
+### Etapa 4 — Transporte, mixer e leitura do treino
+
+- Transporte em uma linha de 53 px em 1280 px; Compasso reúne fórmula, divisão e swing. Os campos numéricos de loop foram removidos.
+- Régua: arrasto selecionou compassos 2–3 e desenhou faixa com início em 25%/largura 50%; duplo clique nativo restaurou 1–4. Clique/setas escolhem início no mesmo agendador; o marcador não altera a sessão. Alterar o trecho para automaticamente com aviso; seek não interfere no treino.
+- Uma superfície de teclado na régua substitui os botões de cada compasso. End/Enter abriu operações do compasso 16; fechar devolveu foco à régua, e o destino de cópia indicava compasso 1. As instruções completas ficam em Atalhos e na descrição acessível, não em parágrafos permanentes.
+- M/S/volume diretos em todas as faixas. Tom, progressões, estilos, densidades e Variar continuam nos cabeçalhos. Solo múltiplo é temporário, respeita os mudos manuais e não reescreve o mixer salvo; retirar solo preservou o mudo da bateria.
+- Medição de controles nativos visíveis dentro do Estúdio: **49** em quatro compassos e **50** em dezesseis, sem seleção/popovers e com quatro faixas ligadas. Nenhum controle ultrapassou seu cabeçalho; transporte, faixas e inspetor cabem em 1440×900.
+- Som das quatro faixas: popovers inteiros na janela, tanto com aviso como sem aviso; com aviso, cada painel ficou a 6 px abaixo de seu acionador. Espaço iniciou loop e parou; também cancelou preparação pendente.
+- Ouvir frase usa uma passagem finita no mesmo transporte. Com a frase salva muda e volume zero, e metrônomo desligado, o Web Audio real produziu pico **0,2503**; a sessão serializada permaneceu byte a byte igual e o transporte voltou naturalmente a Tocar.
+- Partitura de 16 compassos no Treinar: quatro sistemas, todos sem rolagem horizontal (1160/1160 px por sistema); eventos e ligaduras entre sistemas têm regressão dedicada.
+- Verificação final na branch: **342/342 testes**, **95 módulos, zero falhas**. Capturas: [1440×900](rodada-2-etapa4-1440x900.png), [1280×800](rodada-2-etapa4-1280x800.png).
 
 
 ## Critérios de aceitação
@@ -52,12 +65,12 @@ As seções abaixo recebem decisões e resultados observados ao concluir cada et
 | 7 | Aumentar sessão e repetir frase | Passou: 1→4 com quatro compassos iguais no navegador e regressão de histórico |
 | 8 | Acordes repetidos desenhados como fantasmas | Passou: 40% de opacidade, sem alça; materialização verificada |
 | 9 | 16 compassos legíveis; semicolcheia >=12px, rótulos sem sobreposição | Passou: 15,6875 px, 64 rótulos sem sobreposição, rolagem automática e cabeçalho fixo |
-| 10 | Popovers ancorados e inteiros, com e sem aviso | Parcial: Som da bateria verificado; todas as faixas na verificação final |
-| 11 | Mudo e solo a um clique | Pendente |
+| 10 | Popovers ancorados e inteiros, com e sem aviso | Passou: quatro faixas, ambos os estados; distância de 6 px ao acionador |
+| 11 | Mudo e solo a um clique | Passou: quatro controles diretos; retirar solo preserva mudo manual |
 | 12 | Avisos não deslocam transporte | Passou: posição documental 130 px antes/depois |
-| 13 | Transporte em uma linha a 1280px; <=60 controles no Estúdio | Pendente |
-| 14 | Arrastar régua define loop | Pendente |
-| 15 | Ouvir frase no Treinar e partitura inteira | Pendente |
+| 13 | Transporte em uma linha a 1280px; <=60 controles no Estúdio | Passou: altura 53 px; 49 controles em 4 compassos e 50 em 16 |
+| 14 | Arrastar régua define loop | Passou: arrasto 2–3, faixa proporcional e duplo clique restaura sessão inteira |
+| 15 | Ouvir frase no Treinar e partitura inteira | Passou: áudio real audível mesmo com frase muda, sem persistir alteração; 16 compassos em 4 sistemas sem cortes |
 | 16 | Bateria editável, exportação/importação e migração v3 preservadas | Pendente |
 | 17 | Captura, medidor e diagnóstico de ataques | Pendente; validação física de guitarra depende do usuário |
 | 18 | Detector sintético: erro <=10ms, sem falsos ataques sustentados | Pendente |

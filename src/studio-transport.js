@@ -40,10 +40,11 @@ export function mountStudioTransport(host) {
     $('undo').title = state.locked ? 'Pare a reprodução antes de desfazer' : !state.canUndo ? 'Nenhuma alteração para desfazer' : 'Desfazer (Ctrl+Z)';
     $('redo').title = state.locked ? 'Pare a reprodução antes de refazer' : !state.canRedo ? 'Nenhuma alteração para refazer' : 'Refazer (Ctrl+Shift+Z)';
   }
-  function position({ position, pending, ticksPerBar, repetitions }) {
-    const text = position.mode === 'idle' ? pending ? 'Preparando…' : 'Pronto'
-      : `${position.mode === 'countin' ? 'Entrada' : position.mode === 'train' ? 'Treino' : 'Loop'} · compasso ${position.bar ?? Math.floor((position.tick ?? 0) / ticksPerBar) + 1} · tempo ${position.beat ?? 1}${position.mode === 'train' ? ` · ${position.repetition}/${repetitions}` : ''}`;
+  function position({ position, pending, ticksPerBar, repetitions, startTick = null, beatTicks = 4, listening = false }) {
+    const text = position.mode === 'idle' ? pending ? 'Preparando…' : startTick === null ? 'Pronto' : `Início · C${Math.floor(startTick / ticksPerBar) + 1} · T${Math.floor(startTick % ticksPerBar / beatTicks) + 1}`
+      : `${position.mode === 'countin' ? 'Entrada' : position.mode === 'train' ? 'Treino' : listening ? 'Frase' : 'Loop'} · C${position.bar ?? Math.floor((position.tick ?? 0) / ticksPerBar) + 1} · T${position.beat ?? 1}${position.mode === 'train' ? ` · ${position.repetition}/${repetitions}` : ''}`;
     if ($('position-text').textContent !== text) $('position-text').textContent = text;
+    $('position-text').title = `${text}. C: compasso; T: tempo escrito.`;
   }
   function openShortcuts() {
     if (dialogOpen()) return;

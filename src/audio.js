@@ -43,6 +43,7 @@ import { EPSILON, ticksPerBar, secondsPerTick, sessionTicks } from './meter.js';
 import { prepareArrangement } from './arrangement.js';
 import { playTone, playChord, playClick, playDrum, loadDrumSamples } from './synth.js';
 import { compileBarPlan } from './form.js';
+import { playbackStartTick } from './transport-position.js';
 
 const LOOKAHEAD_INTERVAL_SEC = 0.025;
 const SCHEDULE_AHEAD_SEC = 0.1;
@@ -228,14 +229,14 @@ export class GrooveAudio {
     }
   }
 
-  async playSession(session, { mode = 'loop' } = {}) {
+  async playSession(session, { mode = 'loop', startTick = null, once = false, mixer = null } = {}) {
     if (mode !== 'loop' && mode !== 'train') throw new TypeError('O modo de reprodução deve ser loop ou train.');
     const valid = checkedSession(session);
     this.stop();
     const gen = this.#generation;
     const ctx = this.#ensureContext();
     this.#session = valid;
-    this.setMixer(valid.mixer);
+    this.setMixer(mixer ?? valid.mixer);
 
     await Promise.all([
       ctx.state === 'suspended' ? ctx.resume() : Promise.resolve(),
@@ -254,11 +255,11 @@ export class GrooveAudio {
     this.#loopBars = valid.loop.endBar - valid.loop.startBar;
     this.#repetitions = train ? valid.training.repetitions : 0;
     this.#endBar = train ? this.#countInBars + this.#loopBars * this.#repetitions
-      : this.#plan.loop ? Infinity : this.#plan.bars.length;
-    this.#nextBar = 0;
+      : once ? this.#plan.bars.length : this.#plan.loop ? Infinity : this.#plan.bars.length;
+    this.#anchorTick = train ? 0 : playbackStartTick(valid, this.#plan, startTick);
+    this.#nextBar = Math.floor(this.#anchorTick / this.#barTicks);
     this.#pending = [];
     this.#onsets = [];
-    this.#anchorTick = 0;
     this.#anchorTime = ctx.currentTime + SESSION_PRIME_SEC;
     this.#dispatchedTime = this.#anchorTime;
     this.#attempts = [];
@@ -267,6 +268,8 @@ export class GrooveAudio {
     this.#heldPitch = null;
     this.#startedAt = Date.now();
     this.#mode = mode;
+    this.#generateBar(this.#nextBar, train || startTick === null ? -Infinity : this.#anchorTime);
+    this.#nextBar += 1;
     this.#emitState();
     this.#runScheduler(gen);
     if (Number.isFinite(this.#endBar)) this.#scheduleFinish(gen);
@@ -314,6 +317,27 @@ export class GrooveAudio {
     this.#finishTimeoutId = null;
     if (Number.isFinite(this.#endBar)) this.#scheduleFinish(this.#generation);
     if (this.#timerId === null && (this.#mode === 'loop' || this.#mode === 'train')) this.#runScheduler(this.#generation);
+  }
+
+  // Seek reanchors the same scheduler. Training has an immutable evaluated timeline.
+  seek(startTick) {
+    if (this.#mode !== 'loop') return false;
+    this.#silenceActiveNodes();
+    this.#anchorTick = playbackStartTick(this.#session, this.#plan, startTick);
+    this.#anchorTime = this.#ctx.currentTime + SESSION_PRIME_SEC;
+    this.#dispatchedTime = this.#anchorTime;
+    this.#pending = [];
+    this.#onsets = [];
+    this.#nextBar = Math.floor(this.#anchorTick / this.#barTicks);
+    this.#generateBar(this.#nextBar, this.#anchorTime);
+    this.#nextBar += 1;
+    clearTimeout(this.#finishTimeoutId);
+    this.#finishTimeoutId = null;
+    if (Number.isFinite(this.#endBar)) this.#scheduleFinish(this.#generation);
+    if (this.#timerId === null) this.#runScheduler(this.#generation);
+    else this.#tickScheduler(this.#generation);
+    this.#emitState();
+    return true;
   }
 
   // Muda o andamento no loop sem reiniciar (não permitido durante o treino).
@@ -470,7 +494,7 @@ export class GrooveAudio {
       countInBar: 0, countInBars: 0, bpm: this.#session?.bpm ?? 0, previewing: this.#mode === 'preview',
     };
     if (!this.#ctx || this.#mode === null || this.#mode === 'preview') return idle;
-    const tick = Math.max(0, this.#tickAtTime(this.#nowAudioTime()));
+    const tick = Math.max(this.#anchorTick, this.#tickAtTime(this.#nowAudioTime()));
     const bar = Math.floor(tick / this.#barTicks);
     if (bar >= this.#endBar) return idle;
     const local = tick - bar * this.#barTicks;

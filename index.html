@@ -37,7 +37,7 @@
     <div class="transport-row">
       <button id="play" type="button" class="primary" aria-label="Tocar sessão" title="Tocar / parar (Espaço)">Tocar</button>
       <label>BPM <input id="bpm" data-path="bpm" type="number" min="30" max="300" step="1" title="Semínimas por minuto"></label>
-      <label class="toggle"><input id="metronome" data-path="metronome.enabled" type="checkbox"> Metrônomo</label>
+      <label class="toggle"><input id="metronome" data-path="metronome.enabled" type="checkbox" aria-label="Metrônomo"> Metro</label>
       <details id="metronome-options" class="transport-disclosure"><summary aria-label="Opções do metrônomo" title="Padrão, silêncios e polirritmia">▾</summary><div class="transport-popover">
         <div class="tool-row">
           <label>Padrão<select id="metro-pattern" data-path="metronome.pattern"></select></label>
@@ -51,19 +51,19 @@
         <div id="track-metronome-sound" class="track-sound-controls"></div>
         <p class="tool-hint muted">Pulsos igualmente espaçados contra o compasso; o acento marca cada novo ciclo. Silêncios alternam com compassos audíveis, no mesmo relógio.</p>
       </div></details>
-      <label>Loop <input id="loop-start" type="number" min="1" step="1" aria-label="Primeiro compasso do loop"></label>
-      <label>até <input id="loop-end" data-path="loop.endBar" type="number" min="1" step="1" aria-label="Último compasso do loop"></label>
       <span id="position-text" class="position-text" role="status">Pronto</span>
-    </div>
-    <div class="transport-row transport-session">
-      <label class="session-name-label">Sessão <input id="session-name" data-path="name" type="text" maxlength="120"></label>
-      <label>Compasso <input id="meter-beats" data-path="meter.beats" type="number" min="1" max="16" step="1" aria-label="Tempos por compasso"></label>
-      <label>/<select id="meter-unit" data-path="meter.unit" aria-label="Unidade do compasso"><option value="2">2</option><option value="4">4</option><option value="8">8</option><option value="16">16</option></select></label>
+      <label class="session-name-label">Nome <input id="session-name" data-path="name" type="text" maxlength="120" aria-label="Nome da sessão"></label>
+      <details id="meter-options" class="transport-disclosure"><summary>Compasso</summary><div class="transport-popover"><div class="tool-row">
+        <label>Tempos<input id="meter-beats" data-path="meter.beats" type="number" min="1" max="16" step="1" aria-label="Tempos por compasso"></label>
+        <label>Unidade<select id="meter-unit" data-path="meter.unit" aria-label="Unidade do compasso"><option value="2">2</option><option value="4">4</option><option value="8">8</option><option value="16">16</option></select></label>
+        <label>Divisões por semínima<select id="subdivision" data-path="subdivision"><option value="1">1</option><option value="2">2</option><option value="3">3 · tercina</option><option value="4">4</option><option value="5">5 · quintina</option><option value="6">6</option><option value="7">7 · septina</option><option value="8">8</option></select></label>
+        <label>Swing<input id="swing" data-path="swing" type="number" min="0" max="0.75" step="0.05"></label><label>Base do swing<select id="swing-unit" data-path="swingUnit"><option value="eighth">Colcheia</option><option value="sixteenth">Semicolcheia</option></select></label>
+      </div></div></details>
       <label>Compassos <input id="bars" data-path="bars" type="number" min="1" max="16" step="1"></label>
-      <button id="undo" type="button" title="Desfazer (Ctrl+Z)">Desfazer</button><button id="redo" type="button" title="Refazer (Ctrl+Shift+Z)">Refazer</button>
-      <span id="saved" class="saved" role="status"></span>
+      <button id="undo" type="button" aria-label="Desfazer" title="Desfazer (Ctrl+Z)">↶</button><button id="redo" type="button" aria-label="Refazer" title="Refazer (Ctrl+Shift+Z)">↷</button>
     <details id="session-storage" class="transport-disclosure"><summary>Sessão</summary>
     <section class="session-library transport-popover" aria-label="Sessões guardadas e compartilhamento"><div class="tool-row"><button id="new-session" type="button">Nova</button><button id="duplicate-session" type="button">Duplicar</button><button id="save-session">Salvar na biblioteca</button><select id="session-library" aria-label="Sessões guardadas"><option value="">Escolha uma sessão</option></select><button id="restore-session">Abrir</button><button id="delete-session">Excluir sessão guardada</button><button id="export">Exportar sessão</button><button id="import">Importar sessão</button><button id="share">Compartilhar link</button><input id="import-file" type="file" accept=".json,application/json" hidden></div><p id="library-status" role="status"></p><div id="library-recovery" hidden><button id="download-library-recovery">Baixar biblioteca original</button><button id="replace-library-recovery">Substituir biblioteca pela sessão atual</button></div><div id="share-output" class="notice" hidden><label for="share-url">Link completo, sem servidor</label><input id="share-url" type="text" readonly><p>Quem recebe pode ler a sessão inteira, incluindo opções e mixer.</p></div></section>
+    <span id="saved" class="saved" role="status"></span>
     </details>
     </div>
   </section>
@@ -89,11 +89,7 @@
         <section id="track-phrase" class="studio-track" aria-label="Faixa de frase">
           <header class="track-header"><strong class="track-name" id="editor-title">Frase</strong><div class="track-extra">
             <div id="creation-duration" class="creation-duration" role="group" aria-label="Duração ativa para criar notas"></div>
-            <details id="phrase-options" class="track-disclosure"><summary>Grade e swing</summary><div class="track-popover"><div class="tool-row">
-              <label>Divisões por semínima<select id="subdivision" data-path="subdivision"><option value="1">1</option><option value="2">2</option><option value="3">3 · tercina</option><option value="4">4</option><option value="5">5 · quintina</option><option value="6">6</option><option value="7">7 · septina</option><option value="8">8</option></select></label>
-              <label>Swing<input id="swing" data-path="swing" type="number" min="0" max="0.75" step="0.05"></label><label>Base do swing<select id="swing-unit" data-path="swingUnit"><option value="eighth">Colcheia</option><option value="sixteenth">Semicolcheia</option></select></label>
-              <button id="open-phrase-tools" type="button" aria-haspopup="dialog">Biblioteca e gerador</button>
-            </div></div></details>
+            <button id="open-phrase-tools" type="button" aria-haspopup="dialog">Biblioteca</button>
             <div id="track-phrase-sound" class="track-sound-controls"></div>
           </div></header><div id="grid" class="track-lane grid" role="grid" tabindex="0" aria-label="Editor de frase"><div id="marks" class="marks" aria-hidden="true"></div><div id="grid-cursor" aria-hidden="true"></div><div id="notes" class="notes" role="row"></div><div id="note-marquee" aria-hidden="true" hidden></div></div>
         </section>
@@ -112,7 +108,7 @@
       </div>
       <details id="studio-score" class="studio-score"><summary>Partitura da frase</summary><div class="score-row"><div class="track-header">Frase · ligaduras sustentam o mesmo ataque</div><div id="rhythm-score" class="rhythm-score"></div></div></details>
     </div></div>
-    <p id="timeline-reading-help" class="tool-hint muted">Rolagem horizontal com cabeçalhos fixos; a reprodução acompanha o compasso atual. Zoom mostra 4 ou 2 compassos, sem comprimir sessões longas. Cada semicolcheia tem no mínimo 12 px; compassos muito densos podem exigir rolagem mesmo em uma sessão curta. Botão direito no número do compasso abre suas ações.</p>
+    <span id="timeline-reading-help" class="sr-only">Clique escolhe o início; arraste define o loop; clique duplo restaura tudo. Setas/Home/End escolhem início; Shift+setas ajustam fim do loop; Shift+Home restaura tudo. Enter/Shift+F10 abre ações do compasso atual. Botão direito no número abre esse compasso. A régua tem uma única parada de Tab e revela a posição navegada. Zoom mostra 4 ou 2 compassos; compassos densos podem exigir rolagem.</span>
   </section>
   <div id="harmony-context" class="harmony-context" hidden><span id="progression-status" role="status"></span><button id="fit-progression" type="button">Ajustar ao tamanho da sessão</button></div>
   <section id="studio-inspector" class="panel studio-inspector" aria-label="Inspetor da seleção">
@@ -155,7 +151,7 @@
   <section id="panel-practice" class="intention-panel" role="tabpanel" aria-labelledby="tab-practice" hidden>
     <section class="panel" aria-labelledby="practice-session-title">
       <div class="section-heading"><div><div class="eyebrow">FRASE ATUAL · SOMENTE LEITURA</div><h2 id="practice-session-title">Sua frase</h2></div><span id="session-badge" class="badge"></span></div>
-      <div class="training-controls"><button id="train" type="button" class="primary">Treinar esta frase</button><button id="edit-in-studio" type="button">Editar no Estúdio</button></div>
+      <div class="training-controls"><div class="training-primary"><button id="train" type="button" class="primary">Treinar esta frase</button><button id="listen-phrase" type="button" aria-pressed="false">Ouvir frase</button></div><button id="edit-in-studio" type="button">Editar no Estúdio</button></div>
       <div id="practice-rhythm-score" class="rhythm-score" aria-label="Partitura rítmica da frase atual"></div>
       <section id="performance-input" class="practice-input" aria-label="Toque o ritmo">
         <button id="train-pad" type="button" class="train-pad" disabled aria-label="Tocar o ritmo: pressione no início da nota e solte no final" title="Espaço: pressione no ataque, segure e solte no término"><span id="train-state">Escolha Treinar esta frase para começar.</span><span id="held-state" class="held-state">ESPAÇO ou toque</span></button>
@@ -197,6 +193,8 @@
     <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>No editor, mover todas as notas selecionadas; <kbd>↑</kbd> <kbd>↓</kbd> mudam a duração. Shift usa uma semínima. Intensidade no inspetor aplica a toda a seleção.</dd>
     <dt><kbd>←</kbd> <kbd>→</kbd> / <kbd>Shift+←</kbd> <kbd>Shift+→</kbd></dt><dd>Na harmonia, mover / redimensionar um tempo escrito. Enter seleciona um acorde; na faixa vazia, cria uma tônica.</dd>
     <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> <kbd>6</kbd> <kbd>8</kbd></dt><dd>Na frase: semicolcheia, colcheia, colcheia pontuada, semínima, semínima pontuada e mínima, respectivamente.</dd>
+    <dt>Régua: clique / arrastar / clique duplo</dt><dd>Escolher início de reprodução / definir loop de compassos / restaurar loop completo. A régua tem um só foco de Tab: setas/Home/End escolhem início e revelam a posição; Shift+setas ajustam o fim (Shift+Home restaura tudo). Enter ou Shift+F10 abre ações do compasso atual; botão direito no número abre esse compasso.</dd>
+    <dt>Faixas: M / S / volume</dt><dd>Silêncio manual / solo temporário (permite várias faixas) / volume. Desligar todos os solos restaura os silêncios e volumes guardados; o metrônomo não participa do solo.</dd>
     <dt><kbd>?</kbd></dt><dd>Abrir esta ajuda. Clique no fundo para criar com a duração ativa do cabeçalho; arraste o meio da nota para mover ou a alça direita de 6 px para mudar a duração. Em notas menores que 12 px, use ↑/↓ para duração.</dd>
   </dl>
   <button id="shortcuts-close" type="button" autofocus>Fechar atalhos</button>

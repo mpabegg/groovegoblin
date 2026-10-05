@@ -20,6 +20,7 @@ import { mountStudioTimeline } from './studio-timeline.js';
 import { mountStudioInspector } from './studio-inspector.js';
 import { mountStudioNotices } from './studio-notices.js';
 import { mountStudioForm } from './studio-form.js';
+import { createStudioPlayback, phrasePreviewSession } from './studio-playback.js';
 
 const $ = id => document.getElementById(id);
 const restored = loadSession();
@@ -69,6 +70,7 @@ const audio = new GrooveAudio({ onState: () => renderControls(), onFinish: (atte
     summary.scrollIntoView({ block: 'center', behavior: 'instant' });
   }
 } });
+const playback = createStudioPlayback({ getSession: () => session, audio, render: renderControls, notify: message, isPending: () => pending !== null });
 
 function message(text, error = false) { notices.show(text, { error }); }
 function busy() { return pending !== null || audio.position.mode !== 'idle'; }
@@ -102,7 +104,7 @@ function updateSession(patch, { notice = null, structural = false } = {}) {
   const next = mergeSession(session, patch);
   const policy = playbackEditPolicy(session, next, { mode: audio.position.mode, pending: pending !== null, exercise: exercisePlayback, structural });
   const applied = replaceSession(next, { stopPlayback: policy.stop, notice: [policy.reason, notice].filter(Boolean).join(' ') || null, resetEmpty: false });
-  if (applied && policy.live) audio.updateSession(session);
+  if (applied && policy.live) { audio.updateSession(session); playback.applyMixer(); }
   return applied;
 }
 function replaceSession(value, { record = true, stopPlayback = true, notice = 'Sessão substituída.', resetEmpty = true } = {}) {
@@ -119,7 +121,7 @@ function replaceSession(value, { record = true, stopPlayback = true, notice = 'S
   if (history.current !== previousEntry || !record) notices.changed(history.current, notice);
   if ((selected?.kind === 'note' && !session.notes.some(note => note.id === selected.id))
     || (selected?.kind === 'chord' && !session.progression.chords[selected.index])) selected = null;
-  audio.setMixer(session.mixer);
+  playback.reconcile();
   if (selected?.kind === 'note') {
     selected.ids = (selected.ids ?? [selected.id]).filter(id => session.notes.some(note => note.id === id));
     if (!selected.ids.length) selected = null; else selected.id = selected.ids.includes(selected.id) ? selected.id : selected.ids[0];
@@ -138,7 +140,7 @@ function stop(reason) {
   pending = null;
   const wasDragging = studioTimeline.cancelDrag();
   audio.stop();
-  audio.setMixer(session.mixer);
+  playback.setListening(false);
   executionSession = null;
   exercisePlayback = false;
   executionMode = null;
@@ -147,7 +149,7 @@ function stop(reason) {
   renderControls();
   if (reason) message(reason);
 }
-async function begin(mode = 'loop', practiceSession = null) {
+async function begin(mode = 'loop', practiceSession = null, { listen = false } = {}) {
   repertoire?.stop();
   stop();
   const request = ++generation;
@@ -158,12 +160,13 @@ async function begin(mode = 'loop', practiceSession = null) {
   pending = 'play';
   executionMode = mode;
   renderControls();
-  const snapshot = structuredClone(practiceSession ?? session);
+  const snapshot = structuredClone(listen ? phrasePreviewSession(session) : practiceSession ?? session);
+  playback.setListening(listen);
   executionSession = snapshot;
-  exercisePlayback = practiceSession !== null;
+  exercisePlayback = practiceSession !== null || listen;
   if (mode === 'train') { results = null; reference = null; renderFeedback(); }
   try {
-    await audio.playSession(snapshot, { mode });
+    await audio.playSession(snapshot, { mode, startTick: mode === 'train' || practiceSession || listen ? null : playback.getStartTick(), once: listen, mixer: practiceSession ? snapshot.mixer : playback.getMixer() });
     if (request !== generation) return;
     if (mode === 'train') {
       $('train-pad').focus({ preventScroll: true });
@@ -212,6 +215,8 @@ const transport = mountStudioTransport({
 const inspector = mountStudioInspector({ getSession: () => session, getSelection: () => selected, isBusy: () => false, commitNote, notify: message });
 const studioTimeline = mountStudioTimeline($('studio-editor'), {
   getSession: () => session, isBusy: () => false, updateSession,
+  seek: tick => playback.seek(tick), getStartTick: playback.getStartTick,
+  isSolo: playback.isSolo, toggleSolo: playback.toggleSolo,
   getSelection: noteSelection, setSelection: setNoteSelection,
   getChordSelection: chordSelection, setChordSelection,
   getEditorSelection: () => selected, setEditorSelection: value => { selected = value; },
@@ -254,7 +259,7 @@ $('input-pitch').addEventListener('change', event => {
   notices.changed(null);
 });
 
-const numericPaths = new Set(['bpm', 'bars', 'meter.beats', 'meter.unit', 'subdivision', 'swing', 'loop.endBar', 'extensions.studio.generator.seed', 'drums.seed', 'metronome.audibleBars', 'metronome.silentBars', 'training.countInBars', 'training.repetitions', 'companion.pulses', 'companion.spanBeats']);
+const numericPaths = new Set(['bpm', 'bars', 'meter.beats', 'meter.unit', 'subdivision', 'swing', 'extensions.studio.generator.seed', 'drums.seed', 'metronome.audibleBars', 'metronome.silentBars', 'training.countInBars', 'training.repetitions', 'companion.pulses', 'companion.spanBeats']);
 const getPath = (object, path) => path.split('.').reduce((value, key) => value?.[key], object);
 function pathPatch(path, value) { return path.split('.').reverse().reduce((patch, key) => ({ [key]: patch }), value); }
 for (const input of document.querySelectorAll('[data-path]')) {
@@ -276,7 +281,6 @@ for (const input of document.querySelectorAll('[data-path]')) {
     updateSession(patch, { notice });
   });
 }
-$('loop-start').addEventListener('change', event => updateSession({ loop: { startBar: Number(event.target.value) - 1 } }));
 
 function renderControls() {
   const locked = busy();
@@ -288,10 +292,9 @@ function renderControls() {
   $('input-pitch').value = session.extensions.studio.inputPitch;
   $('minimal').checked = !!session.extensions.studio.performanceFocus;
   document.body.classList.toggle('performance-focus', $('minimal').checked);
-  $('loop-start').value = session.loop.startBar + 1;
-  $('loop-start').max = session.bars;
-  $('loop-end').max = session.bars;
-  $('loop-start').disabled = false;
+  const listening = playback.isListening() && locked;
+  $('listen-phrase').setAttribute('aria-pressed', String(listening));
+  $('listen-phrase').disabled = listening || pending !== null || !session.notes.some(note => note.start < session.loop.endBar * barTicks(session) && note.start + note.duration > session.loop.startBar * barTicks(session));
   $('practice-session-title').textContent = session.name;
   $('session-badge').textContent = `${session.meter.beats}/${session.meter.unit} · ${session.bars} comp. · loop ${session.loop.startBar + 1}–${session.loop.endBar}`;
   transport.render();
@@ -324,7 +327,7 @@ const phraseDialog = $('phrase-tools-dialog');
 let phraseDialogFocus = null;
 function openPhraseTools(focusId = 'groove-library') {
   phraseDialogFocus = document.activeElement;
-  $('phrase-options').open = false;
+  $('meter-options').open = false;
   phraseDialog.showModal(); $(focusId).focus();
 }
 $('open-pattern').addEventListener('click', () => openPhraseTools());
@@ -346,9 +349,12 @@ $('transpose-phrase').addEventListener('click', () => {
 function travelHistory(direction) {
   const value = history[direction](); if (!value) return;
   const policy = playbackEditPolicy(session, value, { mode: audio.position.mode, pending: pending !== null, exercise: exercisePlayback });
-  if (replaceSession(value, { record: false, stopPlayback: policy.stop, notice: policy.reason }) && policy.live) audio.updateSession(session);
+  if (replaceSession(value, { record: false, stopPlayback: policy.stop, notice: policy.reason }) && policy.live) { audio.updateSession(session); playback.applyMixer(); }
 }
 $('train').addEventListener('click', () => practice.useSession({ train: true }));
+$('listen-phrase').addEventListener('click', () => {
+  practice.cancel(); void begin('loop', null, { listen: true }).catch(() => {});
+});
 
 // Entradas de treino usam o relógio do evento, nunca um segundo transporte.
 function clearInput() {
@@ -506,6 +512,7 @@ function renderFeedback() {
 }
 function frame() {
   const position = audio.position;
+  if (position.mode === 'idle' && pending === null && playback.isListening()) playback.setListening(false);
   const playing = executionSession ?? session;
   studioForm.frame(position);
   if (position.mode !== lastMode) { lastMode = position.mode; renderControls(); }
@@ -516,7 +523,7 @@ function frame() {
   studioTimeline.position(position, { hidden: exercisePlayback });
   $('train-pad').classList.toggle('active', ['countin', 'train'].includes(position.mode)); $('train-pad').classList.toggle('held', !!position.held);
   $('held-state').textContent = position.held ? 'PRESSIONADA · nota em curso' : 'ESPAÇO ou toque · pressionar / soltar';
-  transport.position({ position, pending, ticksPerBar: barTicks(playing), repetitions: playing.training.repetitions });
+  transport.position({ position, pending, ticksPerBar: barTicks(playing), repetitions: playing.training.repetitions, startTick: playback.getStartTick(), beatTicks: 16 / playing.meter.unit, listening: playback.isListening() });
   if (position.mode === 'countin') $('train-state').textContent = 'Espere a contagem de entrada. Depois, toque o ritmo.';
   if (position.mode === 'train') $('train-state').textContent = `Repetição ${position.repetition}/${playing.training.repetitions} · pressione no início de cada nota e solte no final.`;
   requestAnimationFrame(frame);
@@ -526,7 +533,7 @@ practice = mountPractice($('practice-mount'), host);
 playground = mountPlayground($('playground-mount'), host);
 journey = mountJourney($('journey-mount'), host);
 setupOffline({ isBusy: () => busy() || repertoire.isBusy(), canReload: () => sessionSaved, notify: message });
-history.push(session); audio.setMixer(session.mixer); renderLibrary(); renderAll();
+history.push(session); playback.applyMixer(); renderLibrary(); renderAll();
 mountStudioPatterns({ getSession: () => session, isBusy: () => false, updateSession, notify: message, renderControls });
 studio.activate($('tab-studio'));
 $('recovery').hidden = recoveryRaw === null; persist();

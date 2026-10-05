@@ -8,12 +8,12 @@ const STEPS = [
   {
     tab: 'tab-studio', target: '#studio-editor',
     title: 'Estúdio: editar e tocar sua Sessão',
-    body: 'Acordes, Frase, Bateria e Baixo compartilham régua, zoom e um único cursor. O zoom à esquerda mostra 4 ou 2 compassos; sessões longas rolam com cabeçalhos fixos. Botão direito no número do compasso abre duplicar (inserir após), limpar ou copiar sem substituir. Acordes tracejados são repetições automáticas: clique para materializar. Na Frase, clique para criar; arraste notas ou sua borda direita para editar. O inspetor mostra figuras, Intensidade em % e articulação. “Som” fica em cada cabeçalho; “Grade e swing” guarda biblioteca e gerador. “Partitura da frase” abre a notação. Tocar/Parar, BPM, metrônomo, polirritmia e loop ficam no transporte; “Sessão” abre biblioteca, arquivos e links. Bateria e Baixo são referências geradas, sem edição manual.',
+    body: 'Acordes, Frase, Bateria e Baixo compartilham régua, zoom e um único cursor. Clique na régua escolhe início; arraste define o loop verde; clique duplo restaura tudo. A régua tem um só foco de Tab: setas/Home/End escolhem início e revelam a posição; Enter/Shift+F10 abre ações do compasso atual. Botão direito no número abre duplicar, limpar ou copiar. Zoom mostra 4 ou 2 compassos, com cabeçalhos fixos. Acordes tracejados são repetições automáticas: clique para materializar. Na Frase, clique cria; arraste notas ou a borda direita para editar. O inspetor mostra figuras, Intensidade e articulação. Cada cabeçalho tem M, S e volume; desligar solos restaura o mix guardado. Tom, progressões, estilos, densidades e Variar continuam visíveis nos cabeçalhos. “Som” conserva timbre/opções avançadas e biblioteca da Frase. “Compasso” abre fórmula, subdivisão e swing. O transporte ocupa uma linha; “Sessão” abre biblioteca, arquivos e links.',
   },
   {
     tab: 'tab-practice', target: '#train-pad',
     title: 'Treinar: tocar → comparar → repetir',
-    body: 'Confira a partitura da frase atual e use “Treinar esta frase”. Espere a contagem, pressione Espaço ou a área de toque no início de cada nota, segure e solte no final. Os resultados aparecem abaixo do treino. “Editar no Estúdio” volta ao editor permanente; a prática guiada é opcional e seus exercícios não substituem a sessão guardada.',
+    body: 'Confira a partitura da frase atual, organizada em linhas de quatro compassos. “Ouvir frase” toca uma passagem audível sem mudar mutes, volume ou sessão, com a mesma parada global. Use “Treinar esta frase”; espere a contagem, pressione Espaço ou a área de toque no início de cada nota, segure e solte no final. Durante o treino, Espaço toca o ritmo, não inicia um loop. Os resultados aparecem abaixo. “Editar no Estúdio” volta ao editor; a prática guiada é opcional e seus exercícios não substituem a sessão guardada.',
   },
   {
     tab: 'tab-repertoire', target: '#repertoire-mount',

@@ -32,7 +32,18 @@ export function mountStudioTracks(host) {
     mute.setAttribute('aria-label', `Silenciar ${name}`);
     volume.addEventListener('input', () => host.updateSession({ mixer: { [channel]: { volume: Number(volume.value) / 100 } } }));
     mute.addEventListener('click', () => host.updateSession({ mixer: { [channel]: { muted: !host.getSession().mixer[channel].muted } } }));
-    popover.append(volumeLabel, mute); container.append(sound);
+    let solo = null;
+    if (channel !== 'metronome') {
+      const inline = document.createElement('div'); inline.className = 'track-inline-mixer';
+      solo = document.createElement('button'); solo.type = 'button'; solo.className = 'track-solo';
+      solo.id = `mixer-${channel}-solo`; solo.textContent = 'S';
+      solo.setAttribute('aria-label', `Solo temporário: ${name}. Não altera os silêncios guardados; o metrônomo continua independente.`);
+      solo.title = `Solo temporário: ${name}`;
+      solo.addEventListener('click', () => host.toggleSolo(channel));
+      inline.append(mute, solo, volumeLabel, sound);
+      document.getElementById(`track-${channel}`).querySelector('.track-name').after(inline);
+      container.remove();
+    } else { popover.append(volumeLabel, mute); container.append(sound); }
     let timbre;
     if (TIMBRES[channel]) {
       timbre = document.createElement('select'); timbre.id = `track-${channel}-timbre`; timbre.dataset.path = `timbres.${channel}`;
@@ -43,22 +54,26 @@ export function mountStudioTracks(host) {
       const label = document.createElement('label'); label.className = 'track-timbre-label'; label.append(document.createTextNode('Timbre'), timbre); popover.append(label);
     }
     if (channel === 'drums') popover.append(document.getElementById('drum-advanced'));
-    controls.push({ channel, volume, output, mute, timbre, summary });
+    if (channel === 'phrase') popover.append(document.getElementById('open-phrase-tools'));
+    controls.push({ channel, volume, output, mute, solo, timbre, summary });
   }
   function render() {
     const session = host.getSession();
-    for (const { channel, volume, output, mute, timbre, summary } of controls) {
+    for (const { channel, volume, output, mute, solo, timbre, summary } of controls) {
       const value = session.mixer[channel];
       volume.value = Math.round(value.volume * 100); volume.setAttribute('aria-valuetext', `${volume.value}%`);
       output.textContent = `${volume.value}%`; mute.setAttribute('aria-pressed', String(value.muted));
-      summary.textContent = value.muted ? 'Som · M' : 'Som';
-      summary.title = `Volume ${volume.value}%${value.muted ? ' · silenciado' : ''}`;
+      mute.setAttribute('aria-label', `${value.muted ? 'Reativar' : 'Silenciar'} ${names[channel]} (silêncio manual guardado)`);
+      mute.title = `${value.muted ? 'Reativar' : 'Silenciar'} ${names[channel]} (manual)`;
+      if (solo) solo.setAttribute('aria-pressed', String(host.isSolo(channel)));
+      summary.textContent = 'Som';
+      summary.title = `Timbre e opções avançadas: ${names[channel]}`;
       if (timbre) timbre.value = session.timbres[channel];
     }
     for (const [channel, enabled] of [['chords', session.progression.enabled], ['drums', session.drums.enabled], ['bass', session.band.bassEnabled]]) {
       const row = document.getElementById(`track-${channel}`); row.classList.toggle('track-disabled', !enabled);
       // An inactive track keeps its enable switch, not a bank of inactive controls.
-      for (const node of row.querySelectorAll('.track-extra, .track-lane')) node.hidden = !enabled;
+      for (const node of row.querySelectorAll('.track-extra, .track-inline-mixer, .track-lane')) node.hidden = !enabled;
     }
     document.getElementById('track-drums').classList.toggle('role-suppressed', session.band.role === 'drums');
     document.getElementById('track-bass').classList.toggle('role-suppressed', session.band.role === 'bass');

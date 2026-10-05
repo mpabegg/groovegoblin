@@ -8,6 +8,7 @@ import { mountStudioTracks } from './studio-tracks.js';
 import { pitchName } from './studio-inspector.js';
 import { timelineWidth, musicalDuration } from './studio-bars.js';
 import { mountStudioRuler } from './studio-ruler.js';
+import { renderPracticeScore } from './studio-score.js';
 
 const figure = duration => ({ 1: '𝅘𝅥𝅯', 2: '♪', 3: '♪·', 4: '♩', 6: '♩·', 8: '𝅗𝅥', 12: '𝅗𝅥·', 16: '𝅝' })[duration] ?? '';
 const number = value => String(Math.round(value * 1000) / 1000);
@@ -70,13 +71,15 @@ export function mountStudioTimeline(root, host) {
         mark.style.left = `${(bar * measure + tick) / total * 100}%`; $('marks').append(mark);
       }
       for (let beat = 0; beat < session.meter.beats; beat++) {
-        const label = document.createElement(beat === 0 ? 'button' : 'span'); label.textContent = beat === 0 ? `${bar + 1} · 1` : String(beat + 1);
+        const label = document.createElement('span'); label.textContent = beat === 0 ? `${bar + 1} · 1` : String(beat + 1);
         label.className = beat === 0 ? 'ruler-bar' : 'ruler-beat';
-        if (beat === 0) { label.type = 'button'; label.dataset.bar = bar; label.setAttribute('aria-label', `Compasso ${bar + 1}. Enter ou botão direito abre ações do compasso.`); }
+        label.setAttribute('aria-hidden', 'true');
+        if (beat === 0) { label.dataset.bar = bar; label.title = `Compasso ${bar + 1}. Clique escolhe início; botão direito abre ações.`; }
         label.style.left = `${(bar * measure + beat * 16 / session.meter.unit) / total * 100}%`; $('beat-labels').append(label);
       }
     }
     root.style.setProperty('--bar-width', `${100 / session.bars}%`); cursorPosition();
+    ruler.render();
   }
   function renderNotes(previewNotes) {
     const session = host.getSession(); const notes = previewNotes ?? session.notes; const total = sessionTicks(session);
@@ -96,7 +99,7 @@ export function mountStudioTimeline(root, host) {
     }
     const notation = buildRhythmNotation(notes, session); renderRhythmNotation($('rhythm-score'), notation);
     const svg = $('rhythm-score').querySelector('svg'); svg.style.minWidth = '0'; svg.setAttribute('preserveAspectRatio', 'none');
-    if (!previewNotes) renderRhythmNotation($('practice-rhythm-score'), notation);
+    if (!previewNotes) renderPracticeScore($('practice-rhythm-score'), notation);
     if (focusedId && editor.ids().includes(focusedId)) focusNote(focusedId);
   }
   function renderDrums(session) {
@@ -132,7 +135,7 @@ export function mountStudioTimeline(root, host) {
     const session = host.getSession(); size(); tracks.render(); renderGrid(session); harmony.render(); renderDrums(session); renderBass(session); renderNotes(); size();
   }
   function renderControls() {
-    tracks.render(); harmony.renderControls(); grid.setAttribute('aria-disabled', String(host.isBusy()));
+    tracks.render(); ruler.render(); harmony.renderControls(); grid.setAttribute('aria-disabled', String(host.isBusy()));
     const { companion } = host.getSession();
     for (const button of $('creation-duration').querySelectorAll('button')) button.title = `${button.getAttribute('aria-label')} · ${musicalDuration(Number(button.dataset.duration), host.getSession())}`;
     $('polyrhythm-description').textContent = `${companion.pulses} pulsos a cada ${companion.spanBeats} ${companion.spanBeats === 1 ? 'tempo' : 'tempos'}`;
@@ -147,5 +150,5 @@ export function mountStudioTimeline(root, host) {
       if (x < scroll.scrollLeft + 216 || x > scroll.scrollLeft + scroll.clientWidth - 24) scroll.scrollLeft = Math.max(0, x - scroll.clientWidth / 2);
     }
   }
-  return { render, renderNotes, renderControls, position, commitNote: editor.commit, removeNotes: editor.remove, cancelDrag: () => { const notes = editor.cancelDrag(); const chords = harmony.cancelDrag(); if (chords) harmony.renderLane(); return notes || chords; }, removeChord: harmony.removeSelected, renderSelection: () => { renderNotes(); harmony.render(); } };
+  return { render, renderNotes, renderControls, position, commitNote: editor.commit, removeNotes: editor.remove, cancelDrag: () => { const range = ruler.cancelDrag(); const notes = editor.cancelDrag(); const chords = harmony.cancelDrag(); if (chords) harmony.renderLane(); return range || notes || chords; }, removeChord: harmony.removeSelected, renderSelection: () => { renderNotes(); harmony.render(); } };
 }
