@@ -1232,7 +1232,6 @@ export function mountPractice(container, host, options = {}) {
     const current = renderExerciseSection();
     current.classList.add('practice-current');
     current.appendChild(renderStagesSection());
-    host.mountPracticeInput?.(current);
     if (lastRun) current.appendChild(renderResultsSection());
     current.appendChild(disclosure('exercise', 'Escolher ou ajustar a frase', renderExerciseControls()));
     current.appendChild(disclosure('objective', 'Objetivo do treino', renderObjectivesSection()));
@@ -1409,7 +1408,7 @@ export function mountPractice(container, host, options = {}) {
       sourceControls.appendChild(button);
     }
     section.appendChild(sourceControls);
-    section.appendChild(createEl('p', { className: 'practice-hint', text: 'O exercício não altera sua sessão guardada. Para editar ou restaurar uma frase, abra “Estúdio avançado” abaixo e depois escolha a frase do estúdio aqui.' }));
+    section.appendChild(createEl('p', { className: 'practice-hint', text: 'O exercício não altera sua sessão guardada. Para editar ou restaurar uma frase, use “Editar frase e organizar sessões” acima e depois escolha a frase do estúdio aqui.' }));
 
     const generatorControls = createEl('div', { className: 'practice-inline-controls' });
     const seedInput = createEl('input', { type: 'number', min: '0', max: '4294967295', value: String(seedValue), 'aria-label': 'Semente do exercício' });

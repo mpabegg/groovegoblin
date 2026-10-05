@@ -6,13 +6,13 @@ O botão **Como usar**, no topo, abre uma ajuda opcional de quatro passos, come�
 
 ## Três maneiras de começar
 
-- **Treinar ritmo**: ouça uma frase, toque com Espaço ou na área de toque e veja o resultado no mesmo painel. A rotina inicial tem apenas **Ouvir** e **Tocar**; depois, escolha **Repetir o ritmo**.
+- **Treinar ritmo**: o editor de frase e a partitura rítmica ficam abertos na tela principal. Ajuste o BPM, use **Ouvir frase** com **Metrônomo** ligado e depois **Treinar esta frase**. Toque com Espaço ou na área de toque; os resultados aparecem abaixo do editor.
 - **Tocar com banda**: escolha seu papel, habilite baixo, bateria e harmonia e use **Tocar acompanhamento**. BPM, parada, timbres e mixer ficam nesta atividade.
 - **Estudar uma música**: importe áudio, selecione um trecho A–B e repita-o; velocidade, análise, takes, exercícios, setlists e intercâmbio por arquivos continuam disponíveis.
 
 Em **Mais opções**, **Explorar** reúne jogos e experiências musicais, e **Percurso e histórico** mostra progresso e revisões. As cinco áreas continuam navegáveis por teclado e toque, mas só as três atividades principais ocupam a navegação em destaque.
 
-No treino, **Velocidade (BPM)** controla a referência e a tentativa. Exercícios gerados não substituem a sessão salva nem seu andamento. **Escolher ou ajustar a frase** permite selecionar a frase do estúdio com seu loop; **Estúdio avançado** mantém editor, biblioteca e transporte disponíveis sem competir com o exercício. Copiar o exercício para a sessão é uma ação explícita. **Configurar rotina** permite incluir leitura, memorização e improvisação; configurações já salvas são preservadas. **Parar som** permanece acessível durante a reprodução.
+O treino principal usa a frase da sessão e seu trecho de loop. O metrônomo acompanha o transporte; seu controle fica ao lado do BPM, respeitando as preferências e o mute do mixer. Editor, biblioteca e sessões guardadas não exigem abrir um “Estúdio avançado”. **Prática guiada · objetivos, rotina e jogos de ouvido** é uma opção recolhida abaixo do treino: seus exercícios gerados usam uma sessão temporária e não substituem a frase salva nem seu andamento. Copiar o exercício para a sessão continua sendo uma ação explícita. Rotinas já salvas são preservadas. **Parar som** permanece acessível durante a reprodução.
 
 As sessões têm 1–16 compassos, de 1–16 tempos com unidade 2, 4, 8 ou 16, e andamento de 30–300 BPM em semínimas. A frase usa coordenadas em ticks (4 ticks por semínima), admite 1–8 divisões por semínima, swing e atributos expressivos; a pauta rítmica representa durações e pausas, não altura. O histórico de desfazer/refazer cobre a sessão completa. O estúdio **não** captura microfone, não recebe MIDI ao vivo e não mede velocidade/força física do toque.
 

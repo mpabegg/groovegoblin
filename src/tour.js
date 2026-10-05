@@ -8,7 +8,7 @@ const STEPS = [
   {
     tab: 'tab-practice', target: '#train-pad',
     title: 'Treinar ritmo: ouvir → tocar → repetir',
-    body: 'Ouça a referência até aparecer “Tocar o ritmo”. Espere a contagem e pressione Espaço ou esta área no início de cada nota; segure e solte no final. O resultado aparece aqui mesmo. Não há gravação por microfone. “Escolher ou ajustar a frase” e “Estúdio avançado” guardam as opções extras.',
+    body: 'Edite sua frase na grade e acompanhe a partitura rítmica. Ajuste o BPM, mantenha o Metrônomo ligado e escolha “Ouvir frase”. Depois, use “Treinar esta frase”: espere a contagem e pressione Espaço ou a área de toque no início de cada nota; segure e solte no final. Os resultados aparecem abaixo do editor. A prática guiada é opcional. Não há gravação por microfone.',
   },
   {
     tab: 'tab-band', target: '#panel-band > .band-setup',

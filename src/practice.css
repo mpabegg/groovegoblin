@@ -130,12 +130,9 @@
   padding: 18px 0 0;
   margin: 18px 0 0;
 }
-.practice-current > .feedback { margin-top: 14px; padding: 12px 14px; background: var(--pg-panel-2); }
-.practice-current .practice-input .train-pad { min-height: 96px; font-size: 14px; }
-.practice-current .practice-input .train-pad:disabled { opacity: 1; }
+.practice-current .practice-stage-panel { border: 0; background: transparent; padding: 0; }
 .practice-root, .playground-root, .journey-root, .practice-section, .practice-grid { min-width: 0; max-width: 100%; }
 .practice-inline-controls > *, .practice-routine-controls > * { min-width: 0; max-width: 100%; }
-.practice-current .practice-stage-panel { border: 0; background: transparent; padding: 0; }
 .practice-root > .practice-section:first-of-type { padding: 14px 18px; box-shadow: none; }
 .practice-root select, .playground-root select { max-width: 100%; }
 .practice-root h4 { font-size: 14px; color: var(--pg-accent); margin: 0 0 8px; }

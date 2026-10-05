@@ -170,14 +170,9 @@ async function preview(notes, options = {}) {
   finally { if (request === generation) { pending = null; renderControls(); } }
 }
 async function saveTake(attempts, detail) { return repertoire.captureTake(attempts, detail); }
-const practiceInput = $('performance-input');
-const detailedFeedback = $('feedback-detail');
 const host = {
   getSession: () => structuredClone(session), updateSession, replaceSession, play: begin, stop, notify: message, preview, saveTake, renderSession,
   isBusy: busy,
-  mountPracticeInput: target => {
-    target.append(practiceInput, detailedFeedback);
-  },
 };
 
 // Uma única intenção na ordem de tabulação; setas navegam entre abas.
@@ -192,7 +187,7 @@ function activateTab(tab) {
   const slot = tab.id === 'tab-band' ? $('band-session-slot') : $('practice-session-slot');
   if ($('session-workspace').parentElement !== slot) slot.append($('session-workspace'));
   if (tab.id === 'tab-band') $('session-title').closest('.performance').querySelector('.eyebrow').textContent = 'ACOMPANHAMENTO DA SESSÃO';
-  else $('session-title').closest('.performance').querySelector('.eyebrow').textContent = 'SESSÃO GUARDADA · INDEPENDENTE DO EXERCÍCIO';
+  else $('session-title').closest('.performance').querySelector('.eyebrow').textContent = 'TREINE SUA FRASE · COM METRÔNOMO';
   renderControls();
   if (tab.id !== 'tab-repertoire') repertoire.stop();
 }
@@ -277,7 +272,7 @@ function renderControls() {
   $('session-title').textContent = session.name;
   $('session-badge').textContent = `${session.meter.beats}/${session.meter.unit} · ${session.bars} comp. · loop ${session.loop.startBar + 1}–${session.loop.endBar}`;
   $('play').disabled = pending !== null;
-  $('play').textContent = session.form.enabled ? (session.form.loop ? 'Tocar forma em loop' : 'Tocar forma') : 'Tocar acompanhamento';
+  $('play').textContent = session.form.enabled ? (session.form.loop ? 'Tocar forma em loop' : 'Tocar forma') : document.body.dataset.intent === 'band' ? 'Tocar acompanhamento' : 'Ouvir frase';
   $('band-stop').disabled = !locked;
   $('train').disabled = pending !== null || (session.training.evaluation !== 'free' && !session.notes.some(note => note.start >= session.loop.startBar * barTicks(session) && note.start < session.loop.endBar * barTicks(session)));
   $('stop').disabled = !locked && !repertoire?.isBusy();
@@ -737,6 +732,7 @@ $('replace-library-recovery').addEventListener('click', () => {
 function renderFeedback() {
   $('feedback').replaceChildren(); $('timeline').replaceChildren();
   $('feedback-detail').hidden = !results;
+  if (results) $('feedback-detail').open = true;
   if (!results) { const p = document.createElement('p'); p.className = 'muted'; p.textContent = 'Conclua um treino para comparar cada ataque e término, notas omitidas e extras.'; $('feedback').append(p); return; }
   renderTimeline($('timeline'), buildTimelineData(results, { session: reference }));
   const summary = summarizeFeedback(results);
