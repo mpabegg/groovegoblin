@@ -42,7 +42,7 @@ export function mountStudioTracks(host) {
       solo.title = `Solo temporário: ${name}`;
       solo.addEventListener('click', () => host.toggleSolo(channel));
       inline.append(mute, solo, volumeLabel, sound);
-      document.getElementById(`track-${channel}`).querySelector('.track-name').after(inline);
+      document.getElementById(`track-${channel}`).querySelector('.track-extra').before(inline);
       container.remove();
     } else { popover.append(volumeLabel, mute); container.append(sound); }
     let timbre;

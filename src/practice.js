@@ -103,6 +103,7 @@ export function normalizeSession(session) {
           velocity: clamp(numOr(note.velocity, 0.8), 0, 1),
           articulation: note.articulation ?? 'normal',
           offsetMs: numOr(note.offsetMs, 0),
+          ...(Object.hasOwn(note, 'string') ? { string: note.string } : {}),
         }))
         .sort((a, b) => a.start - b.start)
     : [];

@@ -1,4 +1,4 @@
-// Sessão canônica do GrooveGoblin (versão 4): frase, harmonia, banda,
+// Sessão canônica do GrooveGoblin (versão 5): frase, harmonia, banda,
 // metrônomo, treino, loop e mixer em um único documento persistido,
 // exportado e compartilhado. validateSession é estrita: campos
 // desconhecidos ou valores inválidos rejeitam o documento inteiro; campos
@@ -18,7 +18,7 @@ export { DRUM_EDIT_VOICES, MAX_DRUM_EDITS, DRUM_POSITION_EPSILON };
 
 export { ticksPerBar, sessionTicks, beatGroups, ARTICULATIONS, MIN_BARS, MAX_BARS };
 
-export const SESSION_VERSION = 4;
+export const SESSION_VERSION = 5;
 export const SESSION_FORMAT = 'groovegoblin-session';
 export const BPM_MIN = 30;
 export const BPM_MAX = 300;
@@ -203,7 +203,7 @@ const SECTION_LABELS = {
 };
 
 const TOP_LEVEL = {
-  version: value => [2, 3, SESSION_VERSION].includes(value),
+  version: value => [2, 3, 4, SESSION_VERSION].includes(value),
   name: value => typeof value === 'string' && value.length <= 80,
   bpm: value => isInt(value, BPM_MIN, BPM_MAX),
   bars: value => isInt(value, MIN_BARS, MAX_BARS),
@@ -291,6 +291,7 @@ function normalizeNotes(notes, session) {
   const limit = sessionTicks(session);
   for (const note of notes) {
     if (!isObject(note) || Object.keys(note).some(key => !NOTE_KEYS.includes(key))) fail('As notas da frase contêm campos desconhecidos.');
+    if (session.version < 5 && Object.hasOwn(note, 'string')) fail('A corda da nota exige sessão versão 5.');
     if (!isValidNote(note, limit)) fail('As notas da frase são inválidas ou excedem os compassos.');
   }
   const completed = notes.map(completeNote);
@@ -341,6 +342,7 @@ function normalizeExtensions(value) {
     try { normalizeInstrumentProfile(value.studio.instrument); }
     catch (error) { fail(`Perfil do instrumento inválido: ${error.message}`); }
   }
+  if (Object.hasOwn(value.studio ?? {}, 'phraseView') && !['rhythm', 'tab'].includes(value.studio.phraseView)) fail('Escolha vista Ritmo ou Tablatura.');
   let text;
   try {
     text = JSON.stringify(value);
@@ -410,10 +412,10 @@ function normalize(value, version = SESSION_VERSION) {
   return session;
 }
 
-// Primeiro valida o formato antigo inteiro: campos exclusivos da v3 não
-// podem transformar um documento v2 inválido em uma migração aparentemente válida.
+// Valida o formato antigo inteiro antes de migrar: campos novos não podem
+// transformar um documento antigo inválido em uma migração aparentemente válida.
 function migrateSession(value) {
-  if (![2, 3].includes(value?.version)) return value;
+  if (![2, 3, 4].includes(value?.version)) return value;
   const session = normalize(value, value.version);
   if (value.version === 2) {
     let cursor = 0;
@@ -441,7 +443,7 @@ export function validateSession(value) {
 // campo. Ao mudar "bars" sem informar o loop, o loop cobre toda a sessão.
 export function createSession(overrides = {}) {
   if (!isObject(overrides)) throw new TypeError('As opções da sessão devem ser um objeto.');
-  if ([2, 3].includes(overrides.version)) {
+  if ([2, 3, 4].includes(overrides.version)) {
     const migrated = validateSession(overrides);
     if (!migrated.ok) throw new TypeError(migrated.error);
     return migrated.session;
@@ -662,7 +664,7 @@ export function parseSession(text) {
     throw new TypeError('O arquivo deve conter apenas os campos de uma sessão do GrooveGoblin.');
   }
   if (document.format !== SESSION_FORMAT) throw new TypeError('O arquivo não está no formato de sessão do GrooveGoblin.');
-  if (![2, 3, SESSION_VERSION].includes(document.version) || document.session?.version !== document.version) {
+  if (![2, 3, 4, SESSION_VERSION].includes(document.version) || document.session?.version !== document.version) {
     throw new TypeError('A versão do arquivo de sessão não é compatível.');
   }
   const result = validateSession(document.session);

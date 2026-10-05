@@ -253,6 +253,17 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 .grid .note { top: 17px; height: 34px; font-size: 20px; padding: 2px 12px 2px 4px; }
 .grid .note .handle:after { top: 9px; height: 14px; }
 .grid[aria-disabled=true] .note { cursor: default; }
+.phrase-view-heading { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.phrase-view-heading .track-name { min-width: 0; margin: 0; }
+#phrase-view { max-width: 90px; padding: 2px; font-size: 10px; }
+#track-phrase.phrase-tab { height: calc(var(--tab-strings) * 28px); }
+#tab-strings { position: absolute; inset: 0; pointer-events: none; }
+.tab-string { position: absolute; left: 0; right: 0; border-top: 1px solid #8da2a688; }
+.grid.tab-view .note { height: 24px; font-size: 14px; padding: 1px 8px 1px 3px; font-weight: 700; }
+.grid.tab-view .note .handle:after { top: 4px; }
+.grid .note.tab-out-of-range { border: 2px dashed #ffbc8a; background: #755041; color: #fff1d5; }
+.tab-range-warning { color: #ffbc8a; font-size: 11px; }
+.note-inspector-row { flex-wrap: wrap; }
 #grid-cursor { display: none; position: absolute; top: 0; bottom: 0; border: 1px solid var(--blue); background: #8bcced0c; pointer-events: none; }
 .grid:focus-visible #grid-cursor { display: block; }
 .chord-lane { touch-action: none; user-select: none; outline-offset: -2px; }

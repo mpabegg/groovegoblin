@@ -9,6 +9,7 @@ import { getInstrumentProfile, formatInstrumentNote } from './instrument-profile
 import { timelineWidth, musicalDuration } from './studio-bars.js';
 import { mountStudioRuler } from './studio-ruler.js';
 import { renderPracticeScore } from './studio-score.js';
+import { phraseView, resolveTabPosition, mountPhraseView } from './tablature.js';
 
 const figure = duration => ({ 1: '𝅘𝅥𝅯', 2: '♪', 3: '♪·', 4: '♩', 6: '♩·', 8: '𝅗𝅥', 12: '𝅗𝅥·', 16: '𝅝' })[duration] ?? '';
 const number = value => String(Math.round(value * 1000) / 1000);
@@ -23,6 +24,7 @@ export function mountStudioTimeline(root, host) {
   const ruler = mountStudioRuler(root, host);
   const harmony = mountStudioHarmony(root, { ...host, offerMaterialize: ruler.offerMaterialize });
   const drums = mountStudioDrums(host);
+  const renderPhraseView = mountPhraseView(host);
   let cursor = 0;
   let creationTicks = [];
   let visibleBars = 4;
@@ -34,7 +36,7 @@ export function mountStudioTimeline(root, host) {
     const beatWidth = (canvas.clientWidth - 200) / session.bars / session.meter.beats;
     root.classList.toggle('compact-ruler', beatWidth < 40);
     for (const block of $('bass-lane').querySelectorAll('.bass-note')) {
-      block.textContent = block.getBoundingClientRect().width >= 30 ? formatInstrumentNote(Number(block.dataset.pitch), getInstrumentProfile(session)) : '';
+      block.textContent = block.getBoundingClientRect().width >= 30 ? formatInstrumentNote(Number(block.dataset.pitch), getInstrumentProfile(session), { octave: false }) : '';
     }
   }
   new ResizeObserver(size).observe(scroll);
@@ -57,7 +59,8 @@ export function mountStudioTimeline(root, host) {
     cursor = creationTicks.findLast(tick => tick <= cursor + 1e-8) ?? 0;
     $('grid-cursor').style.left = `${cursor / total * 100}%`;
     $('grid-cursor').style.width = `${Math.min(4 / session.subdivision, total - cursor) / total * 100}%`;
-    grid.setAttribute('aria-label', `Frase: compasso ${Math.floor(cursor / ticksPerBar(session)) + 1}, tempo ${number(cursor % ticksPerBar(session) / (16 / session.meter.unit) + 1)}. Setas navegam; Enter cria; seta para baixo entra nas notas.`);
+    const tabHelp = phraseView(session) === 'tab' ? 'Setas horizontais navegam; setas verticais escolhem corda; Enter cria; dígitos escolhem casa.' : 'Setas navegam; Enter cria; seta para baixo entra nas notas.';
+    grid.setAttribute('aria-label', `Frase: compasso ${Math.floor(cursor / ticksPerBar(session)) + 1}, tempo ${number(cursor % ticksPerBar(session) / (16 / session.meter.unit) + 1)}. ${tabHelp}`);
   }
   function renderGrid(session) {
     const total = sessionTicks(session); const measure = ticksPerBar(session); const step = 4 / session.subdivision;
@@ -84,16 +87,24 @@ export function mountStudioTimeline(root, host) {
   }
   function renderNotes(previewNotes) {
     const session = host.getSession(); const notes = previewNotes ?? session.notes; const total = sessionTicks(session);
+    const profile = getInstrumentProfile(session); const tab = phraseView(session) === 'tab';
     const focusedId = document.activeElement?.closest('.note')?.dataset.id;
     $('notes').replaceChildren();
     for (const note of [...notes].sort((a, b) => a.start - b.start)) {
       const selected = editor.ids().includes(note.id);
-      const block = document.createElement('div'); block.className = `note${selected ? ' selected' : ''}`; block.dataset.id = note.id;
+      const position = resolveTabPosition(note, profile);
+      const block = document.createElement('div'); block.className = `note${selected ? ' selected' : ''}${!position.playable ? ' tab-out-of-range' : ''}`; block.dataset.id = note.id;
+      if (tab) {
+        block.dataset.string = position.string; block.dataset.fret = position.fret;
+        block.style.top = `calc(${(position.string - 0.5) / profile.strings * 100}% - 12px)`;
+      }
       block.setAttribute('role', 'gridcell'); block.tabIndex = selected ? 0 : -1;
       block.style.left = `calc(${note.start / total * 100}% + 2px)`; block.style.width = `max(6px, calc(${note.duration / total * 100}% - 4px))`;
       block.setAttribute('aria-selected', String(selected)); block.setAttribute('aria-disabled', String(host.isBusy()));
-      block.setAttribute('aria-label', `Nota ${formatInstrumentNote(note.pitch, getInstrumentProfile(session))}: compasso ${Math.floor(note.start / ticksPerBar(session)) + 1}, tempo ${number(note.start % ticksPerBar(session) / (16 / session.meter.unit) + 1)}, duração ${musicalDuration(note.duration, session)}, intensidade ${Math.round(note.velocity * 100)}%, ${ARTICULATION_LABELS[note.articulation]}`);
-      block.textContent = figure(note.duration);
+      const fingering = position.playable ? `corda ${position.string}, casa ${position.fret}` : 'fora da extensão de casas 0–24; altura preservada';
+      block.setAttribute('aria-label', `Nota ${formatInstrumentNote(note.pitch, profile)}: ${fingering}, compasso ${Math.floor(note.start / ticksPerBar(session)) + 1}, tempo ${number(note.start % ticksPerBar(session) / (16 / session.meter.unit) + 1)}, duração ${musicalDuration(note.duration, session)}, intensidade ${Math.round(note.velocity * 100)}%, ${ARTICULATION_LABELS[note.articulation]}`);
+      block.textContent = tab ? position.playable ? String(position.fret) : '!' : figure(note.duration);
+      block.title = `${formatInstrumentNote(note.pitch, profile)} · ${fingering}`;
       const handle = document.createElement('span'); handle.className = 'handle'; handle.setAttribute('aria-hidden', 'true');
       if (note.duration / total * grid.getBoundingClientRect().width - 4 >= 12) block.append(handle);
       $('notes').append(block);
@@ -114,7 +125,7 @@ export function mountStudioTimeline(root, host) {
     }
   }
   function render() {
-    const session = host.getSession(); size(); tracks.render(); renderGrid(session); harmony.render(); drums.render(); renderBass(session); renderNotes(); size();
+    const session = host.getSession(); renderPhraseView(); size(); tracks.render(); renderGrid(session); harmony.render(); drums.render(); renderBass(session); renderNotes(); size();
   }
   function renderControls() {
     tracks.render(); ruler.render(); harmony.renderControls(); grid.setAttribute('aria-disabled', String(host.isBusy()));

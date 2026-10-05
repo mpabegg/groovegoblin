@@ -7,6 +7,7 @@ import { instrumentChangePatch } from '../src/studio-instrument.js';
 import { mergeSession, readSessionLibrary, SESSION_LIBRARY_KEY } from '../src/studio-state.js';
 import { History } from '../src/history.js';
 import { prepareArrangement } from '../src/arrangement.js';
+import { resolveTabPosition } from '../src/tablature.js';
 import { parseChordSymbol } from '../src/progression.js';
 
 const SESSION_KEY = 'groovegoblin.session.v2';
@@ -31,8 +32,8 @@ const events = session => Array.from({ length: session.bars }, (_, bar) => prepa
   }
  });
 
- test('v4 profile survives file, link, storage, library and undo/redo with unrelated extensions', () => {
-  assert.equal(SESSION_VERSION, 4);
+ test('v5 profile survives file, link, storage, library and undo/redo with unrelated extensions', () => {
+  assert.equal(SESSION_VERSION, 5);
   const instrument = { ...standardInstrumentProfile('bass', 5), tuning: [23, 26, 33, 38, 43], noteNames: 'solfege' };
   const session = createSession({ notes: [note(28)], timbres: { phrase: 'electric-bass' }, extensions: { studio: { instrument, inputPitch: 28, generator: { seed: 12 } }, external: { keep: true } } });
   const db = storage(); assert.equal(saveSession(session, db), true);
@@ -96,6 +97,45 @@ const events = session => Array.from({ length: session.bars }, (_, bar) => prepa
     const session = createSession({ notes: pitches.map((pitch, index) => note(pitch, index * 4)), extensions: { studio: { instrument: standardInstrumentProfile(type === 'bass' ? 'guitar' : 'bass') } } });
     const original = JSON.stringify(session); assert.throws(() => instrumentChangePatch(session, standardInstrumentProfile(type), 'transpose')); assert.equal(JSON.stringify(session), original);
   }
+ });
+
+ test('type and string-count changes clear assignments in the same atomic transaction without losing notes', () => {
+  const source = createSession({ notes: [{ ...note(52), string: 6 }, { ...note(60, 4), string: 3 }], extensions: { studio: { instrument: standardInstrumentProfile(), phraseView: 'tab' } } });
+  const original = JSON.stringify(source);
+  const history = new History(); history.push(source);
+  for (const decision of ['keep', 'transpose']) {
+    const patch = instrumentChangePatch(source, standardInstrumentProfile('bass'), decision);
+    assert.ok(patch.notes.every(item => !Object.hasOwn(item, 'string')));
+    const next = createSession(mergeSession(source, patch));
+    assert.deepEqual(next.notes, source.notes.map(({ string, ...item }) => ({ ...item, pitch: item.pitch + (decision === 'transpose' ? -24 : 0) })));
+    assert.equal(next.extensions.studio.phraseView, 'tab');
+    history.push(next); assert.deepEqual(history.undo(), source); history.redo();
+    history.undo();
+  }
+  assert.equal(instrumentChangePatch(source, standardInstrumentProfile('bass'), 'cancel'), null);
+  assert.equal(JSON.stringify(source), original);
+  for (const [from, to] of [[4, 5], [5, 4]]) {
+    const bass = createSession({ notes: [{ ...note(28), string: from }], extensions: { studio: { instrument: standardInstrumentProfile('bass', from) } } });
+    const next = createSession(mergeSession(bass, instrumentChangePatch(bass, standardInstrumentProfile('bass', to))));
+    assert.deepEqual(next.notes, bass.notes.map(({ string, ...item }) => item));
+    assert.deepEqual(events(next), events(bass));
+    assert.equal(bass.notes[0].string, from);
+  }
+  const impossible = createSession({ notes: [{ ...note(10), string: 6 }] });
+  assert.throws(() => instrumentChangePatch(impossible, standardInstrumentProfile('bass'), 'transpose'), RangeError);
+  assert.equal(impossible.notes[0].string, 6); assert.equal(impossible.notes[0].pitch, 10);
+ });
+
+ test('tuning and spelling changes retain authored strings and pitches, including Drop D sixth-string fret recalculation', () => {
+  const instrument = standardInstrumentProfile();
+  const source = createSession({ notes: [{ ...note(40), string: 6 }, { ...note(60, 4), string: 3 }], extensions: { studio: { instrument } } });
+  const drop = { ...instrument, tuning: instrumentTuning(instrument, 'drop-d'), noteNames: 'solfege' };
+  const patch = instrumentChangePatch(source, drop);
+  assert.equal(Object.hasOwn(patch, 'notes'), false);
+  const next = createSession(mergeSession(source, patch));
+  assert.deepEqual(next.notes, source.notes); assert.deepEqual(events(next), events(source));
+  assert.deepEqual(resolveTabPosition(next.notes[0], getInstrumentProfile(next)), { string: 6, fret: 2, playable: true, explicit: true });
+  assert.equal(resolveTabPosition(next.notes[1], getInstrumentProfile(next)).fret, 5);
  });
 
  test('strings, tuning and note names preserve custom phrase timbre, mix and harmonic spelling', () => {

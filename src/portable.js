@@ -1,5 +1,5 @@
 // Leitores do formato legado groovegoblin-phrase v1 (arquivo e link #phrase=).
-// Exportação e compartilhamento atuais usam a sessão v2 (session.js), que
+// Exportação e compartilhamento atuais usam a sessão v5 (session.js), que
 // chama estes leitores para migrar arquivos e links antigos com rigor.
 import { validPhrase } from './model.js';
 

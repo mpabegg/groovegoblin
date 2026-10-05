@@ -1,7 +1,7 @@
 import { sessionTicks, ticksPerBar } from './session.js';
 import { musicalDuration } from './studio-bars.js';
-
 import { getInstrumentProfile, formatInstrumentNote } from './instrument-profile.js';
+import { resolveTabPosition, stringPitch, validTabFret, tabFretPatches, octaveToFitPatch } from './tablature.js';
 
 export function mountStudioInspector(host) {
   const $ = id => document.getElementById(id);
@@ -21,11 +21,36 @@ export function mountStudioInspector(host) {
       host.commitNote({ [field]: field === 'articulation' ? input.value : Number(input.value) / (field === 'velocity' ? 100 : 1) });
     });
   }
+  const selectedNotes = () => {
+    const selection = host.getSelection(); const ids = selection?.kind === 'note' ? selection.ids ?? [selection.id] : [];
+    return host.getSession().notes.filter(note => ids.includes(note.id));
+  };
+  $('note-string').addEventListener('change', event => {
+    const profile = getInstrumentProfile(host.getSession()); const string = Number(event.target.value); const open = stringPitch(profile, string);
+    if (open === null || selectedNotes().some(note => !validTabFret(note.pitch - open))) {
+      host.notify('O grupo não cabe nessa corda sem mudar alturas. Escolha outra corda ou edite a casa.', true); render(); return;
+    }
+    host.commitNote({ string });
+  });
+  $('note-fret').addEventListener('change', event => {
+    const input = event.target; const notes = selectedNotes();
+    const patches = input.value !== '' && input.checkValidity()
+      ? tabFretPatches(notes, notes.map(note => note.id), Number(input.value), getInstrumentProfile(host.getSession())) : null;
+    if (!patches) { host.notify('Use uma casa inteira de 0 a 24 dentro da extensão MIDI.', true); render(); return; }
+    host.commitNote(note => patches.get(note.id) ?? {});
+  });
+  $('note-octave-fit').addEventListener('click', () => {
+    const profile = getInstrumentProfile(host.getSession());
+    host.commitNote(note => octaveToFitPatch(note, profile));
+  });
   $('write-from-scratch').addEventListener('click', () => { writing = true; render(); $('grid').focus({ preventScroll: true }); });
   function render() {
     const session = host.getSession(); const selection = host.getSelection(); const locked = host.isBusy();
     const note = selection?.kind === 'note' ? session.notes.find(item => item.id === selection.id) : null;
     const chord = selection?.kind === 'chord' ? session.progression.chords[selection.index] : null;
+    const profile = getInstrumentProfile(session);
+    const position = note ? resolveTabPosition(note, profile) : null;
+    const outOfRange = selectedNotes().some(item => !resolveTabPosition(item, profile).playable);
     const kind = note ? 'note' : chord ? 'chord' : null;
     if (kind !== previousKind) {
       for (const detail of $('studio-inspector').querySelectorAll('details')) detail.open = false;
@@ -35,7 +60,7 @@ export function mountStudioInspector(host) {
     $('empty-phrase').hidden = !empty;
     $('phrase-actions').hidden = kind !== null || empty;
     $('selection-text').hidden = kind !== 'note';
-    if (note) $('selection-text').textContent = (selection.ids?.length ?? 1) > 1 ? `${selection.ids.length} notas selecionadas · edição conjunta` : `Nota · ${formatInstrumentNote(note.pitch, getInstrumentProfile(session))} · compasso ${Math.floor(note.start / ticksPerBar(session)) + 1}`;
+    if (note) $('selection-text').textContent = (selection.ids?.length ?? 1) > 1 ? `${selection.ids.length} notas selecionadas · edição conjunta` : `Nota · ${formatInstrumentNote(note.pitch, profile)} · compasso ${Math.floor(note.start / ticksPerBar(session)) + 1}`;
     $('band-starters').hidden = writing || (session.drums.enabled && session.band.bassEnabled && session.progression.enabled && session.progression.chords.length > 0);
     $('note-detail').hidden = !note;
     $('studio-inspector').hidden = empty && !kind;
@@ -45,7 +70,15 @@ export function mountStudioInspector(host) {
       input.disabled = locked || !note;
       input.title = locked ? 'Pare a reprodução antes de editar a nota' : !note ? 'Selecione uma nota para editar' : '';
     }
-    $('note-pitch-name').textContent = note ? `Altura: ${formatInstrumentNote(note.pitch, getInstrumentProfile(session))}` : '';
+    $('note-pitch-name').textContent = note ? `Nota: ${formatInstrumentNote(note.pitch, profile)}` : '';
+    $('note-string').replaceChildren();
+    for (let string = 1; string <= profile.strings; string += 1) {
+      const option = document.createElement('option'); option.value = string; option.textContent = `${string} · ${formatInstrumentNote(stringPitch(profile, string), profile)}`; $('note-string').append(option);
+    }
+    $('note-string').value = position?.string ?? 1; $('note-string').disabled = locked || !note;
+    $('note-fret').value = position?.playable ? position.fret : ''; $('note-fret').disabled = locked || !note;
+    $('note-range-warning').hidden = !outOfRange;
+    $('note-octave-fit').hidden = !outOfRange; $('note-octave-fit').disabled = locked || !note;
     $('note-start').max = sessionTicks(session); $('note-duration').max = sessionTicks(session);
     $('note-start').step = $('note-duration').step = 'any';
     for (const chip of document.querySelectorAll('#presets button, #extra-presets button')) {

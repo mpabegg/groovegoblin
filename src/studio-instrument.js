@@ -19,6 +19,9 @@ export function instrumentChangePatch(session, value, decision = 'keep') {
       patch.notes = session.notes.map(note => ({ ...note, pitch: note.pitch + semitones }));
     }
   }
+  if (instrument.type !== previous.type || instrument.strings !== previous.strings) {
+    patch.notes = (patch.notes ?? session.notes).map(({ string, ...note }) => note);
+  }
   const checked = validateSession(mergeSession(session, patch));
   if (!checked.ok) throw new RangeError(`Instrumento não alterado: ${checked.error} Todas as alturas devem permanecer entre MIDI 0 e 127.`);
   return patch;

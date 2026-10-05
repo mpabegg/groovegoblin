@@ -19,6 +19,19 @@ As seções abaixo registram resultados observados, não verificações antecipa
 - Capturas: [1440×900](rodada-3-etapa1-1440x900.png), [1280×800](rodada-3-etapa1-1280x800.png). Quatro faixas ligadas: **51 controles**, transporte de **53 px** e inspetor até **y=765**, sem overflow horizontal.
 - Integração publicada na `main`: `40d4582`; **411/411 testes e check repetidos na main**, push concluído.
 
+### Etapa 2 — Tablatura editável
+
+- Sessão **v5**, com `note.string` opcional (1 = corda mais aguda). Migração v2/v3/v4 valida o documento original antes de aceitar campos novos; notas antigas continuam sem atribuição armazenada e usam a posição de menor casa para exibição. Arquivos, links, biblioteca, histórico e snapshots conservam a corda.
+- Ritmo/Tablatura é uma escolha por sessão. Seis linhas na guitarra, quatro/cinco no baixo; notas mantêm largura proporcional à duração. Cordas/casas/nomes no inspetor; MIDI numérico permanece em Avançado.
+- No navegador, clique na terceira linha + **5** produziu **C4/MIDI 60, corda 3, duração 2**. ↑ mudou para corda 2/casa 1 sem mudar a altura; a próxima subida impossível foi recusada sem alteração. **1,2** dentro da janela produziu casa 12; **3** após 650 ms produziu casa 3, não 123.
+- Shift+↑/↓ mudou duração sem mudar altura/corda; ←/→ mudou somente início; Ctrl+D preservou altura, duração e corda na cópia. Editar casa durante o loop manteve **Parar**; Desfazer recuperou a nota anterior.
+- Sexta corda **E2/MIDI 40, casa 0** permaneceu idêntica no documento ao mudar para Drop D e passou a mostrar **casa 2**. Uma nota E1 fora de alcance continuou visível/editável; a ação explícita de oitava mudou apenas 28→40, mantendo ID, início e duração.
+- Trocar tipo ou quantidade de cordas limpa apenas atribuições físicas obsoletas na mesma transação; manter alturas preservou todas as notas. Afinação e nomes não limpam cordas. Baixo com quatro e cinco linhas foi conferido.
+- Download real v5 de **6.979 bytes**, reimportação e reload preservaram o JSON canônico inteiro, modo Tab, sexta corda e Drop D. Fixture v4 reaberta no v5 preservou notas, timbre e os **77 eventos realizados**, idênticos ao código de referência.
+- A inspeção visual revelou mixer indevidamente dentro da nova linha título/vista. Corrigida sua âncora no cabeçalho: título completo, volume de **101 px**, nenhum controle fora do cabeçalho.
+- Verificação final da branch: **470/470 testes**, **114 módulos**, zero falhas. Duas assertivas iniciais foram corrigidas: posição automática realmente de menor casa e resto matemático de diferença negativa de oitavas, sem mudar produção para satisfazê-las.
+- Capturas: [1440×900](rodada-3-etapa2-1440x900.png), [1280×800](rodada-3-etapa2-1280x800.png): **53 controles**, transporte **53 px**, sem overflow horizontal. Tab de seis cordas termina o inspetor em **y=845**; o modo Ritmo conserva faixa de **88 px** e inspetor em **y=765**.
+
 ### Etapa 7 — Entrada por instrumento
 
 - Integrada logo após o perfil: a etapa é independente das etapas 2–6 e libera o afinador em paralelo, conforme as dependências solicitadas.
@@ -31,16 +44,17 @@ As seções abaixo registram resultados observados, não verificações antecipa
 - Testes sintéticos: **30,87/41,2/55/98 Hz**, subida de **15 ms**, sinais sustentados/repetidos, fases, ruído e blocos distintos em **8/44,1/48/96 kHz**, dentro de **10 ms** e sem ataques extras. No WAV usado pelo navegador, com fundamental fraca e segundo/terceiro harmônicos, os quatro graves tiveram erro puro de **0,042–0,063 ms**.
 - Verificação da branch: **450/450 testes**, **111 módulos**, zero falhas; `main.js` tem **529 linhas**, abaixo das 536 iniciais. Estúdio com quatro faixas: **52 controles medidos**, transporte de **53 px** em 1280 px.
 - Capturas: [1440×900](rodada-3-etapa7-1440x900.png), [1280×800](rodada-3-etapa7-1280x800.png). Nenhum erro da aplicação registrado pelo navegador.
+- Integração publicada na `main`: `b1cc204`; **450/450 testes e check repetidos na main**, push concluído.
 
 ## Critérios de aceitação
 
 | Nº | Critério | Resultado |
 |---|---|---|
-| 1 | Perfil visível; Baixo muda nome, timbre, acompanhamento, tablatura e clave | Parcial: perfil/nome/timbre/acompanhamento passaram; tablatura/clave visual nas etapas 2–3 |
+| 1 | Perfil visível; Baixo muda nome, timbre, acompanhamento, tablatura e clave | Parcial: perfil/nome/timbre/acompanhamento e linhas 6/4/5 passaram; clave desenhada na etapa 3 |
 | 2 | Perfil, cordas e afinação preservados em arquivo e reload | Passou: download, importação e reload com Baixo 5/Drop D/solfejo |
-| 3 | Sessão v4 antiga abre e soa igual | Passou na etapa 1: importação e eventos realizados idênticos; repetir após migração v5 |
-| 4 | Terceira corda + casa 5 produz altura correta | Pendente |
-| 5 | Troca de corda preserva altura; Drop D atualiza casas | Pendente |
+| 3 | Sessão v4 antiga abre e soa igual | Passou após v5: 77 eventos realizados idênticos à referência v4, sem mudar notas/timbre/papel |
+| 4 | Terceira corda + casa 5 produz altura correta | Passou no navegador: corda 3/casa 5 → C4/MIDI 60 |
+| 5 | Troca de corda preserva altura; Drop D atualiza casas | Passou: C4 muda de corda sem transpor; E2 na sexta vira casa 2 em Drop D |
 | 6 | Cifras, ritmo e tablatura alinhados em sistemas de quatro compassos nas duas vistas | Pendente |
 | 7 | Linha Rock sobre C–F–G–C vira frase editável no registro do baixo | Pendente |
 | 8 | Estudar esta linha copia baixo e troca perfil | Pendente |
@@ -56,7 +70,7 @@ As seções abaixo registram resultados observados, não verificações antecipa
 | 18 | Ataques graves com subida de 15 ms: erro até 10 ms e nenhuma repetição falsa em sustentadas | Passou: quatro frequências × quatro taxas, reataques/sustentadas/ruído; WAV harmônico também exercitado |
 | 19 | Alturas sintéticas: certas, nota errada, oitava diferente e não identificada | Pendente |
 | 20 | Miniatura revela conteúdo além de quatro compassos e navega ao clique | Pendente |
-| 21 | Até 62 controles em repouso; transporte em uma linha a 1280 px | Passou na etapa 1: 51 controles/53 px; verificar novamente ao final |
+| 21 | Até 62 controles em repouso; transporte em uma linha a 1280 px | Passou até etapa 2: 53 controles/53 px; verificar novamente ao final |
 | 22 | Funcionalidades aprovadas da rodada 2 preservadas | Pendente |
 
 ## Limite de verificação de áudio

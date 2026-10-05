@@ -1,7 +1,7 @@
 // Modelo de frase monofônica em qualquer fórmula de compasso.
 // Coordenada: 4 ticks = semínima (ticksPerBar = beats * 16 / unit); ticks
 // podem ser fracionários para quiálteras. Notas:
-// {id, start, duration, pitch (MIDI), velocity (0..1), articulation, offsetMs}
+// {id, start, duration, pitch (MIDI), velocity (0..1), articulation, offsetMs, string?}
 // em intervalo semiaberto [start, start+duration). Adjacência é permitida;
 // sobreposição é proibida (a execução por teclado/toque é monofônica).
 // offsetMs é microtempo expressivo (antecipa/atrasa a nota sem mudar a grade).
@@ -21,13 +21,14 @@ export const MIN_DURATION = 0.05;
 export const OFFSET_LIMIT_MS = 80;
 export const ARTICULATIONS = Object.freeze(['normal', 'accent', 'ghost', 'staccato', 'tenuto', 'legato']);
 export const NOTE_DEFAULTS = Object.freeze({ pitch: 69, velocity: 0.8, articulation: 'normal', offsetMs: 0 });
-export const NOTE_KEYS = Object.freeze(['id', 'start', 'duration', 'pitch', 'velocity', 'articulation', 'offsetMs']);
+export const NOTE_KEYS = Object.freeze(['id', 'start', 'duration', 'pitch', 'velocity', 'articulation', 'offsetMs', 'string']);
 
 const FIELD_VALIDATORS = {
   pitch: value => Number.isInteger(value) && value >= 0 && value <= 127,
   velocity: value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1,
   articulation: value => ARTICULATIONS.includes(value),
   offsetMs: value => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= OFFSET_LIMIT_MS,
+  string: value => Number.isInteger(value) && value >= 1 && value <= 6,
 };
 
 function isFiniteNumber(value) {
@@ -97,6 +98,7 @@ export function completeNote(note) {
     velocity: note.velocity ?? NOTE_DEFAULTS.velocity,
     articulation: note.articulation ?? NOTE_DEFAULTS.articulation,
     offsetMs: note.offsetMs ?? NOTE_DEFAULTS.offsetMs,
+    ...(Object.hasOwn(note, 'string') ? { string: note.string } : {}),
   };
 }
 
@@ -132,7 +134,7 @@ export function resizeNote(notes, id, duration, span = DEFAULT_BARS) {
   return updateNote(notes, id, { duration }, span);
 }
 
-// patch pode conter start, duration, pitch, velocity, articulation, offsetMs.
+// patch pode conter start, duration, pitch, velocity, articulation, offsetMs, string.
 export function updateNote(notes, id, patch, span = DEFAULT_BARS) {
   const limit = spanTicks(span);
   if (!validPhrase(notes, span) || !Number.isFinite(limit)) return notes;

@@ -141,16 +141,16 @@ test('missing v2 fields retain defaults, including disabled/empty cycles, withou
 });
 
 test('versions and envelope versions are authoritative on every entry point', () => {
-  assert.equal(SESSION_VERSION, 4);
+  assert.equal(SESSION_VERSION, 5);
   const session = gaps();
-  for (const version of [undefined, null, 0, 1, 5, '4']) {
+  for (const version of [undefined, null, 0, 1, 6, '5']) {
     const invalid = { ...session, version };
     assert.equal(validateSession(invalid).ok, false);
     assert.throws(() => parseSession(JSON.stringify(invalid)), TypeError);
     assert.throws(() => decodeSessionLink(oldLink(invalid)), TypeError);
     assert.equal(saveSession(invalid, storage()), false);
   }
-  for (const version of [2, 3, 5]) assert.throws(() => parseSession(JSON.stringify({ ...envelope(session), version })), TypeError);
+  for (const version of [2, 3, 4, 6]) assert.throws(() => parseSession(JSON.stringify({ ...envelope(session), version })), TypeError);
   const old = fixtures[0].session;
   assert.throws(() => parseSession(JSON.stringify({ ...envelope(old), version: 3 })), TypeError);
   const raw = JSON.stringify([{ id: 'mismatched', savedAt: '2026-10-04T12:00:00Z', session: { ...envelope(old), version: 3 } }]);

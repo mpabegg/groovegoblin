@@ -129,6 +129,7 @@ export function buildRhythmNotation(notes, span = 1, options = {}) {
       articulation: note ? note.articulation ?? 'normal' : null,
       velocity: note ? note.velocity ?? 0.8 : null,
       pitch: note ? note.pitch ?? 69 : null,
+      ...(note && Object.hasOwn(note, 'string') ? { string: note.string } : {}),
       approximate,
     });
   }
