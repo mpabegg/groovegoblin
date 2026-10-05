@@ -6,9 +6,9 @@ export const TOUR_STORAGE_KEY = 'groovegoblin:tour:v1';
 
 const STEPS = [
   {
-    tab: 'tab-studio', target: '#studio-timeline-title',
-    title: 'Estúdio: editar e tocar sua sessão',
-    body: 'Harmonia, frase, bateria e baixo compartilham uma régua, o mesmo zoom e um único cursor. Clique no vazio da harmonia para criar nesse compasso, deixando pausas antes; selecione um acorde para escolher graus, cifras e inversões no inspetor. Na frase, clique para criar; arraste notas ou sua borda direita para editar. Timbre e “Som” ficam em cada cabeçalho; “Grade e swing” também guarda biblioteca e gerador. O transporte reúne Tocar/Parar, BPM, metrônomo e loop; “Sessão” abre arquivos e links. ? mostra os atalhos. Não há gravação por microfone.',
+    tab: 'tab-studio', target: '#studio-editor',
+    title: 'Estúdio: editar e tocar sua Sessão',
+    body: 'Acordes, Frase, Bateria e Baixo compartilham uma régua, o mesmo zoom e um único cursor. Clique no vazio dos acordes para criar nesse compasso, deixando pausas antes; selecione um acorde para escolher graus e abra “Avançado · cifras e inversões” para outras escolhas. Na Frase, clique para criar; arraste notas ou sua borda direita para editar. O inspetor mostra figuras, Intensidade em % e articulação. “Som” fica em cada cabeçalho; “Grade e swing” guarda zoom, biblioteca e gerador. Tocar/Parar, BPM, metrônomo e loop ficam no transporte; “Sessão” abre biblioteca, arquivos e links. Bateria e Baixo são referências geradas, sem edição manual.',
   },
   {
     tab: 'tab-practice', target: '#train-pad',
@@ -18,12 +18,12 @@ const STEPS = [
   {
     tab: 'tab-repertoire', target: '#repertoire-mount',
     title: 'Músicas: estudar um trecho',
-    body: 'Importe um áudio, escolha um trecho A–B, repita em loop e ajuste a velocidade para estudar. Análise de pulsos e acordes, tomadas e setlists ficam nesta atividade. A importação de MIDI serve para levar notas à frase do estúdio, não para abrir uma gravação. Seus arquivos são processados neste navegador.',
+    body: 'Importe um áudio, escolha um trecho A–B, repita em loop e ajuste a velocidade para estudar. Análise de pulsos e acordes, tomadas e setlists ficam nesta atividade. O intercâmbio por arquivo leva notas à Frase do Estúdio; não é entrada de instrumento ao vivo. Seus arquivos são processados neste navegador.',
   },
   {
-    tab: 'tab-studio', target: '.intentions',
+    tab: 'tab-studio', target: '#tab-explore',
     title: 'Escolha sua atividade',
-    body: 'Estúdio, Treinar e Músicas ficam no topo. Em “Mais opções”, Explorar reúne jogos e experiências; Percurso mostra seus treinos e revisões. O mesmo botão “Parar” continua acessível quando há som em outras áreas, e Esc interrompe todo o áudio. Esta ajuda só abre quando você escolhe “Como usar”.',
+    body: 'Estúdio, Treinar e Músicas ficam no topo. Em “Mais opções”, Explorar reúne jogos e experiências; Percurso mostra seus treinos e revisões. O mesmo botão “Parar” continua acessível quando há som em outras áreas, e Esc interrompe todo o áudio fora desta ajuda. “Ajuda e app → Como usar” abre este tour opcional; “Atalhos” e “Offline” ficam no mesmo menu. Ao fechar a ajuda, sua atividade, painéis, menus, foco e rolagem voltam ao estado anterior.',
   },
 ];
 
@@ -110,10 +110,11 @@ export function mountTour(button, host) {
       index: 0, token: 0, raf: 0, settleTimer: 0, settling: false, animations: [],
       restore: {
         tab: tab?.id ?? 'tab-studio',
-        open: Object.fromEntries([...document.querySelectorAll('details[id]')].map(details => [details.id, details.open])),
+        details: [...document.querySelectorAll('details')].map(node => ({ node, id: node.id, open: node.open })),
         focusMode: document.body.classList.contains('performance-focus'),
         x: scrollX, y: scrollY,
         gridLeft: document.querySelector('#studio-scroll')?.scrollLeft ?? 0,
+        gridTop: document.querySelector('#studio-scroll')?.scrollTop ?? 0,
         focus: document.activeElement,
       },
     };
@@ -170,7 +171,18 @@ export function mountTour(button, host) {
       if (token !== state?.token) return;
     }
     host.activateTab(step.tab);
-    for (const id of step.open ?? []) { const details = document.getElementById(id); if (details) details.open = true; }
+    // A ativação pode reaplicar o foco na execução e fechar “Mais opções”.
+    // Abrimos os ancestrais reais, incluindo details sem id, sem editar dados.
+    document.body.classList.remove('performance-focus');
+    for (let node = button.parentElement; node; node = node.parentElement) {
+      if (node instanceof HTMLDetailsElement) node.open = false;
+    }
+    const targetNode = document.querySelector(step.target);
+    const ancestors = [];
+    for (let node = targetNode; node; node = node.parentElement) {
+      if (node instanceof HTMLDetailsElement) ancestors.push(node);
+    }
+    for (const details of ancestors.reverse()) details.open = true;
     title.textContent = step.title;
     body.textContent = step.body;
     count.textContent = `${index + 1} de ${STEPS.length}`;
@@ -332,10 +344,13 @@ export function mountTour(button, host) {
     if (dialog.open) dialog.close();
     document.documentElement.classList.remove('tour-active');
     host.activateTab(restore.tab);
-    for (const [id, open] of Object.entries(restore.open)) { const details = document.getElementById(id); if (details) details.open = open; }
+    for (const { node, id, open } of restore.details) {
+      const details = id ? document.getElementById(id) : node;
+      if (details?.isConnected) details.open = open;
+    }
     document.body.classList.toggle('performance-focus', restore.focusMode);
     const grid = document.querySelector('#studio-scroll');
-    if (grid) grid.scrollLeft = restore.gridLeft;
+    if (grid) { grid.scrollLeft = restore.gridLeft; grid.scrollTop = restore.gridTop; }
     scrollTo({ top: restore.y, left: restore.x, behavior: 'instant' });
     const focus = restore.focus instanceof HTMLElement && restore.focus !== document.body && restore.focus.isConnected && !restore.focus.closest('[hidden], [inert]') ? restore.focus : button;
     focus.focus({ preventScroll: true });

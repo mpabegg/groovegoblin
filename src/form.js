@@ -5,9 +5,9 @@ import { prepareArrangement } from './arrangement.js';
 export const FORM_KINDS = Object.freeze(['intro', 'A', 'B', 'fill', 'break', 'end']);
 export const FORM_LABELS = Object.freeze({ intro: 'Introdução', A: 'A', B: 'B', fill: 'Virada', break: 'Pausa da banda', end: 'Final' });
 export const FORM_DESCRIPTIONS = Object.freeze({
-  intro: 'Sem melodia; banda toca apenas os ataques no início de cada compasso.', A: 'Arranjo completo da fonte.', B: 'Arranjo completo da fonte; escolha outra fonte ou densidade para contrastar.',
-  fill: 'Virada de bateria no último tempo de cada compasso.', break: 'Só melodia e cliques; banda em silêncio.',
-  end: 'Melodia completa; banda só nos ataques iniciais de cada compasso. Sustentações terminam na seção.',
+  intro: 'Sem frase; a banda toca apenas os ataques no início de cada compasso.', A: 'Arranjo completo do trecho da sessão.', B: 'Arranjo completo do trecho; escolha outros compassos ou densidade para contrastar.',
+  fill: 'Virada de bateria no último tempo de cada compasso.', break: 'Só frase e metrônomo; banda em silêncio.',
+  end: 'Frase completa; banda só nos ataques iniciais de cada compasso. Sustentações terminam na seção.',
 });
 
 // A validação pertence ao documento; não importa session.js para evitar ciclos.

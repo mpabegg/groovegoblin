@@ -139,9 +139,14 @@
   </div>
     <details id="form-panel" class="panel">
       <summary>Organizar uma música em seções</summary>
-      <div class="tool-row"><label class="toggle"><input id="form-enabled" data-path="form.enabled" type="checkbox"> Tocar a forma</label><label class="toggle"><input id="form-loop" data-path="form.loop" type="checkbox"> Repetir a forma (desmarque para terminar)</label><button id="add-section">Adicionar seção</button></div>
-      <p class="tool-hint muted">Cada seção toca compassos da fonte em ordem. Na tela os limites são inclusivos (1–2 toca os compassos 1 e 2). BPM e compasso em branco herdam a sessão; outro compasso redimensiona posições e durações proporcionalmente. A densidade muda bateria, baixo e harmonia habilitados. Edite com a reprodução parada.</p>
-      <ol id="form-sections" class="form-sections"></ol>
+      <div class="tool-row"><label class="toggle"><input id="form-enabled" type="checkbox" aria-describedby="form-empty"> Tocar a forma</label><label class="toggle"><input id="form-loop" type="checkbox"> Repetir a forma (desmarque para terminar)</label><button id="add-section" type="button">Adicionar seção</button></div>
+      <p class="tool-hint muted">Cada seção toca um trecho da sessão em ordem. Os limites são inclusivos: 1–2 toca os compassos 1 e 2. Em Mais, BPM e compasso em branco herdam a sessão; outro compasso redimensiona posições e durações proporcionalmente. A densidade muda bateria, baixo e acordes habilitados. Edite com a reprodução parada.</p>
+      <p id="form-empty" class="tool-hint muted">Adicione uma seção para habilitar Tocar a forma.</p>
+      <table id="form-table" class="form-table" hidden>
+        <caption class="sr-only">Seções da forma musical, na ordem de reprodução. Os compassos de início e fim são inclusivos.</caption>
+        <thead><tr><th scope="col">Nome</th><th scope="col">Tipo e papel</th><th scope="col">Compassos · de–até</th><th scope="col">Repetições</th><th scope="col">Mais</th></tr></thead>
+        <tbody id="form-sections"></tbody>
+      </table>
       <p id="form-position" role="status" aria-live="polite">Forma desativada.</p>
     </details>
   </div>
@@ -187,7 +192,7 @@
     <dt><kbd>Enter</kbd> / <kbd>↓</kbd></dt><dd>Na grade, criar na posição navegada / entrar nas notas. PageUp e PageDown escolhem a nota anterior e seguinte.</dd>
     <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>No editor, mover a nota; <kbd>↑</kbd> <kbd>↓</kbd> mudam a duração. Shift usa uma semínima.</dd>
     <dt><kbd>←</kbd> <kbd>→</kbd> / <kbd>Shift+←</kbd> <kbd>Shift+→</kbd></dt><dd>Na harmonia, mover / redimensionar um tempo escrito. Enter seleciona um acorde; na faixa vazia, cria uma tônica.</dd>
-    <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> <kbd>6</kbd> <kbd>8</kbd></dt><dd>No editor, escolher a duração em ticks. 4 ticks = uma semínima.</dd>
+    <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> <kbd>6</kbd> <kbd>8</kbd></dt><dd>Na frase: semicolcheia, colcheia, colcheia pontuada, semínima, semínima pontuada e mínima, respectivamente.</dd>
     <dt><kbd>?</kbd></dt><dd>Abrir esta ajuda. Clique numa célula para criar; arraste a nota para mover ou a borda direita para mudar a duração.</dd>
   </dl>
   <button id="shortcuts-close" type="button" autofocus>Fechar atalhos</button>
