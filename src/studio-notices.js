@@ -1,32 +1,40 @@
-// A notice refers only to the current canonical history entry, never a copy of the session.
+// Undo is bound to a canonical history identity, never a copied session or a later edit.
 export function mountStudioNotices(host) {
   const $ = id => document.getElementById(id);
   let entry = null;
-  let retired = false;
+  let timer = null;
+  function close() {
+    clearTimeout(timer); timer = null; entry = null;
+    $('studio-toast').hidden = true;
+    $('replacement-undo').hidden = true;
+  }
   function render() {
-    $('replacement-undo').hidden = retired || entry === null;
-    $('replacement-retired').hidden = !retired;
-    $('replacement-undo').disabled = host.isBusy() || !host.canUndo();
-    $('replacement-undo').title = host.isBusy() ? 'Pare a reprodução antes de desfazer' : !host.canUndo() ? 'Não há alteração anterior para recuperar' : 'Desfazer esta substituição';
+    const eligible = entry !== null && entry === host.current() && host.canUndo();
+    if (entry !== null && entry !== host.current()) close();
+    $('replacement-undo').hidden = !eligible;
+    $('replacement-undo').disabled = host.isBusy() || !eligible;
+    $('replacement-undo').title = host.isBusy() ? 'Pare a reprodução antes de desfazer' : 'Desfazer esta alteração';
+  }
+  function show(text, { error = false, current = null } = {}) {
+    close();
+    if (!text) return;
+    entry = current;
+    $('message').textContent = text;
+    $('message').classList.toggle('error', error);
+    $('studio-toast').hidden = false;
+    render();
+    timer = setTimeout(close, entry !== null && host.canUndo() ? 10000 : 6000);
   }
   function changed(current, text = null) {
-    if (text) {
-      entry = current; retired = false;
-      $('replacement-text').textContent = text;
-      $('replacement-notice').hidden = false;
-    } else if (entry !== null && entry !== current) {
-      entry = null; retired = true;
-    }
+    if (text) show(text, { current });
+    else if (entry !== null && entry !== current) close();
     render();
   }
   $('replacement-undo').addEventListener('click', () => {
-    if (retired || entry === null || entry !== host.current() || host.isBusy() || !host.canUndo()) return;
+    if (entry === null || entry !== host.current() || host.isBusy() || !host.canUndo()) return;
     host.undo();
-    entry = null; retired = false;
-    $('replacement-text').textContent = 'Substituição desfeita.';
-    $('replacement-notice').hidden = false;
-    $('replacement-undo').hidden = true;
-    $('replacement-retired').hidden = true;
+    show('Alteração desfeita.');
   });
-  return { changed, render };
+  $('toast-close').addEventListener('click', close);
+  return { changed, render, show, close };
 }

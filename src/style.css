@@ -113,8 +113,7 @@ input[type=text], textarea { background: #111b20; border: 1px solid #4b5c63; bor
 .app-menu-content details > summary { cursor: pointer; padding: 8px; font-size: 12px; }
 .app-options #offline-status { width: 100%; max-width: none; text-align: left; }
 .activity-menu button { width: 100%; text-align: left; }
-.studio-notices { margin-bottom: 12px; }
-.studio-notices .panel-foot { margin-top: 0; gap: 12px; font-size: 11px; }
+.studio-notices:empty { display: none; }
 .studio-notices .notice { margin: 10px 0; }
 #session-workspace > .panel { margin-bottom: 12px; }
 details.panel { padding: 18px 22px; }
@@ -138,7 +137,6 @@ button, summary, h2, .badge, #message, .practice-history-summary, .practice-metr
   .intentions { margin-bottom: 12px; }
   .secondary-activities button { padding: 8px 10px; }
   details.panel { padding: 16px; }
-  .studio-notices .panel-foot { gap: 3px; }
 }
 .studio-transport { position: sticky; top: 0; z-index: 25; background: var(--panel); border-radius: 10px; box-shadow: 0 8px 20px #0006; }
 .transport-row { display: flex; align-items: center; min-width: 0; }
@@ -190,7 +188,6 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 .primary-activities button small { margin-top: 1px; font-size: 10px; }
 .secondary-activities { border: 0; padding: 0; flex-wrap: nowrap; gap: 4px; }
 .secondary-activities button { min-height: 32px; padding: 6px 10px; }
-.studio-notices { margin-bottom: 6px; }
 .studio-transport { padding: 8px 12px; }
 .transport-row { gap: 8px; }
 .transport-row + .transport-row { margin-top: 6px; padding-top: 6px; }
@@ -230,10 +227,10 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 .track-actions { display: flex; gap: 8px; align-items: center; }
 .track-actions button { font-size: 10px; padding: 3px 6px; }
 .track-actions .track-sound-controls { width: auto; }
-.track-popover { position: fixed; top: 225px; right: 36px; z-index: 40; width: min(650px, calc(100vw - 72px)); max-height: calc(100vh - 260px); overflow: auto; padding: 16px; border: 1px solid var(--blue); border-radius: 10px; background: var(--panel); box-shadow: 0 12px 36px #000a; }
+.track-popover { width: min(650px, calc(100vw - 24px)); overflow: auto; padding: 16px; border: 1px solid var(--blue); border-radius: 10px; background: var(--panel); box-shadow: 0 12px 36px #000a; }
 .track-popover .tool-row select { height: auto; font-size: 12px; padding: 7px; }
 .track-popover .tool-row button { font-size: 12px; padding: 7px 10px; }
-.track-sound-popover { position: fixed; top: 225px; right: 36px; z-index: 45; display: flex; align-items: center; flex-wrap: wrap; gap: 12px; width: 275px; padding: 12px; border: 1px solid var(--blue); border-radius: 8px; background: var(--panel); box-shadow: 0 8px 24px #0008; }
+.track-sound-popover { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; width: min(300px, calc(100vw - 24px)); padding: 12px; border: 1px solid var(--blue); border-radius: 8px; background: var(--panel); box-shadow: 0 8px 24px #0008; }
 .track-timbre-label { display: flex; align-items: center; gap: 8px; width: 100%; color: var(--muted); font-size: 11px; }
 .track-timbre-label select { flex: 1; width: 190px; height: auto; padding: 6px; font-size: 12px; }
 .track-volume { display: flex; align-items: center; gap: 8px; font-size: 10px; flex: 1; }
@@ -305,13 +302,21 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 .note-inspector-row label { display: flex; align-items: center; gap: 5px; font-size: 11px; }
 .note-inspector-row input[type=number] { width: 58px; padding: 5px; }
 .note-inspector-row select { padding: 5px; font-size: 11px; }
-.inspector-popover { position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 40; width: min(650px, 100%); max-height: 55vh; overflow: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px; border: 1px solid var(--blue); border-radius: 10px; background: var(--panel); box-shadow: 0 10px 30px #0009; }
+.inspector-popover { width: min(650px, calc(100vw - 24px)); overflow: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px; border: 1px solid var(--blue); border-radius: 10px; background: var(--panel); box-shadow: 0 10px 30px #0009; }
 .inspector-popover .tool-row { width: 100%; margin: 0; }
 .inspector-popover .tool-row label { flex-direction: column; align-items: flex-start; }
 .inspector-popover .tool-row input { width: 120px; }
-.replacement-notice { display: flex; align-items: center; gap: 10px; padding: 5px 10px; margin-top: 4px; border: 1px solid #b9ef8055; border-radius: 7px; font-size: 11px; }
-.replacement-notice button { padding: 4px 8px; font-size: 11px; }
-#replacement-retired { color: var(--muted); }
+.studio-toast { position: fixed; right: max(20px, env(safe-area-inset-right)); bottom: max(20px, env(safe-area-inset-bottom)); z-index: 60; display: flex; align-items: center; gap: 12px; width: max-content; max-width: min(480px, calc(100vw - 32px)); padding: 12px 14px; border: 1px solid var(--blue); border-radius: 10px; background: var(--panel); box-shadow: 0 8px 28px #000a; font-size: 12px; }
+.studio-toast button { flex: 0 0 auto; padding: 5px 8px; font-size: 11px; }
+.studio-toast #message { min-width: 0; }
+.studio-toast #toast-close { border: 0; background: transparent; font-size: 18px; padding: 2px 5px; }
+.anchored-popover { position: fixed; inset: auto; margin: 0; z-index: 50; width: min(650px, calc(100vw - 24px)); overflow: auto; color: var(--text); }
+.anchored-popover:not(:popover-open) { display: none; }
+.track-sound-popover.anchored-popover { width: min(300px, calc(100vw - 24px)); }
+.app-menu-content.anchored-popover, .activity-menu.anchored-popover { width: min(260px, calc(100vw - 24px)); }
+.form-popover.anchored-popover { width: min(560px, calc(100vw - 24px)); }
+.chord-advanced[open] { grid-column: 1 / -1; }
+.chord-advanced > .chord-inspector-options { position: static; width: 100%; max-height: none; margin-top: 8px; padding: 10px; box-shadow: none; }
 .empty-phrase { padding: 10px 12px; border-radius: 10px; font-size: 12px; }
 .empty-choices, .empty-band-actions { display: flex; align-items: center; gap: 10px; margin-top: 7px; }
 .empty-choices button, .empty-band-actions button { padding: 6px 10px; font-size: 11px; white-space: nowrap; }

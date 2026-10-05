@@ -28,8 +28,6 @@
     </div></details>
   </nav>
   <div id="studio-notices" class="studio-notices">
-    <div id="session-status" class="panel-foot"><span id="message" role="status" aria-live="polite"></span></div>
-    <div id="replacement-notice" class="replacement-notice" role="status" aria-live="polite" hidden><span id="replacement-text"></span><button id="replacement-undo" type="button">Desfazer</button><span id="replacement-retired" hidden>Outra edição foi feita; use o histórico para voltar.</span></div>
     <section id="recovery" class="notice" hidden><h3>Dados originais protegidos</h3><p>Edições ficam na memória até você autorizar a substituição. Exporte os originais antes de continuar.</p><button id="download-recovery">Baixar originais</button><button id="replace-recovery">Substituir pela sessão atual</button></section>
     <section id="share-preview" class="notice" hidden><h3>Sessão recebida por link</h3><p id="share-description"></p><p>Nada foi substituído. Aplicar permite desfazer depois.</p><button id="apply-share">Aplicar sessão recebida</button><button id="dismiss-share">Dispensar</button></section>
   </div>
@@ -176,6 +174,7 @@
   <section id="panel-journey" class="intention-panel" role="tabpanel" aria-labelledby="tab-journey" hidden><div id="journey-mount"></div></section>
   <footer>Seus dados ficam neste navegador. <a href="./guide.html">Guia e método de avaliação</a></footer>
 </main>
+<div id="studio-toast" class="studio-toast" role="status" aria-live="polite" hidden><span id="message"></span><button id="replacement-undo" type="button" hidden>Desfazer</button><button id="toast-close" type="button" aria-label="Fechar aviso">×</button></div>
 <dialog id="phrase-tools-dialog" class="shortcuts-dialog phrase-tools-dialog" aria-labelledby="phrase-tools-title">
   <h2 id="phrase-tools-title">Padrões e gerador de frases</h2>
   <div id="inspiration" class="inspiration-tools"><section><h3>Carregar padrão</h3><div class="tool-row"><select id="groove-library" aria-label="Padrão rítmico"></select><button id="load-groove" type="button">Carregar padrão</button></div><p id="groove-description" class="muted"></p><details><summary>Fontes e detalhes do padrão</summary><div id="groove-details"></div></details></section><section><h3>Gerar frase</h3><div class="tool-row"><label>Densidade<select id="density" data-path="generator.density"><option value="sparse">Poucas notas</option><option value="medium">Média</option><option value="busy">Muitas notas</option></select></label><label>Ataques<select id="syncopation" data-path="generator.syncopation"><option value="straight">Nos tempos</option><option value="mixed">Mistos</option><option value="syncopated">Sincopados</option></select></label><label>Durações<select id="lengths" data-path="generator.lengths"><option value="short">Curtas</option><option value="mixed">Variadas</option><option value="long">Longas</option></select></label></div><button id="variation" type="button">Gerar outra frase</button><details><summary>Avançado</summary><label>Semente <input id="seed" data-path="generator.seed" type="number" min="0" max="4294967295"></label><button id="generate" type="button">Gerar com esta semente</button></details></section></div>

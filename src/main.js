@@ -2,7 +2,6 @@ import { GrooveAudio, renderSession } from './audio.js';
 import { createSession, loadSession, saveSession, validateSession, serializeSession, parseSession, encodeSessionLink, decodeSessionLink, ticksPerBar as barTicks, METRONOME_PATTERNS, ARTICULATIONS } from './session.js';
 import { evaluateSession, summarizeFeedback } from './feedback.js';
 import { buildTimelineData, renderTimeline } from './timeline.js';
-import { GROOVES, loadGroove } from './library.js';
 import { getDiatonicChords, invertChord } from './progression.js';
 import { mountPractice } from './practice.js';
 import { mountPlayground } from './playground.js';
@@ -14,13 +13,12 @@ import { mergeSession, readSessionLibrary, SESSION_LIBRARY_KEY } from './studio-
 import { History } from './history.js';
 import { updateNote, deleteNote } from './model.js';
 import { EVALUATION_MODES, EVALUATION_MODE_LABELS, GOALS, GOAL_LABELS } from './session.js';
-import { generateGroove } from './generator.js';
+import { mountStudioPatterns } from './studio-patterns.js';
 import { mountStudio } from './studio.js';
 import { mountStudioTransport } from './studio-transport.js';
 import { mountStudioTimeline } from './studio-timeline.js';
 import { mountStudioInspector } from './studio-inspector.js';
 import { mountStudioNotices } from './studio-notices.js';
-import { fitHarmony } from './studio-harmony.js';
 import { mountStudioForm } from './studio-form.js';
 
 const $ = id => document.getElementById(id);
@@ -72,10 +70,7 @@ const audio = new GrooveAudio({ onState: () => renderControls(), onFinish: (atte
   }
 } });
 
-function message(text, error = false) {
-  $('message').textContent = text;
-  $('message').classList.toggle('error', error);
-}
+function message(text, error = false) { notices.show(text, { error }); }
 function busy() { return pending !== null || audio.position.mode !== 'idle'; }
 function persist() {
   sessionSaved = recoveryRaw === null && saveSession(session);
@@ -169,7 +164,7 @@ async function begin(mode = 'loop', practiceSession = null) {
       $('train-pad').focus({ preventScroll: true });
       $('train-pad').scrollIntoView({ block: 'center', behavior: 'instant' });
     }
-    message(mode === 'train' ? 'Depois da contagem, toque com Espaço ou na área de toque. Não usamos microfone.' : snapshot.form.enabled ? 'Forma musical em reprodução.' : 'Acompanhamento em loop.');
+    if (mode === 'train') message('Depois da contagem, toque com Espaço ou na área de toque. Não usamos microfone.');
   } catch (error) {
     if (request === generation) { audio.stop(); message(`Não foi possível iniciar: ${error.message}`, true); }
     throw error;
@@ -195,6 +190,7 @@ const host = {
 };
 
 const studio = mountStudio({ onActivate: id => {
+  notices.close();
   if (id !== 'tab-repertoire') repertoire?.stop();
   renderControls();
 } });
@@ -205,7 +201,7 @@ const transport = mountStudioTransport({
     canUndo: history.canUndo, canRedo: history.canRedo,
   }),
   play: () => void begin().catch(() => {}),
-  stop: () => { if (practice) practice.cancel(); else stop(); repertoire?.stop(); renderControls(); message('Som interrompido.'); },
+  stop: () => { if (practice) practice.cancel(); else stop(); repertoire?.stop(); renderControls(); },
   travelHistory, removeSelected, deselect: deselectEditor,
 });
 const inspector = mountStudioInspector({ getSession: () => session, getSelection: () => selected, isBusy: busy, commitNote, notify: message });
@@ -269,7 +265,7 @@ for (const input of document.querySelectorAll('[data-path]')) {
       patch.progression.cycleBars = session.progression.cycleBars;
       patch.progression.chords = session.progression.chords.map(chord => chord.source !== 'diatonic' ? chord : invertChord({ ...chords[(chord.degree ?? 1) - 1], startBar: chord.startBar, durationBars: chord.durationBars }, chord.inversion));
     }
-    const notice = ['drums.style', 'drums.density', 'drums.seed'].includes(path) ? 'Padrão da bateria substituído.' : path === 'progression.keyId' ? 'Tom e acordes diatônicos atualizados.' : null;
+    const notice = path === 'drums.style' ? `Bateria: estilo ${input.selectedOptions[0].textContent}.` : path === 'drums.density' ? `Bateria: densidade ${input.selectedOptions[0].textContent}.` : path === 'drums.seed' ? `Bateria: semente ${value}.` : path === 'progression.keyId' ? `Tom: ${input.selectedOptions[0].textContent}; acordes diatônicos atualizados.` : null;
     updateSession(patch, { notice });
   });
 }
@@ -387,55 +383,6 @@ window.addEventListener('keyup', event => {
 window.addEventListener('blur', () => { if (busy()) stop('Sessão interrompida ao perder o foco.'); repertoire.stop(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { stop(); repertoire.stop(); } });
 
-for (const groove of GROOVES) {
-  for (const id of ['groove-library', 'empty-pattern']) {
-    const option = document.createElement('option'); option.value = groove.id; option.textContent = groove.name; $(id).append(option);
-  }
-}
-function describePattern(value) {
-  const groove = GROOVES.find(item => item.id === value);
-  $('groove-library').value = $('empty-pattern').value = value;
-  $('groove-description').textContent = $('empty-pattern-description').textContent = groove?.description ?? '';
-  $('groove-details').replaceChildren();
-  if (groove) {
-    const detail = document.createElement('p'); detail.textContent = groove.durationNote; $('groove-details').append(detail);
-    for (const source of groove.sources) { const link = document.createElement('a'); link.href = source.url; link.textContent = source.title; link.target = '_blank'; link.rel = 'noopener noreferrer'; $('groove-details').append(link); }
-  }
-  renderControls();
-}
-for (const id of ['groove-library', 'empty-pattern']) $(id).addEventListener('change', event => describePattern(event.target.value));
-function loadPattern() {
-  if (busy()) return;
-  const groove = loadGroove($('groove-library').value);
-  if (updateSession({ ...groove, loop: { startBar: 0, endBar: groove.bars } }, { notice: 'Padrão carregado na frase. Acordes preservados.' })) phraseDialog.close();
-}
-$('load-groove').addEventListener('click', loadPattern);
-$('start-pattern').addEventListener('click', loadPattern);
-const newSeed = () => crypto.getRandomValues(new Uint32Array(1))[0];
-function generate(variation) {
-  if (busy()) return;
-  const options = { ...session.extensions.studio.generator, seed: variation ? newSeed() : Number($('seed').value) };
-  try {
-    const generated = generateGroove({ ...options, bars: session.bars, meter: session.meter, subdivision: session.subdivision });
-    if (updateSession({ notes: generated.notes, extensions: { studio: { generator: options } } }, { notice: 'Frase gerada.' })) phraseDialog.close();
-  }
-  catch (error) { message(error.message, true); }
-}
-$('generate').addEventListener('click', () => generate(false)); $('variation').addEventListener('click', () => generate(true));
-$('generate-phrase').addEventListener('click', () => generate(true));
-$('empty-generate').addEventListener('click', () => generate(true));
-function startBand(full) {
-  if (busy()) return;
-  const patch = { drums: { enabled: true, style: 'pop', density: 'medium', seed: 1 }, band: { bassEnabled: true, style: 'pop', density: 'medium', role: 'solo', mode: 'steady' }, mixer: { drums: { muted: false }, bass: { muted: false } } };
-  if (full) {
-    patch.progression = { enabled: true };
-    patch.mixer.chords = { muted: false };
-    if (!session.progression.chords.length) patch.progression = { enabled: true, cycleBars: session.bars, chords: fitHarmony([1, 4, 5, 1].map(degree => getDiatonicChords(session.progression.keyId)[degree - 1]), session) };
-  }
-  updateSession(patch, { notice: full ? 'Banda completa ligada. Progressão existente preservada; acordes padrão criados apenas se estava vazia.' : 'Bateria e baixo ligados no estilo Pop. Frase e acordes preservados.' });
-}
-$('start-band').addEventListener('click', () => startBand(false));
-$('start-full-band').addEventListener('click', () => startBand(true));
 
 
 
@@ -584,7 +531,7 @@ playground = mountPlayground($('playground-mount'), host);
 journey = mountJourney($('journey-mount'), host);
 setupOffline({ isBusy: () => busy() || repertoire.isBusy(), canReload: () => sessionSaved, notify: message });
 history.push(session); audio.setMixer(session.mixer); renderLibrary(); renderAll();
-describePattern(GROOVES[0].id);
+mountStudioPatterns({ getSession: () => session, isBusy: busy, updateSession, notify: message, renderControls });
 studio.activate($('tab-studio'));
 $('recovery').hidden = recoveryRaw === null; persist();
 if (restored.warnings?.length) message(restored.warnings.join(' '), true);

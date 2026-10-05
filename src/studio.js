@@ -1,7 +1,11 @@
+import { mountStudioPopovers } from './studio-popovers.js';
+
 // Navegação das atividades: o workspace pertence permanentemente ao Estúdio.
 export function mountStudio({ onActivate }) {
+  const popovers = mountStudioPopovers();
   const tabs = [...document.querySelectorAll('.intentions [role=tab]')];
   function activate(tab) {
+    popovers.close();
     for (const item of tabs) {
       const active = item === tab;
       item.setAttribute('aria-selected', String(active));
