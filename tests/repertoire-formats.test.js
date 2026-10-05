@@ -15,13 +15,14 @@ function session(overrides = {}) {
   return {
     name: 'Exercício ç',
     bpm: 96,
+    bars: 1,
     meter: { beats: 3, unit: 4 },
     notes: [
       { id: 'a', start: 0, duration: 2, pitch: 60, velocity: 0.8 },
       { id: 'b', start: 2, duration: 4, pitch: 64, velocity: 0.5 },
       { id: 'c', start: 6, duration: 6, pitch: 67 },
     ],
-    progression: { enabled: true, chords: [{ symbol: 'Cmaj7', notes: [{ midi: 48 }, { midi: 52 }, { midi: 55 }, { midi: 59 }], durationBars: 1 }] },
+    progression: { enabled: true, cycleBars: 1, chords: [{ symbol: 'Cmaj7', notes: [{ midi: 48 }, { midi: 52 }, { midi: 55 }, { midi: 59 }], startBar: 0, durationBars: 1 }] },
     ...overrides,
   };
 }

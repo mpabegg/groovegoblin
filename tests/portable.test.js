@@ -8,7 +8,7 @@ const legacy = (patch = {}) => ({ format: 'groovegoblin-phrase', version: 1, bpm
 const rich = () => createSession({
   name: 'Quiálteras — ação 🎵', bars: 3, meter: { beats: 7, unit: 8 }, bpm: 137, subdivision: 7, swing: 0.25,
   notes: [{ id: 'n-ç', start: 4 / 7, duration: 12 / 7, pitch: 0, velocity: 0, articulation: 'ghost', offsetMs: -80 }, { id: 'fim', start: 40, duration: 2, pitch: 127, articulation: 'tenuto' }],
-  progression: { keyId: 'g-major', enabled: true, chords: [{ ...parseChordSymbol('D7/F#'), durationBars: 2 / 7 }] },
+  progression: { keyId: 'g-major', enabled: true, cycleBars: 2 / 7, chords: [{ ...parseChordSymbol('D7/F#'), startBar: 0, durationBars: 2 / 7 }] },
   drums: { enabled: true, style: 'shuffle', seed: 0xffffffff }, band: { bassEnabled: true, mode: 'follow', role: 'bass' },
   loop: { startBar: 1, endBar: 3 }, training: { countInBars: 0, repetitions: 9, evaluation: 'style', goal: 'pitch' },
   form: { enabled: true, loop: false, sections: [{ id: 'intro', name: 'Introdução', kind: 'intro', startBar: 0, endBar: 1, repeats: 1, bpm: 90, meter: null, density: 'sparse' }, { id: 'theme', name: 'Tema', kind: 'A', startBar: 1, endBar: 3, repeats: 2, bpm: null, meter: null, density: null }] },
@@ -49,7 +49,7 @@ test('arquivos e links antigos migram para uma sessão completa sem mudar ataque
 
 test('importação rejeita documentos ou notas inválidos atomicamente, não corrige valores', () => {
   const session = rich();
-  const document = { format: 'groovegoblin-session', version: 2, session };
+  const document = { format: 'groovegoblin-session', version: session.version, session };
   const invalid = [null, [], false, {}, { ...document, format: 'outro' }, { ...document, version: 1 }, { ...document, extra: true },
     ...[null, [], { ...session, version: 1 }, { ...session, bpm: 300.5 }, { ...session, unknown: true }, { ...session, meter: { beats: 7, unit: 3 } }, { ...session, loop: { startBar: 3, endBar: 2 } }].map(session => ({ ...document, session })),
   ];

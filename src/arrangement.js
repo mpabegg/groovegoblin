@@ -7,6 +7,7 @@
 import { EPSILON, ticksPerBar, beatTicks, beatGroups, gridStep, performTick, swingLocalTick } from './meter.js';
 import { generateDrums, TRIPLET_STYLES } from './drums.js';
 import { generateBass, generateComping } from './band.js';
+import { chordTimeline } from './progression.js';
 
 function byBar(items, barTicks) {
   const bars = new Map();
@@ -89,6 +90,17 @@ export function prepareArrangement(session) {
   const drumBars = byBar(drums, barTicks);
   const bassBars = byBar(bass, barTicks);
   const compBars = byBar(comping, barTicks);
+  const progression = session.progression;
+  const hasHarmonyGaps = progression.enabled && progression.chords.length > 0
+    && (progression.chords[0].startBar > EPSILON
+      || progression.chords.some((chord, index, chords) => chord.startBar + chord.durationBars
+        < (chords[index + 1]?.startBar ?? progression.cycleBars) - EPSILON));
+  const harmony = session.band.mode === 'follow' && hasHarmonyGaps
+    ? chordTimeline(session).map(event => ({
+      ...event,
+      start: tripletBand ? event.start : performTick(session, event.start),
+      end: tripletBand ? event.start + event.duration : performTick(session, event.start + event.duration),
+    })) : [];
   const clicks = metronomeTicks(session, session.metronome.pattern);
   const countClicks = metronomeTicks(session, 'quarters');
   const clipToLoop = (start, duration) => Math.max(0.01, Math.min(start + duration, loopEndTick) - start);
@@ -123,7 +135,7 @@ export function prepareArrangement(session) {
   // espaço (harmonia só nas trocas, sem notas fantasmas); quando ela para logo
   // após tocar, a harmonia responde com o ritmo dos ataques reais dela e a
   // bateria faz uma virada curta. Só usa toques de teclado/tela registrados.
-  function follow(events, activity) {
+  function follow(events, activity, barIndex) {
     if (session.band.mode !== 'follow' || !activity) return events;
     const previous = activity.previous ?? [];
     const earlier = activity.earlier ?? [];
@@ -139,9 +151,15 @@ export function prepareArrangement(session) {
     }
     if (earlier.length > 0) {
       const chords = events.filter(event => event.channel === 'chords');
-      const answer = chords.length === 0 ? [] : earlier.map(tick => {
+      const answer = chords.length === 0 ? [] : earlier.flatMap(tick => {
+        const absoluteTick = barIndex * barTicks + tick;
+        const interval = hasHarmonyGaps
+          ? harmony.find(event => absoluteTick >= event.start - EPSILON && absoluteTick < event.end - EPSILON) : null;
+        if (hasHarmonyGaps && !interval) return [];
         const source = [...chords].reverse().find(event => event.tick <= tick + EPSILON) ?? chords[0];
-        return { ...source, tick, duration: Math.min(2, barTicks - tick), velocity: 0.5, articulation: 'staccato', changes: false };
+        return [{ ...source, ...(interval && { pitches: interval.chord.notes.map(note => note.midi) }), tick,
+          duration: Math.min(2, barTicks - tick, interval ? interval.end - absoluteTick : Infinity),
+          velocity: 0.5, articulation: 'staccato', changes: false }];
       });
       const lastBeat = barTicks - Math.min(4, barTicks);
       const drums = events.filter(event => event.channel === 'drums');
@@ -201,7 +219,7 @@ export function prepareArrangement(session) {
       const { enabled, audibleBars, silentBars } = session.metronome;
       if (enabled && (silentBars === 0 || barIndex % (audibleBars + silentBars) < audibleBars)) events.push(...clickEvents(clicks));
       if (session.companion.enabled) events.push(...companionEvents(barIndex));
-      return follow(events, activity).sort((a, b) => a.tick - b.tick);
+      return follow(events, activity, sessionBar).sort((a, b) => a.tick - b.tick);
     },
   };
 }

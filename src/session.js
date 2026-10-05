@@ -1,4 +1,4 @@
-// Sessão canônica do GrooveGoblin (versão 2): frase, harmonia, banda,
+// Sessão canônica do GrooveGoblin (versão 3): frase, harmonia, banda,
 // metrônomo, treino, loop e mixer em um único documento persistido,
 // exportado e compartilhado. validateSession é estrita: campos
 // desconhecidos ou valores inválidos rejeitam o documento inteiro; campos
@@ -15,7 +15,7 @@ import { normalizeForm } from './form.js';
 
 export { ticksPerBar, sessionTicks, beatGroups, ARTICULATIONS, MIN_BARS, MAX_BARS };
 
-export const SESSION_VERSION = 2;
+export const SESSION_VERSION = 3;
 export const SESSION_FORMAT = 'groovegoblin-session';
 export const BPM_MIN = 30;
 export const BPM_MAX = 300;
@@ -76,6 +76,7 @@ const LINK_MAX_LENGTH = 65536;
 const EXTENSIONS_MAX_LENGTH = 65536;
 const MAX_NOTES = 512;
 const MAX_CHORDS = 64;
+const MAX_CYCLE_BARS = MAX_CHORDS * MAX_BARS;
 
 class SessionError extends TypeError {}
 
@@ -110,7 +111,7 @@ function defaults() {
     subdivision: 4,
     swing: 0,
     swingUnit: 'eighth',
-    progression: { keyId: 'c-major', chords: [], enabled: false },
+    progression: { keyId: 'c-major', chords: [], enabled: false, cycleBars: 1 },
     drums: { enabled: false, seed: 1, style: 'complement', density: 'medium' },
     band: { bassEnabled: false, style: 'pop', density: 'medium', mode: 'steady', role: 'solo' },
     loop: { startBar: 0, endBar: 1 },
@@ -134,6 +135,7 @@ const SECTIONS = {
   progression: {
     keyId: value => PROGRESSION_KEYS.some(key => key.id === value),
     chords: value => Array.isArray(value) && value.length <= MAX_CHORDS,
+    cycleBars: value => isNumber(value) && value > 0 && value <= MAX_CYCLE_BARS,
     enabled: value => typeof value === 'boolean',
   },
   drums: {
@@ -193,7 +195,7 @@ const SECTION_LABELS = {
 };
 
 const TOP_LEVEL = {
-  version: value => value === SESSION_VERSION,
+  version: value => value === 2 || value === SESSION_VERSION,
   name: value => typeof value === 'string' && value.length <= 80,
   bpm: value => isInt(value, BPM_MIN, BPM_MAX),
   bars: value => isInt(value, MIN_BARS, MAX_BARS),
@@ -214,25 +216,25 @@ const TOP_LEVEL_MESSAGES = {
 
 const ALLOWED_KEYS = new Set([...Object.keys(TOP_LEVEL), ...Object.keys(SECTIONS), 'notes', 'mixer', 'extensions', 'form']);
 
-function normalizeSection(name, value, base) {
+function normalizeSection(name, value, base, legacy) {
   if (value === undefined) return { ...base };
   if (!isObject(value)) fail(`A seção ${SECTION_LABELS[name]} da sessão é inválida.`);
   const validators = SECTIONS[name];
   const result = { ...base };
   for (const [key, field] of Object.entries(value)) {
-    if (!Object.hasOwn(validators, key)) fail(`Campo desconhecido em ${SECTION_LABELS[name]}: ${key}.`);
+    if (!Object.hasOwn(validators, key) || (legacy && name === 'progression' && key === 'cycleBars')) fail(`Campo desconhecido em ${SECTION_LABELS[name]}: ${key}.`);
     if (!validators[key](field)) fail(`Valor inválido em ${SECTION_LABELS[name]}.${key}.`);
     result[key] = field;
   }
   return result;
 }
 
-const CHORD_KEYS = ['symbol', 'roman', 'quality', 'degree', 'root', 'bass', 'function', 'source', 'inversion', 'durationBars', 'notes'];
+const CHORD_KEYS = ['symbol', 'roman', 'quality', 'degree', 'root', 'bass', 'function', 'source', 'inversion', 'startBar', 'durationBars', 'notes'];
 
-function normalizeChord(chord, beats) {
+function normalizeChord(chord, beats, legacy) {
   if (!isObject(chord)) fail('Cada acorde da progressão deve ser um objeto.');
   for (const key of Object.keys(chord)) {
-    if (!CHORD_KEYS.includes(key)) fail(`Campo desconhecido em acorde: ${key}.`);
+    if (!CHORD_KEYS.includes(key) || (legacy && key === 'startBar')) fail(`Campo desconhecido em acorde: ${key}.`);
   }
   if (typeof chord.symbol !== 'string' || chord.symbol.length < 1 || chord.symbol.length > 32) fail('Cada acorde precisa de uma cifra.');
   if (!Array.isArray(chord.notes) || chord.notes.length < 1 || chord.notes.length > 8) fail(`O acorde ${chord.symbol} deve ter de 1 a 8 notas.`);
@@ -248,6 +250,11 @@ function normalizeChord(chord, beats) {
   if (!isNumber(durationBars) || durationBars <= 0 || durationBars > MAX_BARS
     || Math.abs(durationBars * beats - Math.round(durationBars * beats)) > EPSILON) {
     fail(`A duração do acorde ${chord.symbol} deve ser um número inteiro de tempos.`);
+  }
+  const startBar = chord.startBar === undefined ? 0 : chord.startBar;
+  if (!legacy && (!isNumber(startBar) || startBar < 0 || startBar > MAX_CYCLE_BARS
+    || Math.abs(startBar * beats - Math.round(startBar * beats)) > EPSILON)) {
+    fail(`O início do acorde ${chord.symbol} deve ser um número inteiro de tempos.`);
   }
   const degree = chord.degree ?? null;
   const root = chord.root ?? notes[0].midi % 12;
@@ -267,7 +274,7 @@ function normalizeChord(chord, beats) {
   }
   return {
     symbol: chord.symbol, roman: chord.roman ?? '', quality: chord.quality ?? '', degree, root, bass,
-    function: fn, source, inversion, durationBars, notes,
+    function: fn, source, inversion, durationBars, notes, ...(!legacy && { startBar }),
   };
 }
 
@@ -313,14 +320,18 @@ function normalizeExtensions(value) {
 }
 
 // Constrói uma cópia canônica e profunda, ou lança SessionError.
-function normalize(value) {
+function normalize(value, version = SESSION_VERSION) {
   if (!isObject(value)) fail('A sessão deve ser um objeto.');
   for (const key of Object.keys(value)) {
     if (!ALLOWED_KEYS.has(key)) fail(`Campo desconhecido na sessão: ${key}.`);
   }
   const base = defaults();
+  const legacy = version === 2;
+  base.version = version;
+  if (legacy) delete base.progression.cycleBars;
   const session = { version: SESSION_VERSION };
   if (!Object.hasOwn(value, 'version')) fail('A sessão não informa a versão.');
+  if (value.version !== version) fail(TOP_LEVEL_MESSAGES.version);
   for (const [key, validate] of Object.entries(TOP_LEVEL)) {
     if (!Object.hasOwn(value, key)) {
       session[key] = base[key];
@@ -331,7 +342,7 @@ function normalize(value) {
     }
   }
   for (const name of Object.keys(SECTIONS)) {
-    session[name] = normalizeSection(name, value[name], base[name]);
+    session[name] = normalizeSection(name, value[name], base[name], legacy);
   }
   if (!Object.hasOwn(value, 'loop')) session.loop = { startBar: 0, endBar: session.bars };
   else if (!Object.hasOwn(value.loop, 'endBar')) session.loop.endBar = session.bars;
@@ -341,16 +352,45 @@ function normalize(value) {
   }
   try { session.form = normalizeForm(value.form, session.bars); }
   catch (error) { fail(error.message); }
-  session.progression.chords = session.progression.chords.map(chord => normalizeChord(chord, session.meter.beats));
+  session.progression.chords = session.progression.chords.map(chord => normalizeChord(chord, session.meter.beats, legacy));
+  if (!legacy) {
+    if (!Object.hasOwn(value.progression ?? {}, 'cycleBars')) session.progression.cycleBars = session.bars;
+    const { cycleBars, chords } = session.progression;
+    if (Math.abs(cycleBars * session.meter.beats - Math.round(cycleBars * session.meter.beats)) > EPSILON) {
+      fail('O ciclo harmônico deve ser um número inteiro de tempos.');
+    }
+    let endBar = 0;
+    for (const chord of chords) {
+      if (chord.startBar < endBar - EPSILON) fail('Os acordes devem estar em ordem cronológica, sem sobreposição.');
+      endBar = chord.startBar + chord.durationBars;
+      if (endBar > cycleBars + EPSILON) fail('Os acordes devem caber no ciclo harmônico.');
+    }
+  }
   session.notes = normalizeNotes(value.notes ?? [], session);
   session.mixer = normalizeMixer(value.mixer);
   session.extensions = normalizeExtensions(value.extensions);
   return session;
 }
 
+// Primeiro valida o formato antigo inteiro: campos exclusivos da v3 não
+// podem transformar um documento v2 inválido em uma migração aparentemente válida.
+function migrateSession(value) {
+  if (value?.version !== 2) return value;
+  const session = normalize(value, 2);
+  let cursor = 0;
+  session.progression.chords = session.progression.chords.map(chord => {
+    const positioned = { ...chord, startBar: cursor };
+    cursor += chord.durationBars;
+    return positioned;
+  });
+  session.version = SESSION_VERSION;
+  session.progression.cycleBars = cursor || session.bars;
+  return session;
+}
+
 export function validateSession(value) {
   try {
-    return { ok: true, session: normalize(value) };
+    return { ok: true, session: normalize(migrateSession(value)) };
   } catch (error) {
     if (error instanceof SessionError) return { ok: false, error: error.message };
     return { ok: false, error: 'A sessão é inválida.' };
@@ -361,10 +401,25 @@ export function validateSession(value) {
 // campo. Ao mudar "bars" sem informar o loop, o loop cobre toda a sessão.
 export function createSession(overrides = {}) {
   if (!isObject(overrides)) throw new TypeError('As opções da sessão devem ser um objeto.');
+  if (overrides.version === 2) {
+    const migrated = validateSession(overrides);
+    if (!migrated.ok) throw new TypeError(migrated.error);
+    return migrated.session;
+  }
   const base = defaults();
   const merged = { ...base };
   for (const [key, value] of Object.entries(overrides)) {
     merged[key] = isObject(value) && isObject(base[key]) && key !== 'extensions' ? { ...base[key], ...value } : value;
+  }
+  if (isObject(merged.progression) && Array.isArray(merged.progression.chords)) {
+    let cursor = 0;
+    merged.progression.chords = merged.progression.chords.map(chord => {
+      if (!isObject(chord)) return chord;
+      const positioned = Object.hasOwn(chord, 'startBar') ? chord : { ...chord, startBar: cursor };
+      cursor = positioned.startBar + (positioned.durationBars ?? 1);
+      return positioned;
+    });
+    if (!Object.hasOwn(overrides.progression ?? {}, 'cycleBars')) merged.progression.cycleBars = cursor || merged.bars;
   }
   if (!Object.hasOwn(overrides, 'loop')) merged.loop = { startBar: 0, endBar: merged.bars };
   else if (!Object.hasOwn(overrides.loop, 'endBar')) merged.loop.endBar = merged.bars;
@@ -470,8 +525,8 @@ function safeParse(raw) {
   }
 }
 
-// Carrega a sessão v2; sem ela, migra frase/preferências/mixer antigos (sem
-// apagá-los). Dados v2 corrompidos não são sobrescritos em silêncio: uma cópia
+// A chave física v2 é mantida: a versão do JSON governa a migração, sem
+// descartar sessões antigas. Dados inválidos não são sobrescritos; uma cópia
 // fica em groovegoblin.session.v2.recovery e o texto volta em recoveryRaw.
 export function loadSession(storage) {
   let raw;
@@ -545,11 +600,18 @@ export function parseSession(text) {
     if (!legacy.ok) throw new TypeError(legacy.error);
     return fromLegacy(legacy);
   }
+  if (isObject(document) && !Object.hasOwn(document, 'format')) {
+    const result = validateSession(document);
+    if (!result.ok) throw new TypeError(result.error);
+    return result.session;
+  }
   if (!isObject(document) || Object.keys(document).some(key => !['format', 'version', 'session'].includes(key))) {
     throw new TypeError('O arquivo deve conter apenas os campos de uma sessão do GrooveGoblin.');
   }
   if (document.format !== SESSION_FORMAT) throw new TypeError('O arquivo não está no formato de sessão do GrooveGoblin.');
-  if (document.version !== SESSION_VERSION) throw new TypeError('A versão do arquivo de sessão não é compatível.');
+  if (![2, SESSION_VERSION].includes(document.version) || document.session?.version !== document.version) {
+    throw new TypeError('A versão do arquivo de sessão não é compatível.');
+  }
   const result = validateSession(document.session);
   if (!result.ok) throw new TypeError(result.error);
   return result.session;

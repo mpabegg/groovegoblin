@@ -1,5 +1,6 @@
 // Intercâmbio por ARQUIVO (sem MIDI ao vivo nem hardware): WAV PCM e Standard
 // MIDI File (SMF) formatos 0/1. Coordenadas da sessão: 4 ticks = semínima.
+import { chordTimeline } from './progression.js';
 
 export const SESSION_TICKS_PER_QUARTER = 4;
 export const MIDI_PPQ = 480;
@@ -123,7 +124,7 @@ function textBytes(text) {
   return Array.from(new TextEncoder().encode(String(text).slice(0, 120)));
 }
 
-function trackChunk(events) {
+function trackChunk(events, endTick = 0) {
   events.sort((a, b) => a.tick - b.tick || a.order - b.order);
   const bytes = [];
   let previous = 0;
@@ -131,7 +132,7 @@ function trackChunk(events) {
     bytes.push(...variableLength(Math.max(0, event.tick - previous)), ...event.data);
     previous = event.tick;
   }
-  bytes.push(0x00, 0xff, 0x2f, 0x00);
+  bytes.push(...variableLength(Math.max(0, endTick - previous)), 0xff, 0x2f, 0x00);
   const length = bytes.length;
   return [0x4d, 0x54, 0x72, 0x6b, (length >>> 24) & 255, (length >>> 16) & 255, (length >>> 8) & 255, length & 255, ...bytes];
 }
@@ -167,6 +168,7 @@ export function sessionToMidi(session, { includeChords = true } = {}) {
   if (!session || typeof session !== 'object' || !Array.isArray(session.notes)) throw new TypeError('Sessão inválida para MIDI.');
   const meter = session.meter && session.meter.beats > 0 && session.meter.unit > 0 ? session.meter : { beats: 4, unit: 4 };
   const bpm = Number.isFinite(session.bpm) && session.bpm > 0 ? session.bpm : 100;
+  const endTick = Number.isFinite(session.bars) && session.bars > 0 ? toMidiTicks(session.bars * sessionTicksPerBar(meter)) : 0;
   const conductor = [
     { tick: 0, order: 0, data: [0xff, 0x03, ...variableLength(textBytes(session.name || 'GrooveGoblin').length), ...textBytes(session.name || 'GrooveGoblin')] },
     { tick: 0, order: 1, data: [0xff, 0x51, 0x03, ...(n => [(n >>> 16) & 255, (n >>> 8) & 255, n & 255])(Math.round(60000000 / bpm))] },
@@ -174,19 +176,15 @@ export function sessionToMidi(session, { includeChords = true } = {}) {
   ];
   const melodyName = textBytes('Frase');
   const melody = [{ tick: 0, order: 0, data: [0xff, 0x03, ...variableLength(melodyName.length), ...melodyName] }, ...noteEvents(session.notes, 0)];
-  const tracks = [trackChunk(conductor), trackChunk(melody)];
-  const chords = includeChords && session.progression?.enabled !== false ? session.progression?.chords ?? [] : [];
-  if (chords.length) {
-    const perBar = sessionTicksPerBar(meter);
+  const tracks = [trackChunk(conductor, endTick), trackChunk(melody, endTick)];
+  const harmony = includeChords ? chordTimeline({ ...session, meter }) : [];
+  if (harmony.length) {
     const chordNotes = [];
-    let cursor = 0;
-    for (const chord of chords) {
-      const duration = (Number.isFinite(chord.durationBars) && chord.durationBars > 0 ? chord.durationBars : 1) * perBar;
-      for (const note of chord.notes ?? []) chordNotes.push({ start: cursor, duration, pitch: note.midi, velocity: 0.6 });
-      cursor += duration;
+    for (const event of harmony) {
+      for (const note of event.chord.notes) chordNotes.push({ start: event.start, duration: event.duration, pitch: note.midi, velocity: 0.6 });
     }
     const chordName = textBytes('Acordes');
-    tracks.push(trackChunk([{ tick: 0, order: 0, data: [0xff, 0x03, ...variableLength(chordName.length), ...chordName] }, ...noteEvents(chordNotes, 1)]));
+    tracks.push(trackChunk([{ tick: 0, order: 0, data: [0xff, 0x03, ...variableLength(chordName.length), ...chordName] }, ...noteEvents(chordNotes, 1)], endTick));
   }
   const header = [0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 1, 0, tracks.length, (MIDI_PPQ >>> 8) & 255, MIDI_PPQ & 255];
   return new Uint8Array([...header, ...tracks.flat()]);

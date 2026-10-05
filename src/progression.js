@@ -357,34 +357,35 @@ export function generateProgression(options) {
       const candidates = borrowedChords.filter(item => item.function === fn);
       if (candidates.length) chord = candidates[Math.floor(draw() * candidates.length)];
     }
-    return { ...chord, notes: chord.notes.map(note => ({ ...note })), durationBars: harmonicRhythm };
+    return { ...chord, notes: chord.notes.map(note => ({ ...note })), startBar: index * harmonicRhythm, durationBars: harmonicRhythm };
   });
   if (secondary > 0) {
     for (let index = 1; index < chords.length; index += 1) {
       const target = chords[index];
       const dominant = secondaries.find(item => item.roman === `V7/${target.roman}`);
       if (dominant && index - 1 > 0 && draw() < secondary) {
-        chords[index - 1] = { ...dominant, notes: dominant.notes.map(note => ({ ...note })), durationBars: harmonicRhythm };
+        chords[index - 1] = { ...dominant, notes: dominant.notes.map(note => ({ ...note })), startBar: (index - 1) * harmonicRhythm, durationBars: harmonicRhythm };
       }
     }
   }
-  return { keyId, chords: voiceProgression(chords), enabled: true };
+  return { keyId, chords: voiceProgression(chords), cycleBars: count * harmonicRhythm, enabled: true };
 }
 
-// Linha do tempo harmônica: os acordes se repetem em ciclo até cobrir a sessão.
+// Repete o ciclo explícito, preservando pausas e recortando o final da sessão.
 export function chordTimeline(session) {
   const { progression } = session;
   if (!progression || !progression.enabled || progression.chords.length === 0) return [];
   const barTicks = ticksPerBar(session);
   const total = sessionTicks(session);
   const events = [];
-  let cursor = 0;
-  while (cursor < total - 1e-6) {
+  const cycleTicks = progression.cycleBars * barTicks;
+  if (!Number.isFinite(cycleTicks) || cycleTicks <= 0) throw new TypeError('O ciclo harmônico deve ser positivo e finito.');
+  for (let cycleStart = 0; cycleStart < total - 1e-6; cycleStart += cycleTicks) {
     for (const [index, chord] of progression.chords.entries()) {
-      if (cursor >= total - 1e-6) break;
+      const start = cycleStart + chord.startBar * barTicks;
+      if (start >= total - 1e-6) break;
       const duration = chord.durationBars * barTicks;
-      events.push({ start: cursor, duration: Math.min(duration, total - cursor), chord, index });
-      cursor += duration;
+      events.push({ start, duration: Math.min(duration, total - start), chord, index });
     }
   }
   return events;

@@ -3,7 +3,7 @@ import { createSession, loadSession, saveSession, validateSession, serializeSess
 import { evaluateSession, summarizeFeedback } from './feedback.js';
 import { buildTimelineData, renderTimeline } from './timeline.js';
 import { GROOVES, loadGroove } from './library.js';
-import { PROGRESSION_KEYS, CHORD_QUALITIES, getDiatonicChords, getBorrowedChords, getSecondaryDominants, parseChordSymbol, generateProgression, invertChord } from './progression.js';
+import { getDiatonicChords, invertChord } from './progression.js';
 import { mountPractice } from './practice.js';
 import { mountPlayground } from './playground.js';
 import { mountJourney } from './practice-view.js';
@@ -26,6 +26,11 @@ let session = withStudioChoices(restored.session);
 let recoveryRaw = restored.recoveryRaw;
 let sessionSaved = false;
 let selected = null;
+// Exactly one editor selection; indices refer to canonical progression.chords.
+function noteSelection() { return selected?.kind === 'note' ? selected.id : null; }
+function chordSelection() { return selected?.kind === 'chord' ? selected.index : null; }
+function setNoteSelection(id) { selected = id === null ? null : { kind: 'note', id }; }
+function setChordSelection(index) { selected = index === null ? null : { kind: 'chord', index }; }
 let activeInput = null;
 let generation = 0;
 let pending = null;
@@ -98,14 +103,15 @@ function replaceSession(value, { record = true, stopPlayback = true } = {}) {
   if (stopPlayback) stop();
   session = checked.session;
   if (record) history.push(session);
-  if (!session.notes.some(note => note.id === selected)) selected = null;
+  if ((selected?.kind === 'note' && !session.notes.some(note => note.id === selected.id))
+    || (selected?.kind === 'chord' && !session.progression.chords[selected.index])) selected = null;
   audio.setMixer(session.mixer);
   persist();
   renderAll();
   return true;
 }
 function renderAll() {
-  renderControls(); studioTimeline.render(); renderProgression(); renderForm(); renderFeedback();
+  renderControls(); studioTimeline.render(); renderForm(); renderFeedback();
   practice?.render(); playground?.render(); journey?.render(); repertoire?.render();
 }
 function stop(reason) {
@@ -185,9 +191,10 @@ const transport = mountStudioTransport({
 });
 const studioTimeline = mountStudioTimeline($('studio-editor'), {
   getSession: () => session, isBusy: busy, updateSession,
-  getSelection: () => selected,
-  setSelection: id => { selected = id; },
-  selectionChanged: renderControls, commitNote, notify: message,
+  getSelection: noteSelection, setSelection: setNoteSelection,
+  getChordSelection: chordSelection, setChordSelection,
+  getEditorSelection: () => selected, setEditorSelection: value => { selected = value; },
+  selectionChanged: () => { renderControls(); studioTimeline.renderSelection(); }, commitNote, notify: message,
 });
 $('minimal').addEventListener('change', event => {
   session = mergeSession(session, { extensions: { studio: { performanceFocus: event.target.checked } } });
@@ -223,10 +230,14 @@ for (const input of document.querySelectorAll('[data-path]')) {
     const path = input.dataset.path;
     const value = input.type === 'checkbox' ? input.checked : numericPaths.has(path) ? Number(input.value) : input.value;
     let patch = pathPatch(path, value);
-    if (path === 'bars') patch = mergeSession(patch, { loop: { endBar: value, startBar: Math.min(session.loop.startBar, value - 1) } });
+    if (path === 'bars') {
+      patch = mergeSession(patch, { loop: { endBar: value, startBar: Math.min(session.loop.startBar, value - 1) } });
+      if (!session.progression.chords.length) patch.progression = { ...session.progression, cycleBars: value };
+    }
     if (path === 'progression.keyId') {
       const chords = getDiatonicChords(value);
-      patch.progression.chords = session.progression.chords.map(chord => chord.source !== 'diatonic' ? chord : invertChord({ ...chords[(chord.degree ?? 1) - 1], durationBars: chord.durationBars }, chord.inversion));
+      patch.progression.cycleBars = session.progression.cycleBars;
+      patch.progression.chords = session.progression.chords.map(chord => chord.source !== 'diatonic' ? chord : invertChord({ ...chords[(chord.degree ?? 1) - 1], startBar: chord.startBar, durationBars: chord.durationBars }, chord.inversion));
     }
     updateSession(patch);
   });
@@ -253,13 +264,14 @@ function renderControls() {
   $('train').disabled = pending !== null || (session.training.evaluation !== 'free' && !session.notes.some(note => note.start >= session.loop.startBar * barTicks(session) && note.start < session.loop.endBar * barTicks(session)));
   $('train-pad').disabled = !['countin', 'train'].includes(audio.position.mode);
   $('clear').disabled = locked || session.notes.length === 0;
-  for (const id of ['generate', 'variation', 'load-groove', 'generate-drums', 'generate-progression', 'add-chord', 'new-session', 'duplicate-session', 'save-session', 'restore-session', 'delete-session', 'replace-recovery', 'replace-library-recovery', 'apply-share']) $(id).disabled = locked;
+  for (const id of ['generate', 'variation', 'load-groove', 'generate-drums', 'generate-progression', 'new-session', 'duplicate-session', 'save-session', 'restore-session', 'delete-session', 'replace-recovery', 'replace-library-recovery', 'apply-share']) $(id).disabled = locked;
   $('load-groove').disabled ||= !$('groove-library').value;
   $('restore-session').disabled ||= !$('session-library').value;
   $('delete-session').disabled ||= !$('session-library').value;
   $('apply-share').disabled ||= !sharedSession;
-  const note = session.notes.find(item => item.id === selected);
-  $('selection-text').textContent = note ? `Nota selecionada · MIDI ${note.pitch} · ${format(note.duration)} ticks` : 'Clique para criar; selecione uma nota para editar.';
+  const note = session.notes.find(item => item.id === noteSelection());
+  const chord = session.progression.chords[chordSelection()];
+  $('selection-text').textContent = note ? `Nota selecionada · MIDI ${note.pitch} · ${format(note.duration)} ticks` : chord ? 'Acorde selecionado · edição harmônica' : 'Clique numa faixa para criar; selecione uma nota ou acorde para editar.';
   $('note-detail').hidden = !note;
   if (!note) $('note-detail').open = false;
   for (const field of ['start', 'duration', 'pitch', 'velocity', 'articulation', 'offsetMs']) {
@@ -272,7 +284,6 @@ function renderControls() {
   $('note-duration').min = 0;
   $('delete').disabled = locked || !note;
   for (const preset of $('presets').children) preset.disabled = locked || !note;
-  for (const input of document.querySelectorAll('.chord-editor input, .chord-editor select, .chord-editor button')) input.disabled = locked;
   studioTimeline.renderControls();
   $('add-section').disabled = locked || session.form.sections.length >= 32;
   for (const input of document.querySelectorAll('#form-sections input, #form-sections select, #form-sections button')) input.disabled = locked || input.dataset.boundary === 'true';
@@ -341,8 +352,8 @@ $('add-section').addEventListener('click', () => {
   updateSession({ form: { sections: [...session.form.sections, section] } });
 });
 function commitNote(patch) {
-  if (busy() || !selected) return;
-  const notes = updateNote(session.notes, selected, patch, session);
+  if (busy() || !noteSelection()) return;
+  const notes = updateNote(session.notes, noteSelection(), patch, session);
   if (notes === session.notes) { message('Sem sobreposição e sem ultrapassar o fim da frase.', true); renderControls(); return; }
   updateSession({ notes });
 }
@@ -351,7 +362,11 @@ for (const [ticks, label] of [[1, '1/16'], [2, '1/8'], [3, '1/8.'], [4, '1/4'], 
   const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'preset'; chip.textContent = label;
   chip.addEventListener('click', () => commitNote({ duration: ticks })); $('presets').append(chip);
 }
-function removeSelected() { if (!busy() && selected) updateSession({ notes: deleteNote(session.notes, selected) }); }
+function removeSelected() {
+  if (busy()) return;
+  if (selected?.kind === 'chord') studioTimeline.removeChord();
+  else if (noteSelection()) updateSession({ notes: deleteNote(session.notes, noteSelection()) });
+}
 $('delete').addEventListener('click', removeSelected);
 $('clear').addEventListener('click', () => { if (!busy()) updateSession({ notes: [] }); });
 $('transpose-phrase').addEventListener('click', () => {
@@ -429,62 +444,6 @@ function generate(variation) {
 }
 $('generate').addEventListener('click', () => generate(false)); $('variation').addEventListener('click', () => generate(true));
 
-for (const key of PROGRESSION_KEYS) { const option = document.createElement('option'); option.value = key.id; option.textContent = key.label; $('progression-key').append(option); }
-function renderProgression() {
-  const choices = [...getDiatonicChords(session.progression.keyId), ...getBorrowedChords(session.progression.keyId), ...getSecondaryDominants(session.progression.keyId)];
-  $('progression-chords').replaceChildren();
-  let bar = 0;
-  session.progression.chords.forEach((chord, index) => {
-    const item = document.createElement('li'); item.className = 'progression-chord chord-editor';
-    const title = document.createElement('strong'); title.textContent = chord.symbol;
-    const where = document.createElement('span'); where.textContent = `Compasso ${format(bar + 1)} · ${chord.roman} · ${chord.notes.map(note => note.name).join(' · ')}`;
-    bar += chord.durationBars;
-    const select = document.createElement('select'); select.setAttribute('aria-label', `Acorde ${index + 1}`);
-    const custom = document.createElement('option'); custom.value = 'custom'; custom.textContent = 'Símbolo manual'; select.append(custom);
-    for (const [position, choice] of choices.entries()) { const option = document.createElement('option'); option.value = position; option.textContent = `${choice.roman} · ${choice.symbol} · ${choice.source === 'borrowed' ? 'empréstimo' : choice.source === 'secondary' ? 'dominante secundária' : 'diatônico'}`; select.append(option); }
-    const matching = choices.findIndex(choice => choice.symbol === chord.symbol);
-    select.value = matching < 0 ? 'custom' : String(matching);
-    select.addEventListener('change', () => { if (select.value !== 'custom') replaceChord(index, { ...choices[Number(select.value)], durationBars: chord.durationBars, inversion: 0 }); });
-    const symbol = document.createElement('input'); symbol.type = 'text'; symbol.value = chord.symbol; symbol.maxLength = 30; symbol.setAttribute('aria-label', `Símbolo manual do acorde ${index + 1}`);
-    symbol.addEventListener('change', () => {
-      try { replaceChord(index, { ...parseChordSymbol(symbol.value), durationBars: chord.durationBars }); }
-      catch (error) { message(error.message, true); symbol.value = chord.symbol; }
-    });
-    const duration = document.createElement('input'); duration.type = 'number'; duration.min = String(1 / session.meter.beats); duration.max = '16'; duration.step = String(1 / session.meter.beats); duration.value = chord.durationBars; duration.setAttribute('aria-label', `Duração do acorde ${index + 1} em compassos`);
-    duration.addEventListener('change', () => replaceChord(index, { ...chord, durationBars: Number(duration.value) }));
-    const inversion = document.createElement('select'); inversion.setAttribute('aria-label', `Inversão do acorde ${index + 1}`);
-    const inversionCount = CHORD_QUALITIES[chord.quality]?.length ?? chord.notes.length;
-    for (let value = 0; value < inversionCount; value++) { const option = document.createElement('option'); option.value = value; option.textContent = value === 0 ? 'Fundamental' : `${value}ª inversão`; inversion.append(option); }
-    inversion.value = chord.inversion ?? 0;
-    inversion.addEventListener('change', () => {
-      try { replaceChord(index, invertChord(chord, Number(inversion.value))); }
-      catch (error) { message(error.message, true); renderProgression(); }
-    });
-    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Remover'; remove.addEventListener('click', () => updateSession({ progression: { chords: session.progression.chords.filter((_, position) => position !== index) } }));
-    item.append(where, title, select, symbol, duration, inversion, remove); $('progression-chords').append(item);
-  });
-  $('progression-status').textContent = `${session.progression.chords.length} acordes · ciclo harmônico de ${format(bar)} compassos dentro do arranjo.`;
-  renderControls();
-}
-function replaceChord(index, chord) { updateSession({ progression: { chords: session.progression.chords.map((value, position) => position === index ? chord : value) } }); }
-$('add-chord').addEventListener('click', () => updateSession({ progression: { chords: [...session.progression.chords, { ...getDiatonicChords(session.progression.keyId)[0], durationBars: 1, inversion: 0 }] } }));
-$('generate-progression').addEventListener('click', () => {
-  const keyId = session.progression.keyId;
-  const mode = $('progression-function').value;
-  const diatonic = getDiatonicChords(keyId);
-  const degrees = mode === 'cadence' ? [1, 4, 5, 1] : [1, 6, 2, 5];
-  const base = mode === 'random' ? generateProgression({ keyId }).chords : degrees.map(degree => diatonic[degree - 1]);
-  // Fit the harmonic cycle using whole denominator beats, including 7/8 and
-  // progressions with an odd chord count. Extend only when each chord would
-  // otherwise get less than one beat; existing phrase notes remain unchanged.
-  const bars = Math.max(session.bars, Math.ceil(base.length / session.meter.beats));
-  const beats = bars * session.meter.beats;
-  const perChord = Math.floor(beats / base.length);
-  const remainder = beats % base.length;
-  const chords = base.map((chord, index) => ({ ...chord, durationBars: (perChord + (index < remainder ? 1 : 0)) / session.meter.beats }));
-  const loop = { ...session.loop, endBar: session.loop.endBar === session.bars ? bars : session.loop.endBar };
-  updateSession({ bars, loop, progression: { enabled: true, chords } });
-});
 
 
 function download(text, filename) {

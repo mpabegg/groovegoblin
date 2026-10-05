@@ -62,6 +62,8 @@ test('geração reproduzível caminha por funções e resolve a volta para a tô
       assert.equal(result.chords[0].function, 'tonic');
       assert.ok(['dominant', 'subdominant'].includes(result.chords.at(-1).function));
       assert.ok(result.chords.every(chord => chord.durationBars === 2));
+      assert.equal(result.cycleBars, length * 2);
+      assert.deepEqual(result.chords.map(chord => chord.startBar), Array.from({ length }, (_, index) => index * 2));
       assert.ok(result.chords.every(chord => chord.notes.every((note, index) => index === 0 || note.midi > chord.notes[index - 1].midi)));
       assert.equal(createSession({ progression: result }).progression.chords.length, length);
       result.chords[0].notes[0].midi = -1;
@@ -130,8 +132,8 @@ test('condução de vozes mantém baixos de barra e clones, sem mudar classes de
 });
 
 test('linha harmônica usa duração real do compasso, cicla e recorta apenas o final', () => {
-  const chords = [{ ...parseChordSymbol('C'), durationBars: 2 / 7 }, { ...parseChordSymbol('G7'), durationBars: 3 / 7 }];
-  const session = createSession({ bars: 2, meter: { beats: 7, unit: 8 }, progression: { enabled: true, chords } });
+  const chords = [{ ...parseChordSymbol('C'), startBar: 0, durationBars: 2 / 7 }, { ...parseChordSymbol('G7'), startBar: 2 / 7, durationBars: 3 / 7 }];
+  const session = createSession({ bars: 2, meter: { beats: 7, unit: 8 }, progression: { enabled: true, cycleBars: 5 / 7, chords } });
   const events = chordTimeline(session);
   assert.deepEqual(events.map(event => [event.start, event.duration, event.index]), [[0, 4, 0], [4, 6, 1], [10, 4, 0], [14, 6, 1], [20, 4, 0], [24, 4, 1]]);
   assert.deepEqual(chordTimeline(createSession()), []);

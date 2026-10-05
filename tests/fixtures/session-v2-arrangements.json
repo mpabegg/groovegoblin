@@ -1,0 +1,6934 @@
+[
+  {
+    "name": "four-bars",
+    "session": {
+      "version": 2,
+      "name": "Estúdio · sessão v2 preservada",
+      "bpm": 90,
+      "bars": 4,
+      "subdivision": 4,
+      "swing": 0,
+      "swingUnit": "eighth",
+      "meter": {
+        "beats": 4,
+        "unit": 4
+      },
+      "progression": {
+        "keyId": "c-major",
+        "chords": [
+          {
+            "symbol": "Cmaj7",
+            "roman": "I",
+            "quality": "maj7",
+            "degree": 1,
+            "root": 0,
+            "bass": null,
+            "function": "tonic",
+            "source": "diatonic",
+            "inversion": 0,
+            "durationBars": 1,
+            "notes": [
+              {
+                "name": "C",
+                "midi": 48
+              },
+              {
+                "name": "E",
+                "midi": 52
+              },
+              {
+                "name": "G",
+                "midi": 55
+              },
+              {
+                "name": "B",
+                "midi": 59
+              }
+            ]
+          },
+          {
+            "symbol": "Am7",
+            "roman": "vi",
+            "quality": "m7",
+            "degree": 6,
+            "root": 9,
+            "bass": null,
+            "function": "tonic",
+            "source": "diatonic",
+            "inversion": 0,
+            "durationBars": 1,
+            "notes": [
+              {
+                "name": "A",
+                "midi": 57
+              },
+              {
+                "name": "C",
+                "midi": 60
+              },
+              {
+                "name": "E",
+                "midi": 64
+              },
+              {
+                "name": "G",
+                "midi": 67
+              }
+            ]
+          },
+          {
+            "symbol": "Dm7",
+            "roman": "ii",
+            "quality": "m7",
+            "degree": 2,
+            "root": 2,
+            "bass": null,
+            "function": "subdominant",
+            "source": "diatonic",
+            "inversion": 0,
+            "durationBars": 1,
+            "notes": [
+              {
+                "name": "D",
+                "midi": 50
+              },
+              {
+                "name": "F",
+                "midi": 53
+              },
+              {
+                "name": "A",
+                "midi": 57
+              },
+              {
+                "name": "C",
+                "midi": 60
+              }
+            ]
+          },
+          {
+            "symbol": "G7",
+            "roman": "V",
+            "quality": "7",
+            "degree": 5,
+            "root": 7,
+            "bass": null,
+            "function": "dominant",
+            "source": "diatonic",
+            "inversion": 0,
+            "durationBars": 1,
+            "notes": [
+              {
+                "name": "G",
+                "midi": 55
+              },
+              {
+                "name": "B",
+                "midi": 59
+              },
+              {
+                "name": "D",
+                "midi": 62
+              },
+              {
+                "name": "F",
+                "midi": 65
+              }
+            ]
+          }
+        ],
+        "enabled": true
+      },
+      "drums": {
+        "enabled": true,
+        "seed": 42,
+        "style": "funk",
+        "density": "medium"
+      },
+      "band": {
+        "bassEnabled": true,
+        "style": "pop",
+        "density": "medium",
+        "mode": "steady",
+        "role": "solo"
+      },
+      "loop": {
+        "startBar": 0,
+        "endBar": 4
+      },
+      "training": {
+        "countInBars": 1,
+        "repetitions": 4,
+        "goal": "timing",
+        "evaluation": "strict",
+        "tempoStep": 4,
+        "adaptive": false,
+        "monitor": true
+      },
+      "metronome": {
+        "enabled": true,
+        "pattern": "quarters",
+        "silentBars": 0,
+        "audibleBars": 1
+      },
+      "companion": {
+        "enabled": false,
+        "pulses": 3,
+        "spanBeats": 4,
+        "pitch": 84
+      },
+      "generator": {
+        "density": "medium",
+        "syncopation": "mixed",
+        "lengths": "mixed",
+        "seed": null
+      },
+      "timbres": {
+        "phrase": "soft-lead",
+        "chords": "electric-piano",
+        "bass": "upright-bass"
+      },
+      "form": {
+        "enabled": false,
+        "loop": true,
+        "sections": []
+      },
+      "notes": [
+        {
+          "id": "legacy-0-quarter-pulse-0",
+          "start": 0,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-0-quarter-pulse-1",
+          "start": 4,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-0-quarter-pulse-2",
+          "start": 8,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-0-quarter-pulse-3",
+          "start": 12,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-1-quarter-pulse-0",
+          "start": 16,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-1-quarter-pulse-1",
+          "start": 20,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-1-quarter-pulse-2",
+          "start": 24,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-1-quarter-pulse-3",
+          "start": 28,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-2-quarter-pulse-0",
+          "start": 32,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-2-quarter-pulse-1",
+          "start": 36,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-2-quarter-pulse-2",
+          "start": 40,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-2-quarter-pulse-3",
+          "start": 44,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-3-quarter-pulse-0",
+          "start": 48,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-3-quarter-pulse-1",
+          "start": 52,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-3-quarter-pulse-2",
+          "start": 56,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-3-quarter-pulse-3",
+          "start": 60,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        }
+      ],
+      "mixer": {
+        "phrase": {
+          "volume": 1,
+          "muted": false
+        },
+        "metronome": {
+          "volume": 1,
+          "muted": false
+        },
+        "drums": {
+          "volume": 1,
+          "muted": false
+        },
+        "chords": {
+          "volume": 1,
+          "muted": false
+        },
+        "bass": {
+          "volume": 1,
+          "muted": false
+        }
+      },
+      "extensions": {}
+    },
+    "events": [
+      [
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.968
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.467
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 36,
+          "velocity": 0.8080076765676495,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 0,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.5519064304197673,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "bar",
+          "velocity": 1
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 1,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.214
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.474
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.575
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.207
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 4,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.851
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.454
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 5,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.208
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.425
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 6,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 36,
+          "velocity": 0.5884340034658089,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.233
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.214
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.428
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 43,
+          "velocity": 0.7202523664338514,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 8,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.523778972227592,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": false
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.232
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.233
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.794
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.434
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 11,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.209
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 12,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.907
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.438
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 13,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.229
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 14,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.463
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 14,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 32,
+          "velocity": 0.6263546979194506,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 15,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.228
+        }
+      ],
+      [
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.932
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.464
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 33,
+          "velocity": 0.8816875186737161,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 0,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            57,
+            60,
+            64,
+            67
+          ],
+          "velocity": 0.5558911651861854,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "bar",
+          "velocity": 1
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 1,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.215
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.436
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.586
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.224
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 4,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.946
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.437
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 5,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.213
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.447
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 6,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 33,
+          "velocity": 0.5789656949881463,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.245
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.21
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.449
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 40,
+          "velocity": 0.7691994040855206,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 8,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            57,
+            60,
+            64,
+            67
+          ],
+          "velocity": 0.4786910470575094,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": false
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.225
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.218
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.779
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.454
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 11,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.233
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 12,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.893
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.448
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 13,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.219
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 14,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.474
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 14,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 39,
+          "velocity": 0.6203242441825568,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 15,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.226
+        }
+      ],
+      [
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.977
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.477
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 38,
+          "velocity": 0.8359118801390286,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 0,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            50,
+            53,
+            57,
+            60
+          ],
+          "velocity": 0.5399504587438423,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "bar",
+          "velocity": 1
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 1,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.232
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.454
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.61
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.231
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 4,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.89
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.431
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 5,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.218
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.45
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 6,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 38,
+          "velocity": 0.6218488185759633,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.237
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.221
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.463
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 45,
+          "velocity": 0.7472643807472195,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 8,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            50,
+            53,
+            57,
+            60
+          ],
+          "velocity": 0.49350730248261243,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": false
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.215
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.219
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.839
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.434
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 11,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.227
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 12,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.861
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.444
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 13,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.207
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 14,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.462
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 14,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 30,
+          "velocity": 0.5981181947188452,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 15,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.232
+        }
+      ],
+      [
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.933
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.439
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 31,
+          "velocity": 0.8772598374332301,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 0,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            55,
+            59,
+            62,
+            65
+          ],
+          "velocity": 0.5322113944299054,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "bar",
+          "velocity": 1
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 1,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.212
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.464
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.589
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.214
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 4,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.943
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.43
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 5,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.222
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.428
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 6,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 31,
+          "velocity": 0.6275155724398791,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.253
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.222
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.475
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 38,
+          "velocity": 0.7871170318918304,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 8,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            55,
+            59,
+            62,
+            65
+          ],
+          "velocity": 0.5218935732729733,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": false
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.228
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.216
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.846
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.424
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 11,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.215
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 12,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.511
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 13,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "tom",
+          "velocity": 0.571
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 14,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.664
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 14,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 37,
+          "velocity": 0.6140326148690655,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 15,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "tom",
+          "velocity": 0.729
+        }
+      ]
+    ]
+  },
+  {
+    "name": "repeating-two-bar-cycle",
+    "session": {
+      "version": 2,
+      "name": "Estúdio · sessão v2 preservada",
+      "bpm": 90,
+      "bars": 8,
+      "subdivision": 4,
+      "swing": 0,
+      "swingUnit": "eighth",
+      "meter": {
+        "beats": 4,
+        "unit": 4
+      },
+      "progression": {
+        "keyId": "c-major",
+        "chords": [
+          {
+            "symbol": "Cmaj7",
+            "roman": "I",
+            "quality": "maj7",
+            "degree": 1,
+            "root": 0,
+            "bass": null,
+            "function": "tonic",
+            "source": "diatonic",
+            "inversion": 0,
+            "durationBars": 1,
+            "notes": [
+              {
+                "name": "C",
+                "midi": 48
+              },
+              {
+                "name": "E",
+                "midi": 52
+              },
+              {
+                "name": "G",
+                "midi": 55
+              },
+              {
+                "name": "B",
+                "midi": 59
+              }
+            ]
+          },
+          {
+            "symbol": "Am7",
+            "roman": "vi",
+            "quality": "m7",
+            "degree": 6,
+            "root": 9,
+            "bass": null,
+            "function": "tonic",
+            "source": "diatonic",
+            "inversion": 0,
+            "durationBars": 1,
+            "notes": [
+              {
+                "name": "A",
+                "midi": 57
+              },
+              {
+                "name": "C",
+                "midi": 60
+              },
+              {
+                "name": "E",
+                "midi": 64
+              },
+              {
+                "name": "G",
+                "midi": 67
+              }
+            ]
+          }
+        ],
+        "enabled": true
+      },
+      "drums": {
+        "enabled": true,
+        "seed": 42,
+        "style": "funk",
+        "density": "medium"
+      },
+      "band": {
+        "bassEnabled": true,
+        "style": "pop",
+        "density": "medium",
+        "mode": "steady",
+        "role": "solo"
+      },
+      "loop": {
+        "startBar": 0,
+        "endBar": 8
+      },
+      "training": {
+        "countInBars": 1,
+        "repetitions": 4,
+        "goal": "timing",
+        "evaluation": "strict",
+        "tempoStep": 4,
+        "adaptive": false,
+        "monitor": true
+      },
+      "metronome": {
+        "enabled": true,
+        "pattern": "quarters",
+        "silentBars": 0,
+        "audibleBars": 1
+      },
+      "companion": {
+        "enabled": false,
+        "pulses": 3,
+        "spanBeats": 4,
+        "pitch": 84
+      },
+      "generator": {
+        "density": "medium",
+        "syncopation": "mixed",
+        "lengths": "mixed",
+        "seed": null
+      },
+      "timbres": {
+        "phrase": "soft-lead",
+        "chords": "electric-piano",
+        "bass": "upright-bass"
+      },
+      "form": {
+        "enabled": false,
+        "loop": true,
+        "sections": []
+      },
+      "notes": [
+        {
+          "id": "legacy-0-quarter-pulse-0",
+          "start": 0,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-0-quarter-pulse-1",
+          "start": 4,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-0-quarter-pulse-2",
+          "start": 8,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-0-quarter-pulse-3",
+          "start": 12,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-1-quarter-pulse-0",
+          "start": 16,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-1-quarter-pulse-1",
+          "start": 20,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-1-quarter-pulse-2",
+          "start": 24,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-1-quarter-pulse-3",
+          "start": 28,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-2-quarter-pulse-0",
+          "start": 32,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-2-quarter-pulse-1",
+          "start": 36,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-2-quarter-pulse-2",
+          "start": 40,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-2-quarter-pulse-3",
+          "start": 44,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-3-quarter-pulse-0",
+          "start": 48,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-3-quarter-pulse-1",
+          "start": 52,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-3-quarter-pulse-2",
+          "start": 56,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-3-quarter-pulse-3",
+          "start": 60,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        }
+      ],
+      "mixer": {
+        "phrase": {
+          "volume": 1,
+          "muted": false
+        },
+        "metronome": {
+          "volume": 1,
+          "muted": false
+        },
+        "drums": {
+          "volume": 1,
+          "muted": false
+        },
+        "chords": {
+          "volume": 1,
+          "muted": false
+        },
+        "bass": {
+          "volume": 1,
+          "muted": false
+        }
+      },
+      "extensions": {}
+    },
+    "events": [
+      [
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.968
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.467
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 36,
+          "velocity": 0.8080076765676495,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 0,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.5519064304197673,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "bar",
+          "velocity": 1
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 1,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.214
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.474
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.575
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.207
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 4,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.851
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.454
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 5,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.208
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.425
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 6,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 36,
+          "velocity": 0.5884340034658089,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.233
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.214
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.428
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 43,
+          "velocity": 0.7202523664338514,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 8,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.523778972227592,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": false
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.232
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.233
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.794
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.434
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 11,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.209
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 12,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.907
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.438
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 13,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.229
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 14,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.463
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 14,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 32,
+          "velocity": 0.6263546979194506,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 15,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.228
+        }
+      ],
+      [
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.932
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.464
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 33,
+          "velocity": 0.8816875186737161,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 0,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            57,
+            60,
+            64,
+            67
+          ],
+          "velocity": 0.5558911651861854,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "bar",
+          "velocity": 1
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 1,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.215
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.436
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.586
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.224
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 4,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.946
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.437
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 5,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.213
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.447
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 6,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 33,
+          "velocity": 0.5789656949881463,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.245
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.21
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.449
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 40,
+          "velocity": 0.7691994040855206,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 8,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            57,
+            60,
+            64,
+            67
+          ],
+          "velocity": 0.4786910470575094,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": false
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.225
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.218
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.779
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.454
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 11,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.233
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 12,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.893
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.448
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 13,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.219
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 14,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.474
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 14,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 37,
+          "velocity": 0.6203242441825568,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 15,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.226
+        }
+      ],
+      [
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.977
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.477
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 36,
+          "velocity": 0.8359118801390286,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 0,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.5399504587438423,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "bar",
+          "velocity": 1
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 1,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.232
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.454
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.61
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.231
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 4,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.89
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.431
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 5,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.218
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.45
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 6,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 36,
+          "velocity": 0.6218488185759633,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.237
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.221
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.463
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 43,
+          "velocity": 0.7472643807472195,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 8,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.49350730248261243,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": false
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.215
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.219
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.839
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.434
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 11,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.227
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 12,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.861
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.444
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 13,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.207
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 14,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.462
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 14,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 32,
+          "velocity": 0.5981181947188452,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 15,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.232
+        }
+      ],
+      [
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.933
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.439
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 33,
+          "velocity": 0.8772598374332301,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 0,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            57,
+            60,
+            64,
+            67
+          ],
+          "velocity": 0.5322113944299054,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "bar",
+          "velocity": 1
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 1,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.212
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.464
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.589
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.214
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 4,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.943
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.43
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 5,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.222
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.428
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 6,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 33,
+          "velocity": 0.6275155724398791,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.253
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.222
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.475
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 40,
+          "velocity": 0.7871170318918304,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 8,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            57,
+            60,
+            64,
+            67
+          ],
+          "velocity": 0.5218935732729733,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": false
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.228
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.216
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.846
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.424
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 11,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.215
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 12,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.511
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 13,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "tom",
+          "velocity": 0.571
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 14,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.664
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 14,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 37,
+          "velocity": 0.6140326148690655,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 15,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "tom",
+          "velocity": 0.729
+        }
+      ],
+      [
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.898
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.468
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 36,
+          "velocity": 0.8235778087971266,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 0,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.5556044031190687,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "bar",
+          "velocity": 1
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 1,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.228
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.477
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.57
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.226
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.945
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.463
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 5,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.22
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.466
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 6,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 36,
+          "velocity": 0.60087225030642,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.241
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.225
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.44
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 43,
+          "velocity": 0.7621574436372611,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 8,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.48584107554052025,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": false
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.221
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.218
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.802
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.428
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 11,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.21
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.947
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.469
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 13,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.218
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 14,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.438
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 14,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 32,
+          "velocity": 0.5974266610946506,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 15,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.231
+        }
+      ],
+      [
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.934
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.466
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 33,
+          "velocity": 0.8112068056338466,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 0,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            57,
+            60,
+            64,
+            67
+          ],
+          "velocity": 0.5368454734887927,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "bar",
+          "velocity": 1
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 1,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.23
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.448
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.627
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.229
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.951
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.474
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 5,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.232
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.466
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 6,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 33,
+          "velocity": 0.6174957609828561,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.253
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.212
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.425
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 40,
+          "velocity": 0.7645086988108232,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 8,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            57,
+            60,
+            64,
+            67
+          ],
+          "velocity": 0.50601005400531,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": false
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.211
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.225
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.774
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.462
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 11,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.21
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.934
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.454
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 13,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.221
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 14,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.429
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 14,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 37,
+          "velocity": 0.6259784770477562,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 15,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.213
+        }
+      ],
+      [
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.908
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.447
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 36,
+          "velocity": 0.8654090851347427,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 0,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.5286786109488457,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "bar",
+          "velocity": 1
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 1,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.22
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.475
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.619
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.224
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.868
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.472
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 5,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.222
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.445
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 6,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 36,
+          "velocity": 0.5964608253445476,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.248
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.209
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.46
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 43,
+          "velocity": 0.7841911428084131,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 8,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.5062559878337197,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": false
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.219
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.23
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.843
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.462
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 11,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.224
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.88
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.426
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 13,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.21
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 14,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.464
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 14,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 34,
+          "velocity": 0.5821496796794235,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 15,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.211
+        }
+      ],
+      [
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.972
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.469
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 33,
+          "velocity": 0.814754290151177,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 0,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            57,
+            60,
+            64,
+            67
+          ],
+          "velocity": 0.5705488643737044,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "bar",
+          "velocity": 1
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 1,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.226
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.451
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.605
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.226
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.909
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.46
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 5,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.208
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.448
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 6,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 33,
+          "velocity": 0.5856336548924446,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.237
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.233
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.436
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 40,
+          "velocity": 0.714606612600619,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 8,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            57,
+            60,
+            64,
+            67
+          ],
+          "velocity": 0.517082853463944,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": false
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.223
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.214
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.809
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.448
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 11,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.211
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.525
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 13,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "tom",
+          "velocity": 0.547
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 14,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.629
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 14,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 37,
+          "velocity": 0.6013337842421606,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 15,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "tom",
+          "velocity": 0.757
+        }
+      ]
+    ]
+  },
+  {
+    "name": "long-cycle",
+    "session": {
+      "version": 2,
+      "name": "Estúdio · sessão v2 preservada",
+      "bpm": 90,
+      "bars": 1,
+      "subdivision": 4,
+      "swing": 0,
+      "swingUnit": "eighth",
+      "meter": {
+        "beats": 4,
+        "unit": 4
+      },
+      "progression": {
+        "keyId": "c-major",
+        "chords": [
+          {
+            "symbol": "Cmaj7",
+            "roman": "I",
+            "quality": "maj7",
+            "degree": 1,
+            "root": 0,
+            "bass": null,
+            "function": "tonic",
+            "source": "diatonic",
+            "inversion": 0,
+            "durationBars": 16,
+            "notes": [
+              {
+                "name": "C",
+                "midi": 48
+              },
+              {
+                "name": "E",
+                "midi": 52
+              },
+              {
+                "name": "G",
+                "midi": 55
+              },
+              {
+                "name": "B",
+                "midi": 59
+              }
+            ]
+          },
+          {
+            "symbol": "Am7",
+            "roman": "vi",
+            "quality": "m7",
+            "degree": 6,
+            "root": 9,
+            "bass": null,
+            "function": "tonic",
+            "source": "diatonic",
+            "inversion": 0,
+            "durationBars": 16,
+            "notes": [
+              {
+                "name": "A",
+                "midi": 57
+              },
+              {
+                "name": "C",
+                "midi": 60
+              },
+              {
+                "name": "E",
+                "midi": 64
+              },
+              {
+                "name": "G",
+                "midi": 67
+              }
+            ]
+          },
+          {
+            "symbol": "Dm7",
+            "roman": "ii",
+            "quality": "m7",
+            "degree": 2,
+            "root": 2,
+            "bass": null,
+            "function": "subdominant",
+            "source": "diatonic",
+            "inversion": 0,
+            "durationBars": 16,
+            "notes": [
+              {
+                "name": "D",
+                "midi": 50
+              },
+              {
+                "name": "F",
+                "midi": 53
+              },
+              {
+                "name": "A",
+                "midi": 57
+              },
+              {
+                "name": "C",
+                "midi": 60
+              }
+            ]
+          },
+          {
+            "symbol": "G7",
+            "roman": "V",
+            "quality": "7",
+            "degree": 5,
+            "root": 7,
+            "bass": null,
+            "function": "dominant",
+            "source": "diatonic",
+            "inversion": 0,
+            "durationBars": 16,
+            "notes": [
+              {
+                "name": "G",
+                "midi": 55
+              },
+              {
+                "name": "B",
+                "midi": 59
+              },
+              {
+                "name": "D",
+                "midi": 62
+              },
+              {
+                "name": "F",
+                "midi": 65
+              }
+            ]
+          }
+        ],
+        "enabled": true
+      },
+      "drums": {
+        "enabled": true,
+        "seed": 42,
+        "style": "funk",
+        "density": "medium"
+      },
+      "band": {
+        "bassEnabled": true,
+        "style": "pop",
+        "density": "medium",
+        "mode": "steady",
+        "role": "solo"
+      },
+      "loop": {
+        "startBar": 0,
+        "endBar": 1
+      },
+      "training": {
+        "countInBars": 1,
+        "repetitions": 4,
+        "goal": "timing",
+        "evaluation": "strict",
+        "tempoStep": 4,
+        "adaptive": false,
+        "monitor": true
+      },
+      "metronome": {
+        "enabled": true,
+        "pattern": "quarters",
+        "silentBars": 0,
+        "audibleBars": 1
+      },
+      "companion": {
+        "enabled": false,
+        "pulses": 3,
+        "spanBeats": 4,
+        "pitch": 84
+      },
+      "generator": {
+        "density": "medium",
+        "syncopation": "mixed",
+        "lengths": "mixed",
+        "seed": null
+      },
+      "timbres": {
+        "phrase": "soft-lead",
+        "chords": "electric-piano",
+        "bass": "upright-bass"
+      },
+      "form": {
+        "enabled": false,
+        "loop": true,
+        "sections": []
+      },
+      "notes": [
+        {
+          "id": "legacy-0-quarter-pulse-0",
+          "start": 0,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-0-quarter-pulse-1",
+          "start": 4,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-0-quarter-pulse-2",
+          "start": 8,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        },
+        {
+          "id": "legacy-0-quarter-pulse-3",
+          "start": 12,
+          "duration": 4,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "offsetMs": 0
+        }
+      ],
+      "mixer": {
+        "phrase": {
+          "volume": 1,
+          "muted": false
+        },
+        "metronome": {
+          "volume": 1,
+          "muted": false
+        },
+        "drums": {
+          "volume": 1,
+          "muted": false
+        },
+        "chords": {
+          "volume": 1,
+          "muted": false
+        },
+        "bass": {
+          "volume": 1,
+          "muted": false
+        }
+      },
+      "extensions": {}
+    },
+    "events": [
+      [
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.968
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.467
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 36,
+          "velocity": 0.8080076765676495,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 0,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.5519064304197673,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "bar",
+          "velocity": 1
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 1,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.214
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.474
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.575
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.207
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 4,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.851
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.454
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 5,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.208
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.425
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 6,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 36,
+          "velocity": 0.5884340034658089,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.233
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.214
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.428
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 43,
+          "velocity": 0.7202523664338514,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 8,
+          "duration": 8,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.523778972227592,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": false
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.232
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 9,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.233
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.794
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.434
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 11,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.209
+        },
+        {
+          "channel": "phrase",
+          "kind": "note",
+          "tick": 12,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 69,
+          "velocity": 0.8,
+          "articulation": "normal",
+          "timbre": "soft-lead"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.907
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.438
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 13,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.229
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 14,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.463
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 14,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 43,
+          "velocity": 0.5854275125311688,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 15,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.228
+        }
+      ]
+    ]
+  },
+  {
+    "name": "seven-eight",
+    "session": {
+      "version": 2,
+      "name": "Estúdio · sessão v2 preservada",
+      "bpm": 90,
+      "bars": 4,
+      "subdivision": 4,
+      "swing": 0,
+      "swingUnit": "eighth",
+      "meter": {
+        "beats": 7,
+        "unit": 8
+      },
+      "progression": {
+        "keyId": "c-major",
+        "chords": [
+          {
+            "symbol": "Cmaj7",
+            "roman": "I",
+            "quality": "maj7",
+            "degree": 1,
+            "root": 0,
+            "bass": null,
+            "function": "tonic",
+            "source": "diatonic",
+            "inversion": 0,
+            "durationBars": 0.2857142857142857,
+            "notes": [
+              {
+                "name": "C",
+                "midi": 48
+              },
+              {
+                "name": "E",
+                "midi": 52
+              },
+              {
+                "name": "G",
+                "midi": 55
+              },
+              {
+                "name": "B",
+                "midi": 59
+              }
+            ]
+          },
+          {
+            "symbol": "Am7",
+            "roman": "vi",
+            "quality": "m7",
+            "degree": 6,
+            "root": 9,
+            "bass": null,
+            "function": "tonic",
+            "source": "diatonic",
+            "inversion": 0,
+            "durationBars": 0.2857142857142857,
+            "notes": [
+              {
+                "name": "A",
+                "midi": 57
+              },
+              {
+                "name": "C",
+                "midi": 60
+              },
+              {
+                "name": "E",
+                "midi": 64
+              },
+              {
+                "name": "G",
+                "midi": 67
+              }
+            ]
+          },
+          {
+            "symbol": "Dm7",
+            "roman": "ii",
+            "quality": "m7",
+            "degree": 2,
+            "root": 2,
+            "bass": null,
+            "function": "subdominant",
+            "source": "diatonic",
+            "inversion": 0,
+            "durationBars": 0.2857142857142857,
+            "notes": [
+              {
+                "name": "D",
+                "midi": 50
+              },
+              {
+                "name": "F",
+                "midi": 53
+              },
+              {
+                "name": "A",
+                "midi": 57
+              },
+              {
+                "name": "C",
+                "midi": 60
+              }
+            ]
+          },
+          {
+            "symbol": "G7",
+            "roman": "V",
+            "quality": "7",
+            "degree": 5,
+            "root": 7,
+            "bass": null,
+            "function": "dominant",
+            "source": "diatonic",
+            "inversion": 0,
+            "durationBars": 0.2857142857142857,
+            "notes": [
+              {
+                "name": "G",
+                "midi": 55
+              },
+              {
+                "name": "B",
+                "midi": 59
+              },
+              {
+                "name": "D",
+                "midi": 62
+              },
+              {
+                "name": "F",
+                "midi": 65
+              }
+            ]
+          }
+        ],
+        "enabled": true
+      },
+      "drums": {
+        "enabled": true,
+        "seed": 42,
+        "style": "funk",
+        "density": "medium"
+      },
+      "band": {
+        "bassEnabled": true,
+        "style": "pop",
+        "density": "medium",
+        "mode": "steady",
+        "role": "solo"
+      },
+      "loop": {
+        "startBar": 0,
+        "endBar": 4
+      },
+      "training": {
+        "countInBars": 1,
+        "repetitions": 4,
+        "goal": "timing",
+        "evaluation": "strict",
+        "tempoStep": 4,
+        "adaptive": false,
+        "monitor": true
+      },
+      "metronome": {
+        "enabled": true,
+        "pattern": "quarters",
+        "silentBars": 0,
+        "audibleBars": 1
+      },
+      "companion": {
+        "enabled": false,
+        "pulses": 3,
+        "spanBeats": 4,
+        "pitch": 84
+      },
+      "generator": {
+        "density": "medium",
+        "syncopation": "mixed",
+        "lengths": "mixed",
+        "seed": null
+      },
+      "timbres": {
+        "phrase": "soft-lead",
+        "chords": "electric-piano",
+        "bass": "upright-bass"
+      },
+      "form": {
+        "enabled": false,
+        "loop": true,
+        "sections": []
+      },
+      "notes": [],
+      "mixer": {
+        "phrase": {
+          "volume": 1,
+          "muted": false
+        },
+        "metronome": {
+          "volume": 1,
+          "muted": false
+        },
+        "drums": {
+          "volume": 1,
+          "muted": false
+        },
+        "chords": {
+          "volume": 1,
+          "muted": false
+        },
+        "bass": {
+          "volume": 1,
+          "muted": false
+        }
+      },
+      "extensions": {}
+    },
+    "events": [
+      [
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.917
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.425
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 36,
+          "velocity": 0.8080076765676495,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 0,
+          "duration": 3,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.5017331185634247,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "bar",
+          "velocity": 1
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.322
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "beat",
+          "velocity": 0.7
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.207
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.767
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.436
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 4,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 40,
+          "velocity": 0.686506337376777,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 4,
+          "duration": 3,
+          "offsetMs": 0,
+          "pitches": [
+            57,
+            60,
+            64,
+            67
+          ],
+          "velocity": 0.43997433667117725,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.337
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "beat",
+          "velocity": 0.7
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.222
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.715
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.467
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 38,
+          "velocity": 0.672235542004928,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 8,
+          "duration": 3,
+          "offsetMs": 0,
+          "pitches": [
+            50,
+            53,
+            57,
+            60
+          ],
+          "velocity": 0.41106342944875357,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.312
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "beat",
+          "velocity": 0.7
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 11,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.208
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.337
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 12,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitches": [
+            55,
+            59,
+            62,
+            65
+          ],
+          "velocity": 0.45,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "beat",
+          "velocity": 0.7
+        }
+      ],
+      [
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.883
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.473
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 0,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 31,
+          "velocity": 0.8816875186737161,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 0,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitches": [
+            55,
+            59,
+            62,
+            65
+          ],
+          "velocity": 0.505355604714714,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "bar",
+          "velocity": 1
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.318
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 2,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.45,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "beat",
+          "velocity": 0.7
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.224
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.782
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.46
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 4,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 43,
+          "velocity": 0.6754599774861707,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 4,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.4021004795283079,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": false
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.327
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 6,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitches": [
+            57,
+            60,
+            64,
+            67
+          ],
+          "velocity": 0.45,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "beat",
+          "velocity": 0.7
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.214
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.701
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.464
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 8,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 33,
+          "velocity": 0.7179194438131525,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 8,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitches": [
+            57,
+            60,
+            64,
+            67
+          ],
+          "velocity": 0.41960159852961076,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": false
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.313
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 10,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitches": [
+            50,
+            53,
+            57,
+            60
+          ],
+          "velocity": 0.45,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "beat",
+          "velocity": 0.7
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 11,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.213
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.31
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "beat",
+          "velocity": 0.7
+        }
+      ],
+      [
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.925
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.445
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 0,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 31,
+          "velocity": 0.8359118801390286,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 0,
+          "duration": 3,
+          "offsetMs": 0,
+          "pitches": [
+            55,
+            59,
+            62,
+            65
+          ],
+          "velocity": 0.490864053403493,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "bar",
+          "velocity": 1
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.306
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "beat",
+          "velocity": 0.7
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.231
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.813
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.444
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 4,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 43,
+          "velocity": 0.7254902883386238,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 4,
+          "duration": 3,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.4145461340853944,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.312
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "beat",
+          "velocity": 0.7
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.211
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.755
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.477
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 8,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitch": 33,
+          "velocity": 0.6974467553640715,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 8,
+          "duration": 3,
+          "offsetMs": 0,
+          "pitches": [
+            57,
+            60,
+            64,
+            67
+          ],
+          "velocity": 0.41356763550220055,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.337
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "beat",
+          "velocity": 0.7
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 11,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.218
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.323
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 12,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitches": [
+            50,
+            53,
+            57,
+            60
+          ],
+          "velocity": 0.45,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "beat",
+          "velocity": 0.7
+        }
+      ],
+      [
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.884
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.471
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 0,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 38,
+          "velocity": 0.8772598374332301,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 0,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitches": [
+            50,
+            53,
+            57,
+            60
+          ],
+          "velocity": 0.483828540390823,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 0,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "bar",
+          "velocity": 1
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.337
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 2,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitches": [
+            55,
+            59,
+            62,
+            65
+          ],
+          "velocity": 0.45,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 2,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "beat",
+          "velocity": 0.7
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 3,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.227
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.785
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.467
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 4,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 38,
+          "velocity": 0.732101501179859,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 4,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitches": [
+            55,
+            59,
+            62,
+            65
+          ],
+          "velocity": 0.43839060154929754,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": false
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 4,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.312
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 6,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.45,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 6,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "beat",
+          "velocity": 0.7
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 7,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.214
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "kick",
+          "velocity": 0.761
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "hihat",
+          "velocity": 0.434
+        },
+        {
+          "channel": "bass",
+          "kind": "note",
+          "tick": 8,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitch": 36,
+          "velocity": 0.7346425630990415,
+          "articulation": "normal",
+          "timbre": "upright-bass"
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 8,
+          "duration": 2,
+          "offsetMs": 0,
+          "pitches": [
+            48,
+            52,
+            55,
+            59
+          ],
+          "velocity": 0.4395291366940364,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": false
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 8,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "group",
+          "velocity": 0.85
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.477
+        },
+        {
+          "channel": "chords",
+          "kind": "chord",
+          "tick": 10,
+          "duration": 4,
+          "offsetMs": 0,
+          "pitches": [
+            57,
+            60,
+            64,
+            67
+          ],
+          "velocity": 0.45,
+          "articulation": "normal",
+          "timbre": "electric-piano",
+          "changes": true
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 10,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "beat",
+          "velocity": 0.7
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 11,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "tom",
+          "velocity": 0.586
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "snare",
+          "velocity": 0.627
+        },
+        {
+          "channel": "metronome",
+          "kind": "click",
+          "tick": 12,
+          "duration": 0,
+          "offsetMs": 0,
+          "accent": "beat",
+          "velocity": 0.7
+        },
+        {
+          "channel": "drums",
+          "kind": "drum",
+          "tick": 13,
+          "duration": 0,
+          "offsetMs": 0,
+          "instrument": "tom",
+          "velocity": 0.746
+        }
+      ]
+    ]
+  }
+]

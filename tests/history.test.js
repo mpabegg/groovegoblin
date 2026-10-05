@@ -50,7 +50,7 @@ test('cada campo musical, loop, treino, mixer e metadados viajam no snapshot', (
     { name: 'Estudo' }, { bpm: 130 }, { bars: 4 }, { meter: { beats: 5, unit: 4 } },
     { subdivision: 5 }, { swing: 1 / 3, swingUnit: 'sixteenth' },
     { notes: [{ ...initial.notes[0], pitch: 72, velocity: 0.4, articulation: 'ghost', offsetMs: -20 }] },
-    { progression: { enabled: true, chords: [parseChordSymbol('G7/B')] } },
+    { progression: { enabled: true, chords: [{ ...parseChordSymbol('G7/B'), startBar: 0 }], cycleBars: 1 } },
     { drums: { enabled: true, style: 'funk', density: 'busy', seed: 42 } },
     { band: { bassEnabled: true, role: 'harmony', mode: 'follow' } },
     { loop: { startBar: 1, endBar: 3 } },

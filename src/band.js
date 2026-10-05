@@ -150,7 +150,7 @@ function bassPitch(symbol, event, next, random) {
 // Sem progressão, o baixo usa a tônica da tonalidade como pedal.
 function harmonicTimeline(session) {
   const timeline = chordTimeline(session);
-  if (timeline.length > 0) return timeline;
+  if (timeline.length > 0 || (session.progression?.enabled && session.progression.chords.length > 0)) return timeline;
   const key = findKey(session.progression.keyId);
   const minor = key.mode === 'minor';
   const chord = {
@@ -222,10 +222,13 @@ export function generateBass(session) {
       const next = timeline[timeline.indexOf(event) + 1] ?? timeline[0];
       const changeAt = event.start + event.duration;
       const end = Math.min(start + duration, changeAt, offset + barTicks * 2);
+      const nextStart = next && next.start > event.start ? next.start : sessionTicks(session);
+      const beforePause = nextStart > changeAt + 1e-6;
       // A aproximação só faz sentido imediatamente antes de uma troca de acorde.
       const approach = symbol === 'A' && changeAt - start <= 4 + 1e-6 ? next : event;
       notes.push({
-        start, duration: Math.max(0.25, end - start), pitch: bassPitch(symbol, event, approach, random),
+        start, duration: beforePause ? Math.min(Math.max(0.25, end - start), changeAt - start) : Math.max(0.25, end - start),
+        pitch: bassPitch(symbol, event, approach, random),
         velocity: Math.min(1, velocity * (0.95 + random() * 0.1)), articulation: duration <= 1 ? 'staccato' : 'normal',
       });
     }

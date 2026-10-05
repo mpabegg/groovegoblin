@@ -8,7 +8,7 @@ const STEPS = [
   {
     tab: 'tab-studio', target: '#studio-timeline-title',
     title: 'Estúdio: editar e tocar sua sessão',
-    body: 'Harmonia, frase, bateria e baixo compartilham uma régua, o mesmo zoom e um único cursor. Clique na faixa de frase para criar; arraste notas ou sua borda direita para editar. Timbre e “Som” ficam em cada cabeçalho; “Grade e swing” também guarda biblioteca e gerador. O transporte reúne Tocar/Parar, BPM, metrônomo e loop; “Sessão” abre arquivos e links. ? mostra os atalhos. Não há gravação por microfone.',
+    body: 'Harmonia, frase, bateria e baixo compartilham uma régua, o mesmo zoom e um único cursor. Clique no vazio da harmonia para criar nesse compasso, deixando pausas antes; selecione um acorde para escolher graus, cifras e inversões no inspetor. Na frase, clique para criar; arraste notas ou sua borda direita para editar. Timbre e “Som” ficam em cada cabeçalho; “Grade e swing” também guarda biblioteca e gerador. O transporte reúne Tocar/Parar, BPM, metrônomo e loop; “Sessão” abre arquivos e links. ? mostra os atalhos. Não há gravação por microfone.',
   },
   {
     tab: 'tab-practice', target: '#train-pad',

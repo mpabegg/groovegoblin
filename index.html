@@ -78,10 +78,10 @@
           <header class="track-header">
             <label class="toggle track-name"><input id="chords-enabled" data-path="progression.enabled" type="checkbox"> Harmonia</label>
             <div class="track-extra"><label class="track-key">Tom <select id="progression-key" data-path="progression.keyId" aria-label="Tonalidade"></select></label>
-              <details id="harmony-options" class="track-disclosure"><summary>Progressões prontas</summary><div class="track-popover"><div class="tool-row"><label>Funções<select id="progression-function"><option value="cadence">Tônica → subdominante → dominante → tônica</option><option value="turnaround">Turnaround I–vi–ii–V</option><option value="random">Diatônica livre</option></select></label><button id="generate-progression">Gerar progressão</button><button id="add-chord">Adicionar acorde</button></div><ol id="progression-chords" class="progression-chords"></ol><p id="progression-status" class="tool-hint"></p></div></details>
+              <details id="harmony-options" class="track-disclosure"><summary>Progressões prontas</summary><div class="track-popover"><div class="tool-row"><label>Funções<select id="progression-function"><option value="cadence">Tônica → subdominante → dominante → tônica</option><option value="turnaround">Turnaround I–vi–ii–V</option><option value="random">Diatônica livre</option></select></label><button id="generate-progression">Gerar progressão</button></div><p class="tool-hint muted">Preenche exatamente a sessão, em tempos inteiros, sem mudar seus compassos. Para inserir com pausas, clique na faixa.</p></div></details>
               <div id="track-chords-sound" class="track-sound-controls"></div>
             </div>
-          </header><div id="chord-lane" class="track-lane chord-lane"></div>
+          </header><div id="chord-lane" class="track-lane chord-lane" role="listbox" tabindex="0" aria-label="Acordes da sessão" aria-describedby="harmony-help"></div>
         </section>
         <section id="track-phrase" class="studio-track" aria-label="Faixa de frase">
           <header class="track-header"><strong class="track-name" id="editor-title">Frase</strong><div class="track-extra">
@@ -111,12 +111,24 @@
       <details id="studio-score" class="studio-score"><summary>Partitura rítmica · ligaduras sustentam o mesmo ataque</summary><div class="score-row"><div class="track-header">Frase · pauta rítmica</div><div id="rhythm-score" class="rhythm-score"></div></div></details>
     </div></div>
   </section>
+  <div id="harmony-context" class="harmony-context" hidden><span id="progression-status" role="status"></span><button id="fit-progression" type="button">Ajustar ao tamanho da sessão</button></div>
   <section id="studio-inspector" class="panel studio-inspector" aria-label="Inspetor da seleção">
     <span id="selection-text"></span>
     <details id="note-detail"><summary>Editar nota selecionada</summary><div id="inspector-content">
       <div class="editor"><div id="presets" class="presets" role="group" aria-label="Durações"></div><label>Início (ticks)<input id="note-start" type="number" min="0" step="any"></label><label>Duração (ticks)<input id="note-duration" type="number" min="0.01" step="any"></label><label>Altura (MIDI)<input id="note-pitch" type="number" min="21" max="108"></label><label>Velocidade<input id="note-velocity" type="number" min="0" max="1" step="0.05"></label><label>Articulação<select id="note-articulation"></select></label><label>Microtempo (ms)<input id="note-offsetMs" type="number" min="-80" max="80" step="1"></label><button id="delete">Excluir nota</button></div>
       <p class="tool-hint muted">Microtempo desloca expressivamente a nota, sem mover sua posição notada.</p>
     </div></details>
+    <section id="chord-inspector" class="chord-inspector" aria-label="Editar acorde selecionado" hidden>
+      <div class="chord-inspector-heading"><strong id="chord-selection-title"></strong><button id="delete-chord" type="button">Excluir acorde</button></div>
+      <div id="chord-diatonic" class="chord-choices chord-diatonic" role="group" aria-label="Graus diatônicos"></div>
+      <div class="chord-inspector-options">
+        <details><summary>Empréstimos</summary><div id="chord-borrowed" class="chord-choices" role="group" aria-label="Empréstimos modais"></div></details>
+        <details><summary>Dominantes secundárias</summary><div id="chord-secondary" class="chord-choices" role="group" aria-label="Dominantes secundárias"></div></details>
+        <label>Outro símbolo <input id="chord-symbol" type="text" maxlength="30" aria-label="Outro símbolo de acorde" placeholder="Ex.: Dm7, G7/B"></label>
+        <div id="chord-inversions" class="chord-inversions" role="group" aria-label="Inversão do acorde"></div>
+      </div>
+      <p id="harmony-help" class="tool-hint muted">Clique no vazio para criar uma tônica nesse compasso. Arraste para mover ou reordenar; a borda direita muda a duração. Setas ←/→ movem um tempo; Shift+setas redimensiona. Enter seleciona; Delete exclui. Espaço toca/para.</p>
+    </section>
   </section>
   <div class="studio-secondary-options">
     <details id="band-options" class="control-detail"><summary>Opções da banda</summary><div class="tool-row"><label>Seu papel<select id="band-role" data-path="band.role"><option value="solo">Solista / frase</option><option value="bass">Baixista</option><option value="harmony">Harmonia</option><option value="drums">Baterista</option></select></label><label>Resposta<select id="band-mode" data-path="band.mode"><option value="steady">Pulso estável</option><option value="follow">Segue a frase</option></select></label></div><p class="tool-hint muted">O instrumento do seu papel fica silencioso para você tocá-lo. A resposta “Segue a frase” reage à execução no treino; a linha do tempo mostra o padrão de referência. Os botões M silenciados não apagam eventos.</p></details>
@@ -162,9 +174,10 @@
     <dt><kbd>Espaço</kbd></dt><dd>Tocar / parar a sessão no Estúdio.</dd>
     <dt><kbd>Esc</kbd></dt><dd>Interromper todo o som; fechar esta ajuda.</dd>
     <dt><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Shift+Z</kbd></dt><dd>Desfazer / refazer a sessão (⌘ no macOS).</dd>
-    <dt><kbd>Delete</kbd></dt><dd>Excluir a nota selecionada.</dd>
+    <dt><kbd>Delete</kbd></dt><dd>Excluir a nota ou o acorde selecionado.</dd>
     <dt><kbd>Enter</kbd> / <kbd>↓</kbd></dt><dd>Na grade, criar na posição navegada / entrar nas notas. PageUp e PageDown escolhem a nota anterior e seguinte.</dd>
     <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>No editor, mover a nota; <kbd>↑</kbd> <kbd>↓</kbd> mudam a duração. Shift usa uma semínima.</dd>
+    <dt><kbd>←</kbd> <kbd>→</kbd> / <kbd>Shift+←</kbd> <kbd>Shift+→</kbd></dt><dd>Na harmonia, mover / redimensionar um tempo escrito. Enter seleciona um acorde; na faixa vazia, cria uma tônica.</dd>
     <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> <kbd>6</kbd> <kbd>8</kbd></dt><dd>No editor, escolher a duração em ticks. 4 ticks = uma semínima.</dd>
     <dt><kbd>?</kbd></dt><dd>Abrir esta ajuda. Clique numa célula para criar; arraste a nota para mover ou a borda direita para mudar a duração.</dd>
   </dl>

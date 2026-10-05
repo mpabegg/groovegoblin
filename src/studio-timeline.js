@@ -3,7 +3,7 @@ import { addNote, updateNote } from './model.js';
 import { quantizeTick } from './meter.js';
 import { generateDrums } from './drums.js';
 import { generateBass } from './band.js';
-import { chordTimeline } from './progression.js';
+import { mountStudioHarmony } from './studio-harmony.js';
 import { buildRhythmNotation, renderRhythmNotation } from './notation.js';
 import { mountStudioTracks } from './studio-tracks.js';
 
@@ -17,12 +17,11 @@ export function mountStudioTimeline(root, host) {
   const scroll = $('studio-scroll');
   const canvas = $('studio-canvas');
   const tracks = mountStudioTracks(host);
+  const harmony = mountStudioHarmony(root, host);
   let drag = null;
   let cursor = 0;
   let creationTicks = [];
   let zoom = 1;
-  let markers = [];
-  let activeChord = -1;
   let suppressClick = false;
 
   function size() {
@@ -170,25 +169,6 @@ export function mountStudioTimeline(root, host) {
     if (!previewNotes) renderRhythmNotation($('practice-rhythm-score'), notation);
     if (focusedId) focusNote(focusedId);
   }
-  function renderChords(session) {
-    markers = chordTimeline(session); activeChord = -1;
-    const lane = $('chord-lane'); lane.replaceChildren(); lane.setAttribute('role', 'listbox'); lane.setAttribute('aria-label', 'Acordes da sessão');
-    if (!session.progression.enabled) return;
-    markers.forEach((event, index) => {
-      const block = document.createElement('div'); block.className = 'studio-chord'; block.dataset.index = index % session.progression.chords.length;
-      block.dataset.start = event.start; block.dataset.duration = event.duration; block.setAttribute('role', 'option'); block.setAttribute('aria-selected', 'false');
-      block.tabIndex = index === 0 ? 0 : -1; block.textContent = event.chord.symbol;
-      block.style.left = `${event.start / sessionTicks(session) * 100}%`; block.style.width = `${event.duration / sessionTicks(session) * 100}%`;
-      block.setAttribute('aria-label', `${event.chord.symbol}, compasso ${number(event.start / ticksPerBar(session) + 1)}`);
-      const edit = () => { $('harmony-options').open = true; $('progression-chords').children[Number(block.dataset.index)]?.querySelector('select')?.focus(); };
-      block.addEventListener('click', edit);
-      block.addEventListener('keydown', key => {
-        if (key.key === 'Enter' || key.key === ' ') { key.preventDefault(); edit(); }
-        else if (key.key === 'ArrowRight' || key.key === 'ArrowLeft') { key.preventDefault(); const next = key.key === 'ArrowRight' ? block.nextElementSibling : block.previousElementSibling; if (next) { block.tabIndex = -1; next.tabIndex = 0; next.focus(); } }
-      });
-      lane.append(block);
-    });
-  }
   function renderDrums(session) {
     const rows = $('drum-rows'); rows.replaceChildren();
     if (!session.drums.enabled) return;
@@ -218,22 +198,18 @@ export function mountStudioTimeline(root, host) {
     }
   }
   function render() {
-    const session = host.getSession(); tracks.render(); renderGrid(session); renderChords(session); renderDrums(session); renderBass(session); renderNotes(); size();
+    const session = host.getSession(); tracks.render(); renderGrid(session); harmony.render(); renderDrums(session); renderBass(session); renderNotes(); size();
   }
-  function renderControls() { tracks.render(); grid.setAttribute('aria-disabled', String(host.isBusy())); }
+  function renderControls() { tracks.render(); harmony.renderControls(); grid.setAttribute('aria-disabled', String(host.isBusy())); }
   function position(value, { hidden = false } = {}) {
     const session = host.getSession(); const visible = !hidden && !['idle', 'countin'].includes(value.mode);
     const fraction = Math.max(0, Math.min(1, (value.tick ?? 0) / sessionTicks(session)));
     $('playhead').hidden = !visible; $('playhead').style.left = `calc(200px + (100% - 200px) * ${fraction})`;
-    const index = visible && session.progression.enabled ? markers.findIndex(event => value.tick >= event.start && value.tick < event.start + event.duration) : -1;
-    if (index !== activeChord) {
-      activeChord = index;
-      [...$('chord-lane').children].forEach((block, i) => { block.classList.toggle('current', i === index); if (i === index) block.setAttribute('aria-current', 'step'); else block.removeAttribute('aria-current'); });
-    }
+    harmony.position(value, { hidden });
     if (visible && zoom > 1 && document.body.dataset.intent === 'studio') {
       const x = 200 + fraction * (canvas.clientWidth - 200);
       if (x < scroll.scrollLeft + 216 || x > scroll.scrollLeft + scroll.clientWidth - 24) scroll.scrollLeft = Math.max(0, x - scroll.clientWidth / 2);
     }
   }
-  return { render, renderNotes, renderControls, position, cancelDrag };
+  return { render, renderNotes, renderControls, position, cancelDrag: () => { const notes = cancelDrag(); const chords = harmony.cancelDrag(); if (chords) harmony.renderLane(); return notes || chords; }, removeChord: harmony.removeSelected, renderSelection: () => { renderNotes(); harmony.render(); } };
 }
