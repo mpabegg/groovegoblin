@@ -1,10 +1,9 @@
 import { GrooveAudio, renderSession } from './audio.js';
-import { createSession, loadSession, saveSession, validateSession, serializeSession, parseSession, encodeSessionLink, decodeSessionLink, ticksPerBar as barTicks, sessionTicks as totalTicks, STYLES, DENSITIES, METRONOME_PATTERNS, ARTICULATIONS, TIMBRES, TIMBRE_LABELS } from './session.js';
+import { createSession, loadSession, saveSession, validateSession, serializeSession, parseSession, encodeSessionLink, decodeSessionLink, ticksPerBar as barTicks, sessionTicks as totalTicks, DENSITIES, METRONOME_PATTERNS, ARTICULATIONS } from './session.js';
 import { evaluateSession, summarizeFeedback } from './feedback.js';
 import { buildTimelineData, renderTimeline } from './timeline.js';
 import { GROOVES, loadGroove } from './library.js';
-import { buildRhythmNotation, renderRhythmNotation } from './notation.js';
-import { PROGRESSION_KEYS, CHORD_QUALITIES, getDiatonicChords, getBorrowedChords, getSecondaryDominants, parseChordSymbol, generateProgression, invertChord, chordTimeline } from './progression.js';
+import { PROGRESSION_KEYS, CHORD_QUALITIES, getDiatonicChords, getBorrowedChords, getSecondaryDominants, parseChordSymbol, generateProgression, invertChord } from './progression.js';
 import { mountPractice } from './practice.js';
 import { mountPlayground } from './playground.js';
 import { mountJourney } from './practice-view.js';
@@ -13,14 +12,13 @@ import { setupOffline } from './offline.js';
 import { mountTour } from './tour.js';
 import { mergeSession, readSessionLibrary, SESSION_LIBRARY_KEY } from './studio-state.js';
 import { History } from './history.js';
-import { addNote, updateNote, deleteNote } from './model.js';
-import { quantizeTick as snapTick } from './meter.js';
+import { updateNote, deleteNote } from './model.js';
 import { FORM_KINDS, FORM_LABELS, FORM_DESCRIPTIONS } from './form.js';
 import { EVALUATION_MODES, EVALUATION_MODE_LABELS, GOALS, GOAL_LABELS } from './session.js';
 import { generateGroove } from './generator.js';
-import { generateDrums, DRUM_VOICES } from './drums.js';
 import { mountStudio } from './studio.js';
 import { mountStudioTransport } from './studio-transport.js';
+import { mountStudioTimeline } from './studio-timeline.js';
 
 const $ = id => document.getElementById(id);
 const restored = loadSession();
@@ -28,7 +26,6 @@ let session = withStudioChoices(restored.session);
 let recoveryRaw = restored.recoveryRaw;
 let sessionSaved = false;
 let selected = null;
-let drag = null;
 let activeInput = null;
 let generation = 0;
 let pending = null;
@@ -43,8 +40,6 @@ let repertoire;
 let practice;
 let playground;
 let journey;
-let chordMarkers = [];
-let activeChordIndex = -1;
 let lastRepertoireBusy = false;
 const history = new History();
 const library = readSessionLibrary(undefined, parseSession);
@@ -110,26 +105,20 @@ function replaceSession(value, { record = true, stopPlayback = true } = {}) {
   return true;
 }
 function renderAll() {
-  renderControls(); renderGrid(); renderDrums(); renderNotes(); renderProgression(); renderForm(); renderFeedback();
+  renderControls(); studioTimeline.render(); renderProgression(); renderForm(); renderFeedback();
   practice?.render(); playground?.render(); journey?.render(); repertoire?.render();
-}
-function cancelDrag() {
-  const previous = drag;
-  drag = null;
-  if (previous && $('grid').hasPointerCapture(previous.pointer)) $('grid').releasePointerCapture(previous.pointer);
 }
 function stop(reason) {
   ++generation;
   pending = null;
-  const wasDragging = drag !== null;
-  cancelDrag();
+  const wasDragging = studioTimeline.cancelDrag();
   audio.stop();
   audio.setMixer(session.mixer);
   executionSession = null;
   exercisePlayback = false;
   executionMode = null;
   clearInput();
-  if (wasDragging) renderNotes();
+  if (wasDragging) studioTimeline.renderNotes();
   renderControls();
   if (reason) message(reason);
 }
@@ -194,6 +183,12 @@ const transport = mountStudioTransport({
   stop: () => { if (practice) practice.cancel(); else stop(); repertoire?.stop(); renderControls(); message('Som interrompido.'); },
   travelHistory, removeSelected,
 });
+const studioTimeline = mountStudioTimeline($('studio-editor'), {
+  getSession: () => session, isBusy: busy, updateSession,
+  getSelection: () => selected,
+  setSelection: id => { selected = id; },
+  selectionChanged: renderControls, commitNote, notify: message,
+});
 $('minimal').addEventListener('change', event => {
   session = mergeSession(session, { extensions: { studio: { performanceFocus: event.target.checked } } });
   document.body.classList.toggle('performance-focus', event.target.checked); persist();
@@ -204,24 +199,13 @@ function fillOptions(select, values, labels) {
     const option = document.createElement('option'); option.value = value; option.textContent = labels[value] ?? value; select.append(option);
   }
 }
-const styleLabels = { complement: 'Complementar', pop: 'Pop', rock: 'Rock', funk: 'Funk', shuffle: 'Shuffle', jazz: 'Jazz', bossa: 'Bossa nova', samba: 'Samba', baiao: 'Baião', reggae: 'Reggae', waltz: 'Valsa' };
 const densityLabels = { sparse: 'Poucas notas', medium: 'Média', busy: 'Muitas notas' };
 const metroLabels = { quarters: 'Semínimas', backbeat: 'Backbeat · 2 e 4', offbeats: 'Contratempos', subdivisions: 'Subdivisões da grade', downbeats: 'Início de compasso' };
 const articulationLabels = { normal: 'Normal', accent: 'Acento', ghost: 'Fantasma', staccato: 'Staccato', tenuto: 'Tenuto', legato: 'Legato' };
-for (const id of ['drum-style', 'bass-style']) fillOptions($(id), STYLES, styleLabels);
-for (const id of ['drum-density', 'bass-density']) fillOptions($(id), DENSITIES, densityLabels);
 fillOptions($('training-evaluation'), EVALUATION_MODES, EVALUATION_MODE_LABELS);
 fillOptions($('training-goal'), GOALS, GOAL_LABELS);
 fillOptions($('metro-pattern'), METRONOME_PATTERNS, metroLabels);
 fillOptions($('note-articulation'), ARTICULATIONS, articulationLabels);
-for (const [channel, labelText] of Object.entries({ phrase: 'Timbre da frase', chords: 'Timbre da harmonia', bass: 'Timbre do baixo' })) {
-  const label = document.createElement('label'); label.textContent = labelText;
-  const select = document.createElement('select'); select.dataset.path = `timbres.${channel}`;
-  fillOptions(select, TIMBRES[channel], TIMBRE_LABELS); label.append(select); $('synth-controls').append(label);
-}
-const monitorLabel = document.createElement('label'); monitorLabel.className = 'toggle';
-const monitor = document.createElement('input'); monitor.type = 'checkbox'; monitor.dataset.path = 'training.monitor';
-monitorLabel.append(monitor, document.createTextNode('Ouvir teclado/toque no treino')); $('synth-controls').append(monitorLabel);
 for (const input of document.querySelectorAll('[data-path^="generator."]')) input.dataset.path = `extensions.studio.${input.dataset.path}`;
 $('progression-function').dataset.path = 'extensions.studio.progressionFunction';
 $('input-pitch').addEventListener('change', event => {
@@ -276,6 +260,8 @@ function renderControls() {
   $('apply-share').disabled ||= !sharedSession;
   const note = session.notes.find(item => item.id === selected);
   $('selection-text').textContent = note ? `Nota selecionada · MIDI ${note.pitch} · ${format(note.duration)} ticks` : 'Clique para criar; selecione uma nota para editar.';
+  $('note-detail').hidden = !note;
+  if (!note) $('note-detail').open = false;
   for (const field of ['start', 'duration', 'pitch', 'velocity', 'articulation', 'offsetMs']) {
     const input = $(`note-${field}`); input.value = note?.[field] ?? ''; input.disabled = locked || !note;
   }
@@ -287,10 +273,9 @@ function renderControls() {
   $('delete').disabled = locked || !note;
   for (const preset of $('presets').children) preset.disabled = locked || !note;
   for (const input of document.querySelectorAll('.chord-editor input, .chord-editor select, .chord-editor button')) input.disabled = locked;
-  for (const input of document.querySelectorAll('.cell, .note')) input.disabled = locked;
+  studioTimeline.renderControls();
   $('add-section').disabled = locked || session.form.sections.length >= 32;
   for (const input of document.querySelectorAll('#form-sections input, #form-sections select, #form-sections button')) input.disabled = locked || input.dataset.boundary === 'true';
-  renderMixer();
   practice?.setBusy(locked);
 }
 function format(number) { return String(Math.round(number * 1000) / 1000); }
@@ -355,124 +340,12 @@ $('add-section').addEventListener('click', () => {
   const section = { id: crypto.randomUUID(), name: `Seção ${session.form.sections.length + 1}`, kind: 'A', startBar: session.loop.startBar, endBar: session.loop.endBar, repeats: 1, bpm: null, meter: null, density: null };
   updateSession({ form: { sections: [...session.form.sections, section] } });
 });
-function renderGrid() {
-  const total = totalTicks(session);
-  const measure = barTicks(session);
-  const step = 4 / session.subdivision;
-  const ticks = [];
-  for (let bar = 0; bar < session.bars; bar++) for (let tick = 0; tick < measure - 1e-8; tick += step) ticks.push(bar * measure + tick);
-  document.querySelector('.grid-shell').style.minWidth = `${Math.max(560, ticks.length * 28)}px`;
-  $('cells').replaceChildren(); $('cells').style.display = 'block';
-  for (let index = 0; index < ticks.length; index++) {
-    const tick = ticks[index];
-    const cell = document.createElement('button'); cell.type = 'button'; cell.className = 'cell'; cell.dataset.tick = tick;
-    cell.style.left = `${tick / total * 100}%`; cell.style.width = `${((ticks[index + 1] ?? total) - tick) / total * 100}%`;
-    cell.setAttribute('aria-label', `Criar nota: compasso ${Math.floor(tick / measure) + 1}, tick ${format(tick % measure)}`);
-    cell.disabled = busy();
-    cell.addEventListener('click', () => {
-      if (busy()) return;
-      const notes = addNote(session.notes, tick, Math.min(4 / session.subdivision, totalTicks(session) - tick), session, { pitch: Number($('input-pitch').value), velocity: 0.8, articulation: 'normal' });
-      if (notes === session.notes) { message('Posição ocupada ou duração ultrapassa a frase.', true); return; }
-      selected = notes.find(note => !session.notes.some(previous => previous.id === note.id)).id;
-      updateSession({ notes });
-      $('notes').querySelector(`[data-id="${CSS.escape(selected)}"]`)?.focus({ preventScroll: true });
-    });
-    $('cells').append(cell);
-  }
-  $('marks').replaceChildren();
-  for (const tick of [...ticks, total]) {
-    const mark = document.createElement('span');
-    const inBar = tick / measure;
-    const inBeat = tick / (16 / session.meter.unit);
-    mark.className = `mark ${Math.abs(inBar - Math.round(inBar)) < 1e-8 ? 'bar-mark' : Math.abs(inBeat - Math.round(inBeat)) < 1e-8 ? 'beat-mark' : ''}`;
-    mark.style.left = `${tick / total * 100}%`; $('marks').append(mark);
-  }
-  $('beat-labels').replaceChildren(); $('subdivision-labels').replaceChildren();
-  for (let bar = 0; bar < session.bars; bar++) for (let beat = 0; beat < session.meter.beats; beat++) {
-    const label = document.createElement('span'); label.textContent = beat === 0 ? `${bar + 1} · 1` : String(beat + 1);
-    label.style.left = `${(bar * measure + beat * 16 / session.meter.unit) / total * 100}%`; $('beat-labels').append(label);
-  }
-}
-function renderDrums() {
-  const names = { kick: 'Bumbo', snare: 'Caixa', hihat: 'Chimbal', openhat: 'Chimbal aberto', rim: 'Aro', ride: 'Prato de condução', shaker: 'Ganzá', tom: 'Tom', triangle: 'Triângulo' };
-  const pattern = generateDrums(session);
-  const total = totalTicks(session);
-  const rows = $('drum-rows');
-  rows.replaceChildren();
-  $('drum-lanes').classList.toggle('drums-off', !session.drums.enabled || session.band.role === 'drums');
-  for (const voice of DRUM_VOICES) {
-    const hits = pattern.hits.filter(hit => hit.instrument === voice);
-    if (!hits.length && !['kick', 'snare', 'hihat'].includes(voice)) continue;
-    const row = document.createElement('div');
-    row.className = `drum-line drum-${voice}`;
-    const label = document.createElement('div');
-    label.className = 'drum-label';
-    label.textContent = `${names[voice] ?? voice} · ${hits.length} ataques`;
-    const lane = document.createElement('div');
-    lane.className = 'drum-steps';
-    lane.setAttribute('role', 'img');
-    lane.setAttribute('aria-label', `${names[voice] ?? voice}: ataques nos ticks ${hits.map(hit => format(hit.start)).join(', ') || 'nenhum'}. Padrão de referência da banda.`);
-    for (const hit of hits) {
-      const mark = document.createElement('span');
-      mark.className = 'drum-hit';
-      mark.style.left = `${hit.start / total * 100}%`;
-      mark.style.opacity = String(Math.max(0.25, hit.velocity));
-      mark.title = `${names[voice] ?? voice} · tick ${format(hit.start)} · intensidade ${Math.round(hit.velocity * 100)}%`;
-      mark.setAttribute('aria-hidden', 'true');
-      lane.append(mark);
-    }
-    row.append(label, lane);
-    rows.append(row);
-  }
-}
-function renderNotes(previewNotes = session.notes) {
-  const focusedId = document.activeElement?.closest('.note')?.dataset.id;
-  $('notes').replaceChildren();
-  const total = totalTicks(session);
-  for (const note of [...previewNotes].sort((a, b) => a.start - b.start)) {
-    const block = document.createElement('button'); block.type = 'button'; block.className = `note${selected === note.id ? ' selected' : ''}`; block.dataset.id = note.id;
-    block.style.left = `calc(${note.start / total * 100}% + 2px)`; block.style.width = `calc(${note.duration / total * 100}% - 4px)`;
-    block.disabled = busy(); block.setAttribute('aria-pressed', String(note.id === selected));
-    block.setAttribute('aria-label', `Nota MIDI ${note.pitch}: início ${format(note.start)}, duração ${format(note.duration)} ticks, velocidade ${format(note.velocity)}, ${note.articulation}`);
-    block.textContent = `${format(note.duration)}t · ${note.pitch}`;
-    const handle = document.createElement('span'); handle.className = 'handle'; handle.setAttribute('aria-hidden', 'true'); block.append(handle);
-    block.addEventListener('click', () => { if (!busy()) { selected = note.id; renderNotes(); } });
-    $('notes').append(block);
-  }
-  const notation = buildRhythmNotation(previewNotes, session);
-  renderRhythmNotation($('rhythm-score'), notation);
-  if (previewNotes === session.notes) renderRhythmNotation($('practice-rhythm-score'), notation);
-  if (focusedId) $('notes').querySelector(`[data-id="${CSS.escape(focusedId)}"]`)?.focus({ preventScroll: true });
-  renderControls();
-}
 function commitNote(patch) {
   if (busy() || !selected) return;
   const notes = updateNote(session.notes, selected, patch, session);
   if (notes === session.notes) { message('Sem sobreposição e sem ultrapassar o fim da frase.', true); renderControls(); return; }
   updateSession({ notes });
 }
-$('grid').addEventListener('pointerdown', event => {
-  const block = event.target.closest('.note');
-  if (!block || busy() || event.button !== 0) return;
-  event.preventDefault();
-  const note = session.notes.find(item => item.id === block.dataset.id);
-  selected = note.id; drag = { id: note.id, x: event.clientX, start: note.start, duration: note.duration, resize: !!event.target.closest('.handle'), original: session, next: session.notes, pointer: event.pointerId };
-  $('grid').setPointerCapture(event.pointerId); renderNotes();
-});
-$('grid').addEventListener('pointermove', event => {
-  if (!drag || drag.pointer !== event.pointerId || busy()) return;
-  const delta = snapTick((event.clientX - drag.x) / $('grid').getBoundingClientRect().width * totalTicks(session), session.subdivision);
-  const notes = updateNote(drag.original.notes, drag.id, drag.resize ? { duration: drag.duration + delta } : { start: drag.start + delta }, drag.original);
-  drag.next = notes; renderNotes(notes);
-});
-$('grid').addEventListener('pointerup', event => {
-  if (!drag || drag.pointer !== event.pointerId) return;
-  const notes = drag.next; cancelDrag(); if (!busy()) updateSession({ notes });
-});
-$('grid').addEventListener('pointercancel', () => { cancelDrag(); renderNotes(); });
-$('grid').addEventListener('lostpointercapture', event => {
-  if (drag?.pointer === event.pointerId) { cancelDrag(); renderNotes(); }
-});
 for (const field of ['start', 'duration', 'pitch', 'velocity', 'articulation', 'offsetMs']) $(`note-${field}`).addEventListener('change', event => commitNote({ [field]: field === 'articulation' ? event.target.value : Number(event.target.value) }));
 for (const [ticks, label] of [[1, '1/16'], [2, '1/8'], [3, '1/8.'], [4, '1/4'], [6, '1/4.'], [8, '1/2'], [12, '1/2.'], [16, '1/1'], [4 / 3, 'Tercina'], [4 / 5, 'Quintina'], [4 / 7, 'Septina']]) {
   const chip = document.createElement('button'); chip.type = 'button'; chip.className = 'preset'; chip.textContent = label;
@@ -519,12 +392,6 @@ window.addEventListener('keydown', event => {
   if ((event.code === 'Space' || (event.code === 'Enter' && event.target === $('train-pad'))) && ['countin', 'train'].includes(audio.position.mode)) {
     event.preventDefault(); if (!event.repeat && !activeInput) { activeInput = { source: 'keyboard', id: event.code }; audio.press(event.timeStamp, Number($('input-pitch').value)); } return;
   }
-  if (!event.target.closest?.('#studio-editor')) return;
-  if (busy() || !selected) return;
-  const note = session.notes.find(item => item.id === selected);
-  const step = event.shiftKey ? 4 : 4 / session.subdivision;
-  const patch = event.key === 'ArrowLeft' ? { start: note.start - step } : event.key === 'ArrowRight' ? { start: note.start + step } : event.key === 'ArrowDown' ? { duration: note.duration - step } : event.key === 'ArrowUp' ? { duration: note.duration + step } : !event.ctrlKey && !event.metaKey && !event.altKey && ['1', '2', '3', '4', '6', '8'].includes(event.key) ? { duration: Number(event.key) } : null;
-  if (patch) { event.preventDefault(); commitNote(patch); }
 });
 window.addEventListener('keyup', event => {
   if (activeInput?.source !== 'keyboard' || activeInput.id !== event.code) return;
@@ -561,12 +428,9 @@ function generate(variation) {
   catch (error) { message(error.message, true); }
 }
 $('generate').addEventListener('click', () => generate(false)); $('variation').addEventListener('click', () => generate(true));
-$('generate-drums').addEventListener('click', () => updateSession({ drums: { enabled: true, seed: newSeed() } }));
 
 for (const key of PROGRESSION_KEYS) { const option = document.createElement('option'); option.value = key.id; option.textContent = key.label; $('progression-key').append(option); }
 function renderProgression() {
-  chordMarkers = chordTimeline(session);
-  activeChordIndex = -1;
   const choices = [...getDiatonicChords(session.progression.keyId), ...getBorrowedChords(session.progression.keyId), ...getSecondaryDominants(session.progression.keyId)];
   $('progression-chords').replaceChildren();
   let bar = 0;
@@ -622,31 +486,6 @@ $('generate-progression').addEventListener('click', () => {
   updateSession({ bars, loop, progression: { enabled: true, chords } });
 });
 
-const channelNames = { phrase: 'Frase', metronome: 'Metrônomo', drums: 'Bateria', chords: 'Harmonia', bass: 'Baixo' };
-for (const [channel, label] of Object.entries(channelNames)) {
-  const field = document.createElement('fieldset'); field.className = 'mixer-channel';
-  const legend = document.createElement('legend'); legend.textContent = label;
-  const volume = document.createElement('input'); volume.type = 'range'; volume.min = '0'; volume.max = '100'; volume.id = `mixer-${channel}-volume`; volume.setAttribute('aria-label', `Volume: ${label}`);
-  const output = document.createElement('output'); output.id = `mixer-${channel}-value`;
-  const muteLabel = document.createElement('label'); muteLabel.className = 'toggle';
-  const mute = document.createElement('input'); mute.type = 'checkbox'; mute.id = `mixer-${channel}-muted`; muteLabel.append(mute, document.createTextNode('Silenciar'));
-  const change = () => {
-    session = mergeSession(session, { mixer: { [channel]: { volume: Number(volume.value) / 100, muted: mute.checked } } });
-    audio.setMixer(session.mixer); persist(); renderMixer();
-  };
-  volume.addEventListener('input', change); mute.addEventListener('change', change);
-  field.append(legend, output, volume, muteLabel); $('mixer-channels').append(field);
-}
-function renderMixer() {
-  for (const channel of Object.keys(channelNames)) {
-    const value = session.mixer[channel];
-    const volume = $(`mixer-${channel}-volume`); if (!volume || !value) continue;
-    volume.value = Math.round(value.volume * 100); volume.setAttribute('aria-valuetext', `${volume.value}%`);
-    $(`mixer-${channel}-value`).textContent = `${volume.value}%`; $(`mixer-${channel}-muted`).checked = value.muted;
-    volume.closest('fieldset').classList.toggle('is-muted', value.muted);
-  }
-  $('mixer-status').textContent = 'Mixer incluído na sessão e no link.';
-}
 
 function download(text, filename) {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
@@ -788,22 +627,7 @@ function frame() {
   if (repertoireBusy !== lastRepertoireBusy) { lastRepertoireBusy = repertoireBusy; renderControls(); }
   // A parada global usa o mesmo botão do transporte, inclusive na preparação.
   transport.render();
-  $('playhead').hidden = exercisePlayback || position.mode === 'idle' || position.mode === 'countin';
-  $('playhead').style.left = `${Math.max(0, Math.min(totalTicks(session), position.tick ?? 0)) / totalTicks(session) * 100}%`;
-  if (document.body.dataset.intent === 'studio' && !exercisePlayback && $('studio-editor').open && ['loop', 'train'].includes(position.mode)) {
-    const scroll = document.querySelector('.grid-scroll');
-    const x = (position.tick ?? 0) / totalTicks(playing) * $('grid').clientWidth;
-    if (x < scroll.scrollLeft + 16 || x > scroll.scrollLeft + scroll.clientWidth - 32) scroll.scrollLeft = Math.max(0, x - scroll.clientWidth / 3);
-  }
-  const marker = exercisePlayback || position.mode === 'idle' || position.mode === 'countin' ? -1 : chordMarkers.findIndex(item => position.tick >= item.start && position.tick < item.start + item.duration);
-  const chordIndex = marker < 0 || !session.progression.enabled ? -1 : marker % session.progression.chords.length;
-  if (chordIndex !== activeChordIndex) {
-    activeChordIndex = chordIndex;
-    Array.from($('progression-chords').children).forEach((item, index) => {
-      item.classList.toggle('current', index === chordIndex);
-      if (index === chordIndex) item.setAttribute('aria-current', 'step'); else item.removeAttribute('aria-current');
-    });
-  }
+  studioTimeline.position(position, { hidden: exercisePlayback });
   $('train-pad').classList.toggle('active', ['countin', 'train'].includes(position.mode)); $('train-pad').classList.toggle('held', !!position.held);
   $('held-state').textContent = position.held ? 'PRESSIONADA · nota em curso' : 'ESPAÇO ou toque · pressionar / soltar';
   transport.position({ position, pending, ticksPerBar: barTicks(playing), repetitions: playing.training.repetitions });

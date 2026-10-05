@@ -6,9 +6,9 @@ export const TOUR_STORAGE_KEY = 'groovegoblin:tour:v1';
 
 const STEPS = [
   {
-    tab: 'tab-studio', target: '#studio-editor > summary',
+    tab: 'tab-studio', target: '#studio-timeline-title',
     title: 'Estúdio: editar e tocar sua sessão',
-    body: 'A frase, a banda, os acordes, o mixer e a forma musical ficam sempre no Estúdio. O transporte no topo reúne Tocar/Parar, BPM, metrônomo, loop e dados da sessão. Espaço toca ou para fora dos campos; “Sessão” abre biblioteca, arquivos e links. Use “Atalhos” ou ? para conhecer as teclas do editor. Não há gravação por microfone.',
+    body: 'Harmonia, frase, bateria e baixo compartilham uma régua, o mesmo zoom e um único cursor. Clique na faixa de frase para criar; arraste notas ou sua borda direita para editar. Timbre e “Som” ficam em cada cabeçalho; “Grade e swing” também guarda biblioteca e gerador. O transporte reúne Tocar/Parar, BPM, metrônomo e loop; “Sessão” abre arquivos e links. ? mostra os atalhos. Não há gravação por microfone.',
   },
   {
     tab: 'tab-practice', target: '#train-pad',
@@ -113,7 +113,7 @@ export function mountTour(button, host) {
         open: Object.fromEntries([...document.querySelectorAll('details[id]')].map(details => [details.id, details.open])),
         focusMode: document.body.classList.contains('performance-focus'),
         x: scrollX, y: scrollY,
-        gridLeft: document.querySelector('.grid-scroll')?.scrollLeft ?? 0,
+        gridLeft: document.querySelector('#studio-scroll')?.scrollLeft ?? 0,
         focus: document.activeElement,
       },
     };
@@ -334,7 +334,7 @@ export function mountTour(button, host) {
     host.activateTab(restore.tab);
     for (const [id, open] of Object.entries(restore.open)) { const details = document.getElementById(id); if (details) details.open = open; }
     document.body.classList.toggle('performance-focus', restore.focusMode);
-    const grid = document.querySelector('.grid-scroll');
+    const grid = document.querySelector('#studio-scroll');
     if (grid) grid.scrollLeft = restore.gridLeft;
     scrollTo({ top: restore.y, left: restore.x, behavior: 'instant' });
     const focus = restore.focus instanceof HTMLElement && restore.focus !== document.body && restore.focus.isConnected && !restore.focus.closest('[hidden], [inert]') ? restore.focus : button;

@@ -25,8 +25,7 @@ export function mountStudio({ onActivate }) {
   document.getElementById('edit-in-studio').addEventListener('click', () => {
     activate(document.getElementById('tab-studio'));
     const editor = document.getElementById('studio-editor');
-    editor.open = true;
-    editor.querySelector('summary').focus({ preventScroll: true });
+    document.getElementById('grid').focus({ preventScroll: true });
     editor.scrollIntoView({ block: 'start', behavior: 'instant' });
   });
   return { activate };

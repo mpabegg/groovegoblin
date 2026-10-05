@@ -6,7 +6,7 @@ O botão **Como usar**, no topo, abre uma ajuda opcional de quatro passos, come�
 
 ## Estúdio · Treinar · Músicas
 
-- **Estúdio** é a tela inicial e o único lugar de edição da sessão. Frase, banda, harmonia, timbres, mixer e forma musical ficam nesta área, sem transportar o editor entre abas.
+- **Estúdio** é a tela inicial e o único lugar de edição da sessão. Harmonia, frase, bateria e baixo compartilham uma linha do tempo; timbres, volume e silenciamento ficam nos cabeçalhos das faixas. A forma musical continua nesta área, sem transportar o editor entre abas.
 - **Treinar** mostra a partitura da frase atual somente para leitura, as configurações de treino e a área de toque. Use **Treinar esta frase** e toque com Espaço ou na área de toque; **Editar no Estúdio** volta ao editor. Os resultados aparecem abaixo do treino.
 - **Músicas** permite importar áudio, selecionar um trecho A–B e repeti-lo; velocidade, análise, takes, exercícios, setlists e intercâmbio por arquivos continuam disponíveis.
 
@@ -15,6 +15,12 @@ Em **Mais opções**, **Explorar** reúne jogos e experiências musicais, e **Pe
 O transporte do Estúdio permanece visível no topo enquanto você rola sua área de trabalho. Suas duas linhas reúnem **Tocar/Parar**, BPM, metrônomo e opções de padrão/silêncios/polirritmia, limites do loop, posição, nome, compasso, compassos e desfazer/refazer. **Sessão** reúne nova sessão, abrir, salvar na biblioteca, duplicar, exportar, importar e compartilhar. Nova sessão e duplicação permitem desfazer; duplicar guarda a cópia na biblioteca antes de abri-la e não substitui uma biblioteca original protegida.
 
 No Estúdio, **Espaço** toca ou para fora dos campos, diálogos e controles com ativação própria. Durante a contagem e o treino, Espaço mantém sua função de pressionar/soltar o ritmo. **Ctrl+Z / Ctrl+Shift+Z** desfaz/refaz a sessão (⌘ no macOS); **Delete** exclui a nota selecionada. Setas e teclas de duração continuam disponíveis no editor. **?** ou **Atalhos** abre a ajuda de teclado; **Esc** fecha a ajuda e interrompe todo o som. Ao mudar de atividade com som ativo, o mesmo botão **Parar** fica acessível como parada global, sem criar outro transporte.
+
+A linha do tempo usa uma única régua e um único cursor, guiado pelo transporte de áudio, para as quatro faixas. **Ajustar tudo** mostra a sessão inteira sem rolagem horizontal, inclusive com quatro compassos; os níveis de **Zoom** ampliam todas as faixas e a partitura recolhível juntos, numa só superfície de rolagem. O zoom é apenas visual, fica na memória da página e não altera a sessão exportada.
+
+Ligue harmonia, bateria e baixo nos respectivos cabeçalhos; uma faixa desligada vira uma linha fina com seu interruptor. **Progressões prontas** reúne geração e edição manual dos acordes; **Grade e swing** guarda subdivisão, swing, transposição, biblioteca e gerador de frases. Cada faixa tem timbre quando aplicável e **Som** para volume/mute; o metrônomo tem esses ajustes em suas próprias opções. Papel e resposta estão em **Opções da banda**, e o monitor do toque permanece em **Configurar treino**.
+
+A frase é editável por clique, arrasto e borda direita, com figuras musicais nos blocos. A grade tem um único foco de teclado: setas navegam posições e **Enter** cria; **↓** entra nas notas, **PageUp/PageDown** escolhem a nota anterior/seguinte, e as setas nas notas movem ou mudam duração. O inspetor abaixo conserva os campos detalhados. A bateria mostra três linhas de referência (bumbo, caixa e chimbal/percussão), com os instrumentos adicionais identificados nos ataques; o baixo mostra o padrão gerado pela banda. Essas duas faixas são somente leitura: edição manual de bateria é uma etapa futura, não um recurso atual. **Variar** troca a semente da bateria; a semente explícita fica em **Avançado** e continua determinística.
 
 O treino principal usa a frase da sessão e seu trecho de loop. O metrônomo acompanha o transporte, respeitando preferências e mute do mixer. **Prática guiada · objetivos, rotina e jogos de ouvido** é uma opção recolhida abaixo do treino: seus exercícios gerados usam uma sessão temporária e não substituem a frase salva nem seu andamento. Copiar o exercício para a sessão continua sendo uma ação explícita. Rotinas já salvas são preservadas.
 
