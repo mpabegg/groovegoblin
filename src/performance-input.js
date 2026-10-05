@@ -19,6 +19,7 @@ const label = (text, input) => el('label', {}, el('span', { text }), input);
 
 export function mountPerformanceInput(host) {
   const audio = host.audio;
+  const trainingActive = (position = audio.position) => position.mode === 'train' || (position.mode === 'countin' && position.training !== false);
   const pad = $('train-pad');
   const preferences = readInputPreferences();
   const gate = new InstrumentInputGate(audio);
@@ -162,8 +163,8 @@ export function mountPerformanceInput(host) {
       if (calibration) { calibration.attacks.push(attack.time); return; }
       const time = compensatedTime(attack.time, storedCalibration ?? 0);
       const currentMode = audio.position.mode;
-      if (currentMode === 'countin' || currentMode === 'train') gate.attack(time);
-      if (currentMode === 'countin' && !audio.position.held) {
+      if (trainingActive()) gate.attack(time);
+      if (trainingActive() && currentMode === 'countin' && !audio.position.held) {
         leakClicks = audio.countInClicks;
         leakAttacks.push(attack.time);
         if (!leakWarned && detectClickLeak(leakClicks, leakAttacks).leaking) {
@@ -327,7 +328,7 @@ export function mountPerformanceInput(host) {
     if (input?.source === 'pointer' && pad.hasPointerCapture(input.id)) pad.releasePointerCapture(input.id);
   }
   pad.addEventListener('pointerdown', event => {
-    if (mode !== 'keyboard' || event.button !== 0 || activeInput || (!calibration && !['countin', 'train'].includes(audio.position.mode))) return;
+    if (mode !== 'keyboard' || event.button !== 0 || activeInput || (!calibration && !trainingActive())) return;
     event.preventDefault(); keyboardAttack(event.timeStamp, 'pointer', event.pointerId); pad.setPointerCapture(event.pointerId);
   });
   pad.addEventListener('pointerup', event => {
@@ -340,7 +341,7 @@ export function mountPerformanceInput(host) {
     if (event.defaultPrevented || event.key === 'Escape' || document.querySelector('dialog[open], [role=dialog][aria-modal=true]')) return;
     if (event.target instanceof Element && (event.target.isContentEditable || event.target.closest('input, textarea, select, [contenteditable]:not([contenteditable=false])'))) return;
     if (!calibration && host.isPreparingTraining() && event.code === 'Space') { event.preventDefault(); return; }
-    if ((event.code === 'Space' || (event.code === 'Enter' && event.target === pad)) && (calibration || ['countin', 'train'].includes(audio.position.mode))) {
+    if ((event.code === 'Space' || (event.code === 'Enter' && event.target === pad)) && (calibration || trainingActive())) {
       event.preventDefault(); if (!event.repeat) keyboardAttack(event.timeStamp, 'keyboard', event.code);
     }
   }, { capture: true });
@@ -393,17 +394,17 @@ export function mountPerformanceInput(host) {
     const monitor = document.querySelector('[data-path="training.monitor"]');
     if (monitor && mode === 'instrument') { monitor.disabled = true; monitor.title = 'O instrumento já é audível: não duplicamos cada ataque com uma nota sintetizada.'; }
     if (monitor && mode === 'keyboard') monitor.title = '';
-    pad.disabled = !calibration && !['countin', 'train'].includes(audio.position.mode);
+    pad.disabled = !calibration && !trainingActive();
     pad.setAttribute('aria-label', mode === 'instrument' ? 'Indicador dos ataques do instrumento e nível de entrada' : 'Tocar o ritmo: pressione no início da nota e solte no final');
     pad.title = mode === 'instrument' ? 'Ataques capturados localmente; teclado e toque não enviam notas neste modo' : 'Espaço: pressione no ataque, segure e solte no término';
   }
   function frame(position, session) {
-    pad.classList.toggle('active', ['countin', 'train'].includes(position.mode) || !!calibration);
+    pad.classList.toggle('active', trainingActive(position) || !!calibration);
     pad.classList.toggle('held', mode === 'instrument' ? performance.now() < flashedUntil : !!position.held || (!!calibration && !!activeInput));
     pad.classList.toggle('instrument-input', mode === 'instrument');
     $('held-state').textContent = mode === 'instrument' ? 'INSTRUMENTO · ataques e nível' : position.held ? 'PRESSIONADA · nota em curso' : 'ESPAÇO ou toque · pressionar / soltar';
     if (calibration) $('train-state').textContent = `Calibração · ${calibration.clicks.filter(time => time <= performance.now()).length}/8 cliques · toque junto.`;
-    else if (position.mode === 'countin') $('train-state').textContent = mode === 'instrument' ? 'Espere sem tocar durante a contagem. Use fones.' : 'Espere a contagem de entrada. Depois, toque o ritmo.';
+    else if (trainingActive(position) && position.mode === 'countin') $('train-state').textContent = mode === 'instrument' ? 'Espere sem tocar durante a contagem. Use fones.' : 'Espere a contagem de entrada. Depois, toque o ritmo.';
     else if (position.mode === 'train') $('train-state').textContent = `Repetição ${position.repetition}/${session.training.repetitions} · ${mode === 'instrument' ? 'toque cada ataque no instrumento; avaliamos só ataques.' : 'pressione no início de cada nota e solte no final.'}`;
   }
   render();

@@ -1,6 +1,7 @@
 import { ticksPerBar, MIXER_CHANNELS } from './session.js';
 import { playbackStartTick } from './transport-position.js';
 import { compileBarPlan } from './form.js';
+import { normalizeAccelerator } from './transport-tempo.js';
 
 // Solo is an overlay, never a saved mute. Clearing it restores the latest manual mix.
 export function effectiveMixer(mixer, solos = new Set()) {
@@ -27,6 +28,10 @@ export function phrasePreviewSession(session) {
 export function createStudioPlayback({ getSession, getPlaybackSession = getSession, audio, render, notify, isPending = () => false }) {
   const solos = new Set();
   const audible = new Map();
+  let countInBars = 0;
+  let accelerator = normalizeAccelerator();
+  try { const saved = JSON.parse(globalThis.localStorage?.getItem('groovegoblin.transport') ?? '{}'); countInBars = [1, 2].includes(saved.countInBars) ? saved.countInBars : 0; accelerator = normalizeAccelerator(saved.accelerator); } catch { /* Browser storage is optional. */ }
+  function save() { try { globalThis.localStorage?.setItem('groovegoblin.transport', JSON.stringify({ countInBars, accelerator })); } catch { /* Session export remains canonical. */ } }
   let startTick = null;
   let listening = false;
   const mixer = (session = getPlaybackSession()) => {
@@ -44,6 +49,10 @@ export function createStudioPlayback({ getSession, getPlaybackSession = getSessi
   return {
     getStartTick: () => startTick,
     isListening: () => listening,
+    getCanonicalBpm: () => getSession().bpm,
+    getPreferences: () => ({ countInBars, accelerator: { ...accelerator } }),
+    setPreferences(value) { countInBars = [1, 2].includes(value.countInBars) ? value.countInBars : 0; accelerator = normalizeAccelerator(value.accelerator); save(); render(); },
+    getPlayOptions: mode => mode === 'train' ? {} : { countInBars, accelerator },
     isSolo: channel => solos.has(channel),
     applyMixer: () => audio.setMixer(mixer()),
     toggleSolo(channel) { if (solos.has(channel)) solos.delete(channel); else solos.add(channel); audio.setMixer(mixer()); render(); },

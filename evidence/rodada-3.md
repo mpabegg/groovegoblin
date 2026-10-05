@@ -67,6 +67,19 @@ As seções abaixo registram resultados observados, não verificações antecipa
 - Decisões: templates maiores/menores usam o modo anunciado na mesma tônica. Menor harmônico/melódico fica **adiado conforme autorizado**: exigiria regras de validação e ponderação do gerador, não só novos dados. Corrigido rótulo acessível singular “1 dedo”.
 - Verificação integrada às etapas anteriores: **533/533 testes**, **128 módulos**, zero falhas. Novo smoke confirmou B7, funções/raízes e desenho com quatro dedos após a integração.
 - Capturas atualizadas: [braço/desenho 1440×900](rodada-3-etapa5-1440x900.png), [repouso 1280×800](rodada-3-etapa5-1280x800.png). Quatro faixas, Tab e diferenças de bateria: **55 controles visíveis**, transporte de **53 px** em uma linha; nenhum erro de navegador.
+- Integração publicada na `main`: `e94ff06`; **533/533 testes e check repetidos na main**, push concluído.
+
+### Etapa 6 — Tocar junto e leitura
+
+- Contagem local de zero/um/dois compassos antes de Tocar e Ouvir frase. No Web Audio real, a 120 BPM/4⁄4, um compasso produziu **quatro cliques a cada 500 ms**, com todas as fontes musicais iniciando exatamente **2 s** depois. Ouvir com dois compassos produziu oito cliques e a frase **4 s** depois, sem banda.
+- Treinar com sua contagem de um compasso e preferência normal de dois continuou usando somente **2 s**, sem duplicação. Espaço no editor cancelou a contagem normal; esperar mais 4,1 s não ressuscitou música.
+- Acelerador **+5 a cada duas voltas**, base 240/teto 250: **240→245→250** nas fronteiras corretas; documento salvo permaneceu 240 e Parar restaurou 240. Frase, bateria, baixo, acordes e metrônomo foram observados nas mesmas cinco fronteiras do AudioContext, sem outro relógio musical.
+- Volta significa ciclo inteiro do loop/forma; passagem inicial parcial não conta. BPM explícito de seção recebe incremento sem ser reduzido pelo teto. Edição manual durante execução continua uma edição canônica, sem reiniciar a posição; a subida automática não edita a sessão.
+- Tap real com intervalos de aproximadamente 500 ms calculou **120 BPM**; um intervalo de 750 ms não desviou a estimativa. Pausa longa reinicia os intervalos.
+- Miniatura apareceu em 16 compassos: clique no compasso 13 moveu a janela para 11–15, sem mudar a posição **Pronto** ou o documento. Home/End e zoom sincronizaram o retângulo; quatro compassos que cabem ocultam a miniatura. O limite da sessão permanece **16 compassos**.
+- A prova real de Ouvir encontrou opção nula do acelerador não normalizada; corrigida como desativada. Três falhas iniciais dos novos testes eram identificação incorreta do oscilador fake e igualdade exata de ponto flutuante; testes agora identificam o clique real, conferem quantidade/frequências e usam tolerância temporal, sem relaxar a regra musical.
+- Verificação final integrada: **547/547 testes**, **132 módulos**, zero falhas. Capturas refeitas: [1440×900](rodada-3-etapa6-1440x900.png), [1280×800](rodada-3-etapa6-1280x800.png). Quatro faixas em Tab com diferenças de bateria: **57 controles visíveis**, transporte **53 px**, numa linha e sem overflow horizontal. Miniatura/navegação e reprodução foram repetidas após integrar baixo/harmonia; nenhum erro do navegador.
+
 
 
 
@@ -114,15 +127,15 @@ As seções abaixo registram resultados observados, não verificações antecipa
 | 10 | Desenhos tocáveis para C, G, D, Am, Em, F e B7 | Passou: sete desenhos completos com até quatro dedos/pestanas; afinação impossível não inventa desenho |
 | 11 | Blues ocupa 12 compassos; oferece ajuste quando a sessão tem quatro | Passou: blues maior/menor completos, decisão de tamanho e proteção contra perda de dados |
 | 12 | Filtro Ritmo/Guitarra/Baixo; padrões de baixo seguem harmonia | Passou: 11/8/10 opções; graus resolvidos contra C–F–G–C e D–G–A–D pelo fluxo real |
-| 13 | Contagem de um compasso antes de Tocar | Pendente |
-| 14 | Acelerador +5 a cada duas voltas; BPM salvo permanece intacto | Pendente |
+| 13 | Contagem de um compasso antes de Tocar | Passou: quatro cliques reais a 120 BPM e música exatamente 2 s depois; Ouvir/treino e cancelamento também conferidos |
+| 14 | Acelerador +5 a cada duas voltas; BPM salvo permanece intacto | Passou: 240→245→250 nos ciclos corretos, fontes sincronizadas, documento 240 e restauração ao parar |
 | 15 | Afinador de 30,87 a 1318,5 Hz: erro até 5 cents e corda correta | Passou: testes puros/harmônicos em várias taxas e oito frequências na captura simulada real; cordas 5/4/3/1 conferidas no baixo |
 | 16 | Entrada lembrada ativa ao entrar em Treinar somente com permissão concedida | Passou: startup sem captura; granted automático; prompt sem captura; explícito abre; foco encerra |
 | 17 | Treinar com entrada configurada e quatro compassos cabe em 1440×900 | Passou após partitura e afinador: documento 900 px, painel até y=823,69 |
 | 18 | Ataques graves com subida de 15 ms: erro até 10 ms e nenhuma repetição falsa em sustentadas | Passou: quatro frequências × quatro taxas, reataques/sustentadas/ruído; WAV harmônico também exercitado |
 | 19 | Alturas sintéticas: certas, nota errada, oitava diferente e não identificada | Pendente |
-| 20 | Miniatura revela conteúdo além de quatro compassos e navega ao clique | Pendente |
-| 21 | Até 62 controles em repouso; transporte em uma linha a 1280 px | Passou até etapa 2: 53 controles/53 px; verificar novamente ao final |
+| 20 | Miniatura revela conteúdo além de quatro compassos e navega ao clique | Passou: 16 compassos, clique/Home/End/zoom; navega sem mudar transporte/documento e some quando cabe |
+| 21 | Até 62 controles em repouso; transporte em uma linha a 1280 px | Passou até etapa 6: 57 controles realmente visíveis/53 px em 1440 e 1280; repetir no fechamento |
 | 22 | Funcionalidades aprovadas da rodada 2 preservadas | Pendente |
 
 ## Limite de verificação de áudio

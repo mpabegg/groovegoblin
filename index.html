@@ -37,6 +37,13 @@
     <div class="transport-row">
       <button id="play" type="button" class="primary" aria-label="Tocar sessão" title="Tocar / parar (Espaço)">Tocar</button>
       <label>BPM <input id="bpm" data-path="bpm" type="number" min="30" max="300" step="1" title="Semínimas por minuto"></label>
+      <details id="tempo-options" class="transport-disclosure"><summary aria-label="Opções de andamento" title="Acelerador de andamento">▾</summary><div class="transport-popover"><div class="tool-row">
+        <label class="toggle"><input id="accelerator-enabled" type="checkbox"> Acelerar a cada volta</label>
+        <label>+ BPM<input id="accelerator-increment" type="number" min="1" max="100" step="1" value="5"></label>
+        <label>A cada voltas<input id="accelerator-loops" type="number" min="1" max="100" step="1" value="1"></label>
+        <label>Até BPM<input id="accelerator-cap" type="number" min="30" max="300" step="1" value="160"></label>
+      </div><p id="accelerator-status" class="tool-hint muted"></p></div></details>
+      <button id="tap-tempo" type="button" title="Marque pelo menos quatro pulsos regulares" aria-label="Marcar andamento com Tap">Tap</button>
       <label class="instrument-label">Instrumento <select id="studio-instrument" aria-label="Instrumento da sua parte"><option value="guitar">Guitarra</option><option value="bass">Baixo</option></select></label>
       <details id="instrument-options" class="transport-disclosure"><summary aria-label="Configurar instrumento" title="Cordas, afinação e nomes das notas">▾</summary><div id="instrument-profile-popover" class="transport-popover instrument-popover">
         <div class="tool-row"><label id="instrument-strings-label">Cordas<select id="instrument-strings"><option value="4">4</option><option value="5">5</option></select></label><label>Afinação<select id="instrument-tuning"><option value="standard">Padrão</option><option value="drop-d" id="instrument-drop-d">Drop D</option><option value="half-down">Meio tom abaixo</option><option value="custom">Personalizada</option></select></label><label>Nomes<select id="instrument-note-names"><option value="letters">C D E</option><option value="solfege">Dó Ré Mi</option></select></label></div>
@@ -48,6 +55,7 @@
       <label class="toggle"><input id="metronome" data-path="metronome.enabled" type="checkbox" aria-label="Metrônomo"> Metro</label>
       <details id="metronome-options" class="transport-disclosure"><summary aria-label="Opções do metrônomo" title="Padrão, silêncios e polirritmia">▾</summary><div class="transport-popover">
         <div class="tool-row">
+          <label>Contagem ao tocar<select id="play-count-in"><option value="0">Nenhuma</option><option value="1">1 compasso</option><option value="2">2 compassos</option></select></label>
           <label>Padrão<select id="metro-pattern" data-path="metronome.pattern"></select></label>
           <label>Compassos audíveis<input id="audible-bars" data-path="metronome.audibleBars" type="number" min="1" max="8"></label>
           <label>Compassos silenciosos<input id="silent-bars" data-path="metronome.silentBars" type="number" min="0" max="8"></label>
@@ -85,6 +93,7 @@
     <div id="studio-scroll" class="studio-scroll"><div id="studio-canvas" class="studio-canvas">
       <div id="studio-lanes" class="studio-lanes">
         <div class="studio-ruler"><div class="track-header ruler-heading"><label>Zoom <select id="timeline-zoom" aria-label="Compassos visíveis na linha do tempo"><option value="4">4 compassos visíveis</option><option value="2">2 compassos visíveis</option></select></label></div><div id="beat-labels" class="beat-labels"></div></div>
+    <div id="phrase-minimap" class="phrase-minimap" hidden><span class="minimap-caption" aria-hidden="true">Visão geral</span><div id="minimap-navigation" role="slider" tabindex="0" aria-label="Rolar a frase por compasso" aria-valuemin="1" aria-valuemax="1" aria-valuenow="1"><svg id="minimap-drawing" viewBox="0 0 1000 32" preserveAspectRatio="none" aria-hidden="true"></svg></div></div>
         <section id="track-chords" class="studio-track" aria-label="Faixa de acordes">
           <header class="track-header">
             <label class="toggle track-name"><input id="chords-enabled" data-path="progression.enabled" type="checkbox"> Acordes</label>
@@ -211,6 +220,7 @@
     <dt><kbd>←</kbd> <kbd>→</kbd> / <kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Na Bateria, navegar posições (Home/End vai aos extremos) / escolher linha. Enter adiciona/remove; Delete/Backspace remove. Shift+↑/↓ ajusta intensidade; PageUp/PageDown escolhe vozes auxiliares sobrepostas em Chimbal +. Espaço toca/para, sem editar. Uma única parada de Tab para as três linhas.</dd>
     <dt><kbd>0</kbd>–<kbd>9</kbd></dt><dd>Na Tablatura com foco no editor: casas 0–24; dois dígitos em até 600 ms formam 10–24. Na grade vazia escolhem a casa para Enter; nas notas mudam a altura de todo o grupo, conservando cordas, posições e durações. Em Ritmo, 1/2/3/4/6/8 continuam escolhendo duração: semicolcheia, colcheia, colcheia pontuada, semínima, semínima pontuada e mínima.</dd>
     <dt>Régua: clique / arrastar / clique duplo</dt><dd>Escolher início de reprodução / definir loop de compassos / restaurar loop completo. A régua tem um só foco de Tab: setas/Home/End escolhem início e revelam a posição; Shift+setas ajustam o fim (Shift+Home restaura tudo). Enter ou Shift+F10 abre ações do compasso atual; botão direito no número abre esse compasso.</dd>
+    <dt>Visão geral: <kbd>←</kbd> <kbd>→</kbd> / <kbd>PageUp</kbd> <kbd>PageDown</kbd> / <kbd>Home</kbd> <kbd>End</kbd></dt><dd>Quando a frase exige rolagem, a miniatura sob a régua tem um único foco: rolar um compasso / uma janela / ir às extremidades. Clique leva ao trecho; não busca o áudio nem muda o loop.</dd>
     <dt>Faixas: M / S / volume</dt><dd>Silêncio manual / solo temporário (permite várias faixas) / volume. Desligar todos os solos restaura os silêncios e volumes guardados; o metrônomo não participa do solo.</dd>
     <dt><kbd>?</kbd></dt><dd>Abrir esta ajuda. Clique no fundo para criar com a duração ativa lembrada no cabeçalho; na Tablatura a linha clicada escolhe a corda. Quatro figuras e Mais escolhem a duração e editam o grupo selecionado. Arraste o corpo da nota para mover ou a alça direita de 6 px para mudar a duração. Em notas menores que 12 px, use ↑/↓ em Ritmo ou Shift+↑/↓ em Tablatura. Criar/selecionar notas ou selecionar acordes oferece uma prévia curta só com áudio parado. Baixo é gerado: ajuste estilo/densidade no cabeçalho.</dd>
   </dl>

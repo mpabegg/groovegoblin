@@ -45,6 +45,7 @@ import { prepareArrangement } from './arrangement.js';
 import { playTone, playChord, playClick, playDrum, loadDrumSamples } from './synth.js';
 import { compileBarPlan } from './form.js';
 import { playbackStartTick } from './transport-position.js';
+import { acceleratedBarPlan, normalizeAccelerator } from './transport-tempo.js';
 
 import { contextPerformanceTime } from './input-timing.js';
 const LOOKAHEAD_INTERVAL_SEC = 0.025;
@@ -163,6 +164,7 @@ export class GrooveAudio {
 
   #ctx = null;
   #buses = null;
+  #countBuses = null;
   #mixer = Object.fromEntries(MIXER_CHANNELS.map(channel => [channel, { volume: 1, muted: false }]));
 
   #generation = 0;
@@ -183,6 +185,11 @@ export class GrooveAudio {
   #secPerTick = 0;
   #barTicks = 16;
   #countInBars = 0;
+  #normalCountBars = 0;
+  #normalCountEnd = 0;
+  #normalCountStart = 0;
+  #accelerator = normalizeAccelerator();
+  #acceleratorStartCycle = 0;
   #inputTailSeconds = 0;
   #loopStart = 0;
   #loopBars = 1;
@@ -325,7 +332,7 @@ export class GrooveAudio {
     }
   }
 
-  async playSession(session, { mode = 'loop', startTick = null, once = false, mixer = null, inputTailSeconds = 0 } = {}) {
+  async playSession(session, { mode = 'loop', startTick = null, once = false, mixer = null, inputTailSeconds = 0, countInBars = 0, accelerator = null } = {}) {
     if (mode !== 'loop' && mode !== 'train') throw new TypeError('O modo de reprodução deve ser loop ou train.');
     const valid = checkedSession(session);
     this.stop();
@@ -342,19 +349,28 @@ export class GrooveAudio {
 
     const train = mode === 'train';
     this.#inputTailSeconds = train ? Math.max(0, inputTailSeconds) : 0;
-    this.#plan = compileBarPlan(valid, { training: train });
+    this.#accelerator = normalizeAccelerator(train || once ? null : accelerator);
+    this.#acceleratorStartCycle = 0;
+    this.#plan = train ? compileBarPlan(valid, { training: true }) : acceleratedBarPlan(valid, this.#accelerator);
     this.#executedSession = valid;
     this.#arrangement = prepareArrangement(valid);
     this.#barTicks = ticksPerBar(valid);
     this.#secPerTick = secondsPerTick(valid.bpm);
     this.#countInBars = train ? valid.training.countInBars : 0;
+    this.#normalCountBars = train ? 0 : [1, 2].includes(countInBars) ? countInBars : 0;
+    this.#normalCountEnd = train ? 0 : playbackStartTick(valid, this.#plan, startTick);
+    if (!train && this.#normalCountEnd > EPSILON) {
+      this.#acceleratorStartCycle = Math.ceil(this.#normalCountEnd / this.#barTicks / this.#plan.bars.length);
+      this.#plan = acceleratedBarPlan(valid, this.#accelerator, this.#acceleratorStartCycle);
+    }
+    this.#normalCountStart = this.#normalCountEnd - this.#normalCountBars * this.#barTicks;
     this.#loopStart = valid.loop.startBar;
     this.#loopBars = valid.loop.endBar - valid.loop.startBar;
     this.#repetitions = train ? valid.training.repetitions : 0;
     this.#endBar = train ? this.#countInBars + this.#loopBars * this.#repetitions
       : once ? this.#plan.bars.length : this.#plan.loop ? Infinity : this.#plan.bars.length;
-    this.#anchorTick = train ? 0 : playbackStartTick(valid, this.#plan, startTick);
-    this.#nextBar = Math.floor(this.#anchorTick / this.#barTicks);
+    this.#anchorTick = train ? 0 : this.#normalCountStart;
+    this.#nextBar = Math.floor((train ? this.#anchorTick : this.#normalCountEnd) / this.#barTicks);
     this.#pending = [];
     this.#onsets = [];
     this.#anchorTime = ctx.currentTime + SESSION_PRIME_SEC;
@@ -365,7 +381,8 @@ export class GrooveAudio {
     this.#heldPitch = null;
     this.#startedAt = Date.now();
     this.#mode = mode;
-    this.#generateBar(this.#nextBar, train || startTick === null ? -Infinity : this.#anchorTime);
+    if (this.#normalCountBars) this.#generateNormalCount();
+    this.#generateBar(this.#nextBar, !train && (startTick !== null || this.#normalCountBars) ? this.#timeOfTick(this.#normalCountEnd) : -Infinity);
     this.#nextBar += 1;
     this.#emitState();
     this.#runScheduler(gen);
@@ -395,7 +412,8 @@ export class GrooveAudio {
     const barPosition = currentTick / oldTicks;
     this.#session = valid;
     this.#arrangement = prepareArrangement(valid);
-    this.#plan = compileBarPlan(valid, { training: this.#mode === 'train' });
+    if (valid.bpm !== previous.bpm) this.#acceleratorStartCycle = Math.max(0, Math.floor(currentTick / oldTicks / this.#plan.bars.length));
+    this.#plan = this.#mode === 'train' ? compileBarPlan(valid, { training: true }) : acceleratedBarPlan(valid, this.#accelerator, this.#acceleratorStartCycle);
     this.#barTicks = ticksPerBar(valid);
     this.#secPerTick = secondsPerTick(valid.bpm);
     this.#loopStart = valid.loop.startBar;
@@ -407,8 +425,10 @@ export class GrooveAudio {
     this.#onsets = this.#onsets.map(tick => tick / oldTicks * this.#barTicks);
     if (valid.drums.enabled && !this.#samples) this.#loadSamples().catch(() => {});
     this.#pending = [];
-    const currentBar = Math.max(0, Math.floor(this.#tickAtTime(this.#dispatchedTime) / this.#barTicks));
-    if (currentBar < this.#endBar) this.#generateBar(currentBar, this.#dispatchedTime);
+    const counting = this.#mode === 'loop' && this.#normalCountBars && currentTick < this.#normalCountEnd;
+    if (counting) this.#generateNormalCount(this.#dispatchedTime);
+    const currentBar = Math.max(0, Math.floor((counting ? this.#normalCountEnd : this.#tickAtTime(this.#dispatchedTime)) / this.#barTicks));
+    if (currentBar < this.#endBar) this.#generateBar(currentBar, Math.max(this.#dispatchedTime, counting ? this.#timeOfTick(this.#normalCountEnd) : -Infinity));
     this.#nextBar = currentBar + 1;
     clearTimeout(this.#finishTimeoutId);
     this.#finishTimeoutId = null;
@@ -420,6 +440,7 @@ export class GrooveAudio {
   seek(startTick) {
     if (this.#mode !== 'loop') return false;
     this.#silenceActiveNodes();
+    this.#normalCountBars = 0;
     this.#anchorTick = playbackStartTick(this.#session, this.#plan, startTick);
     this.#anchorTime = this.#ctx.currentTime + SESSION_PRIME_SEC;
     this.#dispatchedTime = this.#anchorTime;
@@ -465,6 +486,8 @@ export class GrooveAudio {
     this.#calibrationBus?.disconnect();
     this.#calibrationBus = null;
     this.#mode = null;
+    this.#normalCountBars = 0;
+    this.#accelerator = normalizeAccelerator();
     this.#pending = [];
     this.#onsets = [];
     this.#attempts = [];
@@ -591,12 +614,19 @@ export class GrooveAudio {
   get position() {
     const idle = {
       mode: 'idle', tick: 0, bar: 1, beat: 1, repetition: 0, repetitions: 0, held: false, pitch: null,
+      training: false,
       startTick: 0, endTick: this.#session ? sessionTicks(this.#session) : 16, ticksPerBar: this.#session ? ticksPerBar(this.#session) : 16,
       countInBar: 0, countInBars: 0, bpm: this.#session?.bpm ?? 0, previewing: this.#mode === 'preview',
     };
     if (!this.#ctx || this.#mode === null || this.#mode === 'preview') return idle;
     const now = this.#nowAudioTime();
     let tick = Math.max(this.#anchorTick, this.#tickAtTime(now));
+    if (this.#mode === 'loop' && this.#normalCountBars && tick < this.#normalCountEnd - EPSILON) {
+      const countTick = Math.max(0, tick - this.#normalCountStart);
+      return { ...idle, mode: 'countin', tick: this.#sessionBarOf(Math.floor(this.#normalCountEnd / this.#barTicks)) * this.#barTicks,
+        bpm: this.#session.bpm, meter: this.#session.meter, countInBars: this.#normalCountBars,
+        countInBar: Math.floor(countTick / this.#barTicks) + 1, beat: Math.floor(countTick % this.#barTicks / (16 / this.#session.meter.unit)) + 1 };
+    }
     if (tick >= this.#endBar * this.#barTicks) {
       if (this.#mode !== 'train' || now >= this.#timeOfTick(this.#endBar * this.#barTicks) + this.#inputTailSeconds) return idle;
       tick = this.#endBar * this.#barTicks - EPSILON;
@@ -607,11 +637,13 @@ export class GrooveAudio {
     const beat = Math.floor(local / this.#barTicks * (descriptor?.meter.beats ?? this.#session.meter.beats)) + 1;
     const base = {
       held: this.#held, pitch: this.#heldPitch, beat, ticksPerBar: this.#barTicks,
+      training: this.#mode === 'train',
       startTick: this.#loopStart * this.#barTicks, endTick: (this.#loopStart + this.#loopBars) * this.#barTicks,
       repetitions: this.#repetitions, countInBars: this.#countInBars, bpm: descriptor?.bpm ?? this.#session.bpm, previewing: false,
       meter: descriptor?.meter ?? this.#session.meter, sectionId: descriptor?.sectionId ?? null,
       sectionName: descriptor?.sectionName ?? '', sectionIndex: descriptor?.sectionIndex ?? -1,
       sectionRepeat: descriptor?.sectionRepeat ?? 0, formBar: bar - this.#countInBars + 1,
+      acceleration: this.#mode === 'loop' ? this.#plan.acceleration?.(bar) ?? null : null,
     };
     if (bar < this.#countInBars) {
       return { ...base, mode: 'countin', tick: base.startTick, bar: this.#loopStart + 1, repetition: 0, countInBar: bar + 1 };
@@ -632,6 +664,11 @@ export class GrooveAudio {
   // Coordenada interna: um compasso = rootTicks, mesmo com outra fórmula.
   // A conversão usa a duração REAL de cada compasso do plano compartilhado.
   #planSeconds(tick) {
+    if (this.#mode === 'loop' && this.#normalCountBars) {
+      const end = this.#normalCountEnd;
+      const secondsAtEnd = this.#plan.timeAt(Math.floor(end / this.#barTicks)) + end % this.#barTicks / this.#barTicks * this.#plan.at(Math.floor(end / this.#barTicks)).duration;
+      if (tick < end) return secondsAtEnd + (tick - end) * this.#secPerTick;
+    }
     const position = tick / this.#barTicks;
     if (position < this.#countInBars) return tick * this.#secPerTick;
     const index = Math.floor(position) - this.#countInBars;
@@ -645,6 +682,10 @@ export class GrooveAudio {
 
   #tickAtTime(time) {
     const seconds = time - this.#anchorTime + this.#planSeconds(this.#anchorTick);
+    if (this.#mode === 'loop' && this.#normalCountBars) {
+      const end = this.#normalCountEnd; const endSeconds = this.#planSeconds(end);
+      if (seconds < endSeconds) return end + (seconds - endSeconds) / this.#secPerTick;
+    }
     const countSeconds = this.#countInBars * this.#barTicks * this.#secPerTick;
     if (seconds < countSeconds) return seconds / this.#secPerTick;
     const located = this.#plan.locate(seconds - countSeconds);
@@ -659,7 +700,10 @@ export class GrooveAudio {
     if (!this.#ctx) {
       const Ctor = globalThis.AudioContext || globalThis.webkitAudioContext;
       this.#ctx = new Ctor();
-      this.#buses = createBuses(this.#ctx, this.#mixer).buses;
+      const { master, buses } = createBuses(this.#ctx, this.#mixer);
+      this.#buses = buses;
+      const count = this.#ctx.createGain(); count.gain.value = 0.65; count.connect(master);
+      this.#countBuses = { ...buses, metronome: count };
     }
     return this.#ctx;
   }
@@ -685,6 +729,16 @@ export class GrooveAudio {
       gain.setValueAtTime(current, now);
     }
     gain.linearRampToValueAtTime(value, now + GAIN_FADE_SEC);
+  }
+
+  #generateNormalCount(notBefore = -Infinity) {
+    for (let bar = 0; bar < this.#normalCountBars; bar++) {
+      for (const event of this.#arrangement.countInEvents()) {
+        const transportTick = this.#normalCountStart + bar * this.#barTicks + event.tick;
+        if (this.#timeOfTick(transportTick) < notBefore - EPSILON) continue;
+        this.#pending.push({ transportTick, event: { ...event, normalCount: true }, secPerTick: this.#secPerTick, key: this.#timeOfTick(transportTick) });
+      }
+    }
   }
 
   #generateBar(bar, notBefore = -Infinity) {
@@ -729,7 +783,7 @@ export class GrooveAudio {
         if (now - time > LATE_DROP_SEC) continue; // aba congelada: não despeja eventos atrasados
         time = now;
       }
-      for (const entry of dispatch(ctx, this.#buses, this.#samples, event, time, secPerTick)) this.#track(entry);
+      for (const entry of dispatch(ctx, event.normalCount ? this.#countBuses : this.#buses, this.#samples, event, time, secPerTick)) this.#track(entry);
     }
     this.#dispatchedTime = horizon;
     if (this.#nextBar >= this.#endBar && this.#pending.length === 0 && this.#timerId !== null) {

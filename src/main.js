@@ -89,7 +89,7 @@ function updateSession(patch, { notice = null, structural = false, drumDecision 
   const error = drumEditStructureError(session, next);
   if (error) { message(error, true); renderControls(); return false; }
   if (studioTimeline.requestDrumChange(patch, { notice, structural, drumDecision })) return false;
-  const policy = playbackEditPolicy(session, next, { mode: audio.position.mode, pending: pending !== null, exercise: exercisePlayback, structural });
+  const policy = playbackEditPolicy(session, next, { mode: audio.position.mode === 'countin' && executionMode === 'loop' ? 'loop' : audio.position.mode, pending: pending !== null, exercise: exercisePlayback, structural });
   const applied = replaceSession(next, { stopPlayback: policy.stop, notice: [policy.reason, notice].filter(Boolean).join(' ') || null, resetEmpty: false });
   if (applied && policy.live) { audio.updateSession(session); playback.applyMixer(); }
   return applied;
@@ -164,6 +164,7 @@ async function begin(mode = 'loop', practiceSession = null, { listen = false } =
     await audio.playSession(snapshot, {
       mode, startTick: mode === 'train' || practiceSession || listen ? null : playback.getStartTick(),
       once: listen, mixer: playback.getMixer(snapshot),
+      ...playback.getPlayOptions(mode),
       ...performanceInput.playOptions(mode),
     });
     if (request !== generation) return;
@@ -204,9 +205,10 @@ const studio = mountStudio({ onActivate: id => {
   renderControls();
 } });
 const transport = mountStudioTransport({
+  playback,
   getState: () => ({
     active: busy() || !!repertoire?.isBusy(), locked: false,
-    training: ['countin', 'train'].includes(audio.position.mode) || (pending === 'play' && executionMode === 'train'),
+    training: audio.session && executionMode === 'train' && (['countin', 'train'].includes(audio.position.mode) || pending === 'play'),
     canUndo: history.canUndo, canRedo: history.canRedo,
   }),
   play: () => void begin().catch(() => {}),
@@ -301,7 +303,7 @@ function renderControls() {
   $('session-badge').textContent = `${session.meter.beats}/${session.meter.unit} · ${session.bars} comp. · loop ${session.loop.startBar + 1}–${session.loop.endBar}`;
   transport.render();
   $('train').disabled = pending !== null || (session.training.evaluation !== 'free' && !session.notes.some(note => note.start >= session.loop.startBar * barTicks(session) && note.start < session.loop.endBar * barTicks(session)));
-  $('train-pad').disabled = !['countin', 'train'].includes(audio.position.mode);
+  $('train-pad').disabled = !audio.position.training;
   $('clear').disabled = session.notes.length === 0;
   for (const id of ['generate', 'variation', 'load-groove', 'generate-drums', 'generate-progression', 'new-session', 'duplicate-session', 'save-session', 'restore-session', 'delete-session', 'replace-recovery', 'replace-library-recovery', 'apply-share']) $(id).disabled = false;
   $('load-groove').disabled ||= !$('groove-library').value;

@@ -9,6 +9,7 @@ import { timelineWidth, musicalDuration } from './studio-bars.js';
 import { mountStudioRuler } from './studio-ruler.js';
 import { mountStudioScores } from './studio-score.js';
 import { phraseView, resolveTabPosition, mountPhraseView } from './tablature.js';
+import { mountStudioMinimap } from './studio-minimap.js';
 
 const figure = duration => ({ 1: '𝅘𝅥𝅯', 2: '♪', 3: '♪·', 4: '♩', 6: '♩·', 8: '𝅗𝅥', 12: '𝅗𝅥·', 16: '𝅝' })[duration] ?? '';
 const number = value => String(Math.round(value * 1000) / 1000);
@@ -19,6 +20,7 @@ export function mountStudioTimeline(root, host) {
   const grid = $('grid');
   const scroll = $('studio-scroll');
   const canvas = $('studio-canvas');
+  const minimap = mountStudioMinimap({ scroll, canvas, getSession: host.getSession });
   const tracks = mountStudioTracks(host);
   const ruler = mountStudioRuler(root, host);
   const harmony = mountStudioHarmony(root, { ...host, offerMaterialize: ruler.offerMaterialize });
@@ -38,6 +40,7 @@ export function mountStudioTimeline(root, host) {
     for (const block of $('bass-lane').querySelectorAll('.bass-note')) {
       block.textContent = block.getBoundingClientRect().width >= 30 ? formatInstrumentNote(Number(block.dataset.pitch), getInstrumentProfile(session), { octave: false }) : '';
     }
+    minimap.sync();
   }
   new ResizeObserver(size).observe(scroll);
   $('timeline-zoom').addEventListener('change', event => { visibleBars = Number(event.target.value); size(); });
@@ -111,6 +114,7 @@ export function mountStudioTimeline(root, host) {
     }
     scores.render(session, notes);
     if (focusedId && editor.ids().includes(focusedId)) focusNote(focusedId);
+    minimap.render(notes);
   }
   function renderBass(session) {
     const lane = $('bass-lane'); lane.replaceChildren();

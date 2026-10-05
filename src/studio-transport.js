@@ -1,3 +1,5 @@
+import { mountStudioTempo } from './studio-tempo.js';
+
 const $ = id => document.getElementById(id);
 const editingTarget = target => target instanceof Element
   && (target.isContentEditable || !!target.closest('input, textarea, select, [contenteditable]:not([contenteditable=false])'));
@@ -12,6 +14,7 @@ export function mountStudioTransport(host) {
   const dialog = $('shortcuts-dialog');
   let previousFocus = null;
   let rendered = null;
+  const tempo = host.playback ? mountStudioTempo(host.playback) : null;
 
   function toggle() {
     if (host.getState().active) host.stop();
@@ -41,8 +44,9 @@ export function mountStudioTransport(host) {
     $('redo').title = state.locked ? 'Pare a reprodução antes de refazer' : !state.canRedo ? 'Nenhuma alteração para refazer' : 'Refazer (Ctrl+Shift+Z)';
   }
   function position({ position, pending, ticksPerBar, repetitions, startTick = null, beatTicks = 4, listening = false }) {
+    tempo?.position(position);
     const text = position.mode === 'idle' ? pending ? 'Preparando…' : startTick === null ? 'Pronto' : `Início · C${Math.floor(startTick / ticksPerBar) + 1} · T${Math.floor(startTick % ticksPerBar / beatTicks) + 1}`
-      : `${position.mode === 'countin' ? 'Entrada' : position.mode === 'train' ? 'Treino' : listening ? 'Frase' : 'Loop'} · C${position.bar ?? Math.floor((position.tick ?? 0) / ticksPerBar) + 1} · T${position.beat ?? 1}${position.mode === 'train' ? ` · ${position.repetition}/${repetitions}` : ''}`;
+      : `${position.mode === 'countin' ? 'Entrada' : position.mode === 'train' ? 'Treino' : listening ? 'Frase' : 'Loop'} · C${position.bar ?? Math.floor((position.tick ?? 0) / ticksPerBar) + 1} · T${position.beat ?? 1}${position.mode === 'train' ? ` · ${position.repetition}/${repetitions}` : position.acceleration ? ` · ${position.bpm} BPM ${position.acceleration.nextIn === null ? '✓' : `↑${position.acceleration.nextIn}`}` : ''}`;
     if ($('position-text').textContent !== text) $('position-text').textContent = text;
     $('position-text').title = `${text}. C: compasso; T: tempo escrito.`;
   }
