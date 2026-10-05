@@ -8,14 +8,24 @@ export const TOUR_STORAGE_KEY = 'groovegoblin:tour:v1';
 
 const STEPS = [
   {
+    tab: 'tab-studio', target: '#studio-instrument',
+    title: 'Seu instrumento, sua parte',
+    body: 'A frase é sempre sua parte: Guitarra (6 cordas) ou Baixo (meu), com 4 ou 5 cordas. Configure afinação e nomes C D E ou Dó Ré Mi na seta ao lado; trocar instrumento com notas oferece transpor, manter alturas ou cancelar. O perfil acompanha a sessão salva. No metrônomo, escolha contagem de 0, 1 ou 2 compassos para Tocar e Ouvir frase. TAP ajusta o andamento; o acelerador no BPM sobe a cada número de voltas escolhido e, ao parar, volta ao BPM salvo.',
+  },
+  {
     tab: 'tab-studio', target: '#studio-editor',
-    title: 'Estúdio: editar e tocar sua Sessão',
-    body: 'As quatro faixas usam a mesma régua. Na Frase, escolha uma figura e clique para criar; arraste o corpo para mover e a borda para mudar a duração. Shift+clique seleciona um grupo. Na Bateria, clique adiciona/remove e arraste na vertical para ajustar intensidade; o Baixo é gerado. Tom, estilo, mudo, solo e volume ficam nos cabeçalhos. Na régua, clique escolhe o início, arraste define o loop e clique duplo restaura tudo. Zoom mostra dois ou quatro compassos; a rolagem acompanha a reprodução. Consulte “Atalhos” para operações de grupo e teclado.',
+    title: 'Editar, ler e estudar sua parte',
+    body: 'Escolha Ritmo ou Tablatura no cabeçalho. Clique para criar, arraste para mover e use a borda para duração; Shift+clique seleciona um grupo. Na Tab, digite casas 0–24 (dois dígitos em 600 ms): ↑/↓ mudam corda preservando altura quando possível, ←/→ movem no tempo e Shift+↑/↓ muda duração. Partituras mostram cifras, ritmo, Tab e cursor. Baixo (meu) é editável: “Gerar linha de baixo” segue os acordes; na faixa gerada, “Estudar esta linha” confirma a cópia e troca para Baixo. A Biblioteca reúne 11 padrões de Ritmo, 8 de Guitarra e 10 de Baixo. Régua define início/loop; miniatura revela trechos fora da vista. Veja “Atalhos” para detalhes.',
+  },
+  {
+    tab: 'tab-studio', target: '#track-chords',
+    title: 'Harmonia: acordes e Braço',
+    body: 'Escolha o tom e abra “Progressões prontas”: blues de 12 compassos, ii–V–I e outras sequências informam o tamanho e oferecem ajustar a sessão ou repetir/cortar. Selecione um acorde para inspecionar; na Guitarra, um desenho aparece quando há posição tocável. Abra “Braço” abaixo da linha do tempo: cordas e afinação seguem o perfil, com casas 0–12 ou 12–24 e funções T, 3, 5 e 7. Ele acompanha o acorde selecionado ou em reprodução; sem acorde, mostra a escala do tom.',
   },
   {
     tab: 'tab-practice', target: '#performance-input',
-    title: 'Treinar: tocar → comparar → repetir',
-    body: '“Ouvir frase” toca uma passagem sem mudar sua sessão. Depois, escolha “Treinar esta frase”. No Teclado, espere a contagem: pressione Espaço no ataque e solte no final. Ao escolher Instrumento, autorize a entrada, confira dispositivo/canal e use “Testar entrada”; só os ataques são avaliados, não duração ou altura. Use fones e “Calibrar latência · 8 cliques” antes de treinar. O áudio é analisado localmente, sem gravação ou envio. Abrir o app não inicia captura. Compare o resultado abaixo; “Editar no Estúdio” volta ao editor.',
+    title: 'Treinar: ataques, alturas e repetição',
+    body: '“Ouvir frase” toca sua parte; “Treinar esta frase” inicia a contagem. No Teclado, pressione Espaço no ataque e solte no final. Para Instrumento, use “Ativar instrumento” quando necessário; a escolha é lembrada, mas só reabre automaticamente ao entrar em Treinar com permissão já concedida. “Configurar” reúne entrada, canal, teste e calibração; use fones. O Afinador compartilha a captura e permite referência 430–450 Hz. Em “Ataques e alturas”, notas monofônicas são certas dentro de ±50 cents, erradas, de oitava diferente ou não identificadas. Não mede sustentações nem força física. Confira as faixas audíveis e o resultado; áudio é analisado localmente, sem gravação/envio. Abrir o app não inicia captura.',
   },
   {
     tab: 'tab-repertoire', target: '#repertoire-mount',
