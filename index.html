@@ -42,6 +42,7 @@
         <div class="tool-row"><label id="instrument-strings-label">Cordas<select id="instrument-strings"><option value="4">4</option><option value="5">5</option></select></label><label>Afinação<select id="instrument-tuning"><option value="standard">Padrão</option><option value="drop-d" id="instrument-drop-d">Drop D</option><option value="half-down">Meio tom abaixo</option><option value="custom">Personalizada</option></select></label><label>Nomes<select id="instrument-note-names"><option value="letters">C D E</option><option value="solfege">Dó Ré Mi</option></select></label></div>
         <div id="instrument-custom" hidden><p class="tool-hint muted">Da corda mais grave à mais aguda. Digite nota e oitava (E2, Dó♯2, Si♭1). Corda 1 é a mais aguda; aplicar preserva as alturas da frase.</p><div id="instrument-strings-notes" class="tool-row instrument-strings-notes"></div><button id="instrument-apply-tuning" type="button">Aplicar afinação</button></div>
         <p id="instrument-clef" class="tool-hint muted"></p>
+        <button id="instrument-profile-tuner" type="button" aria-haspopup="dialog" aria-controls="instrument-tuner">Afinador</button>
         <p id="instrument-profile-status" class="tool-hint" role="status" aria-live="polite"></p>
       </div></details>
       <label class="toggle"><input id="metronome" data-path="metronome.enabled" type="checkbox" aria-label="Metrônomo"> Metro</label>

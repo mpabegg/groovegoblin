@@ -12,6 +12,7 @@ import { harness, audioContext, deferred, close } from './audio-harness.js';
 import { mountPracticeTracks, practiceVoices } from '../src/practice-tracks.js';
 import { createStudioPlayback } from '../src/studio-playback.js';
 
+import { MIN_PITCH_FREQUENCY } from '../src/instrument-pitch.js';
 function signal(rate, seconds, notes = [], noise = 0.001) {
   const samples = new Float32Array(Math.ceil(rate * seconds));
   let seed = 42;
@@ -418,6 +419,7 @@ function performanceUI(t, audio, session = trainingSession()) {
       this.tag = tag; this.children = []; this.listeners = {}; this.attributes = {}; this.captured = new Set();
       this.hidden = false; this.disabled = false; this.value = ''; this.textContent = ''; this.className = '';
       this.style = { setProperty() {} }; this.classList = { toggle() {} };
+      this.open = false;
     }
     set id(value) { this._id = value; nodes.set(value, this); } get id() { return this._id; }
     get options() { return this.children; }
@@ -427,6 +429,10 @@ function performanceUI(t, audio, session = trainingSession()) {
     get lastChild() { return this.children.at(-1); }
     remove() { this.parent.children.splice(this.parent.children.indexOf(this), 1); }
     setAttribute(name, value) { this.attributes[name] = value; }
+    getAttribute(name) { return this.attributes[name]; }
+    focus() { document.activeElement = this; }
+    showModal() { this.open = true; }
+    close() { if (!this.open) return; this.open = false; this.fire('close'); }
     addEventListener(type, callback) { (this.listeners[type] ??= []).push(callback); }
     fire(type, props = {}) {
       const event = { target: this, button: 0, pointerId: 1, timeStamp: performance.now(), preventDefault() {}, ...props };
@@ -443,13 +449,13 @@ function performanceUI(t, audio, session = trainingSession()) {
     Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });
     originals.set(name, { original, value });
   }
-  for (const id of ['train-pad', 'performance-input', 'train', 'train-state', 'input-pitch', 'held-state']) {
+  for (const id of ['train-pad', 'performance-input', 'train', 'train-state', 'input-pitch', 'held-state', 'instrument-profile-tuner']) {
     const node = new Node('div'); node.id = id;
   }
   nodes.get('input-pitch').value = '69';
   const win = new Node('window');
   const doc = new Node('document');
-  Object.assign(doc, { getElementById: id => nodes.get(id), createElement: tag => new Node(tag), querySelector: () => null });
+  Object.assign(doc, { body: new Node('body'), getElementById: id => nodes.get(id), createElement: tag => new Node(tag), querySelector: () => null });
   install('document', doc); install('window', win); install('Element', Node);
   const values = new Map();
   const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
@@ -481,7 +487,7 @@ function performanceUI(t, audio, session = trainingSession()) {
 
 function captureDevices(ui, outputContext, initialDevices) {
   const requests = []; const streams = []; const worklets = []; const contexts = [];
-  let devices = initialDevices; let enumeration = null; let denial = null; let enumerations = 0; let permissionRequest = null;
+  let devices = initialDevices; let enumeration = null; let denial = null; let enumerations = 0; let permissionRequest = null; let latency = 0;
   const media = {
     async getUserMedia(constraints) {
       requests.push(constraints);
@@ -489,7 +495,7 @@ function captureDevices(ui, outputContext, initialDevices) {
       const id = constraints.audio.deviceId?.exact;
       const selected = id ? devices.find(device => device.deviceId === id) : devices[0];
       if (denial || !selected) throw Object.assign(new Error('capture rejected'), { name: denial ?? 'OverconstrainedError' });
-      const track = { label: selected.label, stops: 0, getSettings: () => ({ deviceId: selected.deviceId, latency: 0 }), stop() { this.stops++; } };
+      const track = { label: selected.label, stops: 0, getSettings: () => ({ deviceId: selected.deviceId, latency }), stop() { this.stops++; } };
       const stream = { track, getTracks: () => [track], getAudioTracks: () => [track] };
       streams.push(stream); return stream;
     },
@@ -510,8 +516,9 @@ function captureDevices(ui, outputContext, initialDevices) {
     }
   });
   ui.install('AudioWorkletNode', class {
-    constructor() {
-      this.port = { onmessage: null, postMessage() {}, close() { this.closed = true; } };
+    constructor(context, name, options) {
+      this.settings = { ...options.processorOptions };
+      this.port = { onmessage: null, postMessage: message => Object.assign(this.settings, message.settings), close() { this.closed = true; } };
       worklets.push(this);
     }
     connect(node) { return node; }
@@ -521,9 +528,15 @@ function captureDevices(ui, outputContext, initialDevices) {
     media, requests, streams, worklets, contexts,
     get enumerations() { return enumerations; },
     set devices(value) { devices = value; }, set enumeration(value) { enumeration = value; }, set denial(value) { denial = value; }, set permissionRequest(value) { permissionRequest = value; },
+    set latency(value) { latency = value; },
     attack(time) {
       const ctx = contexts.at(-1); ctx.currentTime = performance.now() / 1000;
       worklets.at(-1).port.onmessage({ data: { level: 0.5, channels: 2, events: [{ frame: time / 1000 * ctx.sampleRate, level: 0.5 }] } });
+    },
+    pcm(samples, startFrame = 0, channel = worklets.at(-1).settings.channel) {
+      const ctx = contexts.at(-1); ctx.currentTime = performance.now() / 1000;
+      const size = Math.ceil(ctx.sampleRate * 0.02);
+      for (let i = 0; i < samples.length; i += size) worklets.at(-1).port.onmessage({ data: { type: 'samples', samples: samples.subarray(i, i + size), startFrame: startFrame + i, channel } });
     },
   };
 }
@@ -875,4 +888,172 @@ test('repeated explicit activation while opening neither cancels preparation nor
   assert.equal(capture.requests.length, 1); assert.equal(ui.stops, stops); assert.equal(ready, false);
   pending.resolve(); await preparation;
   assert.equal(ready, true); assert.equal(capture.streams[0].track.stops, 0); assert.equal(capture.requests.length, 1);
+});
+
+test('Studio profile tuner detects real bass B0/custom strings without changing practice intent or canonical session', async t => {
+  const h = harness(t);
+  const session = trainingSession({ extensions: { studio: { instrument: { type: 'bass', strings: 5, tuning: [23, 29, 34, 39, 44], noteNames: 'solfege' } } } });
+  const ui = performanceUI(t, h.audio, session), capture = captureDevices(ui, h.ctx, [inputDevice('a')]);
+  const original = serializeSession(session);
+  ui.mount();
+  assert.equal(capture.requests.length, 0);
+  const button = ui.nodes.get('instrument-profile-tuner'); button.focus(); button.fire('click');
+  await settleInput();
+  assert.equal(capture.requests.length, 1); assert.equal(ui.surface.instrument, false);
+  assert.equal(ui.storage.getItem(INPUT_PREFERENCES_KEY), null, 'tuner-only intent is not remembered as Practice Instrument');
+  assert.equal(ui.stops, 0, 'opening from Studio never stops unrelated transport');
+  const rate = capture.contexts[0].sampleRate;
+  capture.pcm(signal(rate, 0.3, [{ time: 0, frequency: MIN_PITCH_FREQUENCY, length: 0.3, sustained: true }]));
+  assert.equal(ui.nodes.get('tuner-note').textContent, 'Si0');
+  assert.match(ui.nodes.get('tuner-cents').textContent, /0 cents.*corda 5/);
+  assert.equal(ui.nodes.get('tuner-needle').hidden, false);
+  const current = ui.nodes.get('tuner-strings').children.find(node => node.getAttribute('aria-current') === 'true');
+  assert.equal(Number(current.getAttribute('data-string')), 5);
+  const reference = ui.nodes.get('tuner-reference'); reference.value = '442'; reference.fire('input');
+  assert.match(ui.nodes.get('tuner-cents').textContent, /−?-[78] cents/);
+  assert.match(ui.nodes.get('tuner-frequency').textContent, /alvo 31\.01 Hz/);
+  assert.equal(serializeSession(session), original);
+  ui.nodes.get('tuner-close').fire('click');
+  assert.equal(ui.nodes.get('instrument-tuner').open, false);
+  assert.equal(capture.streams[0].track.stops, 1); assert.equal(capture.contexts[0].state, 'closed');
+  assert.equal(ui.doc.activeElement, button, 'native close restores its trigger focus');
+});
+
+test('Practice tuner borrows exactly the existing capture and closing retains Testar entrada and calibration identity', async t => {
+  const h = harness(t), ui = performanceUI(t, h.audio), capture = captureDevices(ui, h.ctx, [inputDevice('a')]);
+  saveCalibration('a', -71, ui.storage); ui.mount();
+  ui.choose('performance-entry', 'instrument'); await settleInput();
+  const worklet = capture.worklets[0];
+  ui.nodes.get('instrument-tuner-open').fire('click'); await settleInput();
+  assert.equal(capture.requests.length, 1); assert.equal(capture.worklets[0], worklet);
+  capture.pcm(signal(capture.contexts[0].sampleRate, 0.3, [{ time: 0, frequency: 82.4069, length: 0.3, sustained: true }]));
+  assert.equal(ui.nodes.get('tuner-note').textContent, 'E2');
+  assert.match(ui.nodes.get('tuner-cents').textContent, /corda 6/);
+  ui.nodes.get('instrument-tuner').close();
+  assert.equal(capture.streams[0].track.stops, 0); assert.equal(ui.surface.instrument, true);
+  assert.equal(Number(ui.nodes.get('input-compensation').value), -71);
+  assert.equal(ui.nodes.get('instrument-test').disabled, false);
+  ui.nodes.get('instrument-test').fire('click'); capture.attack(100);
+  assert.equal(ui.nodes.get('instrument-diagnostic').children.length, 1);
+  assert.equal(capture.requests.length, 1);
+});
+
+test('closing a tuner-only lease before permission resolves stops late tracks without opening an analyzer', async t => {
+  const h = harness(t), ui = performanceUI(t, h.audio), capture = captureDevices(ui, h.ctx, [inputDevice('a')]);
+  const permission = deferred(); capture.permissionRequest = permission;
+  ui.mount(); ui.nodes.get('instrument-profile-tuner').fire('click');
+  assert.equal(capture.requests.length, 1);
+  ui.nodes.get('instrument-tuner-open').fire('click');
+  assert.equal(capture.requests.length, 1, 'both triggers refer to the same open modal and permission operation');
+  ui.nodes.get('instrument-tuner').close(); permission.resolve(); await settleInput();
+  assert.equal(capture.streams.length, 1); assert.equal(capture.streams[0].track.stops, 1);
+  assert.equal(capture.worklets.length, 0); assert.equal(capture.contexts.length, 0);
+  assert.equal(ui.surface.instrument, false); assert.equal(ui.surface.preparing, false);
+});
+
+test('closing while borrowing Practice permission preparation does not cancel the Practice capture', async t => {
+  const h = harness(t), ui = performanceUI(t, h.audio), capture = captureDevices(ui, h.ctx, [inputDevice('a')]);
+  const permission = deferred(); capture.permissionRequest = permission;
+  ui.mount(); ui.choose('performance-entry', 'instrument');
+  ui.nodes.get('instrument-tuner-open').fire('click');
+  assert.equal(capture.requests.length, 1);
+  ui.nodes.get('instrument-tuner').close(); permission.resolve(); await settleInput();
+  assert.equal(capture.requests.length, 1); assert.equal(capture.streams[0].track.stops, 0);
+  assert.equal(ui.surface.instrument, true); assert.equal(ui.surface.preparing, false);
+});
+
+for (const loss of ['blur', 'mute', 'ended', 'devicechange']) test(`tuner ${loss} clears certainty and requires an explicit reactivation`, async t => {
+  const h = harness(t), ui = performanceUI(t, h.audio), capture = captureDevices(ui, h.ctx, [inputDevice('a'), inputDevice('b')]);
+  ui.mount(); ui.nodes.get('instrument-tuner-open').fire('click'); await settleInput();
+  capture.pcm(signal(capture.contexts[0].sampleRate, 0.3, [{ time: 0, frequency: 110, length: 0.3, sustained: true }]));
+  assert.notEqual(ui.nodes.get('tuner-note').textContent, '—');
+  if (loss === 'blur') ui.win.fire('blur');
+  else if (loss === 'devicechange') { capture.devices = [inputDevice('b')]; await capture.media.listeners.get('devicechange')(); }
+  else capture.streams[0].track[`on${loss}`]();
+  await settleInput();
+  assert.equal(capture.streams[0].track.stops, 1);
+  assert.equal(ui.nodes.get('tuner-note').textContent, '—');
+  assert.equal(ui.nodes.get('tuner-needle').hidden, true);
+  assert.equal(ui.nodes.get('tuner-activate').hidden, false);
+  assert.equal(capture.requests.length, 1);
+  ui.nodes.get('instrument-tuner').close();
+});
+
+test('tuner denial has actionable recovery and no fake note; retry alone requests permission again', async t => {
+  const h = harness(t), ui = performanceUI(t, h.audio), capture = captureDevices(ui, h.ctx, [inputDevice('a')]);
+  capture.denial = 'NotAllowedError'; ui.mount();
+  ui.nodes.get('instrument-profile-tuner').fire('click'); await settleInput();
+  assert.match(ui.nodes.get('tuner-status').textContent, /Permissão.*negada.*Configurar/);
+  assert.equal(ui.nodes.get('tuner-note').textContent, '—');
+  assert.equal(ui.nodes.get('tuner-needle').hidden, true);
+  assert.equal(ui.nodes.get('tuner-activate').hidden, false);
+  assert.equal(capture.requests.length, 1); assert.equal(capture.enumerations, 0);
+  capture.denial = null; ui.nodes.get('tuner-activate').fire('click'); await settleInput();
+  assert.equal(capture.requests.length, 2); assert.equal(capture.streams[0].track.stops, 0);
+  ui.nodes.get('instrument-tuner').close(); assert.equal(capture.streams[0].track.stops, 1);
+});
+
+test('ephemeral captured PCM supplies stable pitch windows, stable attack IDs and uncalibrated input-latency timestamps', async t => {
+  const h = harness(t), ui = performanceUI(t, h.audio), capture = captureDevices(ui, h.ctx, [inputDevice('a')]);
+  capture.latency = 0.03;
+  ui.mount(); const pitches = [], attacks = [];
+  const unsubscribePitch = ui.surface.subscribePitch(pitch => { if (!pitch.stopped) pitches.push(pitch); });
+  const unsubscribeAttack = ui.surface.subscribeAttacks(attack => attacks.push(attack));
+  ui.choose('performance-entry', 'instrument'); await settleInput();
+  saveCalibration('a', 100, ui.storage);
+  const rate = capture.contexts[0].sampleRate;
+  capture.pcm(signal(rate, 0.3, [{ time: 0, frequency: 196, length: 0.3, sustained: true }]), 1000);
+  assert.ok(pitches.length > 0);
+  for (const pitch of pitches) {
+    assert.ok(Math.abs(1200 * Math.log2(pitch.frequency / 196)) <= 5);
+    assert.equal(pitch.endFrame - pitch.startFrame, Math.ceil(rate * 0.16));
+    close(pitch.time, pitch.frame / rate * 1000 - 30);
+    close(pitch.startTime, pitch.startFrame / rate * 1000 - 30); close(pitch.endTime, pitch.endFrame / rate * 1000 - 30);
+    assert.equal(pitch.deviceId, 'a'); assert.equal(pitch.sampleRate, rate);
+  }
+  capture.attack(100);
+  assert.equal(attacks.length, 1); assert.equal(attacks[0].id, `${attacks[0].captureId}:${attacks[0].frame}`);
+  assert.equal(attacks[0].captureId, pitches[0].captureId);
+  const count = pitches.length; unsubscribePitch(); unsubscribeAttack();
+  capture.pcm(signal(rate, 0.3, [{ time: 0, frequency: 440, length: 0.3, sustained: true }]), 20000);
+  assert.equal(pitches.length, count);
+});
+
+test('tuner does not feed a keyboard training run; stale and silent PCM remove the needle', async t => {
+  const h = harness(t), ui = performanceUI(t, h.audio), capture = captureDevices(ui, h.ctx, [inputDevice('a')]);
+  ui.mount(); await h.audio.playSession(trainingSession(), { mode: 'train' });
+  ui.nodes.get('instrument-profile-tuner').fire('click'); await settleInput();
+  capture.attack(100); assert.equal(h.audio.position.held, false);
+  const rate = capture.contexts[0].sampleRate;
+  capture.pcm(signal(rate, 0.3, [{ time: 0, frequency: 440, length: 0.3, sustained: true }]));
+  assert.equal(ui.nodes.get('tuner-note').textContent, 'A4');
+  h.advance(0.6); assert.equal(ui.nodes.get('tuner-needle').hidden, true);
+  capture.pcm(new Float32Array(Math.ceil(rate * 0.3)), Math.ceil(rate * 0.3));
+  assert.equal(ui.nodes.get('tuner-note').textContent, '—'); assert.equal(ui.nodes.get('tuner-needle').hidden, true);
+  ui.nodes.get('instrument-tuner').close();
+});
+
+test('explicit tuner permission revocation clears the reading, releases its own stream and removes the watcher', async t => {
+  const h = harness(t), ui = performanceUI(t, h.audio), capture = captureDevices(ui, h.ctx, [inputDevice('a')]);
+  const permissions = microphonePermission();
+  ui.mount(); assert.equal(permissions.queries, 0);
+  ui.nodes.get('instrument-profile-tuner').fire('click'); await settleInput();
+  assert.equal(permissions.queries, 1);
+  capture.pcm(signal(capture.contexts[0].sampleRate, 0.3, [{ time: 0, frequency: 110, length: 0.3, sustained: true }]));
+  permissions.revoke();
+  assert.equal(capture.streams[0].track.stops, 1); assert.equal(permissions.listeners.size, 0);
+  assert.equal(ui.nodes.get('tuner-note').textContent, '—'); assert.equal(ui.nodes.get('tuner-needle').hidden, true);
+  assert.match(ui.nodes.get('tuner-status').textContent, /revogada/);
+  assert.equal(ui.nodes.get('tuner-activate').hidden, false); assert.equal(capture.requests.length, 1);
+  ui.nodes.get('instrument-tuner').close();
+});
+
+test('tuner-only failure never stops or resets a previously active keyboard training press', async t => {
+  const h = harness(t), ui = performanceUI(t, h.audio), capture = captureDevices(ui, h.ctx, [inputDevice('a')]);
+  ui.mount(); await h.audio.playSession(trainingSession(), { mode: 'train' });
+  h.advance(0.1); h.audio.press(100, 69);
+  assert.equal(h.audio.position.held, true);
+  capture.denial = 'NotAllowedError'; ui.nodes.get('instrument-profile-tuner').fire('click'); await settleInput();
+  assert.equal(ui.stops, 0); assert.equal(h.audio.position.mode, 'train'); assert.equal(h.audio.position.held, true);
+  assert.equal(ui.surface.instrument, false); ui.nodes.get('instrument-tuner').close();
 });

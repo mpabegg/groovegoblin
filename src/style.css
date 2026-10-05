@@ -444,3 +444,19 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 #instrument-status:empty { display: none; }
 #input-compensation-status { display: block; color: var(--accent); font-size: 12px; }
 @media(max-width: 640px) { .performance-entry .tool-row > label { width: 100%; } .performance-entry select { width: 100%; } }
+.input-compact > button { flex: 0 0 auto; padding: 5px 9px; font-size: 12px; white-space: nowrap; }
+.tuner-dialog { width: min(520px, calc(100vw - 32px)); }
+.tuner-reading { display: grid; justify-items: center; gap: 6px; margin: 20px 0; }
+#tuner-note { font-size: 48px; font-weight: 700; color: var(--accent); line-height: 1.2; }
+#tuner-cents { font-size: 15px; }
+#tuner-frequency { font-size: 12px; color: var(--muted); }
+.tuner-scale { position: relative; display: flex; justify-content: space-between; height: 54px; padding-top: 10px; border-top: 2px solid var(--line); font-size: 12px; color: var(--muted); }
+.tuner-scale::before { content: ''; position: absolute; top: -8px; left: 50%; height: 18px; border-left: 2px solid var(--accent); }
+.tuner-needle { position: absolute; top: -2px; left: var(--tuner-position, 50%); height: 40px; border-left: 3px solid var(--blue); transform: translateX(-50%); }
+.tuner-needle.in-tune { border-color: var(--accent); }
+.tuner-strings { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.tuner-string { padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; }
+.tuner-string.nearest { color: var(--accent); border-color: var(--accent); background: #b9ef8018; }
+.tuner-reference { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.tuner-reference input { width: 76px; padding: 4px 6px; }
+#tuner-activate { margin-right: 8px; }

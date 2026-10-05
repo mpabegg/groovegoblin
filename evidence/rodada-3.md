@@ -43,6 +43,7 @@ As seções abaixo registram resultados observados, não verificações antecipa
 - Capturas finais: [1440×900](rodada-3-etapa3-1440x900.png), [1280×800](rodada-3-etapa3-1280x800.png). Com Instrumento configurado e quatro compassos em Tab, documento de **900 px** em 1440×900 e painel completo até **y=803**, incluindo Prática guiada recolhida. Sem overflow horizontal nas duas larguras.
 - Estúdio em repouso a 1280 px: **53 controles**, transporte de **53 px**. Janela longa de 16 compassos é intencionalmente distribuída em vários sistemas verticais.
 - Verificação final da branch: **477/477 testes**, **115 módulos**, zero falhas.
+- Integração publicada na `main`: `6f7c74a`; **477/477 testes e check repetidos na main**, push concluído com a credencial GitHub já existente.
 
 
 ### Etapa 7 — Entrada por instrumento
@@ -58,6 +59,18 @@ As seções abaixo registram resultados observados, não verificações antecipa
 - Verificação da branch: **450/450 testes**, **111 módulos**, zero falhas; `main.js` tem **529 linhas**, abaixo das 536 iniciais. Estúdio com quatro faixas: **52 controles medidos**, transporte de **53 px** em 1280 px.
 - Capturas: [1440×900](rodada-3-etapa7-1440x900.png), [1280×800](rodada-3-etapa7-1280x800.png). Nenhum erro da aplicação registrado pelo navegador.
 - Integração publicada na `main`: `b1cc204`; **450/450 testes e check repetidos na main**, push concluído.
+
+### Etapa 8 — Afinador monofônico
+
+- Detector puro em módulo próprio: janela de **160 ms**, avanço de **50 ms**, confiança mínima, YIN e refinamento harmônico sem usar a nota esperada. A janela contém mais de três períodos de B0; silêncio/ruído/ambiguidade não inventam uma nota.
+- Os primeiros testes detectaram leituras nulas agudas e uma oitava falsa em E6 com segundo harmônico dominante. Corrigidas busca/refinamento e comparação de resíduos, mantendo faixa, limiar e assertivas de cinco cents.
+- Verificação integrada: **510/510 testes**, **119 módulos**, zero falhas. Sinais puros, fundamental fraca, harmônicos dominantes, ruído e fluxo por blocos cobrem B0–E6 e diferentes taxas de amostragem.
+- Chromium com captura real do WAV sintético: leituras estáveis **30,87; 41,20; 55,00; 98,00; 164,81; 220,00; 329,63; 1318,51 Hz**, todas identificadas, com confiança de 100% nos trechos sustentados. No baixo de cinco cordas, B0/E1/A1/G2 destacaram respectivamente **5/4/3/1**.
+- Referência alterada para **450 Hz** mudou o alvo B0 para **31,57 Hz** e mostrou **−39 cents** para o sinal de 30,87 Hz; retornar a 440 recentrou o ponteiro.
+- Zero capturas na abertura. Abrir Afinador pelo perfil fez uma captura; fechar encerrou a track. Com Instrumento já ativo no Treinar, abrir/fechar Afinador reutilizou a mesma captura e a manteve ativa. Trocar foco para outra aba encerrou todas as tracks e preservou a preferência Instrumento.
+- O desvio/ponteiro mede a corda real mais próxima do perfil; a nota cromática detectada também é mostrada. Somente monofônico, sem gravação nem envio.
+- Capturas: [afinador 1440×900](rodada-3-etapa8-1440x900.png), [entrada compacta 1280×800](rodada-3-etapa8-1280x800.png). Treinar com quatro compassos/Tab, Instrumento e Afinador: documento **900 px**, painel até **y=823,69** em 1440×900. Estúdio continua com **53 controles/53 px** em 1280 px; zero erros de navegador.
+
 
 ## Critérios de aceitação
 
@@ -77,9 +90,9 @@ As seções abaixo registram resultados observados, não verificações antecipa
 | 12 | Filtro Ritmo/Guitarra/Baixo; padrões de baixo seguem harmonia | Pendente |
 | 13 | Contagem de um compasso antes de Tocar | Pendente |
 | 14 | Acelerador +5 a cada duas voltas; BPM salvo permanece intacto | Pendente |
-| 15 | Afinador de 30,87 a 1318,5 Hz: erro até 5 cents e corda correta | Pendente |
+| 15 | Afinador de 30,87 a 1318,5 Hz: erro até 5 cents e corda correta | Passou: testes puros/harmônicos em várias taxas e oito frequências na captura simulada real; cordas 5/4/3/1 conferidas no baixo |
 | 16 | Entrada lembrada ativa ao entrar em Treinar somente com permissão concedida | Passou: startup sem captura; granted automático; prompt sem captura; explícito abre; foco encerra |
-| 17 | Treinar com entrada configurada e quatro compassos cabe em 1440×900 | Passou após partitura Tab de seis cordas: documento 900 px e painel completo até y=803; repetir após afinador |
+| 17 | Treinar com entrada configurada e quatro compassos cabe em 1440×900 | Passou após partitura e afinador: documento 900 px, painel até y=823,69 |
 | 18 | Ataques graves com subida de 15 ms: erro até 10 ms e nenhuma repetição falsa em sustentadas | Passou: quatro frequências × quatro taxas, reataques/sustentadas/ruído; WAV harmônico também exercitado |
 | 19 | Alturas sintéticas: certas, nota errada, oitava diferente e não identificada | Pendente |
 | 20 | Miniatura revela conteúdo além de quatro compassos e navega ao clique | Pendente |

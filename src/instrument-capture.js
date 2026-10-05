@@ -1,4 +1,5 @@
 import { captureFrameTime } from './input-timing.js';
+import { createPitchStream } from './instrument-pitch.js';
 
 const errors = {
   NotAllowedError: 'Permissão de microfone negada. Autorize o dispositivo no navegador para usar Instrumento.',
@@ -35,11 +36,23 @@ export class InstrumentCapture {
   #worklet = null;
   #mute = null;
   #deviceListener = null;
+  #pitchListeners = new Set();
+  #attackListeners = new Set();
+  #pitchStream = null;
   constructor({ onAttack, onLevel, onError, onDevices = () => {} }) {
     this.onAttack = onAttack; this.onLevel = onLevel; this.onError = onError; this.onDevices = onDevices;
     this.deviceId = ''; this.calibrationDeviceId = null; this.inputLatencySeconds = 0; this.settings = {};
   }
   get active() { return this.#worklet !== null; }
+  subscribePitch(listener) {
+    this.#pitchListeners.add(listener);
+    this.configure({ pitchEnabled: true });
+    return () => { this.#pitchListeners.delete(listener); this.configure({ pitchEnabled: this.#pitchListeners.size > 0 }); };
+  }
+  subscribeAttacks(listener) {
+    this.#attackListeners.add(listener);
+    return () => this.#attackListeners.delete(listener);
+  }
   async devices() {
     if (!navigator.mediaDevices?.enumerateDevices) return [];
     return (await navigator.mediaDevices.enumerateDevices()).filter(device => device.kind === 'audioinput');
@@ -47,7 +60,7 @@ export class InstrumentCapture {
   async start(settings) {
     this.stop();
     const generation = this.#generation;
-    this.settings = { ...settings };
+    this.settings = { ...settings, pitchEnabled: this.#pitchListeners.size > 0 };
     let stream = null;
     let context = null;
     try {
@@ -74,15 +87,31 @@ export class InstrumentCapture {
       await context.resume();
       if (generation !== this.#generation) return false;
       this.#source = context.createMediaStreamSource(stream);
-      this.#worklet = new AudioWorkletNode(context, 'instrument-onsets', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1], channelCount: 2, channelCountMode: 'max', processorOptions: settings });
+      this.#worklet = new AudioWorkletNode(context, 'instrument-onsets', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1], channelCount: 2, channelCountMode: 'max', processorOptions: this.settings });
       this.#mute = context.createGain(); this.#mute.gain.value = 0;
       this.#source.connect(this.#worklet).connect(this.#mute).connect(context.destination);
+      this.#pitchStream = null;
       this.#worklet.onprocessorerror = () => this.#fail('O analisador de ataques parou. Selecione Instrumento novamente para reiniciar.');
       this.#worklet.port.onmessage = ({ data }) => {
         if (generation !== this.#generation) return;
         const pair = { contextTime: context.currentTime, performanceTime: performance.now() };
+        const frameTime = frame => captureFrameTime(frame, context.sampleRate, pair, this.inputLatencySeconds);
+        if (data.type === 'samples') {
+          if (!this.#pitchListeners.size || data.channel !== this.settings.channel) return;
+          this.#pitchStream ??= createPitchStream(context.sampleRate);
+          this.#pitchStream.push(data.samples, data.startFrame, result => {
+            const pitch = { ...result, sampleRate: context.sampleRate, captureId: generation, deviceId: this.deviceId,
+              time: frameTime(result.frame), startTime: frameTime(result.startFrame), endTime: frameTime(result.endFrame) };
+            for (const listener of this.#pitchListeners) listener(pitch);
+          });
+          return;
+        }
         this.onLevel(data.level, data.channels);
-        for (const event of data.events) this.onAttack({ ...event, time: captureFrameTime(event.frame, context.sampleRate, pair, this.inputLatencySeconds), deviceId: this.deviceId });
+        for (const event of data.events) {
+          const attack = { ...event, id: `${generation}:${event.frame}`, captureId: generation, sampleRate: context.sampleRate, time: frameTime(event.frame), deviceId: this.deviceId };
+          this.onAttack(attack);
+          for (const listener of this.#attackListeners) listener(attack);
+        }
       };
       context.onstatechange = () => {
         if (generation === this.#generation && ['closed', 'interrupted'].includes(context.state)) this.#fail('O navegador interrompeu a captura de áudio.');
@@ -108,6 +137,7 @@ export class InstrumentCapture {
     }
   }
   configure(settings) {
+    if (settings.channel !== undefined || settings.pitchEnabled === false) this.#pitchStream?.reset();
     Object.assign(this.settings, settings);
     this.#worklet?.port.postMessage({ type: 'settings', settings });
   }
@@ -119,11 +149,13 @@ export class InstrumentCapture {
     if (this.#worklet) { this.#worklet.port.onmessage = null; this.#worklet.port.close(); this.#worklet.onprocessorerror = null; }
     for (const node of [this.#source, this.#worklet, this.#mute]) node?.disconnect();
     this.#source = this.#worklet = this.#mute = null;
+    this.#pitchStream = null;
     if (this.#stream) for (const track of this.#stream.getTracks()) { track.onended = track.onmute = null; track.stop(); }
     this.#stream = null;
     const context = this.#context; this.#context = null;
     if (context) { context.onstatechange = null; if (context.state !== 'closed') void context.close().catch(() => {}); }
     this.deviceId = ''; this.calibrationDeviceId = null; this.inputLatencySeconds = 0;
+    for (const listener of this.#pitchListeners) listener({ frequency: null, confidence: 0, rms: 0, stopped: true });
     this.onLevel(0, 0);
   }
 }
