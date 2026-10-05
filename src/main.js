@@ -1,5 +1,5 @@
 import { GrooveAudio, renderSession } from './audio.js';
-import { createSession, loadSession, saveSession, validateSession, serializeSession, parseSession, encodeSessionLink, decodeSessionLink, ticksPerBar as barTicks, METRONOME_PATTERNS, ARTICULATIONS } from './session.js';
+import { createSession, loadSession, saveSession, validateSession, serializeSession, parseSession, encodeSessionLink, decodeSessionLink, drumEditStructureError, ticksPerBar as barTicks, METRONOME_PATTERNS, ARTICULATIONS } from './session.js';
 import { evaluateSession, summarizeFeedback } from './feedback.js';
 import { buildTimelineData, renderTimeline } from './timeline.js';
 import { getDiatonicChords, invertChord } from './progression.js';
@@ -100,8 +100,11 @@ function initialStudioSession(restored) {
   } catch { /* Preserve loadSession's recovery and storage-unavailable behavior. */ }
   return restored.session;
 }
-function updateSession(patch, { notice = null, structural = false } = {}) {
+function updateSession(patch, { notice = null, structural = false, drumDecision = false } = {}) {
   const next = mergeSession(session, patch);
+  const error = drumEditStructureError(session, next);
+  if (error) { message(error, true); renderControls(); return false; }
+  if (studioTimeline.requestDrumChange(patch, { notice, structural, drumDecision })) return false;
   const policy = playbackEditPolicy(session, next, { mode: audio.position.mode, pending: pending !== null, exercise: exercisePlayback, structural });
   const applied = replaceSession(next, { stopPlayback: policy.stop, notice: [policy.reason, notice].filter(Boolean).join(' ') || null, resetEmpty: false });
   if (applied && policy.live) { audio.updateSession(session); playback.applyMixer(); }
@@ -388,9 +391,6 @@ window.addEventListener('keyup', event => {
 });
 window.addEventListener('blur', () => { if (busy()) stop('Sessão interrompida ao perder o foco.'); repertoire.stop(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { stop(); repertoire.stop(); } });
-
-
-
 
 function download(text, filename) {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));

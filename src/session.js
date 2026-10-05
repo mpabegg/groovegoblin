@@ -1,4 +1,4 @@
-// Sessão canônica do GrooveGoblin (versão 3): frase, harmonia, banda,
+// Sessão canônica do GrooveGoblin (versão 4): frase, harmonia, banda,
 // metrônomo, treino, loop e mixer em um único documento persistido,
 // exportado e compartilhado. validateSession é estrita: campos
 // desconhecidos ou valores inválidos rejeitam o documento inteiro; campos
@@ -12,10 +12,12 @@ import {
 import { CHORD_FUNCTIONS, CHORD_SOURCES, CHORD_QUALITIES, PROGRESSION_KEYS } from './progression.js';
 import { parsePhrase, parseShare } from './portable.js';
 import { normalizeForm } from './form.js';
+import { DRUM_EDIT_VOICES, MAX_DRUM_EDITS, DRUM_POSITION_EPSILON } from './drum-edits.js';
+export { DRUM_EDIT_VOICES, MAX_DRUM_EDITS, DRUM_POSITION_EPSILON };
 
 export { ticksPerBar, sessionTicks, beatGroups, ARTICULATIONS, MIN_BARS, MAX_BARS };
 
-export const SESSION_VERSION = 3;
+export const SESSION_VERSION = 4;
 export const SESSION_FORMAT = 'groovegoblin-session';
 export const BPM_MIN = 30;
 export const BPM_MAX = 300;
@@ -115,7 +117,7 @@ function defaults() {
     swing: 0,
     swingUnit: 'eighth',
     progression: { keyId: 'c-major', chords: [], enabled: false, cycleBars: 1 },
-    drums: { enabled: false, seed: 1, style: 'complement', density: 'medium' },
+    drums: { enabled: false, seed: 1, style: 'complement', density: 'medium', edits: [] },
     band: { bassEnabled: false, style: 'pop', density: 'medium', mode: 'steady', role: 'solo' },
     loop: { startBar: 0, endBar: 1 },
     form: { enabled: false, loop: true, sections: [] },
@@ -146,6 +148,7 @@ const SECTIONS = {
     seed: value => isInt(value, 0, 0xffffffff),
     style: value => STYLES.includes(value),
     density: value => DENSITIES.includes(value),
+    edits: value => Array.isArray(value) && value.length <= MAX_DRUM_EDITS,
   },
   band: {
     bassEnabled: value => typeof value === 'boolean',
@@ -198,7 +201,7 @@ const SECTION_LABELS = {
 };
 
 const TOP_LEVEL = {
-  version: value => value === 2 || value === SESSION_VERSION,
+  version: value => [2, 3, SESSION_VERSION].includes(value),
   name: value => typeof value === 'string' && value.length <= 80,
   bpm: value => isInt(value, BPM_MIN, BPM_MAX),
   bars: value => isInt(value, MIN_BARS, MAX_BARS),
@@ -292,6 +295,26 @@ function normalizeNotes(notes, session) {
   if (!validPhrase(completed, session)) fail('As notas da frase se sobrepõem ou repetem IDs.');
   return completed;
 }
+// Absolute straight ticks preserve triplets and other generated off-grid attacks.
+// A tombstone is retained even when the current generator has no hit there.
+function normalizeDrumEdits(edits, session) {
+  const limit = sessionTicks(session);
+  const seen = new Map();
+  const result = edits.map(edit => {
+    if (!isObject(edit) || Object.keys(edit).length !== 3
+      || Object.keys(edit).some(key => !['voice', 'start', 'velocity'].includes(key))
+      || !DRUM_EDIT_VOICES.includes(edit.voice)
+      || !isNumber(edit.start) || edit.start < 0 || edit.start >= limit - DRUM_POSITION_EPSILON
+      || (edit.velocity !== null && (!isNumber(edit.velocity) || edit.velocity < 0.05 || edit.velocity > 1))) {
+      fail('Diferença manual da bateria inválida: use voz, posição dentro da sessão e intensidade de 5–100% (ou null para remover).');
+    }
+    const positions = seen.get(edit.voice) ?? [];
+    if (positions.some(start => Math.abs(start - edit.start) <= DRUM_POSITION_EPSILON)) fail('A bateria contém diferenças repetidas na mesma voz e posição.');
+    positions.push(edit.start); seen.set(edit.voice, positions);
+    return { voice: edit.voice, start: edit.start, velocity: edit.velocity };
+  });
+  return result.sort((a, b) => a.start - b.start || DRUM_EDIT_VOICES.indexOf(a.voice) - DRUM_EDIT_VOICES.indexOf(b.voice));
+}
 
 function normalizeMixer(value) {
   const mixer = defaultMixer();
@@ -347,6 +370,8 @@ function normalize(value, version = SESSION_VERSION) {
   for (const name of Object.keys(SECTIONS)) {
     session[name] = normalizeSection(name, value[name], base[name], legacy);
   }
+  if (version < 4 && Object.hasOwn(value.drums ?? {}, 'edits')) fail('Diferenças manuais da bateria exigem sessão versão 4.');
+  session.drums.edits = normalizeDrumEdits(session.drums.edits, session);
   if (!Object.hasOwn(value, 'loop')) session.loop = { startBar: 0, endBar: session.bars };
   else if (!Object.hasOwn(value.loop, 'endBar')) session.loop.endBar = session.bars;
   if (!Object.hasOwn(value.companion ?? {}, 'spanBeats')) session.companion.spanBeats = session.meter.beats;
@@ -378,16 +403,18 @@ function normalize(value, version = SESSION_VERSION) {
 // Primeiro valida o formato antigo inteiro: campos exclusivos da v3 não
 // podem transformar um documento v2 inválido em uma migração aparentemente válida.
 function migrateSession(value) {
-  if (value?.version !== 2) return value;
-  const session = normalize(value, 2);
-  let cursor = 0;
-  session.progression.chords = session.progression.chords.map(chord => {
-    const positioned = { ...chord, startBar: cursor };
-    cursor += chord.durationBars;
-    return positioned;
-  });
+  if (![2, 3].includes(value?.version)) return value;
+  const session = normalize(value, value.version);
+  if (value.version === 2) {
+    let cursor = 0;
+    session.progression.chords = session.progression.chords.map(chord => {
+      const positioned = { ...chord, startBar: cursor };
+      cursor += chord.durationBars;
+      return positioned;
+    });
+    session.progression.cycleBars = cursor || session.bars;
+  }
   session.version = SESSION_VERSION;
-  session.progression.cycleBars = cursor || session.bars;
   return session;
 }
 
@@ -404,7 +431,7 @@ export function validateSession(value) {
 // campo. Ao mudar "bars" sem informar o loop, o loop cobre toda a sessão.
 export function createSession(overrides = {}) {
   if (!isObject(overrides)) throw new TypeError('As opções da sessão devem ser um objeto.');
-  if (overrides.version === 2) {
+  if ([2, 3].includes(overrides.version)) {
     const migrated = validateSession(overrides);
     if (!migrated.ok) throw new TypeError(migrated.error);
     return migrated.session;
@@ -449,6 +476,8 @@ export function patchSession(session, patch) {
         ? Object.fromEntries(MIXER_CHANNELS.map(channel => [channel, { ...session.mixer[channel], ...value[channel] }]))
         : value;
   }
+  const editStructureError = drumEditStructureError(session, next);
+  if (editStructureError) throw new TypeError(editStructureError);
   if ((Object.hasOwn(patch, 'bars') || Object.hasOwn(patch, 'meter')) && !Object.hasOwn(patch, 'loop')) {
     const covered = session.loop.startBar === 0 && session.loop.endBar === session.bars;
     const bars = next.bars;
@@ -466,6 +495,17 @@ export function patchSession(session, patch) {
   return result.session;
 }
 
+// Structural edits must never reinterpret authored straight-tick positions.
+export function drumEditStructureError(previous, next) {
+  if (!previous.drums.edits?.length || !next.drums.edits?.length) return null;
+  if (previous.meter.beats !== next.meter.beats || previous.meter.unit !== next.meter.unit) {
+    return 'Compasso não alterado: há edições manuais da bateria. Restaure a bateria gerada antes de mudar o compasso; Desfazer recupera suas edições.';
+  }
+  if (next.drums.edits.some(edit => edit.start >= sessionTicks(next) - DRUM_POSITION_EPSILON)) {
+    return 'Tamanho não alterado: há edições de bateria nos compassos que seriam removidos. Remova essas edições ou restaure a bateria gerada primeiro.';
+  }
+  return null;
+}
 // ----- Persistência --------------------------------------------------------
 
 function readLegacy(storage, warnings) {
@@ -612,7 +652,7 @@ export function parseSession(text) {
     throw new TypeError('O arquivo deve conter apenas os campos de uma sessão do GrooveGoblin.');
   }
   if (document.format !== SESSION_FORMAT) throw new TypeError('O arquivo não está no formato de sessão do GrooveGoblin.');
-  if (![2, SESSION_VERSION].includes(document.version) || document.session?.version !== document.version) {
+  if (![2, 3, SESSION_VERSION].includes(document.version) || document.session?.version !== document.version) {
     throw new TypeError('A versão do arquivo de sessão não é compatível.');
   }
   const result = validateSession(document.session);

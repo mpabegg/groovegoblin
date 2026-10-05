@@ -50,6 +50,21 @@ As seções abaixo recebem decisões e resultados observados ao concluir cada et
 - Ouvir frase usa uma passagem finita no mesmo transporte. Com a frase salva muda e volume zero, e metrônomo desligado, o Web Audio real produziu pico **0,2503**; a sessão serializada permaneceu byte a byte igual e o transporte voltou naturalmente a Tocar.
 - Partitura de 16 compassos no Treinar: quatro sistemas, todos sem rolagem horizontal (1160/1160 px por sistema); eventos e ligaduras entre sistemas têm regressão dedicada.
 - Verificação final na branch: **342/342 testes**, **95 módulos, zero falhas**. Capturas: [1440×900](rodada-2-etapa4-1440x900.png), [1280×800](rodada-2-etapa4-1280x800.png).
+- Integração: `a98f8cc` fast-forward na main; **342/342 testes e check** repetidos após merge; push confirmado.
+
+### Etapa 5 — Bateria editável e sessão v4
+
+- A sessão passa para **v4**. Campo canônico `drums.edits`: array ordenado, máximo 512 itens `{voice, start, velocity}`; posição absoluta em unidades internas retas da sessão; `velocity: null` remove um ataque e número entre 0,05 e 1 adiciona/substitui intensidade. Identidade é voz + posição, com tolerância numérica; duplicatas, campos desconhecidos, limites e edições indevidamente embutidas em documentos v2/v3 são rejeitados.
+- Migração v2/v3 acrescenta diferenças vazias, mantendo as chaves de armazenamento/biblioteca. Comparação independente com o código v3 anterior: **198 sessões, 12.632 ataques, zero diferenças**, cobrindo 11 estilos, três densidades, três compassos e duas escolhas de sorteio.
+- No navegador, durante loop: clique adicionou bumbo na posição 1; arrasto vertical mudou intensidade de 75% para 45%; clique removeu o ataque da posição 0. O transporte permaneceu em Parar.
+- Enter/Delete e Shift+setas exercitados na grade; intensidade mudou de 45% para 50%. Espaço permanece exclusivamente atalho do transporte, inclusive com foco na bateria.
+- Alterar estilo/sorteio com diferenças abre Manter/Descartar/Cancelar. Cancelar preservou o JSON inteiro; Manter preservou diferenças; Descartar limpou e Desfazer recuperou. Densidade não abriu diálogo nem perdeu diferenças. Restaurar e Desfazer funcionaram; botão compacto ficou contido no cabeçalho.
+- Inserção de compasso deslocou edição da posição 17 para 33, preservando as anteriores e sem copiar diferenças para o compasso inserido. Redução que perderia diferenças foi recusada com explicação, preservando toda a sessão; mudança de fórmula com diferenças também requer restauração prévia. Decisão conservadora: não reinterpretar nem perder ataques manuais silenciosamente.
+- Download JSON real de 8.357 bytes, importado pelo campo de arquivo do app: recuperou v4, remoção na posição 0 e intensidade 45% na posição 1. Reload preservou as diferenças. O arquivo temporário foi removido após a prova.
+- Web Audio real: sessão isolada com todos os ataques gerados removidos e um bumbo manual na posição 1/45%; janela removida teve pico **0**, janela adicionada **0,069984**. Regressões também cobrem scheduler ao vivo, renderer, loop, forma, biblioteca e links.
+- Exportação MIDI mantém o escopo anterior, frase/acordes, sem adicionar percussão ao módulo de repertório.
+- Interface em 1280 px: **50 controles** com quatro faixas e diferenças presentes; Restaurar contido no cabeçalho e inspetor até y=765. Cliques no baixo e em posição ocupada da frase exibiram explicações, não silêncio.
+- Verificação final na branch: **357/357 testes**, **99 módulos, zero falhas**. Capturas: [1440×900](rodada-2-etapa5-1440x900.png), [1280×800](rodada-2-etapa5-1280x800.png).
 
 
 ## Critérios de aceitação
@@ -59,7 +74,7 @@ As seções abaixo recebem decisões e resultados observados ao concluir cada et
 | 1 | Tresillo preserva 4 compassos, 72 BPM e acorde no compasso 2; preenche frase | Passou: navegador e regressão |
 | 2 | Banda inicial: um acorde por compasso | Passou: navegador, 4 acordes × 1 compasso; regressões incluem 1 compasso |
 | 3 | Criar/mover nota e trocar acorde durante loop sem parar | Passou: interação no navegador e regressões do agendador |
-| 4 | Cliques nas faixas têm resposta visível | Pendente |
+| 4 | Cliques nas faixas têm resposta visível | Passou: edição de frase/acordes/bateria e avisos para baixo gerado/posição ocupada |
 | 5 | Duração ativa lembrada; arrasto central move nota curta | Passou: semínima criada; semicolcheia movida sem mudar duração |
 | 6 | Seleção múltipla, copiar, colar, duplicar e Esc | Passou: Shift, retângulo, Ctrl+A/C/V/D e intensidade agrupada |
 | 7 | Aumentar sessão e repetir frase | Passou: 1→4 com quatro compassos iguais no navegador e regressão de histórico |
@@ -71,7 +86,7 @@ As seções abaixo recebem decisões e resultados observados ao concluir cada et
 | 13 | Transporte em uma linha a 1280px; <=60 controles no Estúdio | Passou: altura 53 px; 49 controles em 4 compassos e 50 em 16 |
 | 14 | Arrastar régua define loop | Passou: arrasto 2–3, faixa proporcional e duplo clique restaura sessão inteira |
 | 15 | Ouvir frase no Treinar e partitura inteira | Passou: áudio real audível mesmo com frase muda, sem persistir alteração; 16 compassos em 4 sistemas sem cortes |
-| 16 | Bateria editável, exportação/importação e migração v3 preservadas | Pendente |
+| 16 | Bateria editável, exportação/importação e migração v3 preservadas | Passou: download/importação reais, reload, áudio com diferenças e 198 casos v3 sem alteração de ataques |
 | 17 | Captura, medidor e diagnóstico de ataques | Pendente; validação física de guitarra depende do usuário |
 | 18 | Detector sintético: erro <=10ms, sem falsos ataques sustentados | Pendente |
 | 19 | Instrumento usa relatório comum; duração/altura não avaliadas | Pendente |

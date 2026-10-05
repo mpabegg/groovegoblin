@@ -33,7 +33,7 @@ for (const fixture of fixtures) {
     const checked = validateSession(old);
     assert.equal(checked.ok, true);
     const expected = checked.session;
-    assert.equal(expected.version, 3);
+    assert.equal(expected.version, SESSION_VERSION);
     let cursor = 0;
     for (const [index, oldChord] of old.progression.chords.entries()) {
       assert.deepEqual(expected.progression.chords[index], { ...oldChord, startBar: cursor });
@@ -43,6 +43,7 @@ for (const fixture of fixtures) {
     const withoutPositions = structuredClone(expected);
     withoutPositions.version = 2;
     delete withoutPositions.progression.cycleBars;
+    delete withoutPositions.drums.edits;
     for (const item of withoutPositions.progression.chords) delete item.startBar;
     assert.deepEqual(withoutPositions, old);
     assert.deepEqual(parseSession(JSON.stringify(old)), expected);
@@ -55,9 +56,9 @@ for (const fixture of fixtures) {
     assert.equal(loaded.recoveryRaw, null);
     assert.equal(db.getItem(storageKey), raw);
     assert.equal(saveSession(old, db), true);
-    assert.equal(JSON.parse(db.getItem(storageKey)).version, 3);
+    assert.equal(JSON.parse(db.getItem(storageKey)).version, SESSION_VERSION);
     assert.deepEqual(parseSession(serializeSession(old)), expected);
-    assert.equal(JSON.parse(serializeSession(old)).version, 3);
+    assert.equal(JSON.parse(serializeSession(old)).version, SESSION_VERSION);
     assert.deepEqual(decodeSessionLink(encodeSessionLink(old)), expected);
     const libraryRaw = JSON.stringify([
       { id: 'old', savedAt: '2026-10-04T12:00:00Z', session: envelope(old) },
@@ -71,7 +72,7 @@ for (const fixture of fixtures) {
     history.push(old);
     history.push(patchSession(expected, { bpm: 120 }));
     assert.deepEqual(history.undo(), expected);
-    assert.equal(history.redo().version, 3);
+    assert.equal(history.redo().version, SESSION_VERSION);
     assert.deepEqual(old, before);
   });
 
@@ -84,7 +85,7 @@ for (const fixture of fixtures) {
 }
 
 for (const length of [3, 64]) {
-  test(`v2 migration retains accumulated duration tolerance for ${length} chords after v3 persistence`, () => {
+  test(`v2 migration retains accumulated duration tolerance for ${length} chords after current persistence`, () => {
     const durationBars = 1.0000001;
     const old = { version: 2, progression: { enabled: true, chords: Array.from({ length }, () => ({
       symbol: 'C', notes: [{ name: 'C', midi: 48 }], durationBars,
@@ -101,7 +102,7 @@ for (const length of [3, 64]) {
     assert.equal(migrated.progression.cycleBars, cursor);
     const db = storage();
     assert.equal(saveSession(migrated, db), true);
-    assert.equal(JSON.parse(db.getItem(storageKey)).version, 3);
+    assert.equal(JSON.parse(db.getItem(storageKey)).version, SESSION_VERSION);
     assert.deepEqual(loadSession(db).session, migrated);
     assert.deepEqual(validateSession(migrated).session, migrated);
     assert.deepEqual(parseSession(serializeSession(migrated)), migrated);
@@ -140,16 +141,16 @@ test('missing v2 fields retain defaults, including disabled/empty cycles, withou
 });
 
 test('versions and envelope versions are authoritative on every entry point', () => {
-  assert.equal(SESSION_VERSION, 3);
+  assert.equal(SESSION_VERSION, 4);
   const session = gaps();
-  for (const version of [undefined, null, 0, 1, 4, '3']) {
+  for (const version of [undefined, null, 0, 1, 5, '4']) {
     const invalid = { ...session, version };
     assert.equal(validateSession(invalid).ok, false);
     assert.throws(() => parseSession(JSON.stringify(invalid)), TypeError);
     assert.throws(() => decodeSessionLink(oldLink(invalid)), TypeError);
     assert.equal(saveSession(invalid, storage()), false);
   }
-  for (const version of [2, 4]) assert.throws(() => parseSession(JSON.stringify({ ...envelope(session), version })), TypeError);
+  for (const version of [2, 3, 5]) assert.throws(() => parseSession(JSON.stringify({ ...envelope(session), version })), TypeError);
   const old = fixtures[0].session;
   assert.throws(() => parseSession(JSON.stringify({ ...envelope(old), version: 3 })), TypeError);
   const raw = JSON.stringify([{ id: 'mismatched', savedAt: '2026-10-04T12:00:00Z', session: { ...envelope(old), version: 3 } }]);

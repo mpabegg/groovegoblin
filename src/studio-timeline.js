@@ -1,6 +1,6 @@
 import { ticksPerBar, sessionTicks, ARTICULATION_LABELS } from './session.js';
 import { mountStudioNoteEditor } from './studio-note-editor.js';
-import { generateDrums } from './drums.js';
+import { mountStudioDrums } from './studio-drums.js';
 import { generateBass } from './band.js';
 import { mountStudioHarmony } from './studio-harmony.js';
 import { buildRhythmNotation, renderRhythmNotation } from './notation.js';
@@ -22,6 +22,7 @@ export function mountStudioTimeline(root, host) {
   const tracks = mountStudioTracks(host);
   const ruler = mountStudioRuler(root, host);
   const harmony = mountStudioHarmony(root, { ...host, offerMaterialize: ruler.offerMaterialize });
+  const drums = mountStudioDrums(host);
   let cursor = 0;
   let creationTicks = [];
   let visibleBars = 4;
@@ -102,25 +103,6 @@ export function mountStudioTimeline(root, host) {
     if (!previewNotes) renderPracticeScore($('practice-rhythm-score'), notation);
     if (focusedId && editor.ids().includes(focusedId)) focusNote(focusedId);
   }
-  function renderDrums(session) {
-    const rows = $('drum-rows'); rows.replaceChildren();
-    const labels = $('drum-voice-labels'); labels.replaceChildren();
-    if (!session.drums.enabled) return;
-    const names = { kick: 'Bumbo', snare: 'Caixa', hihat: 'Chimbal' };
-    const pattern = generateDrums(session);
-    for (const voice of ['kick', 'snare', 'hihat']) {
-      const row = document.createElement('div'); row.className = `drum-line drum-${voice}`; row.dataset.voice = voice;
-      const hits = pattern.hits.filter(hit => voice === 'hihat' ? !['kick', 'snare'].includes(hit.instrument) : hit.instrument === voice);
-      row.setAttribute('role', 'img'); row.setAttribute('aria-label', `${names[voice]}: ${hits.length} ataques. Referência gerada, somente leitura.`);
-      const label = document.createElement('span'); label.className = 'drum-voice-label'; label.textContent = names[voice];
-      for (const hit of hits) {
-        const mark = document.createElement('span'); mark.className = 'drum-hit'; mark.dataset.voice = hit.instrument; mark.dataset.start = hit.start; mark.dataset.position = hit.start / sessionTicks(session);
-        mark.style.left = `${hit.start / sessionTicks(session) * 100}%`; mark.style.opacity = String(Math.max(0.25, hit.velocity));
-        mark.title = `${hit.instrument} · tempo ${number(hit.start / (16 / session.meter.unit) + 1)} · intensidade ${Math.round(hit.velocity * 100)}%`; mark.setAttribute('aria-hidden', 'true'); row.append(mark);
-      }
-      labels.append(label); rows.append(row);
-    }
-  }
   function renderBass(session) {
     const lane = $('bass-lane'); lane.replaceChildren();
     if (!session.band.bassEnabled) return;
@@ -132,7 +114,7 @@ export function mountStudioTimeline(root, host) {
     }
   }
   function render() {
-    const session = host.getSession(); size(); tracks.render(); renderGrid(session); harmony.render(); renderDrums(session); renderBass(session); renderNotes(); size();
+    const session = host.getSession(); size(); tracks.render(); renderGrid(session); harmony.render(); drums.render(); renderBass(session); renderNotes(); size();
   }
   function renderControls() {
     tracks.render(); ruler.render(); harmony.renderControls(); grid.setAttribute('aria-disabled', String(host.isBusy()));
@@ -150,5 +132,5 @@ export function mountStudioTimeline(root, host) {
       if (x < scroll.scrollLeft + 216 || x > scroll.scrollLeft + scroll.clientWidth - 24) scroll.scrollLeft = Math.max(0, x - scroll.clientWidth / 2);
     }
   }
-  return { render, renderNotes, renderControls, position, commitNote: editor.commit, removeNotes: editor.remove, cancelDrag: () => { const range = ruler.cancelDrag(); const notes = editor.cancelDrag(); const chords = harmony.cancelDrag(); if (chords) harmony.renderLane(); return range || notes || chords; }, removeChord: harmony.removeSelected, renderSelection: () => { renderNotes(); harmony.render(); } };
+  return { render, renderNotes, renderControls, position, requestDrumChange: drums.requestChange, commitNote: editor.commit, removeNotes: editor.remove, cancelDrag: () => { const drum = drums.cancelDrag(); const range = ruler.cancelDrag(); const notes = editor.cancelDrag(); const chords = harmony.cancelDrag(); if (chords) harmony.renderLane(); return drum || range || notes || chords; }, removeChord: harmony.removeSelected, renderSelection: () => { renderNotes(); harmony.render(); } };
 }

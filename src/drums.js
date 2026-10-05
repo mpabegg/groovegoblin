@@ -5,10 +5,11 @@
 import { ticksPerBar, beatTicks, groupStarts, beatGroups } from './meter.js';
 import { seededRandom, deriveSeed } from './random.js';
 import { validateSession } from './session.js';
+import { DRUM_EDIT_VOICES, DRUM_POSITION_EPSILON } from './drum-edits.js';
 
 export const DRUM_INSTRUMENTS = Object.freeze(['kick', 'snare', 'hihat']);
 export const SYNTH_DRUMS = Object.freeze(['openhat', 'rim', 'ride', 'shaker', 'tom', 'triangle']);
-export const DRUM_VOICES = Object.freeze([...DRUM_INSTRUMENTS, ...SYNTH_DRUMS]);
+export const DRUM_VOICES = DRUM_EDIT_VOICES;
 // Estilos escritos em grade de tercina: o swing da sessão não é reaplicado.
 export const TRIPLET_STYLES = Object.freeze(['shuffle', 'jazz']);
 
@@ -215,6 +216,12 @@ export function generateDrums(session) {
       const humanized = style === 'complement' ? velocity : velocity * (0.94 + random() * 0.12);
       hits.push({ instrument, start: offset + tick, velocity: Math.min(1, Math.max(0.05, Number(humanized.toFixed(3)))) });
     }
+  }
+  for (const edit of valid.drums.edits) {
+    const index = hits.findIndex(hit => hit.instrument === edit.voice && Math.abs(hit.start - edit.start) <= DRUM_POSITION_EPSILON);
+    if (edit.velocity === null) { if (index >= 0) hits.splice(index, 1); }
+    else if (index >= 0) hits[index] = { ...hits[index], velocity: edit.velocity };
+    else hits.push({ instrument: edit.voice, start: edit.start, velocity: edit.velocity });
   }
   hits.sort((a, b) => a.start - b.start || DRUM_VOICES.indexOf(a.instrument) - DRUM_VOICES.indexOf(b.instrument));
   return { hits, bars: valid.bars, seed, style };

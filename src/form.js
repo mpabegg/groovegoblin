@@ -64,7 +64,7 @@ export function compileBarPlan(session, { training = false, repetitions = sessio
     const secPerTick = secondsPerTick(bpm);
     const ratio = barTicks / rootTicks;
     // Cliques usam os tempos do compasso de destino, não os da fonte.
-    const clock = prepareArrangement({ ...source, meter, notes: [], drums: { ...source.drums, enabled: false }, band: { ...source.band, bassEnabled: false }, progression: { ...source.progression, enabled: false } });
+    const clock = prepareArrangement({ ...source, meter, notes: [], drums: { ...source.drums, enabled: false, edits: [] }, band: { ...source.band, bassEnabled: false }, progression: { ...source.progression, enabled: false } });
     for (let repeat = 0; repeat < section.repeats; repeat += 1) {
       for (let sourceBar = section.startBar; sourceBar < section.endBar; sourceBar += 1) {
         const index = bars.length;

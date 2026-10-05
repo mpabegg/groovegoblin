@@ -371,8 +371,16 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 .beat-labels:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 .beat-labels .ruler-current { color: var(--blue); }
 .beat-labels:focus-visible .ruler-current { background: #305366; }
-#track-drums .track-actions { gap: 4px; flex-wrap: wrap; }
+#track-drums .track-actions { gap: 4px; flex-wrap: nowrap; min-width: 0; width: 100%; }
+#track-drums .track-actions > button { flex: 0 0 auto; white-space: nowrap; }
 .drum-hit { top: calc(50% - 8px); }
+.drum-lanes { touch-action: none; }
+.drum-line { cursor: crosshair; }
+.drum-hit { cursor: ns-resize; width: 7px; z-index: 1; }
+.drum-cursor { position: absolute; inset-block: 0; pointer-events: none; border: 1px solid transparent; }
+.drum-lanes:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+.drum-lanes:focus-visible .drum-cursor { border-color: var(--blue); background: #74c8ed20; }
+#restore-generated-drums { font-size: 9px; padding: 2px 3px; }
 #bar-actions-dialog { max-width: min(620px, calc(100vw - 32px)); }
 .creation-duration { flex-wrap: nowrap; align-items: center; }
 .creation-duration > .track-disclosure { flex: 0 0 auto; }

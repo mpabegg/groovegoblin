@@ -92,6 +92,10 @@ export function duplicateBar(session, source) {
     bars: session.bars + 1, notes: [...shifted, ...added].sort((a, b) => a.start - b.start),
     loop: shiftRange(session.loop), form: { ...session.form, sections: session.form.sections.map(shiftRange) },
   };
+  if (session.drums.edits.length) patch.drums = {
+    ...session.drums,
+    edits: session.drums.edits.map(edit => edit.start >= boundary ? { ...edit, start: edit.start + measure } : { ...edit }),
+  };
   if (session.progression.enabled) {
     const progression = expandedHarmony(session);
     const copied = progression.chords.filter(chord => overlaps(chord.startBar, chord.durationBars, source, insertion)).map(chord => {

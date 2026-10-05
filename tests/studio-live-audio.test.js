@@ -56,3 +56,25 @@ test('audition cannot resurrect after stop or race a pending training start', as
   const saved = h.audio.session; const count = h.ctx.sources.length;
   assert.equal(await h.audio.audition([{ pitch: 80 }]), false); assert.equal(h.audio.session, saved); assert.equal(h.ctx.sources.length, count); assert.equal(h.audio.position.mode, 'countin');
 });
+
+test('live sparse drum edits and undo reach dispatched sample onsets and gains across the loop seam', async t => {
+  const h = harness(t);
+  const original = createSession({ bpm: 120, drums: { enabled: true, style: 'pop', density: 'sparse', seed: 42 }, metronome: { enabled: false } });
+  await h.audio.playSession(original); h.advance(0.3);
+  const position = h.audio.position.tick;
+  const edited = createSession({ ...original, drums: { ...original.drums, edits: [
+    { voice: 'snare', start: 4, velocity: null }, { voice: 'kick', start: 6, velocity: 0.23 }, { voice: 'hihat', start: 8, velocity: 0.12 },
+  ] } });
+  h.audio.updateSession(edited); close(h.audio.position.tick, position); h.advance(1.6);
+  const sampleAt = (instrument, time) => h.ctx.sources.find(source => source.type === 'buffer' && source.buffer.instrument === instrument && Math.abs(source.startTime - time) < 1e-8);
+  assert.equal(sampleAt(1, 0.56), undefined);
+  assert.ok(sampleAt(0, 0.81));
+  const hat = sampleAt(2, 1.06); assert.ok(hat);
+  // Makeup gain cancels in this ratio; the actual Web Audio sample gain changes.
+  const firstHat = sampleAt(2, 0.06);
+  const baseHatVelocity = compileBarPlan(original).bars[0].events().find(event => event.instrument === 'hihat' && event.tick === 0).velocity;
+  close(hat.connections[0].gain.events[0].value / firstHat.connections[0].gain.events[0].value, 0.12 / baseHatVelocity);
+  h.audio.updateSession(original); h.advance(3.9);
+  assert.ok(sampleAt(1, 2.56)); assert.equal(sampleAt(0, 2.81), undefined);
+  assert.equal(h.audio.position.mode, 'loop'); assert.equal(h.intervals.size, 1);
+});
