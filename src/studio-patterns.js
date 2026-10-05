@@ -3,6 +3,8 @@ import { generateGroove } from './generator.js';
 import { ticksPerBar, validateSession } from './session.js';
 import { getDiatonicChords } from './progression.js';
 import { mergeSession } from './studio-state.js';
+import { getInstrumentProfile } from './instrument-profile.js';
+import { INSTRUMENT_PATTERNS, loadInstrumentPattern, resolveInstrumentPatternNotes } from './instrument-patterns.js';
 
 // A silent/disabled chord is still authored music; an empty phrase alone is not an empty session.
 export function hasPreservableMusic(session) {
@@ -46,6 +48,7 @@ export function patternPatch(session, pattern, { expand = false, changeStructure
     // Only a loop that covered the whole session follows an explicitly accepted expansion.
     if (session.loop.startBar === 0 && session.loop.endBar === session.bars) patch.loop = { startBar: 0, endBar: bars };
   }
+  if (pattern.instrument) patch.notes = resolveInstrumentPatternNotes(mergeSession(session, patch), pattern, notes);
   if (!hasPreservableMusic(session)) patch.bpm = pattern.bpm;
   return patch;
 }
@@ -107,13 +110,29 @@ export function mountStudioPatterns(host) {
     const { pattern, requirements } = request;
     if (commit(pattern, requirements)) dismiss();
   });
-  for (const groove of GROOVES) {
-    for (const id of ['groove-library', 'empty-pattern']) {
-      const option = document.createElement('option'); option.value = groove.id; option.textContent = groove.name; $(id).append(option);
-    }
+  const filter = document.createElement('select'); filter.id = 'pattern-instrument-filter'; filter.setAttribute('aria-label', 'Filtrar padrões por instrumento');
+  for (const [value, label] of [['rhythm', 'Ritmo'], ['guitar', 'Guitarra'], ['bass', 'Baixo']]) {
+    const option = document.createElement('option'); option.value = value; option.textContent = label; filter.append(option);
   }
+  $('groove-library').before(filter);
+  const catalog = [...GROOVES, ...INSTRUMENT_PATTERNS];
+  function populate(category) {
+    filter.value = category;
+    const entries = category === 'rhythm' ? GROOVES : INSTRUMENT_PATTERNS.filter(item => item.instrument === category);
+    for (const id of ['groove-library', 'empty-pattern']) {
+      $(id).replaceChildren();
+      for (const entry of entries) {
+        const option = document.createElement('option'); option.value = entry.id; option.textContent = entry.name; $(id).append(option);
+      }
+    }
+    describe(entries[0].id);
+  }
+  filter.addEventListener('change', () => populate(filter.value));
+  // Reset on every library opening, not only at mount or when a profile is first selected.
+  phraseDialog.addEventListener('toggle', () => { if (phraseDialog.open) populate(getInstrumentProfile(host.getSession()).type); });
+  for (const id of ['open-pattern', 'open-phrase-tools']) $(id).addEventListener('click', () => populate(getInstrumentProfile(host.getSession()).type));
   function describe(value) {
-    const groove = GROOVES.find(item => item.id === value);
+    const groove = catalog.find(item => item.id === value);
     $('groove-library').value = $('empty-pattern').value = value;
     $('groove-description').textContent = $('empty-pattern-description').textContent = groove?.description ?? '';
     $('groove-details').replaceChildren();
@@ -126,7 +145,8 @@ export function mountStudioPatterns(host) {
   for (const id of ['groove-library', 'empty-pattern']) $(id).addEventListener('change', event => describe(event.target.value));
   function load() {
     if (host.isBusy()) return;
-    const pattern = loadGroove($('groove-library').value);
+    const id = $('groove-library').value;
+    const pattern = GROOVES.some(item => item.id === id) ? loadGroove(id) : loadInstrumentPattern(id);
     const session = host.getSession(); const requirements = patternRequirements(session, pattern);
     if (!requirements.expand && !requirements.changeStructure) { commit(pattern); return; }
     request = { session, pattern, requirements }; previousFocus = document.activeElement;
@@ -157,5 +177,5 @@ export function mountStudioPatterns(host) {
   }
   $('start-band').addEventListener('click', () => startBand(false));
   $('start-full-band').addEventListener('click', () => startBand(true));
-  describe(GROOVES[0].id);
+  populate(getInstrumentProfile(host.getSession()).type);
 }

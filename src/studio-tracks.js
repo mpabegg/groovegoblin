@@ -1,5 +1,6 @@
 import { TIMBRES, TIMBRE_LABELS, STYLES, DENSITIES, STYLE_LABELS, DENSITY_LABELS } from './session.js';
 import { getInstrumentProfile } from './instrument-profile.js';
+import { mountStudioBassStudy } from './studio-bass-study.js';
 
 const names = { phrase: 'Frase', chords: 'Acordes', drums: 'Bateria', bass: 'Baixo', metronome: 'Metrônomo' };
 
@@ -58,11 +59,13 @@ export function mountStudioTracks(host) {
     if (channel === 'phrase') popover.append(document.getElementById('open-phrase-tools'));
     controls.push({ channel, volume, output, mute, solo, timbre, summary });
   }
+  const bassStudy = mountStudioBassStudy(host);
   function render() {
     const session = host.getSession();
     const phraseName = getInstrumentProfile(session).type === 'bass' ? 'Baixo (meu)' : 'Guitarra';
     document.getElementById('editor-title').textContent = phraseName;
     document.getElementById('track-phrase').setAttribute('aria-label', `Faixa de ${phraseName}`);
+    bassStudy.render();
     for (const { channel, volume, output, mute, solo, timbre, summary } of controls) {
       const value = session.mixer[channel];
       volume.value = Math.round(value.volume * 100); volume.setAttribute('aria-valuetext', `${volume.value}%`);

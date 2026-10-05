@@ -45,6 +45,18 @@ As seções abaixo registram resultados observados, não verificações antecipa
 - Verificação final da branch: **477/477 testes**, **115 módulos**, zero falhas.
 - Integração publicada na `main`: `6f7c74a`; **477/477 testes e check repetidos na main**, push concluído com a credencial GitHub já existente.
 
+### Etapa 4 — Baixo como estudo e padrões
+
+- No navegador, Rock/Média sobre C–F–G–C produziu **32 notas editáveis**, com tônicas **36/29/31/36** (C2/F1/G1/C2), todas tocáveis no baixo de quatro cordas. Alterar intensidade no inspetor persistiu **0,55**. Desfazer voltou à frase vazia; cancelar substituição preservou o JSON inteiro.
+- Baixo de cinco cordas/Drop D também produziu 32 posições válidas. Na afinação personalizada E2–A2–D3–G3, a geração dobrou apenas as oitavas necessárias: tônicas **48/41/43/48**, sem descartar notas.
+- Estudar Shuffle/Cheia com swing global **0,4** pediu confirmação; cancelar preservou tudo. Confirmar copiou 32 notas, perfil Baixo e timbre real **upright-bass**, desligando o acompanhamento de baixo. O consumidor real do arranjo no navegador preservou ataques/durações com diferença máxima **3,334×10⁻¹⁰ tick**, além de alturas, velocidades, articulações, offsets e timbre. Desfazer restaurou a transação completa.
+- Decisão monofônica: Jazz/Cheia tinha quatro sustentações sobrepostas no gerador legado. Somente a cópia editável foi encurtada até o próximo ataque, com informação na confirmação e no aviso; o gerador e o som legado não foram alterados. Swing executado é invertido para escrita antes de reaplicar a temporização da sessão.
+- Filtros reais: **Ritmo 11 / Guitarra 8 / Baixo 10**, abrindo no perfil atual. Tônica em semínimas produziu 16 notas; mudar harmonia para D–G–A–D preservou a frase autoral, e recarregar o padrão resolveu os graus novos **2/7/9/2**, mantendo BPM 100 e quatro compassos. Cancelar o padrão legado 7/8 preservou a sessão.
+- Parâmetros/diferenças da bateria são preservados; Complementar pode responder naturalmente à frase nova, sem congelar seu gerador. Solfejo mudou o bloco do baixo para **Dó**, com tooltip **Dó2**.
+- Verificação após integrar partitura e afinador: **522/522 testes**, **123 módulos**, zero falhas. Capturas: [1440×900](rodada-3-etapa4-1440x900.png), [1280×800](rodada-3-etapa4-1280x800.png).
+- Após recarga da integração, as 32 notas e tônicas permaneceram; partitura mostrou **F8vb, quatro linhas, 32 casas e quatro cifras**. Capturas refeitas com partitura recolhida: **53 controles realmente visíveis** (`checkVisibility`), quatro faixas ligadas e transporte **53 px**, numa linha em ambas as larguras. A contagem preliminar por `getClientRects` incluía quatro controles não pintados dentro de detalhes fechados; não foi usada como métrica final.
+
+
 
 ### Etapa 7 — Entrada por instrumento
 
@@ -70,6 +82,7 @@ As seções abaixo registram resultados observados, não verificações antecipa
 - Zero capturas na abertura. Abrir Afinador pelo perfil fez uma captura; fechar encerrou a track. Com Instrumento já ativo no Treinar, abrir/fechar Afinador reutilizou a mesma captura e a manteve ativa. Trocar foco para outra aba encerrou todas as tracks e preservou a preferência Instrumento.
 - O desvio/ponteiro mede a corda real mais próxima do perfil; a nota cromática detectada também é mostrada. Somente monofônico, sem gravação nem envio.
 - Capturas: [afinador 1440×900](rodada-3-etapa8-1440x900.png), [entrada compacta 1280×800](rodada-3-etapa8-1280x800.png). Treinar com quatro compassos/Tab, Instrumento e Afinador: documento **900 px**, painel até **y=823,69** em 1440×900. Estúdio continua com **53 controles/53 px** em 1280 px; zero erros de navegador.
+- Integração publicada na `main`: `4c2b17f`; **510/510 testes e check repetidos na main**, push concluído. A etapa 8 foi integrada antes de 4–6, conforme a independência autorizada.
 
 
 ## Critérios de aceitação
@@ -82,12 +95,12 @@ As seções abaixo registram resultados observados, não verificações antecipa
 | 4 | Terceira corda + casa 5 produz altura correta | Passou no navegador: corda 3/casa 5 → C4/MIDI 60 |
 | 5 | Troca de corda preserva altura; Drop D atualiza casas | Passou: C4 muda de corda sem transpor; E2 na sexta vira casa 2 em Drop D |
 | 6 | Cifras, ritmo e tablatura alinhados em sistemas de quatro compassos nas duas vistas | Passou: quatro sistemas numa sessão de 16 compassos, alinhamento exato e cursor/ligadura em reprodução e treino |
-| 7 | Linha Rock sobre C–F–G–C vira frase editável no registro do baixo | Pendente |
-| 8 | Estudar esta linha copia baixo e troca perfil | Pendente |
+| 7 | Linha Rock sobre C–F–G–C vira frase editável no registro do baixo | Passou: 32 notas, tônicas C2/F1/G1/C2, edição/undo e afinações de quatro/cinco cordas |
+| 8 | Estudar esta linha copia baixo e troca perfil | Passou: confirmação/cancelamento, perfil/timbre, shuffle sem swing duplo, cópia monofônica e undo atômico |
 | 9 | Braço mostra funções do acorde selecionado e acompanha reprodução | Pendente |
 | 10 | Desenhos tocáveis para C, G, D, Am, Em, F e B7 | Pendente |
 | 11 | Blues ocupa 12 compassos; oferece ajuste quando a sessão tem quatro | Pendente |
-| 12 | Filtro Ritmo/Guitarra/Baixo; padrões de baixo seguem harmonia | Pendente |
+| 12 | Filtro Ritmo/Guitarra/Baixo; padrões de baixo seguem harmonia | Passou: 11/8/10 opções; graus resolvidos contra C–F–G–C e D–G–A–D pelo fluxo real |
 | 13 | Contagem de um compasso antes de Tocar | Pendente |
 | 14 | Acelerador +5 a cada duas voltas; BPM salvo permanece intacto | Pendente |
 | 15 | Afinador de 30,87 a 1318,5 Hz: erro até 5 cents e corda correta | Passou: testes puros/harmônicos em várias taxas e oito frequências na captura simulada real; cordas 5/4/3/1 conferidas no baixo |

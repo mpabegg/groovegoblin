@@ -194,6 +194,7 @@ test('pattern dialog cancels without mutation, accepts explicit structural choic
     get id() { return this._id; }
     setAttribute() {}
     append(...children) { this.children.push(...children); }
+    before() {}
     replaceChildren(...children) { this.children = children; }
     addEventListener(type, listener) { this.listeners[type] = listener; }
     focus() {}
@@ -201,7 +202,7 @@ test('pattern dialog cancels without mutation, accepts explicit structural choic
     close() { this.open = false; this.listeners.close?.(); }
     getBoundingClientRect() { return { left: 0, top: 0, right: 100, bottom: 100 }; }
   }
-  for (const id of ['phrase-tools-dialog', 'groove-library', 'empty-pattern', 'groove-description', 'empty-pattern-description', 'groove-details', 'load-groove', 'start-pattern', 'generate', 'variation', 'generate-phrase', 'empty-generate', 'start-band', 'start-full-band']) {
+  for (const id of ['phrase-tools-dialog', 'open-pattern', 'open-phrase-tools', 'groove-library', 'empty-pattern', 'groove-description', 'empty-pattern-description', 'groove-details', 'load-groove', 'start-pattern', 'generate', 'variation', 'generate-phrase', 'empty-generate', 'start-band', 'start-full-band']) {
     const node = new Node(); node.id = id;
   }
   const original = globalThis.document;
