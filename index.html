@@ -114,7 +114,7 @@
   <section id="studio-inspector" class="panel studio-inspector" aria-label="Inspetor da seleção">
     <span id="selection-text"></span>
     <div id="phrase-actions" class="phrase-actions"><button id="open-pattern" type="button" aria-haspopup="dialog">Carregar padrão</button><button id="generate-phrase" type="button">Gerar frase</button><button id="clear" type="button">Limpar</button><details id="transpose-options"><summary>Transpor</summary><div class="inspector-popover"><label>Semitons <input id="transpose-semitones" type="number" min="-24" max="24" step="1" value="0"></label><button id="transpose-phrase" type="button">Transpor frase</button></div></details></div>
-    <section id="note-detail" aria-label="Editar nota selecionada" hidden><div id="inspector-content" class="note-inspector-row">
+    <section id="note-detail" aria-label="Editar seleção de notas" hidden><div id="inspector-content" class="note-inspector-row">
       <div id="presets" class="presets" role="group" aria-label="Durações em figuras musicais"></div><details id="more-durations"><summary>Mais durações</summary><div id="extra-presets" class="inspector-popover presets" role="group" aria-label="Durações pontuadas e quiálteras"></div></details>
       <label>Intensidade <input id="note-velocity" type="number" min="0" max="100" step="1"> %</label><label>Articulação <select id="note-articulation"></select></label><button id="delete" type="button">Excluir nota</button>
       <details id="note-advanced"><summary>Avançado</summary><div class="inspector-popover"><span id="note-pitch-name"></span><div class="tool-row"><label>Altura (número MIDI)<input id="note-pitch" type="number" min="21" max="108" step="1"></label><label>Posição exata (ticks)<input id="note-start" type="number" min="0" step="any"></label><label>Duração exata (ticks)<input id="note-duration" type="number" min="0.01" step="any"></label><label>Microtempo (ms)<input id="note-offsetMs" type="number" min="-80" max="80" step="1"></label></div><p class="tool-hint muted">Microtempo é o deslocamento do ataque em milissegundos: negativo antecipa e positivo atrasa, sem mudar a posição escrita.</p></div></details>
@@ -128,7 +128,7 @@
         <label>Outro símbolo <input id="chord-symbol" type="text" maxlength="30" aria-label="Outro símbolo de acorde" placeholder="Ex.: Dm7, G7/B"></label>
         <div id="chord-inversions" class="chord-inversions" role="group" aria-label="Inversão do acorde"></div>
       </div></details>
-      <p id="harmony-help" class="sr-only">Clique no vazio para criar uma tônica nesse compasso. Arraste para mover ou reordenar; a borda direita muda a duração. Setas ←/→ movem um tempo; Shift+setas redimensiona. Enter seleciona; Delete exclui. Espaço toca/para.</p>
+      <p id="harmony-help" class="sr-only">Clique no vazio para criar uma tônica nesse compasso. Shift+clique alterna seleção; arrastar no fundo seleciona por retângulo; Ctrl+A seleciona os acordes reais. Arraste para mover ou reordenar; a borda direita muda a duração. Setas ←/→ movem um tempo; Shift+setas redimensiona. Enter seleciona; Delete/Backspace exclui. Ctrl+C/V/D copia internamente, cola na posição da faixa ou duplica após o grupo. Operações de grupo preservam limites e pausas. Espaço toca/para; prévias curtas só soam com áudio parado.</p>
     </section>
   </section>
   <div class="studio-secondary-options">
@@ -155,7 +155,7 @@
       <div id="practice-rhythm-score" class="rhythm-score" aria-label="Partitura rítmica da frase atual"></div>
       <section id="performance-input" class="practice-input" aria-label="Toque o ritmo">
         <button id="train-pad" type="button" class="train-pad" disabled aria-label="Tocar o ritmo: pressione no início da nota e solte no final" title="Espaço: pressione no ataque, segure e solte no término"><span id="train-state">Escolha Treinar esta frase para começar.</span><span id="held-state" class="held-state">ESPAÇO ou toque</span></button>
-        <details id="input-options" class="control-detail"><summary>Opções de toque</summary><div class="tool-row"><label>Altura ao tocar (MIDI)<input id="input-pitch" type="number" min="21" max="108" value="69"></label><label class="toggle"><input id="minimal" type="checkbox"> Foco na execução</label></div><p class="tool-hint muted">Teclado mede pressionar e soltar. Instrumento analisa ataques localmente, sem gravar ou enviar áudio; a latência varia com o dispositivo. Calibre a entrada usando fones.</p></details>
+        <details id="input-options" class="control-detail"><summary>Avançado · opções de toque</summary><div class="tool-row"><label>Altura ao tocar (MIDI)<input id="input-pitch" type="number" min="21" max="108" value="69"></label><label class="toggle"><input id="minimal" type="checkbox"> Foco na execução</label></div><p class="tool-hint muted">A altura do Teclado é escolhida manualmente, não medida pelo toque. Teclado mede pressionar e soltar; Instrumento avalia apenas ataques, sem medir duração, altura ou força. A entrada é analisada localmente, sem gravar ou enviar áudio; use fones, teste a entrada e calibre a latência.</p></details>
       </section>
       <details id="training-options" class="control-detail"><summary>Configurar treino</summary><div class="tool-row">
         <label>Entrada (compassos)<input id="count-in" data-path="training.countInBars" type="number" min="0" max="4"></label>
@@ -181,22 +181,22 @@
 </dialog>
 <dialog id="shortcuts-dialog" class="shortcuts-dialog" aria-labelledby="shortcuts-title" aria-describedby="shortcuts-scope">
   <h2 id="shortcuts-title">Atalhos de teclado</h2>
-  <p id="shortcuts-scope">No Estúdio, fora dos campos de edição. Durante o treino, Espaço continua sendo o toque do ritmo.</p>
+  <p id="shortcuts-scope">No Estúdio, fora de campos, diálogos e controles com ativação própria. Na entrada Teclado, durante contagem e treino, Espaço pressiona/solta o ritmo; Instrumento usa os ataques capturados. Ctrl equivale a ⌘ no macOS.</p>
   <dl>
-    <dt><kbd>Espaço</kbd></dt><dd>Tocar / parar a sessão no Estúdio.</dd>
-    <dt><kbd>Esc</kbd></dt><dd>Interromper todo o som e limpar seleção/inspetor, inclusive nos campos; fechar esta ajuda.</dd>
-    <dt><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Shift+Z</kbd></dt><dd>Desfazer / refazer a sessão (⌘ no macOS).</dd>
-    <dt><kbd>Delete</kbd></dt><dd>Excluir todas as notas ou acordes selecionados.</dd>
+    <dt><kbd>Espaço</kbd></dt><dd>Tocar / parar a sessão no Estúdio, inclusive com foco na Bateria; nunca adiciona/remove um ataque.</dd>
+    <dt><kbd>Esc</kbd></dt><dd>Interromper todo o som, inclusive nos campos; fechar esta ajuda. Sem diálogo aberto, limpar seleção/inspetor no Estúdio. No tour, fechar e restaurar a vista anterior.</dd>
+    <dt><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Shift+Z</kbd> / <kbd>Ctrl+Y</kbd></dt><dd>Desfazer / refazer a sessão.</dd>
+    <dt><kbd>Delete</kbd> / <kbd>Backspace</kbd></dt><dd>Excluir todas as notas ou acordes selecionados; na Bateria, remover o ataque na posição e voz navegadas.</dd>
     <dt><kbd>Shift+clique</kbd> / arrastar no fundo</dt><dd>Alternar seleção múltipla / selecionar por retângulo. Ctrl+A seleciona toda a faixa com foco.</dd>
-    <dt><kbd>Ctrl+C</kbd> / <kbd>Ctrl+V</kbd> / <kbd>Ctrl+D</kbd></dt><dd>Na faixa com foco, copiar internamente / colar no cursor da grade / duplicar logo após a seleção. Não pede acesso à área de transferência.</dd>
+    <dt><kbd>Ctrl+C</kbd> / <kbd>Ctrl+V</kbd> / <kbd>Ctrl+D</kbd></dt><dd>Na Frase ou nos acordes reais com foco, copiar internamente / colar no cursor da faixa / duplicar logo após a seleção. Não pede acesso à área de transferência. Conflitos recusam a operação inteira.</dd>
     <dt><kbd>Enter</kbd> / <kbd>↓</kbd></dt><dd>Na grade, criar na posição navegada / entrar nas notas. PageUp e PageDown escolhem a nota anterior e seguinte.</dd>
     <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>No editor, mover todas as notas selecionadas; <kbd>↑</kbd> <kbd>↓</kbd> mudam a duração. Shift usa uma semínima. Intensidade no inspetor aplica a toda a seleção.</dd>
-    <dt><kbd>←</kbd> <kbd>→</kbd> / <kbd>Shift+←</kbd> <kbd>Shift+→</kbd></dt><dd>Na harmonia, mover / redimensionar um tempo escrito. Enter seleciona um acorde; na faixa vazia, cria uma tônica.</dd>
-    <dt><kbd>←</kbd> <kbd>→</kbd> / <kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Na Bateria, navegar posições / escolher linha. Enter adiciona/remove; Delete remove. Shift+↑/↓ ajusta intensidade; PageUp/PageDown escolhe percussões sobrepostas. Espaço toca/para, sem editar. Uma única parada de Tab para as três linhas.</dd>
+    <dt><kbd>←</kbd> <kbd>→</kbd> / <kbd>Shift+←</kbd> <kbd>Shift+→</kbd></dt><dd>Nos acordes, mover / redimensionar o grupo em um tempo escrito. Enter seleciona um acorde; na faixa vazia, cria uma tônica. A Frase não muda.</dd>
+    <dt><kbd>←</kbd> <kbd>→</kbd> / <kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Na Bateria, navegar posições (Home/End vai aos extremos) / escolher linha. Enter adiciona/remove; Delete/Backspace remove. Shift+↑/↓ ajusta intensidade; PageUp/PageDown escolhe vozes auxiliares sobrepostas em Chimbal +. Espaço toca/para, sem editar. Uma única parada de Tab para as três linhas.</dd>
     <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> <kbd>6</kbd> <kbd>8</kbd></dt><dd>Na frase: semicolcheia, colcheia, colcheia pontuada, semínima, semínima pontuada e mínima, respectivamente.</dd>
     <dt>Régua: clique / arrastar / clique duplo</dt><dd>Escolher início de reprodução / definir loop de compassos / restaurar loop completo. A régua tem um só foco de Tab: setas/Home/End escolhem início e revelam a posição; Shift+setas ajustam o fim (Shift+Home restaura tudo). Enter ou Shift+F10 abre ações do compasso atual; botão direito no número abre esse compasso.</dd>
     <dt>Faixas: M / S / volume</dt><dd>Silêncio manual / solo temporário (permite várias faixas) / volume. Desligar todos os solos restaura os silêncios e volumes guardados; o metrônomo não participa do solo.</dd>
-    <dt><kbd>?</kbd></dt><dd>Abrir esta ajuda. Clique no fundo para criar com a duração ativa do cabeçalho; arraste o meio da nota para mover ou a alça direita de 6 px para mudar a duração. Em notas menores que 12 px, use ↑/↓ para duração.</dd>
+    <dt><kbd>?</kbd></dt><dd>Abrir esta ajuda. Clique no fundo para criar com a duração ativa lembrada no cabeçalho; quatro figuras e Mais escolhem essa duração e também editam o grupo selecionado. Arraste o meio da nota para mover ou a alça direita de 6 px para mudar a duração. Em notas menores que 12 px, use ↑/↓. Criar/selecionar notas ou selecionar acordes oferece uma prévia curta só com áudio parado. Baixo é gerado: ajuste estilo/densidade no cabeçalho.</dd>
   </dl>
   <button id="shortcuts-close" type="button" autofocus>Fechar atalhos</button>
 </dialog>

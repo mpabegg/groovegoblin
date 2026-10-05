@@ -65,8 +65,8 @@ export class InstrumentCapture {
       if (generation !== this.#generation) return false;
       Object.assign(this, resolveInputDevice(actual, devices, settings.deviceId, track.label));
       this.inputLatencySeconds = Number.isFinite(actual.latency) && actual.latency >= 0 ? actual.latency : 0;
-      track.onended = () => this.#fail('Entrada de áudio desconectada. O treino foi interrompido.');
-      track.onmute = () => this.#fail('Entrada de áudio interrompida pelo dispositivo ou navegador.');
+      track.onended = () => this.#fail('Entrada de áudio desconectada. O treino foi interrompido.', true);
+      track.onmute = () => this.#fail('Entrada de áudio interrompida pelo dispositivo ou navegador.', true);
       context = new AudioContext({ latencyHint: 'interactive' });
       this.#context = context;
       await context.audioWorklet.addModule(new URL('./instrument-worklet.js', import.meta.url));
@@ -95,14 +95,14 @@ export class InstrumentCapture {
           const current = resolveInputDevice(track.getSettings(), devices, settings.deviceId, track.label);
           if ((!isAlias(this.deviceId) && !devices.some(device => device.deviceId === this.deviceId))
             || (this.calibrationDeviceId && current.calibrationDeviceId && current.calibrationDeviceId !== this.calibrationDeviceId)
-            || !devices.length) this.#fail('Entrada de áudio desconectada ou substituída. O treino foi interrompido.');
+            || !devices.length) this.#fail('Entrada de áudio desconectada ou substituída. O treino foi interrompido.', true);
         } catch (error) { if (generation === this.#generation) this.#fail(error.message); }
       };
       navigator.mediaDevices.addEventListener('devicechange', this.#deviceListener);
       this.onDevices(devices);
       return generation === this.#generation;
     } catch (error) {
-      if (generation === this.#generation) this.#fail(errors[error.name] ?? error.message);
+      if (generation === this.#generation) this.#fail(errors[error.name] ?? error.message, ['NotFoundError', 'NotReadableError', 'OverconstrainedError'].includes(error.name));
       else { stream?.getTracks().forEach(track => track.stop()); if (context && context.state !== 'closed') void context.close().catch(() => {}); }
       return false;
     }
@@ -111,7 +111,7 @@ export class InstrumentCapture {
     Object.assign(this.settings, settings);
     this.#worklet?.port.postMessage({ type: 'settings', settings });
   }
-  #fail(message) { this.stop(); this.onError(message); }
+  #fail(message, recoverDevices = false) { this.stop(); this.onError(message, { recoverDevices }); }
   stop() {
     ++this.#generation;
     if (this.#deviceListener) navigator.mediaDevices?.removeEventListener('devicechange', this.#deviceListener);

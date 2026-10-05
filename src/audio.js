@@ -556,7 +556,8 @@ export class GrooveAudio {
       if (bar >= this.#countInBars) sessionTick = this.#sessionBarOf(bar) * this.#barTicks + (tick - bar * this.#barTicks);
     }
     if (monitor) this.#startMonitor(pitch ?? (this.#session ? referencePitch(this.#session, sessionTick) : 69));
-    if (mode !== 'train' || audioTime < this.#trainStartTime()
+    // position describes the audible clock, not the compensated event's window.
+    if (this.#mode !== 'train' || audioTime < this.#trainStartTime()
       || audioTime >= this.#timeOfTick(this.#endBar * this.#barTicks)) return;
 
     const attempt = { start: audioTime - this.#trainStartTime(), end: null, pitch };

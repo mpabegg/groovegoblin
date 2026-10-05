@@ -195,7 +195,6 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 .studio-canvas { min-width: 100%; }
 .studio-lanes { position: relative; }
 .studio-ruler, .studio-track, .score-row { display: grid; grid-template-columns: 200px minmax(0, 1fr); }
-.studio-ruler { height: 24px; }
 .studio-track { min-height: 68px; border-top: 1px solid var(--line); }
 #track-chords { height: 110px; }
 #track-phrase { height: 88px; }

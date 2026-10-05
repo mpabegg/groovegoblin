@@ -68,7 +68,7 @@ export function mountStudioTransport(host) {
   window.addEventListener('keydown', event => {
     if (event.key !== 'Escape') return;
     host.stop();
-    if (document.body.dataset.intent === 'studio') host.deselect?.();
+    if (document.body.dataset.intent === 'studio' && !dialogOpen()) host.deselect?.();
     if (dialog.open) { event.preventDefault(); dialog.close(); }
   }, { capture: true });
   window.addEventListener('keydown', event => {

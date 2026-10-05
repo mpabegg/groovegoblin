@@ -79,6 +79,20 @@ As seções abaixo recebem decisões e resultados observados ao concluir cada et
 - Contador no navegador: **zero** chamadas de captura ao abrir, **uma** depois de selecionar Instrumento. Permissão negada real e ausência simulada retornaram ao Teclado com explicação. Evento de desconexão simulado numa faixa real durante treino interrompeu o transporte, voltou ao Teclado e deixou a faixa em `ended`.
 - Áudio de entrada é processado somente no dispositivo, sem gravação ou envio. Takes sintetizados não são gravações do instrumento. Fones são recomendados; coincidência com cliques só gera aviso de possível vazamento, não separação garantida de fontes.
 - Verificação após integrar as etapas 1–5: **388/388 testes**, **106 módulos, zero falhas**. Capturas: [1440×900](rodada-2-instrumento-1440x900.png), [1280×800](rodada-2-instrumento-1280x800.png).
+- Integração: `2f1c2b9` fast-forward na main; **388/388 testes e check** repetidos após merge; push confirmado.
+
+### Etapa 7 — Fechamento e aceitação integrada
+
+- README, guia, tour e folha de atalhos refletem sessão v4, bateria editável, transporte/régua e entrada por instrumento. O tour continua com quatro passos; os textos introdutórios foram encurtados, deixando detalhes no guia e nos atalhos. Removida regra de régua sobrescrita; duração personalizada agora usa unidade musical fora de Avançado.
+- Revisão independente encontrou dois defeitos de entrada, reproduzidos antes da correção. Dispositivo salvo indisponível escondia o único seletor: agora a escolha de substituto fica acessível no Teclado. No Chromium, escolher o substituto manteve **uma** solicitação de captura; só selecionar Instrumento novamente fez a **segunda**, que abriu a entrada.
+- Compensação negativa podia perder o primeiro ataque durante a contagem. O consumidor agora decide pelo instante corrigido dentro do intervalo avaliado. Web Audio real: ataque recebido durante `countin`, corrigido para **20,037 ms depois** da primeira pulsação avaliada, foi aceito; a soltura limpou o estado pressionado. Antes da correção, o mesmo cenário não registrava o ataque.
+- Acrescentadas **14 regressões** de recuperação, cancelamento de enumeração, identidade/calibração e fronteiras temporais de Teclado/Instrumento. Cobrem compensação negativa/zero/positiva, início, último ataque válido, fim exclusivo e ausência de estado pressionado preso.
+- Escape na ajuda modal preserva a seleção; fora da ajuda, continua limpando seleção e parando o som. A restauração do tour agora reabre também o popover nativo, não só o atributo do menu. Navegador: quatro passos completos, término rápido e Escape durante transição restauraram atividade, sessão, menu visível e foco em Como usar; clique externo fechou o menu.
+- Revalidação integrada: Tresillo manteve 72 BPM, quatro compassos e quatro acordes; mover nota durante loop manteve Parar. A tabela de forma habilitou reprodução após adicionar seção. Bateria recebeu bumbo manual na posição 1 e intensidade 70% por teclado.
+- Capturas finais inspecionadas: [1440×900](rodada-2-final-1440x900.png) e [1280×800](rodada-2-final-1280x800.png). Em ambas: **50 controles**, transporte de **53 px**, inspetor até **y=765 px**, sem overflow horizontal da página.
+- Build servido em `/groovegoblin/`, como publicação em subdiretório. Instalação offline armazenou **79 recursos**, incluindo worklet, módulo de edição de bateria e recursos do kit. Sem rede, importação e reload preservaram sessão v4 com **12 notas, quatro acordes e bumbo manual a 70%**; o transporte iniciou o loop. Uma execução offline isolada também produziu áudio medido no Web Audio (**pico 0,2470**).
+- Ainda sem rede, getUserMedia e AudioWorklet abriram a entrada simulada; Canal 2 registrou ataque no diagnóstico. Retorno ao Teclado encerrou a captura. Nenhum erro de execução foi registrado pelo navegador nesse ensaio. O arquivo temporário de importação foi removido.
+- Verificação final na branch: `npm test` **402/402**, `npm run check` **106 módulos, zero falhas**, `npm run build` concluído. Os resultados de cada etapa permanecem acima; a ressalva de instrumento físico permanece abaixo.
 
 
 ## Critérios de aceitação
@@ -105,10 +119,10 @@ As seções abaixo recebem decisões e resultados observados ao concluir cada et
 | 18 | Detector sintético: erro <=10ms, sem falsos ataques sustentados | Passou: suíte de sinais; WAV do navegador com erro de 0,146 ms |
 | 19 | Instrumento usa relatório comum; duração/altura não avaliadas | Passou: navegador e regressões da cadeia até avaliação |
 | 20 | Calibração por dispositivo altera desvio seguinte | Passou: 23 ms/zero aplicados exatamente e compensação específica restaurada após reload |
-| 21 | Permissão negada/ausência retorna ao Teclado | Passou: negação real, ausência simulada e desconexão simulada encerrando faixa real |
+| 21 | Permissão negada/ausência retorna ao Teclado | Passou: negação real, ausência/desconexão simuladas e escolha explícita de dispositivo substituto sem captura automática |
 | 22 | Nenhuma permissão solicitada antes de escolher Instrumento | Passou: contador zero ao abrir, uma chamada após seleção |
 | 23 | Removidas afirmações de que microfone não é usado | Textos globais corrigidos; descrições específicas de atividades sem captura permanecem verdadeiras e fora do escopo |
-| 24 | Preservados requisitos da primeira rodada | Pendente |
+| 24 | Preservados requisitos da primeira rodada | Passou nos caminhos verificados: 402 regressões, edição ao vivo, quatro faixas, forma, migrações/intercâmbio, tour/teclado e execução offline |
 
 ## Limite de evidência de áudio
 

@@ -2,18 +2,20 @@
 // Não toca som, não altera a sessão nem o histórico; ao sair, devolve aba,
 // painéis abertos, modo de foco, rolagem e foco exatamente como estavam.
 
+import { setStudioDetailsOpen } from './studio-popovers.js';
+
 export const TOUR_STORAGE_KEY = 'groovegoblin:tour:v1';
 
 const STEPS = [
   {
     tab: 'tab-studio', target: '#studio-editor',
     title: 'Estúdio: editar e tocar sua Sessão',
-    body: 'Acordes, Frase, Bateria e Baixo compartilham régua, zoom e um único cursor. Clique na régua escolhe início; arraste define o loop verde; clique duplo restaura tudo. A régua tem um só foco de Tab: setas/Home/End escolhem início; Enter/Shift+F10 abre ações do compasso. Zoom mostra 4 ou 2 compassos, com cabeçalhos fixos. Acordes tracejados são repetições automáticas: clique para materializar. Na Frase, clique cria; arraste notas ou a borda para editar. Na Bateria, clique no vazio adiciona, num ataque remove; arraste verticalmente para intensidade. Um foco de Tab: setas navegam posição/linha; Enter alterna ataque; Shift+cima/baixo ajusta intensidade. Variar ou mudar estilo com edições oferece Manter, Descartar ou Cancelar; densidade mantém. Restaurar (padrão gerado) aparece só com diferenças e admite Desfazer. Cada cabeçalho tem M, S e volume; desligar solos restaura o mix guardado. Tom, progressões, estilos, densidades e Variar continuam visíveis. “Som” conserva timbre/opções e biblioteca da Frase. “Compasso” abre fórmula, subdivisão e swing. “Sessão” abre biblioteca, arquivos e links.',
+    body: 'As quatro faixas usam a mesma régua. Na Frase, escolha uma figura e clique para criar; arraste o corpo para mover e a borda para mudar a duração. Shift+clique seleciona um grupo. Na Bateria, clique adiciona/remove e arraste na vertical para ajustar intensidade; o Baixo é gerado. Tom, estilo, mudo, solo e volume ficam nos cabeçalhos. Na régua, clique escolhe o início, arraste define o loop e clique duplo restaura tudo. Zoom mostra dois ou quatro compassos; a rolagem acompanha a reprodução. Consulte “Atalhos” para operações de grupo e teclado.',
   },
   {
-    tab: 'tab-practice', target: '#train-pad',
+    tab: 'tab-practice', target: '#performance-input',
     title: 'Treinar: tocar → comparar → repetir',
-    body: 'Confira a partitura da frase atual, organizada em linhas de quatro compassos. “Ouvir frase” toca uma passagem audível sem mudar mutes, volume ou sessão, com a mesma parada global. Use “Treinar esta frase”. Na entrada Teclado, espere a contagem, pressione Espaço ou a área de toque no início e solte no final; Espaço toca o ritmo, não inicia um loop. Para tocar seu instrumento, selecione Instrumento: só essa escolha solicita áudio, analisado localmente sem gravação ou envio. Use fones, escolha dispositivo/canal e calibre a latência. Instrumento avalia apenas ataques, não duração nem altura. Os resultados aparecem abaixo do treino. “Editar no Estúdio” volta ao editor; a prática guiada não substitui a sessão guardada.',
+    body: '“Ouvir frase” toca uma passagem sem mudar sua sessão. Depois, escolha “Treinar esta frase”. No Teclado, espere a contagem: pressione Espaço no ataque e solte no final. Ao escolher Instrumento, autorize a entrada, confira dispositivo/canal e use “Testar entrada”; só os ataques são avaliados, não duração ou altura. Use fones e “Calibrar latência · 8 cliques” antes de treinar. O áudio é analisado localmente, sem gravação ou envio. Abrir o app não inicia captura. Compare o resultado abaixo; “Editar no Estúdio” volta ao editor.',
   },
   {
     tab: 'tab-repertoire', target: '#repertoire-mount',
@@ -23,7 +25,7 @@ const STEPS = [
   {
     tab: 'tab-studio', target: '#tab-explore',
     title: 'Escolha sua atividade',
-    body: 'Estúdio, Treinar e Músicas ficam no topo. Em “Mais opções”, Explorar reúne jogos e experiências; Percurso mostra seus treinos e revisões. O mesmo botão “Parar” continua acessível quando há som em outras áreas, e Esc interrompe todo o áudio fora desta ajuda. “Ajuda e app → Como usar” abre este tour opcional; “Atalhos” e “Offline” ficam no mesmo menu. Ao fechar a ajuda, sua atividade, painéis, menus, foco e rolagem voltam ao estado anterior.',
+    body: 'Estúdio, Treinar e Músicas ficam no topo. Em “Mais opções”, Explorar reúne jogos e experiências; Percurso mostra seus treinos e revisões. O mesmo botão “Parar” continua acessível quando há som em outras áreas, e Esc interrompe todo o áudio, inclusive nesta ajuda. “Ajuda e app → Como usar” abre este tour opcional; “Atalhos” e “Offline” ficam no mesmo menu. Ao fechar a ajuda, sua atividade, painéis, menus, foco e rolagem voltam ao estado anterior.',
   },
 ];
 
@@ -72,8 +74,8 @@ export function mountTour(button, host) {
   const dialog = el('dialog', { className: 'tour', 'aria-labelledby': 'tour-title', 'aria-describedby': 'tour-body' }, spot, card);
   document.body.append(dialog);
 
-  // Isolamento: nenhuma tecla do tour chega aos atalhos globais (Esc para o
-  // transporte, Espaço toca no treino, atalhos do editor e do repertório).
+  // O tour isola os atalhos de edição e treino. A captura global de Esc
+  // ainda interrompe o áudio; aqui a mesma tecla fecha e restaura a vista.
   dialog.addEventListener('keydown', event => {
     event.stopPropagation();
     if (event.key === 'Escape') { event.preventDefault(); finish('skipped'); return; }
@@ -175,7 +177,7 @@ export function mountTour(button, host) {
     // Abrimos os ancestrais reais, incluindo details sem id, sem editar dados.
     document.body.classList.remove('performance-focus');
     for (let node = button.parentElement; node; node = node.parentElement) {
-      if (node instanceof HTMLDetailsElement) node.open = false;
+      if (node instanceof HTMLDetailsElement) setStudioDetailsOpen(node, false);
     }
     const targetNode = document.querySelector(step.target);
     const ancestors = [];
@@ -346,7 +348,7 @@ export function mountTour(button, host) {
     host.activateTab(restore.tab);
     for (const { node, id, open } of restore.details) {
       const details = id ? document.getElementById(id) : node;
-      if (details?.isConnected) details.open = open;
+      if (details?.isConnected) setStudioDetailsOpen(details, open);
     }
     document.body.classList.toggle('performance-focus', restore.focusMode);
     const grid = document.querySelector('#studio-scroll');

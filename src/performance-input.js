@@ -24,6 +24,8 @@ export function mountPerformanceInput(host) {
   let activeInput = null;
   let preparing = false;
   let selectionGeneration = 0;
+  let recoveringDevices = false;
+  let enumeratingDevices = false;
   let calibration = null;
   let calibrationTimer = null;
   let testing = false;
@@ -86,9 +88,24 @@ export function mountPerformanceInput(host) {
   }
   function renderDevices(devices) {
     device.replaceChildren();
-    if (!devices.length) device.append(el('option', { value: '', text: 'Nenhuma entrada disponível' }));
+    if (recoveringDevices) device.append(el('option', { value: '', text: devices.length ? 'Escolha outra entrada' : 'Nenhuma entrada disponível', disabled: true }));
+    else if (!devices.length) device.append(el('option', { value: '', text: 'Nenhuma entrada disponível' }));
     for (const [index, item] of devices.entries()) device.append(el('option', { value: item.deviceId, text: item.label || `Entrada de áudio ${index + 1}` }));
-    device.value = devices.some(item => item.deviceId === preferences.deviceId) ? preferences.deviceId : capture.deviceId;
+    device.value = recoveringDevices ? '' : devices.some(item => item.deviceId === preferences.deviceId) ? preferences.deviceId : capture.deviceId;
+  }
+  async function recoverDevices(request) {
+    try {
+      const devices = await capture.devices();
+      if (request !== selectionGeneration) return;
+      renderDevices(devices);
+      status.textContent += devices.length ? ' Escolha uma entrada e depois selecione Instrumento.' : ' Conecte uma entrada e selecione Instrumento para tentar novamente.';
+    } catch {
+      if (request !== selectionGeneration) return;
+      recoveringDevices = false;
+      status.textContent += ' Não foi possível listar as entradas; verifique o dispositivo antes de selecionar Instrumento novamente.';
+    }
+    if (request !== selectionGeneration) return;
+    enumeratingDevices = false; render(); host.changed();
   }
   const capture = new InstrumentCapture({
     onDevices: renderDevices,
@@ -98,10 +115,18 @@ export function mountPerformanceInput(host) {
       pad.style.setProperty('--input-level', String(Math.min(1, value * 4)));
       if (preferences.channel === '2' && channels === 1) status.textContent = 'Esta entrada tem apenas um canal. Escolha Canal 1 ou Soma.';
     },
-    onError(message) {
-      ++selectionGeneration; preparing = false; mode = 'keyboard'; entry.value = mode;
+    onError(message, { recoverDevices: recover = false } = {}) {
+      const request = ++selectionGeneration;
+      preparing = false; mode = 'keyboard'; entry.value = mode;
+      testing = false; diagnostic.hidden = true; test.textContent = 'Testar entrada';
+      recoveringDevices = recover; enumeratingDevices = recover;
+      if (recover) {
+        device.replaceChildren(el('option', { value: '', text: 'Procurando entradas disponíveis…', disabled: true }));
+        device.value = '';
+      }
       host.stop(); reset(); loadCompensation(); status.textContent = `${message} Voltamos ao Teclado.`;
       host.notify(status.textContent, true); host.changed();
+      if (recover) void recoverDevices(request);
     },
     onAttack(attack) {
       flashedUntil = performance.now() + 120;
@@ -110,8 +135,10 @@ export function mountPerformanceInput(host) {
         diagnostic.prepend(item); while (diagnostic.children.length > 32) diagnostic.lastChild.remove();
       }
       if (calibration) { calibration.attacks.push(attack.time); return; }
+      const time = compensatedTime(attack.time, storedCalibration ?? 0);
       const currentMode = audio.position.mode;
-      if (currentMode === 'countin') {
+      if (currentMode === 'countin' || currentMode === 'train') gate.attack(time);
+      if (currentMode === 'countin' && !audio.position.held) {
         leakClicks = audio.countInClicks;
         leakAttacks.push(attack.time);
         if (!leakWarned && detectClickLeak(leakClicks, leakAttacks).leaking) {
@@ -121,12 +148,12 @@ export function mountPerformanceInput(host) {
         }
         return;
       }
-      if (currentMode === 'train') gate.attack(compensatedTime(attack.time, storedCalibration ?? 0));
     },
   });
 
   async function selectMode(value) {
     const request = ++selectionGeneration;
+    recoveringDevices = false; enumeratingDevices = false;
     host.stop(); reset(); capture.stop(); testing = false; diagnostic.hidden = true;
     test.textContent = 'Testar entrada';
     mode = value; entry.value = value; preparing = value === 'instrument';
@@ -143,7 +170,12 @@ export function mountPerformanceInput(host) {
     render(); host.changed();
   }
   entry.addEventListener('change', () => { void selectMode(entry.value); });
-  device.addEventListener('change', () => { preferences.deviceId = device.value; persistPreferences(); void selectMode('instrument'); });
+  device.addEventListener('change', () => {
+    if (!device.value) return;
+    preferences.deviceId = device.value; persistPreferences();
+    if (mode === 'instrument') void selectMode('instrument');
+    else { status.textContent = 'Entrada selecionada. Selecione Instrumento para abri-la; o teclado continua ativo.'; render(); host.changed(); }
+  });
   channel.addEventListener('change', () => { preferences.channel = channel.value; capture.configure({ channel: channel.value }); persistPreferences(); });
   sensitivity.addEventListener('input', () => { preferences.sensitivity = Number(sensitivity.value); capture.configure({ sensitivity: preferences.sensitivity }); persistPreferences(); });
   test.addEventListener('click', () => {
@@ -227,8 +259,9 @@ export function mountPerformanceInput(host) {
     event.preventDefault(); keyboardRelease(event.timeStamp);
   });
   function endCapture() {
-    if (mode !== 'instrument' && !calibration) return;
-    ++selectionGeneration; preparing = false; capture.stop(); mode = 'keyboard'; entry.value = mode;
+    if (mode !== 'instrument' && !calibration && !recoveringDevices) return;
+    ++selectionGeneration; preparing = false; recoveringDevices = false; enumeratingDevices = false;
+    capture.stop(); mode = 'keyboard'; entry.value = mode;
     host.stop(); loadCompensation(); status.textContent = 'Captura encerrada ao sair da página ou perder o foco. Selecione Instrumento para reabrir.'; host.changed();
   }
   window.addEventListener('pagehide', endCapture);
@@ -236,10 +269,13 @@ export function mountPerformanceInput(host) {
   document.addEventListener('visibilitychange', () => { if (document.hidden) endCapture(); });
 
   function render() {
-    instrumentPanel.hidden = mode !== 'instrument'; reason.hidden = mode !== 'instrument';
+    instrumentPanel.hidden = mode !== 'instrument' && !recoveringDevices; reason.hidden = mode !== 'instrument';
     const locked = host.isBusy();
     $('train').disabled ||= preparing || !!calibration;
-    device.disabled = preparing || locked; channel.disabled = preparing || locked; sensitivity.disabled = preparing || !!calibration;
+    entry.options[1].disabled = recoveringDevices && enumeratingDevices;
+    device.disabled = preparing || locked || enumeratingDevices || (recoveringDevices && device.options.length < 2);
+    channel.disabled = mode !== 'instrument' || preparing || locked;
+    sensitivity.disabled = mode !== 'instrument' || preparing || !!calibration;
     test.disabled = !capture.active || locked;
     calibrate.disabled = preparing || locked || (mode === 'instrument' && !capture.active);
     cancelCalibration.hidden = !calibration; manual.disabled = clearCalibration.disabled = locked || preparing;

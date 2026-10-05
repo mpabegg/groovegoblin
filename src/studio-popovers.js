@@ -1,5 +1,14 @@
 // Keep the familiar details/summary keyboard triggers, but put their panels in the native top layer.
 // Coordinates follow the actual trigger (including zoom/scroll), never a page-wide fixed location.
+const popoverSetters = new WeakMap();
+
+// Restore the native panel before restoring focus; details.open alone cannot reveal a popover.
+export function setStudioDetailsOpen(detail, open) {
+  const setOpen = popoverSetters.get(detail);
+  if (setOpen) setOpen(open);
+  else detail.open = open;
+}
+
 export function mountStudioPopovers() {
   const panels = new Map();
   const selector = '.transport-popover, .track-popover, .track-sound-popover, .inspector-popover, .form-popover, .app-menu-content, .activity-menu';
@@ -25,26 +34,35 @@ export function mountStudioPopovers() {
     const observer = new ResizeObserver(() => { if (panel.matches(':popover-open')) position(panel, summary); });
     panels.set(panel, { detail, summary, observer });
     let pointerOpened = false;
-    function hide() {
-      if (panel.matches(':popover-open')) panel.hidePopover();
-      detail.open = false; summary.setAttribute('aria-expanded', 'false');
+    function setOpen(open) {
+      detail.open = open;
+      if (open) {
+        if (!panel.matches(':popover-open')) panel.showPopover();
+        position(panel, summary);
+      } else if (panel.matches(':popover-open')) panel.hidePopover();
+      summary.setAttribute('aria-expanded', String(open));
     }
+    popoverSetters.set(detail, setOpen);
     // A summary is not a native popover invoker: light-dismiss can close it before its click arrives.
     summary.addEventListener('pointerdown', () => { pointerOpened = panel.matches(':popover-open'); });
     summary.addEventListener('click', event => {
       event.preventDefault();
       const close = (event.detail > 0 && pointerOpened) || panel.matches(':popover-open'); pointerOpened = false;
-      if (close) hide();
-      else { detail.open = true; panel.showPopover(); position(panel, summary); }
+      setOpen(!close);
     });
-    detail.addEventListener('toggle', () => { if (!detail.open) hide(); });
-    panel.addEventListener('toggle', event => {
-      const open = event.newState === 'open'; detail.open = open;
+    detail.addEventListener('toggle', () => { if (!detail.open) setOpen(false); });
+    // Native dismissals are synchronous, but toggle events are queued. Keep details current now,
+    // so a pending close cannot overwrite a panel restored during a quick tour transition.
+    panel.addEventListener('beforetoggle', event => {
+      if (event.newState === 'closed') { detail.open = false; summary.setAttribute('aria-expanded', 'false'); }
+    });
+    panel.addEventListener('toggle', () => {
+      const open = panel.matches(':popover-open'); detail.open = open;
       summary.setAttribute('aria-expanded', String(open));
       if (open) position(panel, summary);
     });
     observer.observe(panel);
-    if (detail.open) { panel.showPopover(); position(panel, summary); }
+    if (detail.open) setOpen(true);
   }
   function discover() {
     for (const panel of document.querySelectorAll(selector)) bind(panel);

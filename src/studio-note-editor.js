@@ -2,6 +2,7 @@ import { sessionTicks } from './session.js';
 import { addNote } from './model.js';
 import { quantizeTick } from './meter.js';
 import { editNotes, pasteNotes, NOTE_FIGURES, rememberedDuration, rememberDuration } from './studio-editing.js';
+import { musicalDuration } from './studio-bars.js';
 
 export function mountStudioNoteEditor(grid, host, view) {
   const $ = id => document.getElementById(id);
@@ -26,7 +27,7 @@ export function mountStudioNoteEditor(grid, host, view) {
     duration = ticks; rememberDuration(ticks);
     for (const button of $('creation-duration').querySelectorAll('button')) button.setAttribute('aria-pressed', String(Math.abs(Number(button.dataset.duration) - duration) < 1e-8));
     const selectedFigure = NOTE_FIGURES.find(([ticks]) => Math.abs(ticks - duration) < 1e-8);
-    summary.title = `Mais figuras · duração ativa: ${selectedFigure?.[2] ?? `${duration} ticks`}`;
+    summary.title = `Mais figuras · duração ativa: ${selectedFigure?.[2] ?? musicalDuration(duration, host.getSession())}`;
     summary.classList.toggle('active-figure', !!selectedFigure && !NOTE_FIGURES.slice(0, 4).includes(selectedFigure));
   }
   for (const [index, [ticks, figure, name]] of NOTE_FIGURES.entries()) {

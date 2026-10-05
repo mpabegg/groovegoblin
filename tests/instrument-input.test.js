@@ -4,10 +4,11 @@ import { createOnsetState, detectOnsets, refractorySeconds, selectInputSample } 
 import { captureFrameTime, contextPerformanceTime, compensatedTime, calibrateInput, detectClickLeak, inputTailSeconds, calibrationCollectionDeadline, CALIBRATION_REFRACTORY_SECONDS, readCalibration, saveCalibration, readInputPreferences, INPUT_PREFERENCES_KEY } from '../src/input-timing.js';
 import { instrumentSession, InstrumentInputGate } from '../src/instrument-input.js';
 import { resolveInputDevice } from '../src/instrument-capture.js';
+import { mountPerformanceInput } from '../src/performance-input.js';
 import { createSession, serializeSession } from '../src/session.js';
 import { evaluateSession, summarizeFeedback } from '../src/feedback.js';
 import { buildTimelineData } from '../src/timeline.js';
-import { harness, close } from './audio-harness.js';
+import { harness, audioContext, deferred, close } from './audio-harness.js';
 
 function signal(rate, seconds, notes = [], noise = 0.001) {
   const samples = new Float32Array(Math.ceil(rate * seconds));
@@ -368,4 +369,273 @@ test('count-in leakage uses a fresh output clock after an initially zero startup
   const events = analyze(signal(48000, 1.4, sourceTimes.map(time => ({ time: time / 1000, frequency: 1500, decay: 0.004, length: 0.035 }))), 48000).events;
   assert.notEqual(startup[0], h.audio.countInClicks[0]);
   assert.equal(detectClickLeak(h.audio.countInClicks, events.map(event => event.frame / 48)).leaking, true);
+});
+
+// The mounted controller uses the same small DOM double as the studio surfaces;
+// capture permission, device identities and Web Audio callbacks remain explicit.
+function performanceUI(t, audio, session = trainingSession()) {
+  const nodes = new Map();
+  class Node {
+    constructor(tag) {
+      this.tag = tag; this.children = []; this.listeners = {}; this.attributes = {}; this.captured = new Set();
+      this.hidden = false; this.disabled = false; this.value = ''; this.textContent = ''; this.className = '';
+      this.style = { setProperty() {} }; this.classList = { toggle() {} };
+    }
+    set id(value) { this._id = value; nodes.set(value, this); } get id() { return this._id; }
+    get options() { return this.children; }
+    append(...children) { for (const child of children) { child.parent = this; this.children.push(child); } }
+    prepend(...children) { for (const child of children.reverse()) { child.parent = this; this.children.unshift(child); } }
+    replaceChildren(...children) { this.children = []; this.append(...children); }
+    get lastChild() { return this.children.at(-1); }
+    remove() { this.parent.children.splice(this.parent.children.indexOf(this), 1); }
+    setAttribute(name, value) { this.attributes[name] = value; }
+    addEventListener(type, callback) { (this.listeners[type] ??= []).push(callback); }
+    fire(type, props = {}) {
+      const event = { target: this, button: 0, pointerId: 1, timeStamp: performance.now(), preventDefault() {}, ...props };
+      for (const callback of this.listeners[type] ?? []) callback(event);
+    }
+    closest() { return null; }
+    reportValidity() { return true; }
+    checkVisibility() { return !this.hidden && (!this.parent || this.parent.checkVisibility()); }
+    setPointerCapture(id) { this.captured.add(id); } hasPointerCapture(id) { return this.captured.has(id); } releasePointerCapture(id) { this.captured.delete(id); }
+  }
+  const originals = new Map();
+  function install(name, value) {
+    const original = Object.getOwnPropertyDescriptor(globalThis, name);
+    Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });
+    originals.set(name, { original, value });
+  }
+  for (const id of ['train-pad', 'performance-input', 'train', 'train-state', 'input-pitch', 'held-state']) {
+    const node = new Node('div'); node.id = id;
+  }
+  nodes.get('input-pitch').value = '69';
+  const win = new Node('window');
+  const doc = new Node('document');
+  Object.assign(doc, { getElementById: id => nodes.get(id), createElement: tag => new Node(tag), querySelector: () => null });
+  install('document', doc); install('window', win); install('Element', Node);
+  const values = new Map();
+  const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+  install('localStorage', storage);
+  let surface; let stops = 0;
+  const notices = [];
+  const host = {
+    audio, getSession: () => session, isBusy: () => ['train', 'countin'].includes(audio.position.mode), isPreparingTraining: () => false,
+    stop() { stops++; audio.stop(); surface?.reset(); },
+    notify: message => notices.push(message),
+    changed() { nodes.get('train').disabled = false; surface?.render(); },
+  };
+  t.after(() => {
+    try { win.fire('pagehide'); surface?.reset(); }
+    finally {
+      for (const [name, { original, value }] of [...originals].reverse()) {
+        if (Object.getOwnPropertyDescriptor(globalThis, name)?.value !== value) continue;
+        if (original) Object.defineProperty(globalThis, name, original); else delete globalThis[name];
+      }
+    }
+  });
+  return {
+    nodes, win, doc, storage, notices, install, host,
+    mount() { surface = mountPerformanceInput(host); return surface; },
+    get surface() { return surface; }, get stops() { return stops; },
+    choose(id, value) { const node = nodes.get(id); node.value = value; node.fire('change'); },
+  };
+}
+
+function captureDevices(ui, outputContext, initialDevices) {
+  const requests = []; const streams = []; const worklets = []; const contexts = [];
+  let devices = initialDevices; let enumeration = null; let denial = null; let enumerations = 0;
+  const media = {
+    async getUserMedia(constraints) {
+      requests.push(constraints);
+      const id = constraints.audio.deviceId?.exact;
+      const selected = id ? devices.find(device => device.deviceId === id) : devices[0];
+      if (denial || !selected) throw Object.assign(new Error('capture rejected'), { name: denial ?? 'OverconstrainedError' });
+      const track = { label: selected.label, stops: 0, getSettings: () => ({ deviceId: selected.deviceId, latency: 0 }), stop() { this.stops++; } };
+      const stream = { track, getTracks: () => [track], getAudioTracks: () => [track] };
+      streams.push(stream); return stream;
+    },
+    async enumerateDevices() { enumerations++; return enumeration ? enumeration.promise : devices; },
+    listeners: new Map(),
+    addEventListener(type, callback) { this.listeners.set(type, callback); },
+    removeEventListener(type, callback) { if (this.listeners.get(type) === callback) this.listeners.delete(type); },
+  };
+  ui.install('navigator', { mediaDevices: media });
+  ui.install('AudioContext', class {
+    constructor(options) {
+      if (!options) return outputContext;
+      const ctx = audioContext();
+      ctx.audioWorklet = { async addModule() {} };
+      ctx.createMediaStreamSource = () => ctx.createGain();
+      ctx.close = async () => { ctx.state = 'closed'; };
+      contexts.push(ctx); return ctx;
+    }
+  });
+  ui.install('AudioWorkletNode', class {
+    constructor() {
+      this.port = { onmessage: null, postMessage() {}, close() { this.closed = true; } };
+      worklets.push(this);
+    }
+    connect(node) { return node; }
+    disconnect() { this.disconnected = true; }
+  });
+  return {
+    media, requests, streams, worklets, contexts,
+    get enumerations() { return enumerations; },
+    set devices(value) { devices = value; }, set enumeration(value) { enumeration = value; }, set denial(value) { denial = value; },
+    attack(time) {
+      const ctx = contexts.at(-1); ctx.currentTime = performance.now() / 1000;
+      worklets.at(-1).port.onmessage({ data: { level: 0.5, channels: 2, events: [{ frame: time / 1000 * ctx.sampleRate, level: 0.5 }] } });
+    },
+  };
+}
+async function settleInput() { for (let i = 0; i < 20; i++) await Promise.resolve(); }
+const inputDevice = id => ({ kind: 'audioinput', deviceId: id, groupId: id, label: `Interface ${id}` });
+
+test('missing exact input exposes replacement in Keyboard without capture retries or foreign calibration', async t => {
+  const h = harness(t); const ui = performanceUI(t, h.audio);
+  const capture = captureDevices(ui, h.ctx, [inputDevice('b')]);
+  ui.storage.setItem(INPUT_PREFERENCES_KEY, JSON.stringify({ deviceId: 'missing', channel: 'sum', sensitivity: 1 }));
+  saveCalibration('missing', 99, ui.storage); saveCalibration('b', -100, ui.storage); saveCalibration('keyboard', 12, ui.storage);
+  ui.mount();
+  assert.equal(capture.requests.length, 0); assert.equal(capture.enumerations, 0, 'startup neither requests permission nor enumerates');
+  ui.choose('performance-entry', 'instrument'); await settleInput();
+  assert.equal(capture.requests.length, 1); assert.equal(capture.requests[0].audio.deviceId.exact, 'missing');
+  assert.equal(ui.surface.instrument, false); assert.equal(ui.nodes.get('performance-entry').value, 'keyboard');
+  const chooser = ui.nodes.get('instrument-device');
+  assert.equal(chooser.checkVisibility(), true); assert.equal(chooser.disabled, false); assert.equal(chooser.value, '');
+  assert.deepEqual(chooser.options.map(option => option.value), ['', 'b']);
+  assert.equal(readInputPreferences(ui.storage).deviceId, 'missing', 'do not silently choose the default or replacement');
+  assert.equal(Number(ui.nodes.get('input-compensation').value), 12, 'Keyboard uses only its own calibration');
+  assert.match(ui.nodes.get('instrument-status').textContent, /Voltamos ao Teclado/);
+  ui.choose('instrument-device', 'b'); await settleInput();
+  assert.equal(capture.requests.length, 1, 'replacement selection alone never requests capture');
+  assert.equal(ui.surface.instrument, false); assert.equal(readInputPreferences(ui.storage).deviceId, 'b');
+  ui.choose('performance-entry', 'instrument'); await settleInput();
+  assert.equal(capture.requests.length, 2); assert.equal(capture.requests[1].audio.deviceId.exact, 'b');
+  assert.equal(ui.surface.instrument, true); assert.equal(ui.surface.preparing, false);
+  assert.equal(Number(ui.nodes.get('input-compensation').value), -100, 'only the opened physical device supplies compensation');
+});
+
+for (const failure of ['devicechange', 'ended', 'mute']) test(`${failure} stops tracks and transport and offers the surviving device without opening it`, async t => {
+  const h = harness(t); const ui = performanceUI(t, h.audio);
+  const capture = captureDevices(ui, h.ctx, [inputDevice('a'), inputDevice('b')]);
+  ui.storage.setItem(INPUT_PREFERENCES_KEY, JSON.stringify({ deviceId: 'a' }));
+  ui.mount();
+  ui.choose('performance-entry', 'instrument'); await settleInput();
+  await h.audio.playSession(instrumentSession(trainingSession()), { mode: 'train' });
+  h.advance(0.1); capture.attack(100); assert.equal(h.audio.position.held, true);
+  capture.devices = [inputDevice('b')];
+  if (failure === 'devicechange') await capture.media.listeners.get('devicechange')();
+  else capture.streams[0].track[`on${failure}`]();
+  await settleInput();
+  assert.equal(h.audio.position.mode, 'idle'); assert.equal(h.audio.position.held, false);
+  assert.equal(capture.streams[0].track.stops, 1); assert.equal(capture.contexts[0].state, 'closed');
+  assert.equal(capture.worklets[0].disconnected, true); assert.equal(capture.worklets[0].port.closed, true);
+  assert.equal(capture.media.listeners.has('devicechange'), false);
+  assert.equal(ui.surface.instrument, false); assert.equal(capture.requests.length, 1);
+  assert.equal(ui.nodes.get('instrument-device').checkVisibility(), true); assert.equal(ui.nodes.get('instrument-device').disabled, false);
+  assert.deepEqual(ui.nodes.get('instrument-device').options.map(option => option.value), ['', 'b']);
+  ui.choose('instrument-device', 'b'); assert.equal(capture.requests.length, 1);
+  ui.choose('performance-entry', 'instrument'); await settleInput();
+  assert.equal(capture.requests[1].audio.deviceId.exact, 'b'); assert.equal(ui.surface.instrument, true);
+});
+
+for (const cancel of ['keyboard', 'pagehide']) test(`late unavailable-device enumeration cannot overwrite ${cancel} cancellation`, async t => {
+  const h = harness(t); const ui = performanceUI(t, h.audio);
+  const capture = captureDevices(ui, h.ctx, [inputDevice('b')]); const pending = deferred();
+  capture.enumeration = pending;
+  ui.storage.setItem(INPUT_PREFERENCES_KEY, JSON.stringify({ deviceId: 'missing' }));
+  ui.mount();
+  ui.choose('performance-entry', 'instrument'); await settleInput();
+  assert.equal(ui.nodes.get('instrument-device').disabled, true);
+  if (cancel === 'keyboard') ui.choose('performance-entry', 'keyboard');
+  else ui.win.fire('pagehide');
+  const status = ui.nodes.get('instrument-status').textContent;
+  pending.resolve([inputDevice('late')]); await settleInput();
+  assert.equal(ui.nodes.get('instrument-status').textContent, status);
+  assert.equal(ui.nodes.get('instrument-device').checkVisibility(), false);
+  assert.ok(!ui.nodes.get('instrument-device').options.some(option => option.value === 'late'));
+  assert.equal(ui.surface.preparing, false); assert.equal(capture.requests.length, 1);
+});
+
+test('permission denial stays an explicit Keyboard fallback without enumeration or retry', async t => {
+  const h = harness(t); const ui = performanceUI(t, h.audio);
+  const capture = captureDevices(ui, h.ctx, [inputDevice('a')]); capture.denial = 'NotAllowedError';
+  ui.mount(); ui.choose('performance-entry', 'instrument'); await settleInput();
+  assert.equal(capture.requests.length, 1); assert.equal(capture.enumerations, 0);
+  assert.equal(ui.surface.instrument, false); assert.equal(ui.surface.preparing, false);
+  assert.equal(ui.nodes.get('instrument-device').checkVisibility(), false);
+  assert.match(ui.nodes.get('instrument-status').textContent, /Permissão de microfone negada.*Voltamos ao Teclado/);
+  assert.equal(capture.streams.length, 0); assert.equal(h.audio.position.mode, 'idle');
+});
+
+for (const instrument of [false, true]) for (const compensationMs of [-100, 0, 100]) {
+  test(`mounted ${instrument ? 'Instrument' : 'Keyboard'} routes ${compensationMs} ms compensation by the evaluated window`, async t => {
+    let attempts;
+    const h = harness(t, { onFinish: values => { attempts = values; } });
+    h.ctx.getOutputTimestamp = () => ({ contextTime: h.ctx.currentTime - 0.04, performanceTime: h.ctx.currentTime * 1000 });
+    const session = trainingSession({ training: { countInBars: 1, repetitions: 1, monitor: true }, notes: [{ id: 'first', start: 0, duration: 1, pitch: 69 }] });
+    const ui = performanceUI(t, h.audio, session);
+    const capture = captureDevices(ui, h.ctx, [inputDevice('a')]);
+    saveCalibration(instrument ? 'a' : 'keyboard', compensationMs, ui.storage);
+    ui.storage.setItem(INPUT_PREFERENCES_KEY, JSON.stringify({ deviceId: 'a' }));
+    ui.mount();
+    if (instrument) { ui.choose('performance-entry', 'instrument'); await settleInput(); }
+    await h.audio.playSession(ui.surface.session(session), { mode: 'train', ...ui.surface.playOptions('train') });
+    ui.surface.started(session);
+    // Use the output-correlated downbeat, not the processing clock's boundary.
+    const first = h.audio.countInClicks[0] + 2000;
+    const end = first + 2000;
+    function attack(corrected) {
+      const raw = corrected + compensationMs;
+      h.advance(raw / 1000);
+      if (instrument) capture.attack(raw);
+      else ui.win.fire('keydown', { target: ui.nodes.get('train-pad'), key: ' ', code: 'Space', timeStamp: raw, repeat: false });
+    }
+    function release(corrected) {
+      if (!instrument) ui.win.fire('keyup', { code: 'Space', timeStamp: corrected + compensationMs });
+    }
+    attack(first - 1); assert.equal(h.audio.position.held, false, 'genuinely pre-count-in attack is not held/evaluated'); release(first - 0.5);
+    attack(first);
+    assert.equal(h.audio.position.mode, compensationMs < 0 ? 'countin' : 'train');
+    assert.equal(h.audio.position.held, true, 'the downbeat is accepted even while the audible clock is count-in');
+    release(first + 100);
+    h.advance(2.4); assert.equal(h.audio.position.held, false, 'release or written gate cannot leave input held');
+    attack(end - 1); assert.equal(h.audio.position.held, true, 'last millisecond inside the evaluated interval remains valid'); release(end);
+    attack(end);
+    assert.equal(h.audio.position.held, false, 'the exclusive end is not a new attempt'); release(end + 1);
+    h.advance(4.5);
+    assert.equal(attempts.length, 2); close(attempts[0].start, 0); close(attempts[1].start, 1.999);
+    close(attempts[1].end, 2); assert.equal(h.audio.position.held, false);
+    // A rejected outside-session event must not leave an OS key or gate stuck.
+    await h.audio.playSession(ui.surface.session(session), { mode: 'train', ...ui.surface.playOptions('train') }); ui.surface.started(session);
+    const nextDownbeat = h.audio.countInClicks[0] + 2000;
+    const nextRaw = nextDownbeat + compensationMs;
+    h.advance(nextRaw / 1000);
+    if (instrument) capture.attack(nextRaw);
+    else ui.win.fire('keydown', { target: ui.nodes.get('train-pad'), key: ' ', code: 'Space', timeStamp: nextRaw, repeat: false });
+    assert.equal(h.audio.position.held, true);
+    if (!instrument) ui.win.fire('keyup', { code: 'Space', timeStamp: nextRaw + 100 });
+    ui.host.stop(); assert.equal(h.audio.position.held, false);
+  });
+}
+
+test('mounted Instrument retains uncompensated calibration attacks and count-in leakage diagnosis', async t => {
+  const h = harness(t); const ui = performanceUI(t, h.audio);
+  const capture = captureDevices(ui, h.ctx, [inputDevice('a')]);
+  ui.storage.setItem(INPUT_PREFERENCES_KEY, JSON.stringify({ deviceId: 'a' }));
+  saveCalibration('a', -100, ui.storage);
+  ui.mount();
+  ui.choose('performance-entry', 'instrument'); await settleInput();
+  ui.nodes.get('input-calibrate').fire('click'); await settleInput();
+  assert.equal(ui.surface.calibrating, true);
+  const clicks = h.ctx.sources.slice(-8).map(source => source.startTime * 1000);
+  for (const click of clicks) { h.advance((click + 23) / 1000); capture.attack(click + 23); }
+  h.advance((calibrationCollectionDeadline(clicks.at(-1)) + 1) / 1000);
+  assert.equal(ui.surface.calibrating, false); assert.equal(readCalibration('a', ui.storage), 23, 'previous compensation is not applied while collecting calibration');
+  const session = trainingSession({ training: { countInBars: 1, repetitions: 1 } });
+  await h.audio.playSession(ui.surface.session(session), { mode: 'train', ...ui.surface.playOptions('train') }); ui.surface.started(session);
+  for (const click of h.audio.countInClicks.slice(0, 3)) { h.advance(click / 1000); capture.attack(click); assert.equal(h.audio.position.held, false); }
+  assert.match(ui.nodes.get('instrument-status').textContent, /Possível vazamento/);
+  assert.ok(ui.notices.some(message => /Possível vazamento/.test(message)));
 });
