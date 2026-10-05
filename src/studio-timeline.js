@@ -3,12 +3,11 @@ import { mountStudioNoteEditor } from './studio-note-editor.js';
 import { mountStudioDrums } from './studio-drums.js';
 import { generateBass } from './band.js';
 import { mountStudioHarmony } from './studio-harmony.js';
-import { buildRhythmNotation, renderRhythmNotation } from './notation.js';
 import { mountStudioTracks } from './studio-tracks.js';
 import { getInstrumentProfile, formatInstrumentNote } from './instrument-profile.js';
 import { timelineWidth, musicalDuration } from './studio-bars.js';
 import { mountStudioRuler } from './studio-ruler.js';
-import { renderPracticeScore } from './studio-score.js';
+import { mountStudioScores } from './studio-score.js';
 import { phraseView, resolveTabPosition, mountPhraseView } from './tablature.js';
 
 const figure = duration => ({ 1: '𝅘𝅥𝅯', 2: '♪', 3: '♪·', 4: '♩', 6: '♩·', 8: '𝅗𝅥', 12: '𝅗𝅥·', 16: '𝅝' })[duration] ?? '';
@@ -25,6 +24,7 @@ export function mountStudioTimeline(root, host) {
   const harmony = mountStudioHarmony(root, { ...host, offerMaterialize: ruler.offerMaterialize });
   const drums = mountStudioDrums(host);
   const renderPhraseView = mountPhraseView(host);
+  const scores = mountStudioScores($('rhythm-score'), $('practice-rhythm-score'), host);
   let cursor = 0;
   let creationTicks = [];
   let visibleBars = 4;
@@ -109,9 +109,7 @@ export function mountStudioTimeline(root, host) {
       if (note.duration / total * grid.getBoundingClientRect().width - 4 >= 12) block.append(handle);
       $('notes').append(block);
     }
-    const notation = buildRhythmNotation(notes, session); renderRhythmNotation($('rhythm-score'), notation);
-    const svg = $('rhythm-score').querySelector('svg'); svg.style.minWidth = '0'; svg.setAttribute('preserveAspectRatio', 'none');
-    if (!previewNotes) renderPracticeScore($('practice-rhythm-score'), notation);
+    scores.render(session, notes);
     if (focusedId && editor.ids().includes(focusedId)) focusNote(focusedId);
   }
   function renderBass(session) {
@@ -138,6 +136,7 @@ export function mountStudioTimeline(root, host) {
     const fraction = Math.max(0, Math.min(1, (value.tick ?? 0) / sessionTicks(session)));
     $('playhead').hidden = !visible; $('playhead').style.left = `calc(200px + (100% - 200px) * ${fraction})`;
     harmony.position(value, { hidden });
+    scores.position(value, { hidden });
     if (visible && canvas.clientWidth > scroll.clientWidth && document.body.dataset.intent === 'studio') {
       const x = 200 + fraction * (canvas.clientWidth - 200);
       if (x < scroll.scrollLeft + 216 || x > scroll.scrollLeft + scroll.clientWidth - 24) scroll.scrollLeft = Math.max(0, x - scroll.clientWidth / 2);

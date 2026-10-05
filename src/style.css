@@ -199,7 +199,7 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 .studio-scroll { overflow-x: auto; overflow-y: hidden; border: 1px solid var(--line); border-radius: 6px; }
 .studio-canvas { min-width: 100%; }
 .studio-lanes { position: relative; }
-.studio-ruler, .studio-track, .score-row { display: grid; grid-template-columns: 200px minmax(0, 1fr); }
+.studio-ruler, .studio-track { display: grid; grid-template-columns: 200px minmax(0, 1fr); }
 .studio-track { min-height: 68px; border-top: 1px solid var(--line); }
 #track-chords { height: 110px; }
 #track-phrase { height: 88px; }
@@ -306,9 +306,18 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 .bass-note { position: absolute; top: 24px; height: 28px; border: 1px solid #dcc5ff; border-radius: 4px; background: #7b60a6; min-width: 3px; overflow: hidden; white-space: nowrap; padding: 4px 2px; font-size: 10px; color: #fff; }
 .studio-lanes > .playhead { top: 0; bottom: 0; z-index: 4; }
 .studio-score > summary { position: sticky; left: 0; width: min(550px, 100%); padding: 8px; cursor: pointer; color: var(--muted); font-size: 11px; }
-.score-row .track-header { color: var(--muted); font-size: 11px; }
-.score-row .rhythm-score { margin: 0; border: 0; border-radius: 0; overflow: hidden; }
-.score-row svg { width: 100%; }
+.studio-score .rhythm-score { margin: 0; overflow: hidden; }
+.instrument-score text { fill: currentColor; }
+.instrument-score .score-chord { fill: var(--blue); }
+.instrument-score .score-active { color: var(--accent); }
+.instrument-score .score-active ellipse { stroke-width: 3; }
+.score-fret-background { fill: #111b20; }
+.score-tab-note.score-active .score-fret-background { fill: #255445; }
+.score-tab-note.unplayable { color: #f4c774; }
+.score-playhead { stroke: var(--accent); stroke-width: 2; pointer-events: none; }
+.instrument-score [tabindex]:focus { outline: none; filter: drop-shadow(0 0 3px var(--blue)); }
+.score-suggestions { display: flex; align-items: center; gap: 10px; padding: 5px 8px; font-size: 11px; color: var(--muted); }
+.score-suggestions button { font-size: 11px; padding: 3px 7px; }
 .studio-inspector { position: relative; padding: 10px 12px; border-radius: 10px; min-height: 50px; font-size: 12px; color: var(--muted); }
 .studio-inspector details > summary { cursor: pointer; font-size: 11px; color: var(--blue); padding: 5px 0; white-space: nowrap; }
 .phrase-actions, .note-inspector-row { display: flex; align-items: center; gap: 10px; }
@@ -358,7 +367,9 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 #track-metronome-sound .track-sound-popover { position: static; box-shadow: none; margin-top: 6px; }
 /* Live phrase editing: fixed figure palette and a narrow, unambiguous resize target. */
 .training-primary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-#practice-rhythm-score { overflow: visible; padding: 6px; }
+#practice-rhythm-score { overflow: hidden; padding: 6px; }
+#practice-rhythm-score .instrument-score { max-height: 170px; }
+#practice-rhythm-score .instrument-score[data-phrase-view="tab"] { max-height: 230px; }
 .practice-score-system { min-width: 0; }
 .practice-score-system + .practice-score-system { border-top: 1px solid var(--line); }
 .studio-transport .position-text { flex: 1 1 140px; min-width: 80px; max-width: 220px; margin-left: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -418,8 +429,14 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 .practice-audible-tracks { display: flex; align-items: center; gap: 6px; margin: 4px 0; font-size: 12px; }
 .practice-audible-tracks button { padding: 3px 8px; font-size: 11px; }
 .practice-audible-tracks button[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
-#panel-practice .practice-input { margin-top: 6px; }
-#panel-practice .train-pad { min-height: 80px; padding: 12px; }
+#panel-practice > .panel { padding: 16px; margin-bottom: 12px; }
+#panel-practice > .panel > .section-heading { margin-bottom: 8px; }
+#practice-session-title { margin: 4px 0 0; font-size: 22px; line-height: 28px; }
+#panel-practice .practice-input { margin-top: 6px; padding-top: 8px; }
+#panel-practice .train-pad { min-height: 56px; padding: 10px 12px; }
+#panel-practice .practice-input > .control-detail { margin-top: 6px; padding-top: 4px; }
+#panel-practice #training-options { margin-top: 8px; padding-top: 8px; }
+#panel-practice #practice-studio { padding: 12px 16px; }
 .instrument-diagnostic { max-height: 180px; overflow: auto; font: 12px ui-monospace, monospace; padding-left: 32px; }
 .instrument-diagnostic li { padding: 3px 0; }
 .train-pad.instrument-input { background-image: linear-gradient(to right, #b9ef8030, #b9ef8030); background-repeat: no-repeat; background-size: calc(var(--input-level, 0) * 100%) 100%; }

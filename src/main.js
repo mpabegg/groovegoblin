@@ -215,7 +215,7 @@ const transport = mountStudioTransport({
 });
 const inspector = mountStudioInspector({ getSession: () => session, getSelection: () => selected, isBusy: () => false, commitNote, notify: message });
 const studioTimeline = mountStudioTimeline($('studio-editor'), {
-  getSession: () => session, isBusy: () => false, updateSession,
+  getSession: () => session, getExecutionSession: () => executionSession, isBusy: () => false, updateSession,
   seek: tick => playback.seek(tick), getStartTick: playback.getStartTick,
   isSolo: playback.isSolo, toggleSolo: playback.toggleSolo,
   getSelection: noteSelection, setSelection: setNoteSelection,

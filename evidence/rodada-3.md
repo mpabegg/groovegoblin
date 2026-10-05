@@ -31,6 +31,19 @@ As seções abaixo registram resultados observados, não verificações antecipa
 - A inspeção visual revelou mixer indevidamente dentro da nova linha título/vista. Corrigida sua âncora no cabeçalho: título completo, volume de **101 px**, nenhum controle fora do cabeçalho.
 - Verificação final da branch: **470/470 testes**, **114 módulos**, zero falhas. Duas assertivas iniciais foram corrigidas: posição automática realmente de menor casa e resto matemático de diferença negativa de oitavas, sem mudar produção para satisfazê-las.
 - Capturas: [1440×900](rodada-3-etapa2-1440x900.png), [1280×800](rodada-3-etapa2-1280x800.png): **53 controles**, transporte **53 px**, sem overflow horizontal. Tab de seis cordas termina o inspetor em **y=845**; o modo Ritmo conserva faixa de **88 px** e inspetor em **y=765**.
+- Integração publicada na `main`: `a18e9c3`; **470/470 testes e check repetidos na main**, push concluído.
+
+### Etapa 3 — Partitura, cifras e tablatura
+
+- As duas vistas usam a pauta rítmica existente, com clave Sol/Fá 8vb, cifras por compasso e tablatura somente no modo Tab. Não foi criada uma pauta melódica nem alterada a altura sonora.
+- Navegador: sessão de **16 compassos** produziu **quatro sistemas de quatro**, 16 cifras e nenhuma rolagem horizontal interna (largura/scroll de 1.364 px). Cabeças rítmicas e casas tiveram coordenadas idênticas em todos os dez segmentos, incluindo a nota ligada entre compassos 4 e 5.
+- Reprodução e treino reais mostraram o cursor e o destaque atravessando a ligadura: segmento em **60**, seguido pelo segmento em **64**, no sistema seguinte. O treino usa a sessão executada, não uma edição posterior.
+- Baixo mostrou clave **F8vb**, quatro linhas e depois cinco com afinação aguda→grave **43/38/33/28/23**; Guitarra mostrou **G8vb**. Palhetadas só aparecem em Guitarra/Ritmo com acordes ligados, seguem tempo/subdivisão e o botão de ocultar removeu as sugestões.
+- Correções encontradas visualmente: textos SVG novos herdavam preenchimento preto; receberam contraste explícito. Numeração foi afastada das cifras. A pauta/tablatura de seis cordas exigiu compactar espaçamentos do Treinar, sem retirar controles.
+- Capturas finais: [1440×900](rodada-3-etapa3-1440x900.png), [1280×800](rodada-3-etapa3-1280x800.png). Com Instrumento configurado e quatro compassos em Tab, documento de **900 px** em 1440×900 e painel completo até **y=803**, incluindo Prática guiada recolhida. Sem overflow horizontal nas duas larguras.
+- Estúdio em repouso a 1280 px: **53 controles**, transporte de **53 px**. Janela longa de 16 compassos é intencionalmente distribuída em vários sistemas verticais.
+- Verificação final da branch: **477/477 testes**, **115 módulos**, zero falhas.
+
 
 ### Etapa 7 — Entrada por instrumento
 
@@ -50,12 +63,12 @@ As seções abaixo registram resultados observados, não verificações antecipa
 
 | Nº | Critério | Resultado |
 |---|---|---|
-| 1 | Perfil visível; Baixo muda nome, timbre, acompanhamento, tablatura e clave | Parcial: perfil/nome/timbre/acompanhamento e linhas 6/4/5 passaram; clave desenhada na etapa 3 |
+| 1 | Perfil visível; Baixo muda nome, timbre, acompanhamento, tablatura e clave | Passou: perfil/som e linhas 6/4/5; claves desenhadas G8vb/F8vb verificadas no navegador |
 | 2 | Perfil, cordas e afinação preservados em arquivo e reload | Passou: download, importação e reload com Baixo 5/Drop D/solfejo |
 | 3 | Sessão v4 antiga abre e soa igual | Passou após v5: 77 eventos realizados idênticos à referência v4, sem mudar notas/timbre/papel |
 | 4 | Terceira corda + casa 5 produz altura correta | Passou no navegador: corda 3/casa 5 → C4/MIDI 60 |
 | 5 | Troca de corda preserva altura; Drop D atualiza casas | Passou: C4 muda de corda sem transpor; E2 na sexta vira casa 2 em Drop D |
-| 6 | Cifras, ritmo e tablatura alinhados em sistemas de quatro compassos nas duas vistas | Pendente |
+| 6 | Cifras, ritmo e tablatura alinhados em sistemas de quatro compassos nas duas vistas | Passou: quatro sistemas numa sessão de 16 compassos, alinhamento exato e cursor/ligadura em reprodução e treino |
 | 7 | Linha Rock sobre C–F–G–C vira frase editável no registro do baixo | Pendente |
 | 8 | Estudar esta linha copia baixo e troca perfil | Pendente |
 | 9 | Braço mostra funções do acorde selecionado e acompanha reprodução | Pendente |
@@ -66,7 +79,7 @@ As seções abaixo registram resultados observados, não verificações antecipa
 | 14 | Acelerador +5 a cada duas voltas; BPM salvo permanece intacto | Pendente |
 | 15 | Afinador de 30,87 a 1318,5 Hz: erro até 5 cents e corda correta | Pendente |
 | 16 | Entrada lembrada ativa ao entrar em Treinar somente com permissão concedida | Passou: startup sem captura; granted automático; prompt sem captura; explícito abre; foco encerra |
-| 17 | Treinar com entrada configurada e quatro compassos cabe em 1440×900 | Passou na etapa 7: documento 900 px, painel até y=704,47; repetir após partitura/afinador |
+| 17 | Treinar com entrada configurada e quatro compassos cabe em 1440×900 | Passou após partitura Tab de seis cordas: documento 900 px e painel completo até y=803; repetir após afinador |
 | 18 | Ataques graves com subida de 15 ms: erro até 10 ms e nenhuma repetição falsa em sustentadas | Passou: quatro frequências × quatro taxas, reataques/sustentadas/ruído; WAV harmônico também exercitado |
 | 19 | Alturas sintéticas: certas, nota errada, oitava diferente e não identificada | Pendente |
 | 20 | Miniatura revela conteúdo além de quatro compassos e navega ao clique | Pendente |

@@ -113,8 +113,8 @@
         </section>
         <div id="playhead" class="playhead" hidden aria-hidden="true"></div>
       </div>
-      <details id="studio-score" class="studio-score"><summary>Partitura da frase</summary><div class="score-row"><div class="track-header">Frase · ligaduras sustentam o mesmo ataque</div><div id="rhythm-score" class="rhythm-score"></div></div></details>
     </div></div>
+    <details id="studio-score" class="studio-score"><summary>Partitura da frase</summary><p class="tool-hint muted">Ligaduras sustentam o mesmo ataque. Cifras, pauta e tablatura compartilham o cursor do áudio.</p><div id="rhythm-score" class="rhythm-score"></div></details>
     <span id="timeline-reading-help" class="sr-only">Clique escolhe o início; arraste define o loop; clique duplo restaura tudo. Setas/Home/End escolhem início; Shift+setas ajustam fim do loop; Shift+Home restaura tudo. Enter/Shift+F10 abre ações do compasso atual. Botão direito no número abre esse compasso. A régua tem uma única parada de Tab e revela a posição navegada. Zoom mostra 4 ou 2 compassos; compassos densos podem exigir rolagem.</span>
   </section>
   <div id="harmony-context" class="harmony-context" hidden><span id="progression-status" role="status"></span><button id="fit-progression" type="button">Ajustar ao tamanho da sessão</button></div>
@@ -161,7 +161,7 @@
     <section class="panel" aria-labelledby="practice-session-title">
       <div class="section-heading"><div><div class="eyebrow">FRASE ATUAL · SOMENTE LEITURA</div><h2 id="practice-session-title">Sua frase</h2></div><span id="session-badge" class="badge"></span></div>
       <div class="training-controls"><div class="training-primary"><button id="train" type="button" class="primary">Treinar esta frase</button><button id="listen-phrase" type="button" aria-pressed="false">Ouvir frase</button></div><button id="edit-in-studio" type="button">Editar no Estúdio</button></div>
-      <div id="practice-rhythm-score" class="rhythm-score" aria-label="Partitura rítmica da frase atual"></div>
+      <div id="practice-rhythm-score" class="rhythm-score" aria-label="Partitura da frase: cifras, pauta e tablatura conforme o modo escolhido"></div>
       <div id="practice-audible-mount"></div>
       <section id="performance-input" class="practice-input" aria-label="Toque o ritmo">
         <button id="train-pad" type="button" class="train-pad" disabled aria-label="Tocar o ritmo: pressione no início da nota e solte no final" title="Espaço: pressione no ataque, segure e solte no término"><span id="train-state">Escolha Treinar esta frase para começar.</span><span id="held-state" class="held-state">ESPAÇO ou toque</span></button>
