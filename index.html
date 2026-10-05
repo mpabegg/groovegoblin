@@ -43,9 +43,10 @@
           <label>Padrão<select id="metro-pattern" data-path="metronome.pattern"></select></label>
           <label>Compassos audíveis<input id="audible-bars" data-path="metronome.audibleBars" type="number" min="1" max="8"></label>
           <label>Compassos silenciosos<input id="silent-bars" data-path="metronome.silentBars" type="number" min="0" max="8"></label>
-          <label class="toggle"><input data-path="companion.enabled" type="checkbox"> Ciclo companheiro</label>
-          <label>Pulsos por ciclo<input data-path="companion.pulses" type="number" min="2" max="12"></label>
-          <label>Duração do ciclo (tempos escritos)<input data-path="companion.spanBeats" type="number" min="1" max="64"></label>
+          <label class="toggle"><input data-path="companion.enabled" type="checkbox"> Polirritmia</label>
+          <label>Pulsos<input data-path="companion.pulses" type="number" min="2" max="12"></label>
+          <label>A cada (tempos escritos)<input data-path="companion.spanBeats" type="number" min="1" max="64"></label>
+          <span id="polyrhythm-description" class="tool-hint muted"></span>
         </div>
         <div id="track-metronome-sound" class="track-sound-controls"></div>
         <p class="tool-hint muted">Pulsos igualmente espaçados contra o compasso; o acento marca cada novo ciclo. Silêncios alternam com compassos audíveis, no mesmo relógio.</p>
@@ -75,7 +76,7 @@
     <h2 id="studio-timeline-title" class="sr-only">Linha do tempo da sessão</h2>
     <div id="studio-scroll" class="studio-scroll"><div id="studio-canvas" class="studio-canvas">
       <div id="studio-lanes" class="studio-lanes">
-        <div class="studio-ruler"><div class="track-header ruler-heading">Faixas</div><div id="beat-labels" class="beat-labels"></div></div>
+        <div class="studio-ruler"><div class="track-header ruler-heading"><label>Zoom <select id="timeline-zoom" aria-label="Compassos visíveis na linha do tempo"><option value="4">4 compassos visíveis</option><option value="2">2 compassos visíveis</option></select></label></div><div id="beat-labels" class="beat-labels"></div></div>
         <section id="track-chords" class="studio-track" aria-label="Faixa de acordes">
           <header class="track-header">
             <label class="toggle track-name"><input id="chords-enabled" data-path="progression.enabled" type="checkbox"> Acordes</label>
@@ -91,7 +92,7 @@
             <details id="phrase-options" class="track-disclosure"><summary>Grade e swing</summary><div class="track-popover"><div class="tool-row">
               <label>Divisões por semínima<select id="subdivision" data-path="subdivision"><option value="1">1</option><option value="2">2</option><option value="3">3 · tercina</option><option value="4">4</option><option value="5">5 · quintina</option><option value="6">6</option><option value="7">7 · septina</option><option value="8">8</option></select></label>
               <label>Swing<input id="swing" data-path="swing" type="number" min="0" max="0.75" step="0.05"></label><label>Base do swing<select id="swing-unit" data-path="swingUnit"><option value="eighth">Colcheia</option><option value="sixteenth">Semicolcheia</option></select></label>
-              <label>Zoom <select id="timeline-zoom" aria-label="Zoom de todas as faixas e da partitura"><option value="1">Ajustar tudo</option><option value="1.5">150%</option><option value="2">200%</option><option value="4">400%</option></select></label><button id="open-phrase-tools" type="button" aria-haspopup="dialog">Biblioteca e gerador</button>
+              <button id="open-phrase-tools" type="button" aria-haspopup="dialog">Biblioteca e gerador</button>
             </div></div></details>
             <div id="track-phrase-sound" class="track-sound-controls"></div>
           </div></header><div id="grid" class="track-lane grid" role="grid" tabindex="0" aria-label="Editor de frase"><div id="marks" class="marks" aria-hidden="true"></div><div id="grid-cursor" aria-hidden="true"></div><div id="notes" class="notes" role="row"></div><div id="note-marquee" aria-hidden="true" hidden></div></div>
@@ -100,7 +101,7 @@
           <header class="track-header"><label class="toggle track-name"><input id="drums-enabled" data-path="drums.enabled" type="checkbox"> Bateria</label><div class="track-extra">
             <div class="track-style"><select id="drum-style" data-path="drums.style" aria-label="Estilo da bateria"></select><select id="drum-density" data-path="drums.density" aria-label="Densidade da bateria"></select></div>
             <div class="track-actions"><button id="generate-drums" type="button">Variar</button><details id="drum-advanced" class="track-disclosure"><summary>Avançado</summary><div class="track-popover"><label>Semente <input id="drum-seed" data-path="drums.seed" type="number" min="0" max="4294967295"></label><p class="tool-hint muted">A mesma semente reproduz o mesmo padrão. Variar escolhe outra semente; as três linhas são referências geradas, não edição manual.</p></div></details><div id="track-drums-sound" class="track-sound-controls"></div></div>
-          </div></header><div id="drum-lanes" class="track-lane drum-lanes"><div id="drum-rows"></div></div>
+          </div><div id="drum-voice-labels" class="drum-voice-labels" aria-hidden="true"></div></header><div id="drum-lanes" class="track-lane drum-lanes"><div id="drum-rows"></div></div>
         </section>
         <section id="track-bass" class="studio-track" aria-label="Faixa de baixo">
           <header class="track-header"><label class="toggle track-name"><input id="bass-enabled" data-path="band.bassEnabled" type="checkbox"> Baixo</label><div class="track-extra">
@@ -109,8 +110,9 @@
         </section>
         <div id="playhead" class="playhead" hidden aria-hidden="true"></div>
       </div>
-      <details id="studio-score" class="studio-score"><summary>Partitura rítmica · ligaduras sustentam o mesmo ataque</summary><div class="score-row"><div class="track-header">Frase · pauta rítmica</div><div id="rhythm-score" class="rhythm-score"></div></div></details>
+      <details id="studio-score" class="studio-score"><summary>Partitura da frase</summary><div class="score-row"><div class="track-header">Frase · ligaduras sustentam o mesmo ataque</div><div id="rhythm-score" class="rhythm-score"></div></div></details>
     </div></div>
+    <p id="timeline-reading-help" class="tool-hint muted">Rolagem horizontal com cabeçalhos fixos; a reprodução acompanha o compasso atual. Zoom mostra 4 ou 2 compassos, sem comprimir sessões longas. Cada semicolcheia tem no mínimo 12 px; compassos muito densos podem exigir rolagem mesmo em uma sessão curta. Botão direito no número do compasso abre suas ações.</p>
   </section>
   <div id="harmony-context" class="harmony-context" hidden><span id="progression-status" role="status"></span><button id="fit-progression" type="button">Ajustar ao tamanho da sessão</button></div>
   <section id="studio-inspector" class="panel studio-inspector" aria-label="Inspetor da seleção">

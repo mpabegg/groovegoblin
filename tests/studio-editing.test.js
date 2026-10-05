@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createSession } from '../src/session.js';
+import { createSession, patchSession } from '../src/session.js';
 import { parseChordSymbol } from '../src/progression.js';
 import { editNotes, pasteNotes, editChords, playbackEditPolicy, rememberedDuration, rememberDuration, DURATION_KEY } from '../src/studio-editing.js';
 import { History } from '../src/history.js';
+import { mountStudioNoteEditor } from '../src/studio-note-editor.js';
 
 const session = () => createSession({ bars: 2, notes: [{ id: 'a', start: 0, duration: 2, pitch: 60 }, { id: 'b', start: 2, duration: 2, pitch: 62 }, { id: 'c', start: 12, duration: 2, pitch: 64 }] });
 test('grouped adjacent moves validate the final monophonic phrase, atomically', () => {
@@ -55,4 +56,40 @@ test('active duration defaults to an eighth and survives unavailable storage', (
   assert.equal(rememberedDuration(storage), 2); rememberDuration(6, storage); assert.equal(values.get(DURATION_KEY), '6'); assert.equal(rememberedDuration(storage), 6);
   assert.equal(rememberedDuration({ getItem() { throw Error('unavailable'); } }), 2);
   assert.doesNotThrow(() => rememberDuration(2, { setItem() { throw Error('unavailable'); } }));
+});
+
+test('creation palette keeps four direct figures and all extra figures functional in its anchored panel', t => {
+  const nodes = new Map();
+  class Node {
+    constructor(tag) { this.tag = tag; this.children = []; this.dataset = {}; this.listeners = {}; this.attributes = {}; this.classList = { toggle() {} }; }
+    set id(value) { this._id = value; nodes.set(value, this); }
+    get id() { return this._id; }
+    append(...children) { this.children.push(...children); }
+    insertBefore(child, anchor) { this.children.splice(this.children.indexOf(anchor), 0, child); }
+    setAttribute(name, value) { this.attributes[name] = value; }
+    addEventListener(type, listener) { this.listeners[type] = listener; }
+    querySelectorAll() { return this.children.flatMap(child => [child, ...child.querySelectorAll()]).filter(child => child.tag === 'button'); }
+  }
+  const controls = new Node('div'); controls.id = 'creation-duration';
+  const grid = new Node('div');
+  const originalDocument = globalThis.document;
+  globalThis.document = { getElementById: id => nodes.get(id), createElement: tag => new Node(tag) };
+  t.after(() => { if (originalDocument === undefined) delete globalThis.document; else globalThis.document = originalDocument; });
+  let value = createSession({ bars: 1 }); let selected = null;
+  const host = {
+    getSession: () => value, getEditorSelection: () => selected, setEditorSelection: next => { selected = next; },
+    getSelection: () => selected?.id, selectionChanged() {},
+    updateSession: patch => { value = patchSession(value, patch); return true; },
+    notify: text => assert.fail(text),
+  };
+  mountStudioNoteEditor(grid, host, { renderNotes() {}, getCursor: () => 0, focusNote() {} });
+  assert.deepEqual(controls.children.filter(child => child.tag === 'button').map(child => child.dataset.duration), [1, 2, 4, 8]);
+  const extra = nodes.get('extra-creation-duration');
+  assert.match(extra.className, /track-popover/);
+  assert.equal(extra.children.length, 7);
+  const triplet = extra.children.find(child => child.dataset.duration === 4 / 3);
+  triplet.listeners.click();
+  assert.equal(triplet.attributes['aria-pressed'], 'true');
+  grid.listeners.keydown({ key: 'Enter', target: { closest: () => null }, preventDefault() {} });
+  assert.ok(Math.abs(value.notes[0].duration - 4 / 3) < 1e-8);
 });

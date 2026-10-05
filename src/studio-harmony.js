@@ -1,6 +1,7 @@
 import { ticksPerBar, sessionTicks } from './session.js';
 import { PROGRESSION_KEYS, CHORD_QUALITIES, chordTimeline, getDiatonicChords, getBorrowedChords, getSecondaryDominants, parseChordSymbol, generateProgression, invertChord } from './progression.js';
 import { mountStudioChordSelection } from './studio-chord-selection.js';
+import { musicalDuration } from './studio-bars.js';
 
 const EPSILON = 1e-8;
 const number = value => String(Math.round(value * 1000) / 1000);
@@ -122,16 +123,21 @@ export function mountStudioHarmony(root, host) {
   lane.addEventListener('click', event => {
     if (suppressClick) { suppressClick = false; return; }
     const block = event.target.closest('.studio-chord');
+    if (block?.dataset.ghost === 'true') { host.offerMaterialize(Number(block.dataset.start) / ticksPerBar(host.getSession()), block); return; }
     if (block) { if (!host.isBusy()) select(Number(block.dataset.index)); }
     else { cursor = Math.floor(barAt(event)); create(cursor); }
   });
   lane.addEventListener('focusin', event => {
     const block = event.target.closest('.studio-chord');
-    if (block && !drag && !host.isBusy() && !group.indices().includes(Number(block.dataset.index))) select(Number(block.dataset.index));
+    if (block && block.dataset.ghost !== 'true' && !drag && !host.isBusy() && !group.indices().includes(Number(block.dataset.index))) select(Number(block.dataset.index));
   });
   lane.addEventListener('keydown', event => {
     if (host.isBusy() || event.ctrlKey || event.metaKey || event.altKey) return;
     const block = event.target.closest('.studio-chord');
+    if (block?.dataset.ghost === 'true') {
+      if (event.key === 'Enter') { event.preventDefault(); host.offerMaterialize(Number(block.dataset.start) / ticksPerBar(host.getSession()), block); }
+      return;
+    }
     if (!block) {
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
         event.preventDefault(); cursor = Math.max(0, Math.min(host.getSession().bars - 1, cursor + (event.key === 'ArrowRight' ? 1 : -1)));
@@ -154,7 +160,7 @@ export function mountStudioHarmony(root, host) {
   lane.addEventListener('pointerdown', event => {
     suppressClick = false;
     const block = event.target.closest('.studio-chord');
-    if (!block || host.isBusy() || event.button !== 0) return;
+    if (!block || block.dataset.ghost === 'true' || host.isBusy() || event.button !== 0) return;
     event.preventDefault();
     const index = Number(block.dataset.index); const session = host.getSession();
     host.setChordSelection(index);
@@ -209,15 +215,16 @@ export function mountStudioHarmony(root, host) {
     }
     markers.forEach((event, marker) => {
       silence(end, event.start - end); end = event.start + event.duration;
-      const chosen = preview ? event.index === index : group.indices().includes(event.index);
-      const block = document.createElement('div'); block.className = `studio-chord${chosen ? ' selected' : ''}`; block.dataset.index = event.index; block.dataset.marker = marker; block.dataset.start = event.start; block.dataset.duration = event.duration;
+      const ghost = event.start / ticksPerBar(session) >= progression.cycleBars - EPSILON;
+      const chosen = !ghost && (preview ? event.index === index : group.indices().includes(event.index));
+      const block = document.createElement('div'); block.className = `studio-chord${ghost ? ' harmony-ghost' : ''}${chosen ? ' selected' : ''}`; block.dataset.ghost = String(ghost); block.dataset.index = event.index; block.dataset.marker = marker; block.dataset.start = event.start; block.dataset.duration = event.duration;
       block.setAttribute('role', 'option'); block.setAttribute('aria-selected', String(chosen)); block.setAttribute('aria-disabled', String(host.isBusy()));
-      block.tabIndex = marker === tabMarker ? 0 : -1; block.textContent = event.chord.symbol;
+      block.tabIndex = ghost || marker === tabMarker ? 0 : -1; block.textContent = event.chord.symbol;
       block.style.left = `${event.start / total * 100}%`; block.style.width = `${event.duration / total * 100}%`;
-      block.setAttribute('aria-label', `${event.chord.symbol}, compasso ${number(event.start / ticksPerBar(session) + 1)}, duração ${number(event.duration / ticksPerBar(session))} compassos. Setas movem; Shift+setas redimensiona; Delete exclui.`);
-      block.title = `${event.chord.roman || event.chord.symbol} · arraste para mover/reordenar; borda direita redimensiona`;
+      block.setAttribute('aria-label', `${event.chord.symbol}, compasso ${number(event.start / ticksPerBar(session) + 1)}, duração ${musicalDuration(event.duration, session)}. ${ghost ? 'Repetição automática; Enter oferece materializar daqui até o fim.' : 'Setas movem; Shift+setas redimensiona; Delete exclui.'}`);
+      block.title = ghost ? 'Repetição automática · clique para materializar daqui até o fim' : `${event.chord.roman || event.chord.symbol} · arraste para mover/reordenar; borda direita redimensiona`;
       const handle = document.createElement('span'); handle.className = 'chord-handle'; handle.setAttribute('aria-hidden', 'true');
-      if (event.duration / total * lane.getBoundingClientRect().width >= 12) block.append(handle); lane.append(block);
+      if (!ghost && event.duration / total * lane.getBoundingClientRect().width >= 12) block.append(handle); lane.append(block);
     });
     silence(end, total - end);
     for (let bar = progression.cycleBars; bar < session.bars - EPSILON; bar += progression.cycleBars) {

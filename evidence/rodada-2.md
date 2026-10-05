@@ -25,6 +25,18 @@ As seções abaixo recebem decisões e resultados observados ao concluir cada et
 - Ctrl+A selecionou todas; Ctrl+D duplicou após o grupo; colagem pelo cursor inseriu nas posições 16 e 24. Esc ocultou seleção e devolveu ações da frase. Shift selecionou duas notas e intensidade 35% alterou ambas; retângulo selecionou quatro.
 - Regressão revelou conversão incorreta das vozes da prévia de acorde; produção e teste corrigidos para usar `note.midi`. Verificação final na branch: **317/317 testes**, **87 módulos, zero falhas**. Regressões exercitam eventos realmente agendados e prévias sintetizadas.
 - Capturas: [1440×900](rodada-2-etapa2-1440x900.png), [1280×800](rodada-2-etapa2-1280x800.png).
+- Integração: `c7f2df5` fast-forward na main; **317/317 testes e check** repetidos após merge; push confirmado.
+
+### Etapa 3 — Tamanho e leitura
+
+- Ampliar a sessão oferece repetir a frase nos compassos novos; execução nativa 1→4 produziu ataques 0/4/8/12 em cada compasso. Oferta e repetição são duas alterações independentes no histórico.
+- Menu da régua por botão direito ou teclado: duplicar insere após o compasso e desloca o conteúdo posterior, copiar rejeita sobreposição e limpar afeta somente o alvo. Loop e seções acompanham a inserção; sustentações atravessadas são divididas, sem perder os trechos escritos. Limites da sessão são explicados sem truncamento.
+- Repetições harmônicas têm 40% de opacidade, borda tracejada e nenhuma alça. Materializar transformou três fantasmas em acordes reais; duplicar inseriu o quinto compasso preservando a sequência.
+- Decisão de layout autorizada pelo item 5: rolagem horizontal com cabeçalhos fixos, em vez de sistemas, preservando o único gesto contínuo de edição de notas/acordes e o cursor existente. Zoom na régua oferece quatro ou dois compassos; nunca espreme tudo. Compassos excepcionalmente densos podem exigir rolagem mesmo numa sessão curta.
+- Em 1280 px, 16 compassos: semicolcheia medida em **15,6875 px**; os 64 rótulos da régua não se sobrepõem. Durante reprodução, rolagem automática chegou a 581 px e o cabeçalho permaneceu em x=38 px.
+- Bateria tem nomes à esquerda; baixo mostra nomes das notas quando cabem. Durações harmônicas usam tempos/compassos; Polirritmia e Partitura da frase substituem os termos anteriores.
+- Cabeçalho da Frase mantém quatro figuras e Mais com outras sete em popover ancorado; Som deixou de ficar cortado. O baixo somente leitura explica onde ajustar seu conteúdo ao receber clique.
+- Verificação na branch: **333/333 testes**, **90 módulos, zero falhas**. Capturas: [1440×900](rodada-2-etapa3-1440x900.png), [1280×800](rodada-2-etapa3-1280x800.png).
 
 
 ## Critérios de aceitação
@@ -37,9 +49,9 @@ As seções abaixo recebem decisões e resultados observados ao concluir cada et
 | 4 | Cliques nas faixas têm resposta visível | Pendente |
 | 5 | Duração ativa lembrada; arrasto central move nota curta | Passou: semínima criada; semicolcheia movida sem mudar duração |
 | 6 | Seleção múltipla, copiar, colar, duplicar e Esc | Passou: Shift, retângulo, Ctrl+A/C/V/D e intensidade agrupada |
-| 7 | Aumentar sessão e repetir frase | Pendente |
-| 8 | Acordes repetidos desenhados como fantasmas | Pendente |
-| 9 | 16 compassos legíveis; semicolcheia >=12px, rótulos sem sobreposição | Pendente |
+| 7 | Aumentar sessão e repetir frase | Passou: 1→4 com quatro compassos iguais no navegador e regressão de histórico |
+| 8 | Acordes repetidos desenhados como fantasmas | Passou: 40% de opacidade, sem alça; materialização verificada |
+| 9 | 16 compassos legíveis; semicolcheia >=12px, rótulos sem sobreposição | Passou: 15,6875 px, 64 rótulos sem sobreposição, rolagem automática e cabeçalho fixo |
 | 10 | Popovers ancorados e inteiros, com e sem aviso | Parcial: Som da bateria verificado; todas as faixas na verificação final |
 | 11 | Mudo e solo a um clique | Pendente |
 | 12 | Avisos não deslocam transporte | Passou: posição documental 130 px antes/depois |

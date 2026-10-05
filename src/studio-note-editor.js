@@ -6,6 +6,11 @@ import { editNotes, pasteNotes, NOTE_FIGURES, rememberedDuration, rememberDurati
 export function mountStudioNoteEditor(grid, host, view) {
   const $ = id => document.getElementById(id);
   let drag = null; let suppressClick = false; let copied = []; let duration = rememberedDuration();
+  const more = document.createElement('details'); more.id = 'creation-more-figures'; more.className = 'track-disclosure';
+  const summary = document.createElement('summary'); summary.textContent = 'Mais'; summary.setAttribute('aria-label', 'Mais figuras de duração');
+  const extra = document.createElement('div'); extra.id = 'extra-creation-duration'; extra.className = 'track-popover creation-figures-popover';
+  extra.setAttribute('role', 'group'); extra.setAttribute('aria-label', 'Durações pontuadas, semibreve e quiálteras');
+  more.append(summary, extra); $('creation-duration').append(more);
   const ids = () => host.getEditorSelection()?.kind === 'note' ? host.getEditorSelection().ids ?? [host.getSelection()] : [];
   function choose(chosen, primary = chosen.at(-1)) {
     host.setEditorSelection(chosen.length ? { kind: 'note', id: primary, ids: chosen } : null);
@@ -20,11 +25,15 @@ export function mountStudioNoteEditor(grid, host, view) {
   function setDuration(ticks) {
     duration = ticks; rememberDuration(ticks);
     for (const button of $('creation-duration').querySelectorAll('button')) button.setAttribute('aria-pressed', String(Math.abs(Number(button.dataset.duration) - duration) < 1e-8));
+    const selectedFigure = NOTE_FIGURES.find(([ticks]) => Math.abs(ticks - duration) < 1e-8);
+    summary.title = `Mais figuras · duração ativa: ${selectedFigure?.[2] ?? `${duration} ticks`}`;
+    summary.classList.toggle('active-figure', !!selectedFigure && !NOTE_FIGURES.slice(0, 4).includes(selectedFigure));
   }
-  for (const [ticks, figure, name] of NOTE_FIGURES) {
+  for (const [index, [ticks, figure, name]] of NOTE_FIGURES.entries()) {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'preset'; button.dataset.duration = ticks;
     button.textContent = figure; button.title = name; button.setAttribute('aria-label', `Duração de criação: ${name}`);
-    button.addEventListener('click', () => { setDuration(ticks); if (ids().length) commit({ duration: ticks }); }); $('creation-duration').append(button);
+    button.addEventListener('click', () => { setDuration(ticks); if (ids().length) commit({ duration: ticks }); });
+    if (index < 4) $('creation-duration').insertBefore(button, more); else extra.append(button);
   }
   setDuration(duration);
   function commit(patch) {

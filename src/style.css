@@ -240,7 +240,7 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 .track-lane { position: relative; min-width: 0; background: repeating-linear-gradient(to right, transparent 0, transparent calc(var(--bar-width) - 1px), #586b7066 calc(var(--bar-width) - 1px), #586b7066 var(--bar-width)), #111a20; }
 .role-suppressed .track-lane { opacity: .4; }
 .beat-labels { position: relative; display: block; height: 24px; color: var(--accent); font-weight: 700; background: #142028; overflow: hidden; }
-.beat-labels span { position: absolute; top: 4px; padding-left: 3px; font-size: 10px; white-space: nowrap; }
+.beat-labels span, .beat-labels .ruler-bar { position: absolute; top: 4px; padding-left: 3px; font-size: 10px; white-space: nowrap; }
 .beat-labels .ruler-beat { color: var(--muted); font-size: 9px; }
 .grid { height: 100%; border: 0; outline-offset: -2px; }
 .grid .mark { opacity: .5; height: 100%; }
@@ -285,8 +285,9 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 #drum-rows { display: grid; grid-template-rows: repeat(3, 1fr); height: 100%; }
 .drum-line { position: relative; border-bottom: 1px solid #35434b88; min-height: 0; }
 .drum-hit { top: 7px; height: 17px; width: 4px; }
-.drum-voice-label { position: absolute; right: 5px; top: 8px; color: var(--muted); font-size: 9px; background: #111a20c0; pointer-events: none; }
-.bass-note { position: absolute; top: 24px; height: 28px; border: 1px solid #dcc5ff; border-radius: 4px; background: #7b60a6; min-width: 3px; }
+.drum-voice-labels { position: absolute; inset: 0 0 0 auto; width: 58px; display: grid; grid-template-rows: repeat(3, 1fr); background: #1d2930; border-left: 1px solid var(--line); }
+.drum-voice-label { display: flex; align-items: center; padding-left: 4px; color: var(--muted); font-size: 9px; }
+.bass-note { position: absolute; top: 24px; height: 28px; border: 1px solid #dcc5ff; border-radius: 4px; background: #7b60a6; min-width: 3px; overflow: hidden; white-space: nowrap; padding: 4px 2px; font-size: 10px; color: #fff; }
 .studio-lanes > .playhead { top: 0; bottom: 0; z-index: 4; }
 .studio-score > summary { position: sticky; left: 0; width: min(550px, 100%); padding: 8px; cursor: pointer; color: var(--muted); font-size: 11px; }
 .score-row .track-header { color: var(--muted); font-size: 11px; }
@@ -349,3 +350,25 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 .note .handle:after { right: 2px; }
 .chord-handle:after { left: 2px; }
 #note-marquee, .chord-marquee { position: absolute; border: 1px solid var(--blue); background: #8bcced22; pointer-events: none; z-index: 4; }
+.studio-ruler { height: 32px; }
+.ruler-heading label { display: flex; align-items: center; gap: 5px; }
+.ruler-heading select { padding: 2px 4px; font-size: 10px; max-width: 155px; }
+.beat-labels { height: 32px; }
+.beat-labels .ruler-bar { padding: 3px; border: 0; border-radius: 2px; background: transparent; color: var(--accent); line-height: 16px; overflow-wrap: normal; }
+.beat-labels .ruler-beat { top: 8px; }
+.compact-ruler .ruler-beat { display: none; }
+.studio-chord.harmony-ghost { opacity: .4; border-style: dashed; cursor: pointer; }
+#track-drums .track-header { padding-right: 64px; }
+#track-drums .track-style { flex-wrap: wrap; gap: 2px; }
+#track-drums .track-style select { flex: 1 1 100%; width: 100%; height: 19px; }
+#track-drums .track-actions { gap: 4px; flex-wrap: wrap; }
+#track-drums { height: 120px; }
+.drum-hit { top: calc(50% - 8px); }
+#timeline-reading-help { margin: 5px 0 0; font-size: 10px; }
+#bar-actions-dialog { max-width: min(620px, calc(100vw - 32px)); }
+.creation-duration { flex-wrap: nowrap; align-items: center; }
+.creation-duration > .track-disclosure { flex: 0 0 auto; }
+.creation-duration .active-figure { color: var(--accent); }
+.creation-figures-popover { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: min(320px, calc(100vw - 24px)); }
+.creation-figures-popover .preset { min-width: 38px; height: 30px; font-size: 18px; }
+.creation-figures-popover .preset[data-duration^="0."], .creation-figures-popover .preset[data-duration^="1."] { font-size: 11px; }

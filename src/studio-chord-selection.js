@@ -25,6 +25,7 @@ export function mountStudioChordSelection(lane, host) {
   }
   lane.setAttribute('aria-multiselectable', 'true');
   lane.addEventListener('keydown', event => {
+    if (event.target.closest('[data-ghost="true"]')) return;
     const session = host.getSession(); const key = event.key.toLowerCase();
     if ((event.ctrlKey || event.metaKey) && !event.altKey && ['a', 'c', 'v', 'd'].includes(key)) {
       event.preventDefault(); event.stopImmediatePropagation();
@@ -48,6 +49,7 @@ export function mountStudioChordSelection(lane, host) {
   lane.addEventListener('pointerdown', event => {
     if (event.button !== 0) return;
     const block = event.target.closest('.studio-chord'); const session = host.getSession(); const box = lane.getBoundingClientRect();
+    if (block?.dataset.ghost === 'true') return;
     cursor = Math.max(0, Math.min(session.progression.cycleBars - 1 / session.meter.beats, Math.floor((event.clientX - box.left) / box.width * session.bars * session.meter.beats) / session.meter.beats));
     if (block && event.shiftKey) {
       event.preventDefault(); event.stopImmediatePropagation(); const index = Number(block.dataset.index);
@@ -70,7 +72,7 @@ export function mountStudioChordSelection(lane, host) {
       lane.classList.toggle('invalid-drop', !drag.next); return;
     }
     const left = Math.min(drag.x, event.clientX); const right = Math.max(drag.x, event.clientX); const top = Math.min(drag.y, event.clientY); const bottom = Math.max(drag.y, event.clientY);
-    const chosen = [...lane.querySelectorAll('.studio-chord')].filter(block => { const rect = block.getBoundingClientRect(); return rect.right >= left && rect.left <= right && rect.bottom >= top && rect.top <= bottom; }).map(block => Number(block.dataset.index));
+    const chosen = [...lane.querySelectorAll('.studio-chord:not([data-ghost="true"])')].filter(block => { const rect = block.getBoundingClientRect(); return rect.right >= left && rect.left <= right && rect.bottom >= top && rect.top <= bottom; }).map(block => Number(block.dataset.index));
     choose([...new Set([...drag.indices, ...chosen])]);
     lane.querySelector('.chord-marquee')?.remove();
     const marquee = document.createElement('div'); marquee.className = 'chord-marquee'; const box = lane.getBoundingClientRect(); Object.assign(marquee.style, { left: `${left - box.left}px`, top: `${top - box.top}px`, width: `${right - left}px`, height: `${bottom - top}px` }); lane.append(marquee);

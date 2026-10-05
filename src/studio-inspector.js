@@ -1,4 +1,5 @@
 import { sessionTicks, ticksPerBar } from './session.js';
+import { musicalDuration } from './studio-bars.js';
 
 export function pitchName(pitch) {
   return `${['Dó', 'Dó♯', 'Ré', 'Ré♯', 'Mi', 'Fá', 'Fá♯', 'Sol', 'Sol♯', 'Lá', 'Lá♯', 'Si'][pitch % 12]}${Math.floor(pitch / 12) - 1}`;
@@ -50,6 +51,7 @@ export function mountStudioInspector(host) {
     $('note-start').max = sessionTicks(session); $('note-duration').max = sessionTicks(session);
     $('note-start').step = $('note-duration').step = 'any';
     for (const chip of document.querySelectorAll('#presets button, #extra-presets button')) {
+      chip.title = `${chip.getAttribute('aria-label')} · ${musicalDuration(Number(chip.dataset.duration), session)}`;
       chip.disabled = locked || !note;
       chip.setAttribute('aria-pressed', String(!!note && Math.abs(note.duration - Number(chip.dataset.duration)) < 1e-8));
     }

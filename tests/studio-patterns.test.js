@@ -140,10 +140,14 @@ test('single toast expires at 6s / 10s, replaces previous notices, and cannot un
     hidden: true, disabled: false, textContent: '', classList: { toggle() {} },
     listeners: {}, addEventListener(type, listener) { this.listeners[type] = listener; },
   });
+  nodes.get('studio-toast').insertBefore = node => nodes.set(node.id, node);
   t.mock.method(globalThis, 'setTimeout', (callback, delay) => ({ callback, delay }));
   t.mock.method(globalThis, 'clearTimeout', () => {});
   const original = globalThis.document;
-  globalThis.document = { getElementById: id => nodes.get(id) };
+  globalThis.document = {
+    getElementById: id => nodes.get(id),
+    createElement: () => ({ hidden: true, textContent: '', listeners: {}, addEventListener(type, listener) { this.listeners[type] = listener; } }),
+  };
   t.after(() => { if (original === undefined) delete globalThis.document; else globalThis.document = original; });
   const history = new History(); history.push(musical());
   let undoCalls = 0; let busy = false;
@@ -167,6 +171,19 @@ test('single toast expires at 6s / 10s, replaces previous notices, and cannot un
   assert.equal(nodes.get('message').textContent, 'Alteração desfeita.');
   globalThis.setTimeout.mock.calls.at(-1).arguments[0](); assert.equal(nodes.get('studio-toast').hidden, true);
   notices.show('Fechar'); nodes.get('toast-close').listeners.click(); assert.equal(nodes.get('studio-toast').hidden, true);
+  let actionCalls = 0;
+  notices.show('Sessão ampliada', { current: history.current, actionLabel: 'Repetir a frase', action: () => { actionCalls++; } });
+  assert.equal(nodes.get('toast-action').hidden, false);
+  assert.equal(nodes.get('toast-action').textContent, 'Repetir a frase');
+  assert.equal(globalThis.setTimeout.mock.calls.at(-1).arguments[1], 10000);
+  nodes.get('toast-action').listeners.click(); nodes.get('toast-action').listeners.click();
+  assert.equal(actionCalls, 1); assert.equal(nodes.get('toast-action').hidden, true);
+  notices.show('Outra ampliação', { current: history.current, actionLabel: 'Repetir', action: () => { actionCalls++; } });
+  history.push(patchSession(history.current, { bpm: 110 }));
+  nodes.get('toast-action').listeners.click();
+  assert.equal(actionCalls, 1);
+  notices.changed(history.current);
+  assert.equal(nodes.get('toast-action').hidden, true);
 });
 
 test('pattern dialog cancels without mutation, accepts explicit structural choices, and explains invalid chord positions', t => {

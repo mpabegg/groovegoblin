@@ -215,7 +215,7 @@ const studioTimeline = mountStudioTimeline($('studio-editor'), {
   getSelection: noteSelection, setSelection: setNoteSelection,
   getChordSelection: chordSelection, setChordSelection,
   getEditorSelection: () => selected, setEditorSelection: value => { selected = value; },
-  selectionChanged: () => { renderControls(); studioTimeline.renderSelection(); }, commitNote, notify: message,
+  selectionChanged: () => { renderControls(); studioTimeline.renderSelection(); }, commitNote, notify: message, notifyAction: (text, actionLabel, action) => notices.show(text, { current: history.current, actionLabel, action }),
   auditionNotes: notes => { if (!busy() && !repertoire?.isBusy()) void audio.audition(notes, { bpm: session.bpm, timbre: session.timbres.phrase }).catch(error => message(`Prévia indisponível: ${error.message}`, true)); },
   auditionChord: chord => { if (!busy() && !repertoire?.isBusy()) void audio.audition(chord.notes.map(note => ({ pitch: note.midi, velocity: 0.65 })), { bpm: session.bpm, timbre: session.timbres.chords, channel: 'chords' }).catch(error => message(`Prévia indisponível: ${error.message}`, true)); },
 });

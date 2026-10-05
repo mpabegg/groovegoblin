@@ -6,6 +6,8 @@ import { mountStudioHarmony } from './studio-harmony.js';
 import { buildRhythmNotation, renderRhythmNotation } from './notation.js';
 import { mountStudioTracks } from './studio-tracks.js';
 import { pitchName } from './studio-inspector.js';
+import { timelineWidth, musicalDuration } from './studio-bars.js';
+import { mountStudioRuler } from './studio-ruler.js';
 
 const figure = duration => ({ 1: '𝅘𝅥𝅯', 2: '♪', 3: '♪·', 4: '♩', 6: '♩·', 8: '𝅗𝅥', 12: '𝅗𝅥·', 16: '𝅝' })[duration] ?? '';
 const number = value => String(Math.round(value * 1000) / 1000);
@@ -17,17 +19,25 @@ export function mountStudioTimeline(root, host) {
   const scroll = $('studio-scroll');
   const canvas = $('studio-canvas');
   const tracks = mountStudioTracks(host);
-  const harmony = mountStudioHarmony(root, host);
+  const ruler = mountStudioRuler(root, host);
+  const harmony = mountStudioHarmony(root, { ...host, offerMaterialize: ruler.offerMaterialize });
   let cursor = 0;
   let creationTicks = [];
-  let zoom = 1;
+  let visibleBars = 4;
 
   function size() {
     const width = scroll.clientWidth;
-    canvas.style.width = `${200 + Math.max(0, width - 200) * zoom}px`;
+    const session = host.getSession();
+    canvas.style.width = `${timelineWidth(width, session, visibleBars)}px`;
+    const beatWidth = (canvas.clientWidth - 200) / session.bars / session.meter.beats;
+    root.classList.toggle('compact-ruler', beatWidth < 40);
+    for (const block of $('bass-lane').querySelectorAll('.bass-note')) {
+      block.textContent = block.getBoundingClientRect().width >= 30 ? pitchName(Number(block.dataset.pitch)).replace(/-?\d+$/, '') : '';
+    }
   }
   new ResizeObserver(size).observe(scroll);
-  $('timeline-zoom').addEventListener('change', event => { zoom = Number(event.target.value); size(); });
+  $('timeline-zoom').addEventListener('change', event => { visibleBars = Number(event.target.value); size(); });
+  $('bass-lane').addEventListener('click', () => host.notify('Baixo gerado: ajuste o estilo ou a densidade no cabeçalho.'));
   function focusNote(id) { $('notes').querySelector(`[data-id="${CSS.escape(id)}"]`)?.focus({ preventScroll: true }); }
   const editor = mountStudioNoteEditor(grid, host, {
     renderNotes, focusNote, getCursor: () => cursor,
@@ -60,8 +70,9 @@ export function mountStudioTimeline(root, host) {
         mark.style.left = `${(bar * measure + tick) / total * 100}%`; $('marks').append(mark);
       }
       for (let beat = 0; beat < session.meter.beats; beat++) {
-        const label = document.createElement('span'); label.textContent = beat === 0 ? `${bar + 1} · 1` : String(beat + 1);
+        const label = document.createElement(beat === 0 ? 'button' : 'span'); label.textContent = beat === 0 ? `${bar + 1} · 1` : String(beat + 1);
         label.className = beat === 0 ? 'ruler-bar' : 'ruler-beat';
+        if (beat === 0) { label.type = 'button'; label.dataset.bar = bar; label.setAttribute('aria-label', `Compasso ${bar + 1}. Enter ou botão direito abre ações do compasso.`); }
         label.style.left = `${(bar * measure + beat * 16 / session.meter.unit) / total * 100}%`; $('beat-labels').append(label);
       }
     }
@@ -77,7 +88,7 @@ export function mountStudioTimeline(root, host) {
       block.setAttribute('role', 'gridcell'); block.tabIndex = selected ? 0 : -1;
       block.style.left = `calc(${note.start / total * 100}% + 2px)`; block.style.width = `max(6px, calc(${note.duration / total * 100}% - 4px))`;
       block.setAttribute('aria-selected', String(selected)); block.setAttribute('aria-disabled', String(host.isBusy()));
-      block.setAttribute('aria-label', `Nota ${pitchName(note.pitch)}: compasso ${Math.floor(note.start / ticksPerBar(session)) + 1}, tempo ${number(note.start % ticksPerBar(session) / (16 / session.meter.unit) + 1)}, duração ${number(note.duration / (16 / session.meter.unit))} tempos, intensidade ${Math.round(note.velocity * 100)}%, ${ARTICULATION_LABELS[note.articulation]}`);
+      block.setAttribute('aria-label', `Nota ${pitchName(note.pitch)}: compasso ${Math.floor(note.start / ticksPerBar(session)) + 1}, tempo ${number(note.start % ticksPerBar(session) / (16 / session.meter.unit) + 1)}, duração ${musicalDuration(note.duration, session)}, intensidade ${Math.round(note.velocity * 100)}%, ${ARTICULATION_LABELS[note.articulation]}`);
       block.textContent = figure(note.duration);
       const handle = document.createElement('span'); handle.className = 'handle'; handle.setAttribute('aria-hidden', 'true');
       if (note.duration / total * grid.getBoundingClientRect().width - 4 >= 12) block.append(handle);
@@ -90,8 +101,9 @@ export function mountStudioTimeline(root, host) {
   }
   function renderDrums(session) {
     const rows = $('drum-rows'); rows.replaceChildren();
+    const labels = $('drum-voice-labels'); labels.replaceChildren();
     if (!session.drums.enabled) return;
-    const names = { kick: 'Bumbo', snare: 'Caixa', hihat: 'Chimbal / percussão' };
+    const names = { kick: 'Bumbo', snare: 'Caixa', hihat: 'Chimbal' };
     const pattern = generateDrums(session);
     for (const voice of ['kick', 'snare', 'hihat']) {
       const row = document.createElement('div'); row.className = `drum-line drum-${voice}`; row.dataset.voice = voice;
@@ -103,7 +115,7 @@ export function mountStudioTimeline(root, host) {
         mark.style.left = `${hit.start / sessionTicks(session) * 100}%`; mark.style.opacity = String(Math.max(0.25, hit.velocity));
         mark.title = `${hit.instrument} · tempo ${number(hit.start / (16 / session.meter.unit) + 1)} · intensidade ${Math.round(hit.velocity * 100)}%`; mark.setAttribute('aria-hidden', 'true'); row.append(mark);
       }
-      row.append(label); rows.append(row);
+      labels.append(label); rows.append(row);
     }
   }
   function renderBass(session) {
@@ -113,19 +125,24 @@ export function mountStudioTimeline(root, host) {
     for (const note of notes) {
       const block = document.createElement('span'); block.className = 'bass-note'; block.dataset.start = note.start; block.dataset.duration = note.duration; block.dataset.pitch = note.pitch;
       block.style.left = `${note.start / sessionTicks(session) * 100}%`; block.style.width = `${Math.min(note.duration, sessionTicks(session) - note.start) / sessionTicks(session) * 100}%`;
-      block.title = `Baixo ${pitchName(note.pitch)} · tempo ${number(note.start / (16 / session.meter.unit) + 1)} · duração ${number(note.duration / (16 / session.meter.unit))} tempos`; lane.append(block);
+      block.title = `Baixo ${pitchName(note.pitch)} · tempo ${number(note.start / (16 / session.meter.unit) + 1)} · duração ${musicalDuration(note.duration, session)}`; lane.append(block);
     }
   }
   function render() {
-    const session = host.getSession(); tracks.render(); renderGrid(session); harmony.render(); renderDrums(session); renderBass(session); renderNotes(); size();
+    const session = host.getSession(); size(); tracks.render(); renderGrid(session); harmony.render(); renderDrums(session); renderBass(session); renderNotes(); size();
   }
-  function renderControls() { tracks.render(); harmony.renderControls(); grid.setAttribute('aria-disabled', String(host.isBusy())); }
+  function renderControls() {
+    tracks.render(); harmony.renderControls(); grid.setAttribute('aria-disabled', String(host.isBusy()));
+    const { companion } = host.getSession();
+    for (const button of $('creation-duration').querySelectorAll('button')) button.title = `${button.getAttribute('aria-label')} · ${musicalDuration(Number(button.dataset.duration), host.getSession())}`;
+    $('polyrhythm-description').textContent = `${companion.pulses} pulsos a cada ${companion.spanBeats} ${companion.spanBeats === 1 ? 'tempo' : 'tempos'}`;
+  }
   function position(value, { hidden = false } = {}) {
     const session = host.getSession(); const visible = !hidden && !['idle', 'countin'].includes(value.mode);
     const fraction = Math.max(0, Math.min(1, (value.tick ?? 0) / sessionTicks(session)));
     $('playhead').hidden = !visible; $('playhead').style.left = `calc(200px + (100% - 200px) * ${fraction})`;
     harmony.position(value, { hidden });
-    if (visible && zoom > 1 && document.body.dataset.intent === 'studio') {
+    if (visible && canvas.clientWidth > scroll.clientWidth && document.body.dataset.intent === 'studio') {
       const x = 200 + fraction * (canvas.clientWidth - 200);
       if (x < scroll.scrollLeft + 216 || x > scroll.scrollLeft + scroll.clientWidth - 24) scroll.scrollLeft = Math.max(0, x - scroll.clientWidth / 2);
     }

@@ -8,7 +8,7 @@ const STEPS = [
   {
     tab: 'tab-studio', target: '#studio-editor',
     title: 'Estúdio: editar e tocar sua Sessão',
-    body: 'Acordes, Frase, Bateria e Baixo compartilham uma régua, o mesmo zoom e um único cursor. Clique no vazio dos acordes para criar nesse compasso, deixando pausas antes; selecione um acorde para escolher graus e abra “Avançado · cifras e inversões” para outras escolhas. Na Frase, clique para criar; arraste notas ou sua borda direita para editar. O inspetor mostra figuras, Intensidade em % e articulação. “Som” fica em cada cabeçalho; “Grade e swing” guarda zoom, biblioteca e gerador. Tocar/Parar, BPM, metrônomo e loop ficam no transporte; “Sessão” abre biblioteca, arquivos e links. Bateria e Baixo são referências geradas, sem edição manual.',
+    body: 'Acordes, Frase, Bateria e Baixo compartilham régua, zoom e um único cursor. O zoom à esquerda mostra 4 ou 2 compassos; sessões longas rolam com cabeçalhos fixos. Botão direito no número do compasso abre duplicar (inserir após), limpar ou copiar sem substituir. Acordes tracejados são repetições automáticas: clique para materializar. Na Frase, clique para criar; arraste notas ou sua borda direita para editar. O inspetor mostra figuras, Intensidade em % e articulação. “Som” fica em cada cabeçalho; “Grade e swing” guarda biblioteca e gerador. “Partitura da frase” abre a notação. Tocar/Parar, BPM, metrônomo, polirritmia e loop ficam no transporte; “Sessão” abre biblioteca, arquivos e links. Bateria e Baixo são referências geradas, sem edição manual.',
   },
   {
     tab: 'tab-practice', target: '#train-pad',
