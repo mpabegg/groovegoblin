@@ -2,6 +2,7 @@ import { buildRhythmNotation, renderRhythmNotation, rhythmNotationLayout, notati
 import { getInstrumentProfile, getInstrumentClef, formatInstrumentNote } from './instrument-profile.js';
 import { phraseView, resolveTabPosition, stringPitch } from './tablature.js';
 import { chordTimeline } from './progression.js';
+import { createHarmonyReadout, harmonySignature } from './harmony-readout.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -147,6 +148,16 @@ export function mountStudioScores(studioContainer, practiceContainer, host) {
   let strokes = true, studioSession = null, practiceSession = null, execution = null;
   let studioRows = [], practiceRows = [];
   let studioDirty = true, practiceDirty = true;
+  // "Agora · Próximo" vive na borda da partitura do Estúdio e da do Treinar; as
+  // duas leem a mesma posição de áudio a cada quadro, sem redesenhar a frase.
+  const studioReadout = createHarmonyReadout();
+  const practiceReadout = createHarmonyReadout();
+  studioContainer.before(studioReadout.element);
+  practiceContainer.before(practiceReadout.element);
+  // Impressão digital da harmonia da frase do Estúdio e do material executado:
+  // só escondem a leitura do Estúdio quando outra harmonia está soando.
+  let studioHarmony = '';
+  let executionHarmony = null;
   const visible = container => container.checkVisibility?.() ?? true;
   function renderVisible() {
     if (studioDirty && studioSession && visible(studioContainer)) {
@@ -179,6 +190,7 @@ export function mountStudioScores(studioContainer, practiceContainer, host) {
   function render(session, notes = session.notes) {
     studioSession = notes === session.notes ? session : { ...session, notes };
     studioDirty = true;
+    studioHarmony = harmonySignature(studioSession);
     // A partitura do Treinar mostra a fonte atual do treinador (frase da sessão
     // ou o exercício gerado transitório), sem tocar na sessão autoral.
     const source = host.getSourceSession?.() ?? session;
@@ -190,6 +202,7 @@ export function mountStudioScores(studioContainer, practiceContainer, host) {
     const snapshot = active ? host.getExecutionSession?.() ?? null : null;
     if (snapshot !== execution) {
       execution = snapshot;
+      executionHarmony = harmonySignature(execution);
       practiceSession = snapshot ?? host.getSourceSession?.() ?? host.getSession();
       practiceDirty = true;
     }
@@ -198,6 +211,13 @@ export function mountStudioScores(studioContainer, practiceContainer, host) {
     renderVisible();
     if (visible(studioContainer)) positionScore(studioRows, value, { hidden: hidden && value.mode === 'train' });
     if (visible(practiceContainer)) positionScore(practiceRows, value);
+    // Estúdio: a leitura acompanha a frase exibida e só cede a vez quando outra
+    // harmonia está soando (o cursor do Estúdio some pelo mesmo motivo). Treinar:
+    // a leitura segue SEMPRE a fonte executada — some apenas quando essa fonte
+    // não tem acorde nenhum (por exemplo, material gerado sem harmonia), nunca
+    // por ser gerada nem por esconder a frase autoral.
+    studioReadout.update(studioSession, value, { hidden: execution !== null && executionHarmony !== studioHarmony });
+    practiceReadout.update(practiceSession, value);
   }
   return { render, position };
 }

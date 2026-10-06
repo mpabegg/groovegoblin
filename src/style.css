@@ -288,6 +288,9 @@ main { max-width: 1440px; padding: 12px 24px 12px; }
 .harmony-cycle-boundary { position: absolute; inset-block: 0; border-left: 2px dashed var(--blue); pointer-events: none; }
 .harmony-context { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -4px 0 10px; padding: 0 12px; color: var(--muted); font-size: 11px; }
 .harmony-context button { padding: 5px 8px; font-size: 11px; }
+/* Leitura fixa de Agora/Próximo: uma linha estável, sem deslocar a partitura
+   quando o acorde muda a cada compasso. */
+.harmony-now-next { position: sticky; top: 0; z-index: 1; width: max-content; max-width: 100%; margin: 0 0 4px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 7px; background: #111b20; color: var(--blue); font-size: 12px; font-weight: 600; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chord-inspector { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; color: var(--text); }
 .chord-inspector-heading { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; font-size: 11px; }
 .chord-inspector-heading button { padding: 4px 8px; font-size: 11px; }
@@ -362,6 +365,9 @@ main { max-width: 1440px; padding: 12px 24px 12px; }
 #band-starters { margin: 0 0 10px; padding: 0 12px; }
 #drum-advanced { flex-basis: 100%; }
 #drum-advanced .track-popover { position: static; width: 100%; max-height: none; padding: 8px 0 0; border: 0; box-shadow: none; }
+#harmony-cycles .track-popover { position: static; width: 100%; max-height: none; padding: 8px 0 0; border: 0; box-shadow: none; }
+#harmony-cycles[open] > summary { margin-bottom: 4px; }
+#harmony-cycles .tool-row button, #harmony-cycles .tool-row select { font-size: 11px; padding: 5px 7px; }
 .phrase-tools-dialog { width: min(850px, calc(100vw - 32px)); }
 .phrase-tools-dialog .inspiration-tools { margin: 12px 0 20px; gap: 24px; }
 .phrase-tools-dialog h3 { font-size: 14px; }
@@ -560,6 +566,7 @@ details.studio-fretboard:not([open]) { padding-block: 10px; }
 .fretboard-other { color: var(--muted); opacity: .48; }
 .fretboard-tone { background: #315142; color: var(--text); font-weight: 600; }
 .fretboard-root { background: var(--accent); color: #182717; font-weight: 800; }
+.fretboard-next { outline: 2px dashed var(--blue); outline-offset: -2px; }
 .chord-diagram { margin: 12px 0 0; width: 200px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
 .chord-diagram figcaption { font-size: 11px; }
 .chord-diagram svg { display: block; width: 170px; max-width: 100%; }

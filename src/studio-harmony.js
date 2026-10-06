@@ -281,6 +281,7 @@ export function mountStudioHarmony(root, host) {
     $('progression-status').textContent = `${progression.chords.length} acordes · ciclo de ${number(progression.cycleBars)} comp.${mismatch ? progression.cycleBars < session.bars ? ' · repete na sessão' : ' · continua além da sessão' : ''}${gaps ? ' · áreas hachuradas em silêncio' : ''}${!progression.chords.length ? ' · crie um acorde para ajustar' : ''}`;
     $('fit-progression').disabled = host.isBusy() || !progression.chords.length;
     $('fit-progression').title = !progression.chords.length ? 'Crie um acorde antes de ajustar' : 'Distribuir os acordes em tempos inteiros e preencher a sessão, retirando as pausas';
+    named.refreshCycleSize();
   }
   function renderControls() { renderInspector(); renderContext(); lane.setAttribute('aria-disabled', String(host.isBusy())); }
   function render() { renderLane(); renderControls(); }

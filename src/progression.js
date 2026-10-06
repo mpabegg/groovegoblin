@@ -1,4 +1,4 @@
-import { ticksPerBar, sessionTicks } from './meter.js';
+import { EPSILON, ticksPerBar, sessionTicks } from './meter.js';
 
 // As 12 classes de altura em cada modo, com grafia tonal (sem duplicar enarmônicos).
 const TONICS = {
@@ -369,6 +369,41 @@ export function generateProgression(options) {
     }
   }
   return { keyId, chords: voiceProgression(chords), cycleBars: count * harmonicRhythm, enabled: true };
+}
+
+// Janela do loop em ticks: o loop vigente da sessão. Um loop inválido (fora dos
+// compassos ou vazio) cai na sessão inteira, nunca em uma janela inventada.
+function loopWindow(session) {
+  const total = sessionTicks(session);
+  const barTicks = ticksPerBar(session);
+  const startBar = Math.max(0, Math.min(session.bars, session.loop?.startBar ?? 0));
+  const endBar = Math.max(0, Math.min(session.bars, session.loop?.endBar ?? session.bars));
+  return endBar > startBar ? { start: startBar * barTicks, end: endBar * barTicks } : { start: 0, end: total };
+}
+
+// Acorde que soa agora e o seguinte. Dentro do loop vigente a sequência termina
+// no último acorde da janela e "próximo" volta ao primeiro — no fim de um loop
+// parcial ou do loop inteiro. Fora do loop (parado, ou ouvindo a sessão toda) a
+// janela é a sessão. Pausas harmônicas devolvem current nulo: nunca um acorde
+// que não está soando.
+export function chordNowNext(session, tick = 0) {
+  const events = chordTimeline(session);
+  if (!events.length) return null;
+  const window = loopWindow(session);
+  const inside = tick >= window.start - EPSILON && tick < window.end - EPSILON;
+  const bounds = inside ? window : { start: 0, end: sessionTicks(session) };
+  const candidates = events.filter(event => event.start < bounds.end - EPSILON && event.start + event.duration > bounds.start + EPSILON);
+  if (!candidates.length) return null;
+  const cursor = Math.min(Math.max(tick, bounds.start), bounds.end - EPSILON);
+  // [início, fim) com tolerância só na borda de entrada: um tique a menos de um
+  // bilionésimo antes da troca ainda pertence ao acorde que está soando, e o
+  // último instante do loop nunca perde o acorde final.
+  const index = candidates.findIndex(event => cursor >= event.start - EPSILON && cursor < event.start + event.duration);
+  const upcoming = candidates.findIndex(event => event.start >= cursor - EPSILON);
+  return {
+    current: index < 0 ? null : candidates[index],
+    next: candidates[index >= 0 ? (index + 1) % candidates.length : Math.max(0, upcoming)],
+  };
 }
 
 // Repete o ciclo explícito, preservando pausas e recortando o final da sessão.

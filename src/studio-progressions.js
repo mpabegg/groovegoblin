@@ -14,10 +14,63 @@ export const NAMED_PROGRESSIONS = Object.freeze([
   recipe('minor-descent', 'i–♭VII–♭VI–V', 'minor', [[1, 'm'], [7, ''], [6, ''], [5, '7']]),
 ]);
 
-export function namedProgression(id, keyId) {
+// Ciclos pelos 12 tons: uma tríade por fundamental, sem tonalidade única. Os
+// três ciclos usam a mesma grafia (lado bemol) para nenhum deles misturar F# e
+// Gb; a tonalidade da sessão é mantida, só a harmonia muda.
+export const CYCLE_ORDERS = Object.freeze([
+  Object.freeze({ id: 'fourths', label: 'Quartas', roots: Object.freeze(['C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'B', 'E', 'A', 'D', 'G']) }),
+  Object.freeze({ id: 'fifths', label: 'Quintas (inverso)', roots: Object.freeze(['C', 'G', 'D', 'A', 'E', 'B', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F']) }),
+  Object.freeze({ id: 'chromatic', label: 'Cromática ascendente', roots: Object.freeze(['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B']) }),
+]);
+export const CYCLE_TRIADS = Object.freeze([
+  Object.freeze({ id: 'major', label: 'Maior', quality: '' }),
+  Object.freeze({ id: 'minor', label: 'Menor', quality: 'm' }),
+  Object.freeze({ id: 'augmented', label: 'Aumentada', quality: 'aug' }),
+  Object.freeze({ id: 'diminished', label: 'Diminuta', quality: 'dim' }),
+]);
+export const CYCLE_BARS_PER_CHORD = Object.freeze([1, 2]);
+
+export const cycleOrderId = order => `cycle-${order}`;
+export function findCycleOrder(id) {
+  return typeof id === 'string' && id.startsWith('cycle-') ? CYCLE_ORDERS.find(order => cycleOrderId(order.id) === id) ?? null : null;
+}
+
+// Rótulo e tamanho antes de aplicar — "2 compassos por acorde + o primeiro
+// repetido em 1 compasso = 25 compassos" — para o usuário decidir com o número
+// na frente, sem nunca cortar o ciclo em silêncio.
+export function cyclePresetLabel(id, options = {}) {
+  const order = findCycleOrder(id);
+  if (!order) throw new TypeError('Escolha um dos três ciclos pelos 12 tons.');
+  const triad = CYCLE_TRIADS.find(value => value.id === options.triad) ?? CYCLE_TRIADS[0];
+  const barsPerChord = options.barsPerChord ?? 1;
+  const repeatFirst = options.repeatFirst !== false;
+  const tail = repeatFirst
+    ? `${barsPerChord} ${barsPerChord === 1 ? 'compasso' : 'compassos'} por acorde + o primeiro repetido em 1 compasso`
+    : `${barsPerChord} ${barsPerChord === 1 ? 'compasso' : 'compassos'} por acorde, sem acorde final`;
+  return `${order.label} · tríades ${triad.label.toLowerCase()} · ${tail} = ${order.roots.length * barsPerChord + (repeatFirst ? 1 : 0)} compassos`;
+}
+
+// O ciclo tem 12 acordes e, por padrão, o primeiro repetido no fim. O acorde
+// final dura SEMPRE um compasso — 2 compassos por acorde dão 2×12+1 = 25.
+export function cycleProgression(keyId, id, { triad = 'major', barsPerChord = 1, repeatFirst = true } = {}) {
+  const order = findCycleOrder(id);
+  if (!order) throw new TypeError('Escolha um dos três ciclos pelos 12 tons.');
+  const chosen = CYCLE_TRIADS.find(value => value.id === triad);
+  if (!chosen) throw new TypeError('Escolha tríade maior, menor, aumentada ou diminuta.');
+  if (!CYCLE_BARS_PER_CHORD.includes(barsPerChord)) throw new TypeError('Cada acorde do ciclo dura 1 ou 2 compassos.');
+  if (typeof repeatFirst !== 'boolean') throw new TypeError('A repetição do primeiro acorde no fim deve ser sim ou não.');
+  const chords = order.roots.map((root, index) => ({
+    ...parseChordSymbol(`${root}${chosen.quality}`), startBar: index * barsPerChord, durationBars: barsPerChord,
+  }));
+  if (repeatFirst) chords.push({ ...chords[0], startBar: order.roots.length * barsPerChord, durationBars: 1 });
+  return { keyId: findKey(keyId).id, enabled: true, cycleBars: order.roots.length * barsPerChord + (repeatFirst ? 1 : 0), chords };
+}
+
+export function namedProgression(id, keyId, options = {}) {
+  const inputKey = findKey(keyId);
+  if (findCycleOrder(id)) return cycleProgression(inputKey.id, id, options);
   const preset = NAMED_PROGRESSIONS.find(value => value.id === id);
   if (!preset) throw new TypeError('Escolha uma progressão pronta.');
-  const inputKey = findKey(keyId);
   const key = PROGRESSION_KEYS.find(value => value.pitchClass === inputKey.pitchClass && value.mode === preset.mode);
   const scale = getDiatonicChords(key.id);
   const chords = preset.degrees.map(([degree, quality], index) => {
@@ -33,8 +86,8 @@ export function namedProgression(id, keyId) {
 // Preflight before the canonical patcher (which can otherwise clip phrase notes).
 // Resize never drops notes, drum differences or form sections. Repeat/cut only
 // replaces harmony, and only after explicit consent in the mismatch dialog.
-export function namedProgressionPatch(session, id, choice) {
-  const progression = namedProgression(id, session.progression.keyId);
+export function namedProgressionPatch(session, id, choice, options = {}) {
+  const progression = namedProgression(id, session.progression.keyId, options);
   const patch = { progression };
   if (choice === 'resize') {
     const bars = progression.cycleBars; const limit = bars * ticksPerBar(session);
@@ -62,7 +115,7 @@ export function mountNamedProgressions(host) {
     option.textContent = `${preset.label} · ${preset.bars} compassos · ${preset.mode === 'major' ? 'maior' : 'menor'}`; group.append(option);
   }
   select.append(group);
-  document.getElementById('harmony-options').querySelector('.tool-hint').textContent = 'Cadência, turnaround e diatônica livre preenchem a sessão em tempos inteiros, sem mudar seus compassos. Para inserir com pausas, clique na faixa.';
+  document.getElementById('harmony-options-hint').textContent = 'Cadência, turnaround e diatônica livre preenchem a sessão em tempos inteiros, sem mudar seus compassos. Para inserir com pausas, clique na faixa.';
   const hint = document.createElement('p'); hint.id = 'named-progression-hint'; hint.className = 'tool-hint muted';
   hint.textContent = 'Progressões nomeadas usam um acorde por compasso e o modo indicado, mantendo a tônica. Tamanho diferente: escolha ajustar a sessão ou repetir/cortar somente os acordes; Cancelar preserva tudo.';
   document.getElementById('harmony-options').querySelector('.track-popover').append(hint);
@@ -76,12 +129,15 @@ export function mountNamedProgressions(host) {
   dialog.append(title, description, resize, repeat, cancel); document.body.append(dialog);
   let request = null; let previousFocus = null;
   function dismiss() { request = null; dialog.close(); }
-  function commit(id, choice) {
-    const result = namedProgressionPatch(host.getSession(), id, choice);
+  function legend(id, options) {
+    const preset = NAMED_PROGRESSIONS.find(value => value.id === id);
+    return preset ? `${preset.label}: ${preset.bars} compassos` : cyclePresetLabel(id, options);
+  }
+  function commit(id, choice, options) {
+    const result = namedProgressionPatch(host.getSession(), id, choice, options);
     if (result.error) { description.textContent = result.error; host.notify(result.error, true); return false; }
     const previous = host.getEditorSelection(); host.setChordSelection(null);
-    const preset = NAMED_PROGRESSIONS.find(value => value.id === id);
-    const applied = host.updateSession(result.patch, { structural: true, notice: `${preset.label}: ${choice === 'repeat-cut' ? `repetida/cortada para ${host.getSession().bars} compassos` : `${preset.bars} compassos`}. Frase, bateria e seções preservadas.` });
+    const applied = host.updateSession(result.patch, { structural: true, notice: `${legend(id, options)}${choice === 'repeat-cut' ? `; repetida/cortada para ${host.getSession().bars} compassos` : ''}. Frase, bateria e seções preservadas.` });
     if (!applied) { host.setEditorSelection(previous); host.selectionChanged?.(); }
     else document.getElementById('harmony-options').open = false;
     return applied;
@@ -89,27 +145,55 @@ export function mountNamedProgressions(host) {
   function choose(choice) {
     if (!request || host.isBusy()) return;
     if (request.session !== host.getSession()) { dismiss(); host.notify('Sessão alterada; escolha a progressão novamente.'); return; }
-    if (commit(request.id, choice)) dismiss();
+    if (commit(request.id, choice, request.options)) dismiss();
   }
   resize.addEventListener('click', () => choose('resize')); repeat.addEventListener('click', () => choose('repeat-cut')); cancel.addEventListener('click', dismiss);
   dialog.addEventListener('cancel', () => { request = null; });
   dialog.addEventListener('close', () => { request = null; previousFocus?.focus({ preventScroll: true }); previousFocus = null; });
   dialog.addEventListener('keydown', event => { if (event.key !== 'Escape') event.stopPropagation(); });
   dialog.addEventListener('click', event => { const box = dialog.getBoundingClientRect(); if (event.target === dialog && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom)) dismiss(); });
-  return {
-    generate(id) {
-      const preset = NAMED_PROGRESSIONS.find(value => value.id === id);
-      if (!preset) return false;
-      if (host.isBusy()) return true;
-      const session = host.getSession();
-      if (session.bars === preset.bars) { commit(id, 'exact'); return true; }
-      request = { id, session }; previousFocus = document.activeElement;
-      const target = findKey(namedProgression(id, session.progression.keyId).keyId);
-      description.textContent = `${preset.label}: ${preset.bars} compassos em ${target.label}; sua sessão tem ${session.bars}. Ajustar muda o tamanho, o loop e a harmonia no tom indicado, preservando frase, bateria e seções. Repetir/cortar mantém o tamanho e recorta/repete somente a nova harmonia, também no tom indicado. Ambas substituem os acordes existentes em uma alteração que pode ser desfeita.`;
-      const preflight = namedProgressionPatch(session, id, 'resize');
-      resize.textContent = `Ajustar sessão para ${preset.bars} compassos`; resize.disabled = !!preflight.error;
-      if (preflight.error) description.textContent += ` ${preflight.error}`;
-      dialog.showModal(); cancel.focus({ preventScroll: true }); return true;
-    },
-  };
+  function generate(id, options = {}) {
+    const preset = NAMED_PROGRESSIONS.find(value => value.id === id);
+    const cycle = findCycleOrder(id);
+    if (!preset && !cycle) return false;
+    if (host.isBusy()) return true;
+    const session = host.getSession();
+    let progression;
+    try { progression = namedProgression(id, session.progression.keyId, options); }
+    catch (error) { host.notify(error.message, true); return false; }
+    if (session.bars === progression.cycleBars) { commit(id, 'exact', options); return true; }
+    request = { id, options, session }; previousFocus = document.activeElement;
+    const size = `${progression.cycleBars} compassos`;
+    description.textContent = preset
+      ? `${preset.label}: ${size} em ${findKey(progression.keyId).label}; sua sessão tem ${session.bars}. Ajustar muda o tamanho, o loop e a harmonia no tom indicado, preservando frase, bateria e seções. Repetir/cortar mantém o tamanho e recorta/repete somente a nova harmonia, também no tom indicado. Ambas substituem os acordes existentes em uma alteração que pode ser desfeita.`
+      : `${legend(id, options)}; sua sessão tem ${session.bars} compassos. O tom do exercício é mantido: os doze acordes definem a harmonia. Ajustar muda o tamanho, o loop e a harmonia, preservando frase, bateria e seções. Repetir/cortar mantém o tamanho e recorta/repete somente a nova harmonia. Ambas substituem os acordes existentes em uma alteração que pode ser desfeita.`;
+    const preflight = namedProgressionPatch(session, id, 'resize', options);
+    resize.textContent = `Ajustar sessão para ${progression.cycleBars} compassos`; resize.disabled = !!preflight.error;
+    if (preflight.error) description.textContent += ` ${preflight.error}`;
+    dialog.showModal(); cancel.focus({ preventScroll: true }); return true;
+  }
+  const cycleOrder = document.getElementById('cycle-order');
+  const cycleTriad = document.getElementById('cycle-triad');
+  const cycleBars = document.getElementById('cycle-bars');
+  const cycleRepeat = document.getElementById('cycle-repeat-first');
+  const cycleStatus = document.getElementById('cycle-status');
+  for (const order of CYCLE_ORDERS) {
+    const option = document.createElement('option'); option.value = cycleOrderId(order.id);
+    option.textContent = `${order.label} · ${order.roots.join(' ')}`; cycleOrder.append(option);
+  }
+  for (const triad of CYCLE_TRIADS) {
+    const option = document.createElement('option'); option.value = triad.id; option.textContent = triad.label; cycleTriad.append(option);
+  }
+  const cycleOptions = () => ({ triad: cycleTriad.value, barsPerChord: Number(cycleBars.value), repeatFirst: cycleRepeat.checked });
+  // O tamanho do ciclo é sempre legível antes de aplicar: 2×12+1 = 25.
+  function describeCycle() {
+    cycleStatus.textContent = `${cyclePresetLabel(cycleOrder.value, cycleOptions())}. Sua sessão tem ${host.getSession().bars} compassos.`;
+  }
+  for (const control of [cycleOrder, cycleTriad, cycleBars, cycleRepeat]) control.addEventListener('change', describeCycle);
+  document.getElementById('generate-cycle').addEventListener('click', () => {
+    if (host.isBusy()) { host.notify('Pare a reprodução antes de aplicar um ciclo.'); return; }
+    describeCycle(); generate(cycleOrder.value, cycleOptions());
+  });
+  describeCycle();
+  return { generate, refreshCycleSize: describeCycle };
 }

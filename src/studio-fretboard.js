@@ -1,4 +1,4 @@
-import { CHORD_QUALITIES, findKey, getDiatonicChords } from './progression.js';
+import { CHORD_QUALITIES, findKey, getDiatonicChords, chordNowNext } from './progression.js';
 import { getInstrumentProfile, formatInstrumentNote } from './instrument-profile.js';
 import { generateGuitarVoicing } from './guitar-voicing.js';
 
@@ -68,10 +68,15 @@ export function mountStudioFretboard(host) {
   for (const [value, text] of [[0, '0–12'], [12, '12–24']]) { const option = document.createElement('option'); option.value = value; option.textContent = text; range.append(option); }
   label.append(range);
   const context = document.createElement('strong'); context.id = 'fretboard-context';
-  controls.append(label, context);
+  // As notas do acorde que vem a seguir entram em contorno tracejado, por cima
+  // das marcações de agora — nada do desenho atual sai do lugar.
+  const nextLabel = document.createElement('label'); nextLabel.className = 'toggle';
+  const nextOverlay = document.createElement('input'); nextOverlay.type = 'checkbox'; nextOverlay.id = 'fretboard-next-overlay';
+  nextLabel.append(nextOverlay, ' Notas do próximo acorde (tracejado)');
+  controls.append(label, context, nextLabel);
   const scroll = document.createElement('div'); scroll.className = 'fretboard-scroll';
   const table = document.createElement('table'); table.id = 'fretboard-notes'; table.className = 'fretboard-notes'; scroll.append(table);
-  const legend = document.createElement('p'); legend.className = 'tool-hint muted'; legend.textContent = 'T = fundamental (destaque forte); 3, 5 e 7 = graus do acorde. ♭/♯, suspensões e extensões mostram os intervalos reais. Sem acorde, a escala do tom. Cordas: aguda em cima, grave embaixo.';
+  const legend = document.createElement('p'); legend.className = 'tool-hint muted'; legend.textContent = 'T = fundamental (destaque forte); 3, 5 e 7 = graus do acorde. ♭/♯, suspensões e extensões mostram os intervalos reais. Sem acorde, a escala do tom. Cordas: aguda em cima, grave embaixo. O contorno tracejado, quando ligado, mostra as notas do próximo acorde na posição do áudio.';
   panel.append(summary, controls, scroll, legend); document.getElementById('studio-inspector').after(panel);
   const diagram = document.createElement('figure'); diagram.id = 'chord-diagram'; diagram.className = 'chord-diagram'; diagram.hidden = true;
   document.getElementById('chord-inspector').append(diagram);
@@ -81,9 +86,11 @@ export function mountStudioFretboard(host) {
     if (!session || !panel.open) return;
     const profile = getInstrumentProfile(session);
     const value = fretboardContext(session, selected, events, positionValue, hidden);
-    const signature = JSON.stringify([profile, range.value, value.title, [...value.roles]]);
+    const next = nextOverlay.checked && !hidden ? chordNowNext(session, positionValue.tick ?? 0)?.next?.chord ?? null : null;
+    const nextTones = next ? new Set(chordToneRoles(next).keys()) : null;
+    const signature = JSON.stringify([profile, range.value, value.title, [...value.roles], next?.symbol ?? null]);
     if (signature === boardSignature) return;
-    boardSignature = signature; context.textContent = value.title; table.replaceChildren(); table.setAttribute('aria-label', `Braço ${profile.type === 'bass' ? 'do baixo' : 'da guitarra'}, ${value.title}, casas ${range.value} a ${Number(range.value) + 12}`);
+    boardSignature = signature; context.textContent = value.title; table.replaceChildren(); table.setAttribute('aria-label', `Braço ${profile.type === 'bass' ? 'do baixo' : 'da guitarra'}, ${value.title}, casas ${range.value} a ${Number(range.value) + 12}${next ? `, contorno tracejado nas notas de ${next.symbol}` : ''}`);
     const head = table.createTHead().insertRow(); const corner = document.createElement('th'); corner.textContent = 'Corda'; head.append(corner);
     for (let fret = Number(range.value); fret <= Number(range.value) + 12; fret++) { const th = document.createElement('th'); th.scope = 'col'; th.textContent = fret; head.append(th); }
     const body = table.createTBody();
@@ -93,9 +100,11 @@ export function mountStudioFretboard(host) {
         const pitch = profile.tuning[index] + fret; const cell = row.insertCell(); cell.dataset.string = profile.strings - index; cell.dataset.fret = fret;
         if (pitch > 127) { cell.textContent = '—'; continue; }
         const role = value.roles.get(pc(pitch)); cell.className = role ? pc(pitch) === value.root ? 'fretboard-tone fretboard-root' : 'fretboard-tone' : 'fretboard-other';
+        const upcoming = nextTones?.has(pc(pitch)) ?? false;
+        if (upcoming) cell.classList.add('fretboard-next');
         const note = document.createElement('span'); note.textContent = formatInstrumentNote(pitch, profile, { octave: false }); cell.append(note);
         if (role) { const degree = document.createElement('small'); degree.textContent = role; cell.append(degree); }
-        cell.setAttribute('aria-label', `${formatInstrumentNote(pitch, profile)}, casa ${fret}${role ? `, ${role}` : ', fora da seleção'}`);
+        cell.setAttribute('aria-label', `${formatInstrumentNote(pitch, profile)}, casa ${fret}${role ? `, ${role}` : ', fora da seleção'}${upcoming ? `, também no próximo acorde ${next.symbol}` : ''}`);
       }
     }
   }
@@ -110,6 +119,6 @@ export function mountStudioFretboard(host) {
     }
     paintBoard();
   }
-  range.addEventListener('change', paintBoard); panel.addEventListener('toggle', paintBoard);
+  range.addEventListener('change', paintBoard); nextOverlay.addEventListener('change', paintBoard); panel.addEventListener('toggle', paintBoard);
   return { render, position(value, options = {}) { positionValue = value; hidden = options.hidden ?? false; paintBoard(); } };
 }

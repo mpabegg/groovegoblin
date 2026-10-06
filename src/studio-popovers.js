@@ -24,7 +24,7 @@ export function mountStudioPopovers() {
     panel.style.left = `${left}px`; panel.style.top = `${top}px`;
   }
   function bind(panel) {
-    if (panels.has(panel) || panel.closest('.chord-advanced, #drum-advanced')) return;
+    if (panels.has(panel) || panel.closest('.chord-advanced, #drum-advanced, #harmony-cycles')) return;
     const detail = panel.parentElement;
     const summary = detail?.querySelector(':scope > summary');
     if (detail?.tagName !== 'DETAILS' || !summary) return;
