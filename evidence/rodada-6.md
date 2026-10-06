@@ -537,3 +537,108 @@ nenhum identificador real de curso, host, IP, login ou token em arquivo, teste, 
 mensagem de commit. A auditoria privada desta etapa saiu com **0 ocorrências** e nada de `local/`
 foi para o commit.
 
+## Etapa 9 — deploy no Pi, HTTPS obrigatório e contexto seguro (B5, 23a)
+
+Duas entregas: o `deploy/` (o que publica o serviço no Pi dentro da tailnet) e o
+aviso global de contexto inseguro que o critério 23a pede — mais o conserto de um
+defeito real que só aparecia no servidor de verdade (SRI × marcador da página).
+
+A **instalação real no Pi** acontece depois da publicação desta etapa; os números
+observados lá (serviço ativo, `/api/health` na máquina e pelo endereço da tailnet,
+configuração de `serve` preservada) entram na evidência da etapa 10.
+
+### Critério 23a — HTTPS com confiança real (observado em navegador próprio)
+
+Servidor de teste com certificado de teste **confiado de verdade** (CA própria,
+sem `--ignore-certificate-errors`, sem `--allow-insecure-localhost`), página
+servida por um proxy TLS em `https://localhost:5461`, dados fictícios fora do
+repositório:
+
+| Verificação | Observado |
+| --- | --- |
+| Confiança real | documento `securityState="secure"`, status 200, `remoteIP=127.0.0.1`, sem falha de carregamento, sem erro de console, sem interstitial |
+| Contexto seguro | `window.isSecureContext === true`; app montado |
+| `navigator.mediaDevices` | existe (`getUserMedia`, `enumerateDevices`); `AudioWorkletNode` é função |
+| Uso offline | clique real em "Preparar uso offline" → worker `activated`, escopo `https://localhost:5461/`, `controller=true`, 160 recursos em cache |
+| Instrumento | "Ativar instrumento" abre faixa viva (`readyState=live`, 1 faixa de áudio, 44,1 kHz); medidor do próprio app em 30–34% |
+| Áudio de verdade | analisador independente mede RMS ≈ 0,317 (não é só um objeto) |
+| Saída normal | sair de Praticar encerra a captura e volta para teclado |
+| Aviso de contexto inseguro | **ausente** no HTTPS (correto) |
+| Captura | `evidence/rodada-6/secure-context-https-localhost-5461-instrumento.png` |
+
+### Critério 23a — HTTP por IP reservado: aviso claro e persistente
+
+O mesmo app servido em `http://192.0.2.1:5462` (IP reservado TEST-NET-1, sem
+HTTPS):
+
+| Verificação | Observado |
+| --- | --- |
+| Transporte honesto | `securityState="insecure"`; `isSecureContext === false`; sem `serviceWorker`, sem `mediaDevices`, sem `crypto.subtle` |
+| Aviso global | `section.notice` filho de `#studio-notices`, visível, com o texto: "Instrumento e uso offline exigem HTTPS. Abra o endereço HTTPS do Tailscale Serve." |
+| Mesma frase no menu | "Ajuda e app → Offline" traz a mesma frase; "Preparar uso offline" fica escondido |
+| Persistência | o mesmo nó sobrevive a troca de atividade e de BPM/sessão |
+| Console | zero erros de JavaScript |
+| Captura | `evidence/rodada-6/secure-context-http-ip-192-0-2-1-5462.png` |
+
+O aviso vive em `src/offline.js` e vale para o app inteiro (não depende de painel
+aberto) — nenhuma mudança de fonte foi necessária para ele sobreviver aos
+renders.
+
+### Defeito real corrigido: o uso offline não fechava no servidor de verdade
+
+**Sintoma**: com a API ligada, "Preparar uso offline" terminava em "Não foi
+possível preparar esta versão…" e o worker virava `redundant` (nenhum registro).
+**Causa**: o servidor entrega o `index.html` com o marcador `data-groove-server`
+trocado (`off` → `on`), mas a lista offline publicada descrevia os bytes do disco;
+o service worker instala com SRI e a verificação daquele arquivo não fechava, o
+que derrubava a instalação inteira. **Conserto** (sem afrouxar o SRI de nenhum
+recurso): a lista entregue passa a descrever os bytes entregues — `server/static.js`
+recalcula a integridade do `index.html` sobre a página já marcada (e ajusta os
+bytes), com `sriHash` exportado por `scripts/asset-manifest.js`; a revisão
+continua sendo a do build, que é a que o `sw.js` embute. Teste de regressão em
+`tests/server-static.test.js` confere a integridade de **todos** os arquivos da
+lista contra o que o servidor entrega, nos dois modos (raiz do projeto e `dist`):
+**6 de 7 falham** contra o código anterior, **7/7** depois do conserto.
+
+### `deploy/` — o que a etapa entrega
+
+| Arquivo | Papel |
+| --- | --- |
+| `deploy/groovegoblin.service` | unidade systemd: usuário dedicado sem privilégio, escuta em `127.0.0.1`, `ProtectSystem=strict`, `ReadWritePaths` só do diretório de dados, `MemoryMax`, caminho absoluto do Node |
+| `deploy/groove.env.example` | ambiente de exemplo, só valores fictícios |
+| `deploy/install.sh` | valida o ambiente (parser literal, sem `source`), cria usuário e diretório de dados `0700`, constrói, instala e habilita a unidade, espera o `/api/health` e publica no `tailscale serve` |
+| `deploy/update.sh` | busca o código, constrói, roda os testes, reinicia, confere o health e reverte o que mudou se algo falhar |
+| `deploy/restore.sh` | restauração a partir de um instantâneo (o trabalho de verdade é do próprio servidor) |
+| `deploy/README.md` | do zero ao app em HTTPS, pasta de entrada dos cursos, restauração, convivência com outros serviços no mesmo Pi e o que mudaria fora da tailnet |
+| `deploy/hooks/pre-commit` | gancho da etapa 8 |
+
+**Convivência no mesmo Pi**: o `install.sh` lê a configuração atual do `serve` e
+**só adiciona** a porta HTTPS pedida quando ela está livre. Se a porta pedida já
+for de outro serviço, ele para sem publicar; se não conseguir ler a configuração,
+não publica às cegas; depois de publicar, confere que tudo que já existia continua
+igual e, se algo tiver sumido, restaura as entradas antigas e para com aviso.
+Essas decisões são cobertas por `tests/deploy-serve.test.js`: 7 casos que rodam a
+função real com uma CLI falsa do `tailscale` (sem rede e sem tocar no `serve`
+desta máquina).
+
+### Verificação executada
+
+- `npm test` nesta etapa: **1355 testes, 1353 passam, 0 falham, 2 ignorados**
+  (amostra física e o teste contra o servidor real, que roda por flag).
+- `npm run check`: **277 módulos, 0 falhas**.
+- `node --test tests/deploy-serve.test.js` → **7/7** (6/7 contra a função anterior).
+- `node --test tests/server-static.test.js` → **7/7** (6/7 contra o código anterior).
+- `bash -n deploy/install.sh` (e `update.sh`/`restore.sh`), `--help` e recusas
+  seguras: ambiente ausente, arquivo fora de `CHAVE=valor`, chave desconhecida,
+  dono/permissões do arquivo, `--serve-port` fora de faixa, árvore sem `server/`.
+- Navegador próprio (Chrome novo, perfis novos) com dados fictícios; certificado
+  de teste confiado; nada de `--ignore-certificate-errors`.
+
+### Privacidade
+
+Nada de valor real de infraestrutura (host, IP, login, chave, endereço da
+tailnet): os exemplos do `deploy/` são fictícios (`example.invalid`,
+`exemplo.ts.net`, `usuario@example.org`) e a evidência usa IP reservado e
+`localhost`. O arnês de prova ficou **fora** do repositório: o commit guarda só as
+capturas e esta evidência. Auditoria privada desta etapa: **0 ocorrências**.
+

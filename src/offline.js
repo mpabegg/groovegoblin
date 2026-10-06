@@ -11,8 +11,22 @@ export function setupOffline({ isBusy = () => false, canReload = () => true, not
   apply.textContent = 'Aplicar atualização';
   apply.hidden = true;
   container.replaceChildren(status, document.createTextNode(' '), prepare, document.createTextNode(' '), apply);
-  if (!('serviceWorker' in navigator) || !window.isSecureContext) {
-    status.textContent = 'Uso offline requer HTTPS ou localhost e suporte a service worker.';
+  if (!window.isSecureContext) {
+    const notice = 'Instrumento e uso offline exigem HTTPS. Abra o endereço HTTPS do Tailscale Serve.';
+    status.textContent = notice;
+    prepare.hidden = true;
+    const banner = document.createElement('section');
+    banner.className = 'notice';
+    banner.setAttribute('role', 'status');
+    const paragraph = document.createElement('p');
+    paragraph.textContent = notice;
+    banner.append(paragraph);
+    const notices = document.getElementById('studio-notices');
+    if (notices) notices.append(banner);
+    return () => { banner.remove(); };
+  }
+  if (!('serviceWorker' in navigator)) {
+    status.textContent = 'Este navegador não oferece uso offline.';
     prepare.hidden = true;
     return () => {};
   }

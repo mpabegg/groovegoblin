@@ -4,6 +4,11 @@ import { join } from 'node:path';
 
 const ROOT_FILES = ['index.html', 'guide.html', 'README.md', 'manifest.webmanifest', 'icon.svg', 'sw.js'];
 
+/** Subresource integrity of one delivered resource. */
+export function sriHash(content) {
+  return `sha256-${createHash('sha256').update(content).digest('base64')}`;
+}
+
 /** Content-address the complete public application, never user media or storage. */
 export async function createAssetManifest(root) {
   const files = [...ROOT_FILES];
@@ -25,7 +30,7 @@ export async function createAssetManifest(root) {
     const content = await readFile(join(root, file));
     hash.update(file).update('\0').update(content).update('\0');
     if (file !== 'sw.js') {
-      integrity[file] = `sha256-${createHash('sha256').update(content).digest('base64')}`;
+      integrity[file] = sriHash(content);
       bytes += content.length;
     }
   }

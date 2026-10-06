@@ -5,11 +5,17 @@
 
 import { realpath } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
-import { createAssetManifest } from '../scripts/asset-manifest.js';
+import { createAssetManifest, sriHash } from '../scripts/asset-manifest.js';
 import { readNoFollow } from './fsutil.js';
 import { staticSecurityHeaders } from './http.js';
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.md': 'text/plain', '.svg': 'image/svg+xml', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.wasm': 'application/wasm', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg' };
+// A página entregue pelo servidor diz que a API está ligada: é o único sinal
+// que autoriza o app a consultar `/api/health` na abertura. O site estático
+// (e o modo somente-estático, sem diretório de dados) fica com `off` e não faz
+// requisição nenhuma — nenhum 404 no console.
+const SERVER_MARKER_OFF = 'data-groove-server="off"';
+const SERVER_MARKER_ON = 'data-groove-server="on"';
 export const PUBLIC_FILES = Object.freeze(['index.html', 'guide.html', 'README.md', 'manifest.webmanifest', 'icon.svg', 'sw.js', 'offline-assets.json']);
 export const PUBLIC_DIRS = Object.freeze(['src', 'assets']);
 const SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/;
@@ -65,8 +71,22 @@ export function createStaticHandler({ root, projectRoot, basePath, hsts = false,
     }
     try {
       let content;
-      if (isProjectRoot && relative === 'offline-assets.json') {
-        content = JSON.stringify(await createAssetManifest(root));
+      if (relative === 'offline-assets.json' && (isProjectRoot || apiEnabled)) {
+        // A lista entregue tem de descrever os bytes entregues. Com a API
+        // ligada o index.html sai com o marcador trocado, então a integridade
+        // dele acompanha o que o servidor entrega — sem isso o service worker
+        // recusa a instalação (a verificação SRI não fecha) e o modo offline
+        // nunca fica pronto no servidor de verdade.
+        const manifest = isProjectRoot
+          ? await createAssetManifest(root)
+          : JSON.parse(await readNoFollow(resolve(root, 'offline-assets.json')));
+        if (apiEnabled) {
+          const page = await readNoFollow(resolve(root, 'index.html'));
+          const delivered = Buffer.from(page.toString('utf8').replace(SERVER_MARKER_OFF, SERVER_MARKER_ON));
+          manifest.integrity['index.html'] = sriHash(delivered);
+          manifest.bytes += delivered.length - page.length;
+        }
+        content = JSON.stringify(manifest);
       } else {
         realRoot ??= await realpath(root);
         const real = await realpath(path);
@@ -76,12 +96,8 @@ export function createStaticHandler({ root, projectRoot, basePath, hsts = false,
           const manifest = await createAssetManifest(root);
           content = content.toString('utf8').replace('__GROOVE_REVISION__', manifest.version);
         }
-        // A página entregue pelo servidor diz que a API está ligada: é o único
-        // sinal que autoriza o app a consultar `/api/health` na abertura. O site
-        // estático (e o modo somente-estático, sem diretório de dados) fica com
-        // `off` e não faz requisição nenhuma — nenhum 404 no console.
         if (apiEnabled && relative === 'index.html') {
-          content = content.toString('utf8').replace('data-groove-server="off"', 'data-groove-server="on"');
+          content = content.toString('utf8').replace(SERVER_MARKER_OFF, SERVER_MARKER_ON);
         }
       }
       const type = TYPES[extname(path)] || 'application/octet-stream';

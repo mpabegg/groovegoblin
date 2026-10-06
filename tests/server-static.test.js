@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdir, symlink, writeFile } from 'node:fs/promises';
 import { connect } from 'node:net';
 import { join } from 'node:path';
 import { publicRelativePath } from '../server/static.js';
+import { createAssetManifest } from '../scripts/asset-manifest.js';
 import { send, startServer, tailscaleEnv, tempDir } from './server-harness.js';
 
 // Pedido HTTP cru, para exercitar alvos que o cliente Node não monta.
@@ -72,6 +74,46 @@ test('static-only (sem configuração): app servido, API inexistente, privados b
   assert.equal((await send(port, { method: 'POST', path: '/' })).status, 405);
   assert.equal((await send(port, { method: 'PUT', path: '/api/docs/exercises/x' })).status, 405, 'sem API, PUT continua 405 como antes');
   assert.equal((await send(port, { method: 'HEAD', path: '/index.html' })).body.length, 0);
+});
+
+test('API ligada: a lista offline descreve os bytes entregues (o SRI do worker fecha)', async (t) => {
+  const root = await tempDir(t, 'gg-static-');
+  await mkdir(join(root, 'src'));
+  await mkdir(join(root, 'assets'));
+  await writeFile(join(root, 'index.html'), '<html lang="pt-BR" data-groove-server="off"></html>');
+  await writeFile(join(root, 'guide.html'), 'guia');
+  await writeFile(join(root, 'README.md'), 'leiame');
+  await writeFile(join(root, 'manifest.webmanifest'), '{}');
+  await writeFile(join(root, 'icon.svg'), '<svg/>');
+  await writeFile(join(root, 'src', 'main.js'), 'export {};');
+  await writeFile(join(root, 'assets', 'drums.txt'), 'x');
+  const digest = buffer => `sha256-${createHash('sha256').update(buffer).digest('base64')}`;
+  // O mesmo que o build faz: a lista antes de o sw.js receber a revisão.
+  await writeFile(join(root, 'sw.js'), 'const REVISION = "__GROOVE_REVISION__";\nself.addEventListener("install", () => {});');
+  const built = await createAssetManifest(root);
+  await writeFile(join(root, 'sw.js'), `const REVISION = '${built.version}';\nself.addEventListener('install', () => {});`);
+  await writeFile(join(root, 'offline-assets.json'), JSON.stringify(built));
+
+  // Modo de implantação: dist como raiz estática, API ligada pelo data dir.
+  const deployed = await startServer(t, { dataDir: await tempDir(t), env: { STATIC_ROOT: root, ...tailscaleEnv() } });
+  const index = await send(deployed.port, { path: '/' });
+  assert.match(index.text(), /data-groove-server="on"/, 'servidor com API troca o marcador');
+  const manifest = (await send(deployed.port, { path: '/offline-assets.json' })).json();
+  assert.equal(manifest.version, built.version, 'a revisão publicada é a que o sw.js embute');
+  assert.match((await send(deployed.port, { path: '/sw.js' })).text(), new RegExp(`REVISION = '${built.version}'`));
+  for (const file of manifest.files) {
+    const response = await send(deployed.port, { path: `/${file}` });
+    assert.equal(response.status, 200, file);
+    assert.equal(manifest.integrity[file], digest(response.body), `${file}: integridade contra os bytes entregues`);
+  }
+
+  // Modo de desenvolvimento: a raiz é o projeto, e a revisão sai no sw.js.
+  const dev = await startServer(t, { dataDir: await tempDir(t), env: tailscaleEnv() });
+  const page = await send(dev.port, { path: '/' });
+  assert.match(page.text(), /data-groove-server="on"/);
+  const devManifest = (await send(dev.port, { path: '/offline-assets.json' })).json();
+  assert.equal(devManifest.integrity['index.html'], digest(page.body));
+  assert.match((await send(dev.port, { path: '/sw.js' })).text(), new RegExp(`REVISION = '${devManifest.version}'`));
 });
 
 test('BASE_PATH do preview: redireciona, serve sob a base e 404 fora dela', async (t) => {
