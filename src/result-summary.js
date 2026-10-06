@@ -1,6 +1,6 @@
 // Resumo derivado do resultado de evaluateSession (feedback.js), sem reavaliar
 // nada: estado por nota e repetição, aproveitamento por compasso, trecho mais
-// fraco, tendência/consistência dos ataques casados, marcas dos ataques extras,
+// fraco, tendência/consistência dos ataques no tempo, marcas dos ataques extras,
 // ações sugeridas e a chave de comparação entre tentativas. Nenhum valor daqui
 // altera o algoritmo de avaliação; tudo é leitura de results.rows e dos campos
 // já calculados (toleranceMs, loopBars, startBar, repetitions, mode, goal).
@@ -12,7 +12,7 @@ export const FASTER_BPM = 4;
 export const SLOWER_BPM = 10;
 export const MIN_BPM = 30;
 export const MAX_BPM = 300;
-// Um desvio mediano abaixo disso é ruído de execução, não tendência.
+// Um desvio médio abaixo disso é ruído de execução, não tendência.
 export const MIN_TENDENCY_MS = 5;
 const WEAK_BAR_RATIO = 0.9;
 const MIN_ONSETS = 2;
@@ -27,7 +27,13 @@ function median(values) {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
-// Desvio padrão populacional: dispersão dos ataques em torno do próprio pulso.
+// Média aritmética: é o número que o resumo chama de "média" — nunca o mediano.
+function mean(values) {
+  if (!values.length) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+// Desvio padrão populacional: oscilação dos ataques em torno do próprio pulso.
 function spread(values) {
   if (values.length < MIN_SPREAD_ONSETS) return null;
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -158,7 +164,9 @@ export function resultSummary(results, session) {
   const ratio = free ? (feedback.free ? feedback.attackOk / feedback.free : null)
     : verdict.kind === 'attacks' ? verdict.ok / verdict.expected : null;
   const medianMs = median(onsets);
-  const tendencyMs = medianMs !== null && onsets.length >= MIN_ONSETS && Math.abs(medianMs) >= MIN_TENDENCY_MS ? medianMs : null;
+  const meanMs = mean(onsets);
+  // A tendência sai da média real (e é escrita como "em média"), não do mediano.
+  const tendencyMs = meanMs !== null && onsets.length >= MIN_ONSETS && Math.abs(meanMs) >= MIN_TENDENCY_MS ? meanMs : null;
   const spreadMs = spread(onsets);
   const consistency = spreadMs === null ? null : spreadMs <= results.toleranceMs / 2 ? 'regular' : 'irregular';
   const pitchWrong = results.goal === 'pitch'
@@ -213,12 +221,14 @@ export function tempoSuggestion(summary, bpm) {
 
 function fragmentText(fragment) {
   if (fragment.kind === 'tendency') {
-    return `${fragment.valueMs > 0 ? 'Atraso' : 'Adiantamento'} mediano de ${ms(fragment.valueMs)} nos ataques casados.`;
+    return fragment.valueMs > 0
+      ? `Você atrasa em média ${ms(fragment.valueMs)}.`
+      : `Você adianta em média ${ms(fragment.valueMs)}.`;
   }
   if (fragment.kind === 'consistency') {
     return fragment.value === 'regular'
-      ? `Ataques regulares entre si: dispersão de ${ms(fragment.spreadMs)}.`
-      : `Ataques irregulares: dispersão de ${ms(fragment.spreadMs)} entre os ataques casados.`;
+      ? 'Seu tempo foi regular.'
+      : `Seu tempo oscilou bastante (±${ms(fragment.spreadMs)}).`;
   }
   if (fragment.kind === 'pitch') {
     return `${fragment.count} ${fragment.count === 1 ? 'nota' : 'notas'} com altura errada; toque devagar conferindo cada altura.`;

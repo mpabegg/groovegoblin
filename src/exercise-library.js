@@ -146,6 +146,9 @@ function instrumentOf(session) {
   return type === 'bass' ? 'bass' : 'guitar';
 }
 
+// Alvo opcional (número) ou null: null é "sem alvo definido", nunca um alvo
+// implícito herdado do andamento. Migrações legadas ainda passam o BPM da
+// sessão explicitamente para preservar o alvo que existia antes.
 function defaultMetadata(name, bpm) {
   return { name, tags: [], targetBPM: bpm, notes: '', records: [] };
 }
@@ -203,7 +206,9 @@ function normalizeMetadata(value, session) {
   return {
     name: validName(value.name) ? value.name.trim() : base.name,
     tags: asTags(value.tags),
-    targetBPM: finiteOr(value.targetBPM, base.targetBPM),
+    // null explícito é preservado; metadado antigo SEM a chave herda o alvo
+    // implícito que a migração sempre gravou (o BPM da sessão).
+    targetBPM: value.targetBPM === null ? null : finiteOr(value.targetBPM, base.targetBPM),
     notes: isString(value.notes) ? value.notes : '',
     records,
   };
@@ -234,8 +239,8 @@ export function summarize(entry) {
     }
   }
   const lastTrainedAt = records.length > 0 ? records[records.length - 1].startedAt ?? records[records.length - 1].date ?? null : null;
-  const targetBPM = finiteOr(metadata.targetBPM, currentBpm);
-  const progress = targetBPM && bestBpm !== null ? Math.max(0, Math.min(1, bestBpm / targetBPM)) : 0;
+  const targetBPM = finiteOr(metadata.targetBPM, null);
+  const progress = targetBPM !== null && bestBpm !== null ? Math.max(0, Math.min(1, bestBpm / targetBPM)) : 0;
   return {
     id: entry.id,
     name: metadata.name,
@@ -254,6 +259,14 @@ export function summarize(entry) {
   };
 }
 
+// Distância até o alvo para a ordenação "BPM alvo". Sem alvo definido não há
+// distância: o exercício vai para o fim e nunca herda o andamento como alvo.
+function goalDistance(row) {
+  const target = finiteOr(row?.targetBPM, null);
+  if (target === null) return null;
+  return target - finiteOr(row?.bestBpm ?? row?.bpm, 0);
+}
+
 function sortSummaries(rows, sort) {
   const key = SORT_KEYS.includes(sort) ? sort : 'untrained';
   const copy = rows.slice();
@@ -261,8 +274,11 @@ function sortSummaries(rows, sort) {
     copy.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   } else if (key === 'goal') {
     copy.sort((a, b) => {
-      const da = (a.targetBPM ?? 0) - (a.bestBpm ?? a.bpm ?? 0);
-      const db = (b.targetBPM ?? 0) - (b.bestBpm ?? b.bpm ?? 0);
+      const da = goalDistance(a), db = goalDistance(b);
+      if (da === null || db === null) {
+        if (da === db) return (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR');
+        return da === null ? 1 : -1;
+      }
       if (db !== da) return db - da;
       return (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR');
     });
@@ -342,7 +358,15 @@ function migrateFromLegacy({ currentSession, parse, serialize, storage, uuid, no
     entries.push(entry);
     return entry;
   }
-  const current = add(currentSession, { metadata: defaultMetadata(currentSession.name ?? 'Exercício', currentSession.bpm ?? null) });
+  let currentTarget = null;
+  try {
+    if (storage.getItem(LEGACY_SESSION_KEY) !== null || storage.getItem(LEGACY_PHRASE_KEY) !== null) {
+      currentTarget = currentSession.bpm ?? null;
+    }
+  } catch {
+    warnings.push('Não foi possível consultar a sessão antiga; o alvo inicial ficou indefinido.');
+  }
+  const current = add(currentSession, { metadata: defaultMetadata(currentSession.name ?? 'Exercício', currentTarget) });
   const legacy = readSessionLibrary(storage, parse);
   if (legacy.warning) warnings.push(legacy.warning);
   for (const item of legacy.entries) add(item.session, { id: item.id, createdAt: item.savedAt });
@@ -504,7 +528,9 @@ export function createExerciseLibrary({
           createdAt: now(),
           updatedAt: now(),
           session: clone(session),
-          metadata: normalizeMetadata(metadata ?? defaultMetadata(session.name ?? 'Exercício', session.bpm ?? null), session),
+          // Exercício novo começa SEM alvo (null) — o cartão convida a definir
+          // um em vez de sugerir o andamento atual como alvo.
+          metadata: normalizeMetadata({ ...metadata, targetBPM: metadata?.targetBPM ?? null }, session),
         };
         state.entries.push(entry);
         state.activeId = entry.id;

@@ -16,6 +16,7 @@ import {
   progressRanking,
   recordDuration,
   runRows,
+  targetOf,
 } from '../src/exercise-history.js';
 
 function sessionA() {
@@ -211,4 +212,34 @@ test('exportação do histórico preserva todos os campos de todos os registros'
   assert.equal(payload.exercise.name, 'Arpejos');
   assert.equal(payload.exercise.targetBPM, 120);
   assert.deepEqual(payload.records, records);
+});
+
+test('alvo ausente nunca vira o andamento: histórico, progresso e exportação preservam o sem alvo', () => {
+  const session = sessionA();
+  const key = authoredMaterialKey(session);
+  const records = [record({ id: 'a1', bpm: 120, materialKey: key, startedAt: '2026-10-01T10:00:00.000Z', endedAt: '2026-10-01T10:10:00.000Z' })];
+  const entry = entryOf(records);
+  entry.metadata.targetBPM = null;
+  const summary = historySummary(records, entry.session, entry.metadata);
+  assert.equal(summary.targetBPM, null);
+  assert.equal(summary.bestBpm, 120);
+  assert.equal(targetOf(entry.session, entry.metadata), null);
+  const payload = JSON.parse(historyExportPayload(entry));
+  assert.equal(payload.exercise.targetBPM, null);
+  const progress = exerciseProgress(entry);
+  assert.equal(progress.targetBPM, null);
+  assert.equal(progress.progress, 0, 'sem alvo não há percentual de alvo');
+  // Registro legado cru, sem metadados, ainda usa o andamento da sessão.
+  assert.equal(targetOf(entry.session, null), 120);
+});
+
+test('ranking usa sem alvo conscientemente: sem progresso inventado, alvo nulo explícito', () => {
+  const session = sessionA();
+  const key = authoredMaterialKey(session);
+  const semAlvo = entryOf([record({ bpm: 140, materialKey: key, startedAt: '2026-10-03T10:00:00.000Z' })]);
+  semAlvo.metadata.targetBPM = null;
+  const comAlvo = entryOf([record({ bpm: 100, materialKey: key, startedAt: '2026-10-01T10:00:00.000Z' })], { targetBPM: 100 });
+  const ranking = progressRanking([semAlvo, comAlvo], { limit: 8 });
+  assert.deepEqual(ranking.map(row => row.progress), [1, 0]);
+  assert.deepEqual(ranking.map(row => row.targetBPM), [100, null]);
 });

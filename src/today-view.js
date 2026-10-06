@@ -126,7 +126,7 @@ export function mountTodayPanel(container, host) {
     const row = rows.get(item.exerciseId) ?? null;
     const name = row?.name ?? 'Exercício não encontrado';
     const meta = row
-      ? `${INSTRUMENT_LABELS[row.instrument] ?? row.instrument ?? '—'} · ${row.bpm ?? '—'} → ${row.targetBPM ?? '—'} BPM`
+      ? `${INSTRUMENT_LABELS[row.instrument] ?? row.instrument ?? '—'} · ${Number.isFinite(row.targetBPM) ? `${row.bpm ?? '—'} → ${row.targetBPM} BPM` : `${row.bpm ?? '—'} BPM · definir alvo`}`
       : 'Remova este item ou adicione o exercício de volta à biblioteca.';
     const duration = createEl('input', {
       type: 'number', min: String(MIN_ITEM_MINUTES), max: String(MAX_ITEM_MINUTES), step: '1',

@@ -58,9 +58,12 @@ export function isAuthoredAttempt(record, key) {
     && finiteOr(record?.summary?.expected, 0) > 0;
 }
 
+// Alvo do histórico: metadados normalizados sempre trazem a chave targetBPM
+// (número ou null). null é "sem alvo definido" — nunca herda o andamento atual.
+// Só metadados legados crus, sem a chave, caem no andamento da sessão.
 export function targetOf(session, metadata = null) {
-  const target = finiteOr(metadata?.targetBPM, null);
-  return target ?? finiteOr(session?.bpm, null);
+  if (isObject(metadata) && Object.hasOwn(metadata, 'targetBPM')) return finiteOr(metadata.targetBPM, null);
+  return finiteOr(session?.bpm, null);
 }
 
 // Duração de um registro: SEMPRE do intervalo fechado quando ele existe; o
@@ -334,7 +337,7 @@ export function mountExerciseHistory(container, host) {
     const head = createEl('header', { className: 'history-head' }, [
       createEl('div', { className: 'history-head-text' }, [
         createEl('h2', { className: 'history-title', text: `Histórico · ${metadata?.name ?? 'Exercício'}` }),
-        createEl('p', { className: 'history-meta muted', text: `${summary.total} treino(s) registrado(s) · ${summary.authored} do material autoral · alvo ${targetBPM ?? '—'} BPM` }),
+        createEl('p', { className: 'history-meta muted', text: `${summary.total} treino(s) registrado(s) · ${summary.authored} do material autoral · ${targetBPM === null ? 'sem alvo definido' : `alvo ${targetBPM} BPM`}` }),
       ]),
       createEl('div', { className: 'history-actions' }, [
         exportButton(entry),

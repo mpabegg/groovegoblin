@@ -1,0 +1,65 @@
+{
+  "_sobre": "Dados inteiramente fictícios para testes. Nenhum conteúdo de curso real.",
+  "curso": {
+    "titulo": "Curso de Exemplo",
+    "autor": "Autor de Exemplo",
+    "url": "https://example.invalid/curso",
+    "descricao": { "valor": "Trilha fictícia de estudo", "inferido": false },
+    "instrumento": { "nome": "baixo", "cordas": 4 },
+    "idioma": "pt-BR",
+    "total_aulas": 5
+  },
+  "modulos": [
+    {
+      "ordem": 1,
+      "titulo": "Boas-vindas de Exemplo",
+      "descricao": null,
+      "aulas": [
+        { "id": "welcome-1", "titulo": "Aula de boas-vindas", "url": "https://example.invalid/aula/inicio", "video": null, "meu_progresso": { "assistida": true } }
+      ]
+    },
+    {
+      "ordem": 2,
+      "titulo": "Módulo 1",
+      "objetivo": { "valor": "Praticar a sequência fictícia", "inferido": true },
+      "aulas": [
+        {
+          "ordem": 1, "ordem_global": 2, "id": "lesson-1", "titulo": "Aula 1",
+          "url": "https://example.invalid/aula/1",
+          "tipo_de_aula": { "valor": "Prática", "inferido": true },
+          "video": { "hospedagem": "site externo", "duracao": "06:00", "duracao_segundos": null },
+          "resumo": { "valor": "Resumo fictício da aula", "inferido": false },
+          "instrucoes_de_pratica": "Escreva suas próprias notas no Estúdio.",
+          "andamentos": { "inicial": "80 BPM", "alvo": 100 },
+          "exercicios": [
+            { "nome": "Exercício de Exemplo A", "descricao": null, "compassos_aproximados": "≈25 (12 acordes × 2 + acorde final)", "andamento_inicial": { "valor": "80 BPM", "inferido": true }, "andamento_alvo": 100, "arquivo_correspondente": "faixa-exemplo-4-cordas-80bpm.mp3" },
+            { "nome": "Exercício de Exemplo B", "compassos_aproximados": "13", "andamento_inicial": "80 ou 90 BPM", "andamento_alvo": null, "arquivo_correspondente": null },
+            { "nome": "Exercício de Exemplo para 6 cordas", "compassos_aproximados": "13", "arquivo_correspondente": "faixa-exemplo-6-cordas.mp3" }
+          ],
+          "anexos": [], "backing_tracks": null,
+          "meu_progresso": { "assistida": true, "anotacoes": "Dado pessoal fictício: deve ser descartado." }
+        },
+        {
+          "ordem": 2, "ordem_global": 3, "id": "lesson-downloads", "titulo": "Arquivos de Exemplo",
+          "url": "https://example.invalid/aula/arquivos",
+          "tipo_de_aula": { "valor": "Downloads", "inferido": false },
+          "anexos": [
+            { "nome": "apostila-exemplo-4-cordas.pdf", "extensao": "pdf", "papel": "apostila", "cordas": 4 },
+            { "nome": "apostila-exemplo-6-cordas.pdf", "extensao": "pdf", "cordas": 6 }
+          ],
+          "backing_tracks": [
+            { "nome": "faixa-exemplo-4-cordas-80bpm.mp3", "andamento": { "valor": 80, "inferido": false }, "compassos_por_acorde": 2, "estilo": "Exemplo", "estendida": false, "cordas": 4 },
+            { "nome": "faixa-exemplo-5-cordas-90bpm.mp3", "andamento": "90 BPM", "cordas": 5 },
+            { "nome": "faixa-exemplo-6-cordas.mp3", "cordas": 6 }
+          ]
+        },
+        { "ordem": 3, "id": "lesson-3", "titulo": "Aula 3", "url": "https://example.invalid/aula/3", "tipo_de_aula": null, "video": { "duracao_segundos": 120 }, "exercicios": null, "anexos": [null], "meu_progresso": null }
+      ]
+    },
+    {
+      "ordem": 3, "titulo": "Seminário de Exemplo", "aulas": [
+        { "id": "seminar-1", "titulo": "Encontro de Exemplo", "url": "https://example.invalid/aula/encontro", "video": { "duracao": "tempo desconhecido" }, "tecnicas_ou_conceitos": null }
+      ]
+    }
+  ]
+}

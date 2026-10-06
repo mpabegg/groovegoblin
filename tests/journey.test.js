@@ -74,6 +74,9 @@ test('panorama funciona só com a biblioteca quando a fila de Hoje ainda não pu
   const clock = fixedClock(base);
   const session = sessionOf('Escala', 90, 2);
   const library = openLibrary(memoryStorage(), session, clock);
+  // Sem armazenamento legado o alvo nasce indefinido: o ranking só mede
+  // progresso quando o exercício tem alvo definido.
+  library.updateMetadata(library.active(), { targetBPM: 90 });
   const context = library.captureRunContext(session);
   clock.advance(20 * MINUTE);
   library.recordRun(context, { bpm: 90, summary: { expected: 16, attackOk: 16, mode: 'strict' } });

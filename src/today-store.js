@@ -70,9 +70,15 @@ export function itemTargetMs(item) {
 
 // Ordenação sugerida: primeiro os mais antigos SEM treino (exercícios nunca
 // treinados, do mais antigo criado para o mais novo), depois os que estão mais
-// longe do alvo. Nunca mistura instrumentos à força: quem quiser filtra depois.
+// longe do alvo. Sem alvo definido não há distância: o item vai para o fim e
+// nunca usa o próprio andamento como alvo. Nunca mistura instrumentos à força:
+// quem quiser filtra depois.
 export function suggestQueue(rows = []) {
-  const distance = row => Math.max(0, intOr(row?.targetBPM ?? row?.bpm, 0) - intOr(row?.bestBpm ?? row?.bpm, 0));
+  const distance = row => {
+    const target = numberOrNull(row?.targetBPM);
+    if (target === null) return null;
+    return Math.max(0, target - intOr(row?.bestBpm ?? row?.bpm, 0));
+  };
   const untrainedOrder = row => {
     const created = Date.parse(row?.createdAt ?? '');
     return Number.isFinite(created) ? created : 0;
@@ -91,7 +97,11 @@ export function suggestQueue(rows = []) {
     if (timeA !== timeB) return timeA - timeB;
     const distanceA = distance(a);
     const distanceB = distance(b);
-    if (distanceA !== distanceB) return distanceB - distanceA;
+    if (distanceA !== distanceB) {
+      if (distanceA === null) return 1;
+      if (distanceB === null) return -1;
+      return distanceB - distanceA;
+    }
     return String(a.name ?? '').localeCompare(String(b.name ?? ''), 'pt-BR');
   });
   return ordered.map(row => ({ exerciseId: row.id, durationMin: DEFAULT_ITEM_MINUTES }));

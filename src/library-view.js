@@ -188,7 +188,7 @@ export function mountLibrary(container, host) {
     const field = editing.field;
     const label = { name: 'Nome', tags: 'Etiquetas (separadas por vírgula)', targetBPM: 'BPM alvo', notes: 'Anotações' }[field];
     const value = field === 'tags' ? entry.metadata.tags.join(', ')
-      : field === 'targetBPM' ? String(entry.metadata.targetBPM ?? entry.session.bpm ?? '')
+      : field === 'targetBPM' ? String(entry.metadata.targetBPM ?? '')
         : field === 'notes' ? entry.metadata.notes : entry.metadata.name;
     const input = field === 'notes'
       ? createEl('textarea', { name: 'value', rows: '3', 'aria-label': label }, value)
@@ -250,7 +250,8 @@ export function mountLibrary(container, host) {
     const entry = library.get(row.id);
     const active = library.active() === row.id;
     const item = createEl('li', { className: `library-item${active ? ' library-item-active' : ''}`, dataset: { id: row.id } });
-    const target = row.targetBPM ?? row.bpm ?? '—';
+    const hasTarget = Number.isFinite(row.targetBPM);
+    const goalText = hasTarget ? `${row.bpm ?? '—'} → ${row.targetBPM} BPM` : `${row.bpm ?? '—'} BPM · definir alvo`;
     const best = row.bestAtCurrentBpm;
     const stats = [
       `Último treino: ${relativeFromNow(row.lastTrainedAt)}`,
@@ -262,10 +263,10 @@ export function mountLibrary(container, host) {
     const progress = Math.round((row.progress ?? 0) * 100);
     const main = createEl('div', { className: 'library-item-main' }, [
       createEl('h3', { text: row.name }),
-      createEl('p', { className: 'library-meta', text: `${INSTRUMENT_LABELS[row.instrument] ?? row.instrument} · ${row.bars ?? '—'} compasso(s) · ${row.bpm ?? '—'} → ${target} BPM${active ? ' · exercício ativo' : ''}` }),
+      createEl('p', { className: 'library-meta', text: `${INSTRUMENT_LABELS[row.instrument] ?? row.instrument} · ${row.bars ?? '—'} compasso(s) · ${goalText}${active ? ' · exercício ativo' : ''}` }),
       createEl('p', { className: 'library-tags' }, row.tags.length ? row.tags.map(tag => createEl('span', { className: 'library-tag', text: tag })) : [createEl('span', { className: 'muted', text: 'Sem etiquetas' })]),
       createEl('p', { className: 'library-stats muted', text: stats.join(' · ') }),
-      createEl('div', { className: 'library-progress', role: 'img', 'aria-label': `Progresso em direção ao alvo: ${progress}%` }, [createEl('span', { style: `width: ${progress}%` })]),
+      createEl('div', { className: 'library-progress', role: 'img', 'aria-label': hasTarget ? `Progresso em direção ao alvo: ${progress}%` : 'Sem alvo definido' }, [createEl('span', { style: `width: ${hasTarget ? progress : 0}%` })]),
     ]);
     const actions = createEl('div', { className: 'library-actions' }, [
       actionButton('Treinar', 'train', entry),
@@ -276,7 +277,7 @@ export function mountLibrary(container, host) {
           actionButton('Duplicar', 'duplicate', entry),
           actionButton('Renomear', 'rename', entry),
           actionButton('Etiquetas', 'tags', entry),
-          actionButton('Alvo de BPM', 'target', entry),
+          actionButton(hasTarget ? 'Alvo de BPM' : 'Definir alvo', 'target', entry),
           actionButton('Anotações', 'notes', entry),
           actionButton(row.recordsCount > 0 ? `Histórico (${row.recordsCount})` : 'Histórico', 'history', entry),
           actionButton('Exportar', 'export', entry),

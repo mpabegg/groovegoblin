@@ -97,13 +97,6 @@ test('migra sessão atual + sessões antigas deduplicando sessões idênticas', 
   assert.equal(stored.activeId, library.active());
 });
 
-test('migra sessão atual sozinha quando não há biblioteca antiga', () => {
-  const current = createSession({ name: 'Única', bpm: 120 });
-  const library = open(memoryStorage(), current);
-  assert.equal(library.size(), 1);
-  assert.equal(library.get(library.active()).metadata.targetBPM, 120);
-});
-
 test('biblioteca antiga corrompida preserva bytes e avisa sem perder a sessão atual', () => {
   const current = createSession({ name: 'Atual', bpm: 100 });
   const raw = '[{"id":42}]';
@@ -550,4 +543,98 @@ test('biblioteca corrompida: limpeza explícita não sobrescreve os bytes origin
   assert.equal(result.saved, false);
   assert.equal(storage.getItem(LIBRARY_KEY), corrupt, 'os originais permanecem recuperáveis');
   assert.equal(storage.getItem(LIBRARY_RECOVERY_KEY), corrupt);
+});
+
+// ----- alvo opcional (null = sem alvo definido) ------------------------------
+
+test('exercício novo começa sem alvo; definir e limpar o alvo é preservado', () => {
+  const library = open(memoryStorage(), createSession({ name: 'Atual', bpm: 100 }));
+  const fresh = library.new({ session: createSession({ name: 'Sem alvo', bpm: 96, bars: 2 }) });
+  assert.equal(fresh.metadata.targetBPM, null, 'o alvo não nasce herdado do andamento');
+  const row = library.list().find(item => item.id === fresh.id);
+  assert.equal(row.targetBPM, null);
+  assert.equal(row.progress, 0, 'sem alvo não há progresso inventado');
+  library.updateMetadata(fresh.id, { targetBPM: 120 });
+  assert.equal(library.get(fresh.id).metadata.targetBPM, 120);
+  library.updateMetadata(fresh.id, { targetBPM: null });
+  assert.equal(library.get(fresh.id).metadata.targetBPM, null);
+});
+
+test('metadados parciais de um exercício novo não criam um alvo implícito', () => {
+  const library = open(memoryStorage(), createSession({ name: 'Atual', bpm: 100 }));
+  const fresh = library.new({
+    session: createSession({ name: 'Exercício', bpm: 96 }),
+    metadata: { name: 'Nome próprio', notes: 'Anotação pessoal' },
+  });
+  assert.equal(fresh.metadata.targetBPM, null);
+  assert.equal(fresh.metadata.name, 'Nome próprio');
+  assert.equal(fresh.metadata.notes, 'Anotação pessoal');
+});
+
+test('instalação nova não inventa alvo, mas a sessão legada conserva o andamento-alvo', () => {
+  const session = createSession({ name: 'Exercício inicial', bpm: 120 });
+  const fresh = open(memoryStorage(), session);
+  assert.equal(fresh.activeEntry().metadata.targetBPM, null);
+  const raw = serializeSession(session);
+  const storage = memoryStorage(new Map([[LEGACY_SESSION_KEY, raw]]));
+  const legacy = open(storage, session);
+  assert.equal(legacy.activeEntry().metadata.targetBPM, 120);
+  assert.equal(storage.getItem(LEGACY_SESSION_KEY), raw);
+});
+
+test('ordenação por alvo ignora quem não tem alvo, sem herdar o andamento', () => {
+  const library = open(memoryStorage(), createSession({ name: 'Base', bpm: 100 }));
+  const base = library.active();
+  library.updateMetadata(base, { name: 'Com alvo', targetBPM: 150 });
+  library.new({ session: createSession({ name: 'Sem alvo', bpm: 90, bars: 1 }) });
+  const longe = library.new({ session: createSession({ name: 'Alvo longe', bpm: 90, bars: 1 }) });
+  library.updateMetadata(longe.id, { targetBPM: 300 });
+  assert.deepEqual(library.list({ sort: 'goal' }).map(row => row.name), ['Alvo longe', 'Com alvo', 'Sem alvo']);
+});
+
+test('exportar e importar preserva alvo definido e alvo ausente, sozinho e em biblioteca', () => {
+  const source = open(memoryStorage(), createSession({ name: 'Com alvo', bpm: 100, bars: 2 }));
+  source.updateMetadata(source.active(), { targetBPM: 160 });
+  source.new({ session: createSession({ name: 'Sem alvo', bpm: 90, bars: 1 }) });
+
+  const target = open(memoryStorage(), createSession({ name: 'Outra', bpm: 90 }));
+  for (const row of source.list()) target.importExercise(source.exportExercise(row.id));
+  assert.equal(target.list().find(row => row.name === 'Com alvo').targetBPM, 160);
+  assert.equal(target.list().find(row => row.name === 'Sem alvo').targetBPM, null);
+
+  const bundle = open(memoryStorage(), createSession({ name: 'Outra', bpm: 90 }));
+  bundle.importLibrary(source.exportLibrary());
+  assert.equal(bundle.list().find(row => row.name === 'Com alvo').targetBPM, 160);
+  assert.equal(bundle.list().find(row => row.name === 'Sem alvo').targetBPM, null);
+});
+
+test('metadado legado sem a chave do alvo herda o andamento; o null explícito permanece', () => {
+  const session = createSession({ name: 'Legado', bpm: 132, bars: 1 });
+  const raw = JSON.stringify({
+    version: 1,
+    activeId: 'legado-1',
+    entries: [{
+      id: 'legado-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      session: JSON.parse(serializeSession(session)),
+      metadata: { name: 'Legado', tags: [], notes: '', records: [] },
+    }],
+  });
+  const legacy = open(memoryStorage(new Map([[LIBRARY_KEY, raw]])), session);
+  assert.equal(legacy.get('legado-1').metadata.targetBPM, 132, 'alvo antigo preservado');
+
+  const explicit = JSON.stringify({
+    version: 1,
+    activeId: 'legado-1',
+    entries: [{
+      id: 'legado-1',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      session: JSON.parse(serializeSession(session)),
+      metadata: { name: 'Legado', tags: [], targetBPM: null, notes: '', records: [] },
+    }],
+  });
+  const semAlvo = open(memoryStorage(new Map([[LIBRARY_KEY, explicit]])), session);
+  assert.equal(semAlvo.get('legado-1').metadata.targetBPM, null, 'null explícito nunca vira andamento');
 });

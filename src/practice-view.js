@@ -275,16 +275,17 @@ export function mountJourney(container, host, options = {}) {
       for (const row of overview.ranking) {
         const item = createEl('li', { className: 'journey-ranking-item' });
         const percent = Math.round((row.progress ?? 0) * 100);
+        const hasTarget = Number.isFinite(row.targetBPM);
         item.append(
           createEl('span', { className: 'journey-ranking-name', text: row.name }),
           createEl('span', { className: 'journey-ranking-detail', text: [
-            `alvo ${row.targetBPM ?? '—'} BPM`,
+            hasTarget ? `alvo ${row.targetBPM} BPM` : 'sem alvo definido',
             row.bestBpm === null ? 'sem aprovação ≥80%' : `melhor autoral ${row.bestBpm} BPM`,
             row.bpmGain === null ? null : `${row.bpmGain >= 0 ? '+' : ''}${row.bpmGain} BPM desde o 1º`,
-            `${percent}% do alvo`,
+            hasTarget ? `${percent}% do alvo` : null,
             `${row.attempts} treino(s) autoral(is)`,
           ].filter(Boolean).join(' · ') }),
-          createEl('span', { className: 'journey-ranking-bar', role: 'img', 'aria-label': `${percent}% do alvo` }, [createEl('span', { style: `width: ${percent}%` })]),
+          createEl('span', { className: 'journey-ranking-bar', role: 'img', 'aria-label': hasTarget ? `${percent}% do alvo` : 'Sem alvo definido' }, [createEl('span', { style: `width: ${hasTarget ? percent : 0}%` })]),
         );
         if (typeof host.openExerciseHistory === 'function') {
           const open = createEl('button', { type: 'button', text: 'Histórico' });

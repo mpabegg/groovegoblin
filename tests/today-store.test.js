@@ -203,3 +203,12 @@ test('rotinas corrompidas são preservadas separadamente da fila', () => {
   assert.equal(store.addItem({ exerciseId: 'a' }).items.length, 1, 'a fila continua utilizável');
   assert.equal(store.saveRoutine('x', []), null);
 });
+
+test('sugestão põe sem alvo no fim e nunca usa o próprio andamento como alvo', () => {
+  const rows = [
+    row('com-alvo-perto', { lastTrainedAt: '2026-09-20T00:00:00.000Z', bestBpm: 118, targetBPM: 120 }),
+    row('sem-alvo', { lastTrainedAt: '2026-09-20T00:00:00.000Z', bpm: 300, bestBpm: 90, targetBPM: null }),
+    row('com-alvo-longe', { lastTrainedAt: '2026-09-20T00:00:00.000Z', bestBpm: 90, targetBPM: 200 }),
+  ];
+  assert.deepEqual(suggestQueue(rows).map(item => item.exerciseId), ['com-alvo-longe', 'com-alvo-perto', 'sem-alvo']);
+});

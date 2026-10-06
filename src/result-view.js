@@ -10,6 +10,7 @@ import { resultSummary, noteResults, barAccuracy, worstBar, attackMarks,
   comparisonKey, comparisonEntry, createComparisonMemory, exerciseFingerprint, tempoSuggestion } from './result-summary.js';
 import { buildRhythmNotation, notationTickX } from './notation.js';
 import { renderPracticeScore } from './studio-score.js';
+import { phraseView } from './tablature.js';
 import { mergeSession } from './studio-state.js';
 import { instrumentPitchLabel } from './instrument-pitch-evaluation.js';
 
@@ -47,6 +48,19 @@ function svgEl(parent, name, attributes = {}, text) {
 const signed = value => `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.round(Math.abs(value))} ms`;
 const percent = ratio => `${Math.round(ratio * 100)}%`;
 const range = ({ startBar, endBar }) => endBar - startBar === 1 ? `o compasso ${startBar + 1}` : `os compassos ${startBar + 1}–${endBar}`;
+
+// O resultado é a partitura ANOTADA do treino: cifras, pauta rítmica e
+// tablatura. Ritmo/Tablatura é uma preferência de EDIÇÃO da partitura do
+// Estúdio/Treinar — no resultado a Tab entra sempre, com o instrumento e as
+// cordas já escolhidos, senão o resultado ficaria sem a camada que o usuário
+// vê na hora de conferir a execução. O renderizador é o MESMO
+// (renderPracticeScore); a vista é só um parâmetro, sem segundo motor.
+function scoreViewSession(session) {
+  return phraseView(session) === 'tab' ? session : {
+    ...session,
+    extensions: { ...session.extensions, studio: { ...session.extensions?.studio, phraseView: 'tab' } },
+  };
+}
 
 function rowText(row, status) {
   const rep = `Repetição ${row.repetition}`;
@@ -119,10 +133,12 @@ export function mountResult(container, host, { comparisons = createComparisonMem
   function renderScore(box) {
     const { session, results, repetition } = model;
     const outcomes = noteResults(results, repetition);
-    const score = el(document, 'div', { className: 'rhythm-score result-score', 'aria-label': 'Partitura anotada com o resultado de cada nota' });
+    const score = el(document, 'div', { className: 'rhythm-score result-score', 'aria-label': 'Partitura anotada com o resultado de cada nota, com cifras e tablatura' });
     box.append(score);
+    // Sempre com a vista Tab: o resultado é a partitura anotada completa.
+    const scoreSession = scoreViewSession(session);
     let systems = [];
-    try { systems = renderPracticeScore(score, buildRhythmNotation(session.notes, session), session, { strokes: false }); }
+    try { systems = renderPracticeScore(score, buildRhythmNotation(scoreSession.notes, scoreSession), scoreSession, { strokes: false }); }
     catch { score.append(el(document, 'p', { className: 'muted', text: 'Partitura indisponível para esta frase.' })); return; }
     // Cada sistema ganha um invólucro do tamanho da própria partitura: a faixa
     // de aproveitamento acompanha as barras desenhadas e a partitura nunca é

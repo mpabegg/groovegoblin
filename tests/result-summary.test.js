@@ -23,7 +23,7 @@ const freeRow = (repetition, nearestTick, deviationMs, onset = 'ok') => ({ kind:
 const results = (rows, overrides = {}) => ({ rows, toleranceMs: 40, mode: 'strict', goal: 'timing', repetitions: 2, bpm: 100, startBar: 0, loopBars: 4, instrument: false, stats: null, ...overrides });
 const fragment = (summary, kind) => summary.fragments.find(item => item.kind === kind) ?? null;
 
-test('veredito conta ataques no tempo e frases trazem o desvio mediano com sinal', () => {
+test('veredito conta ataques no tempo e a tendência sai da média real com sinal', () => {
   const rows = [matched('a', 1, 30), matched('a', 2, 30), matched('b', 1, 30), matched('b', 2, 30), missed('c', 1), missed('c', 2), matched('d', 1, 30), matched('d', 2, 30)];
   const summary = resultSummary(results(rows), session());
   assert.deepEqual(summary.verdict, { kind: 'attacks', ok: 6, expected: 8 });
@@ -34,7 +34,15 @@ test('veredito conta ataques no tempo e frases trazem o desvio mediano com sinal
   assert.equal(fragment(summary, 'tendency').valueMs, 30);
 });
 
-test('tendência só aparece com desvio relevante e mais de um ataque casado', () => {
+test('a tendência sai da média real, nunca do mediano', () => {
+  // 0, 0 e 90 ms: o mediano é 0 (nenhuma tendência) e a média é 30 ms.
+  const summary = resultSummary(results([matched('a', 1, 0), matched('b', 1, 0), matched('c', 1, 90)]), session());
+  assert.equal(summary.medianMs, 0);
+  assert.equal(summary.tendencyMs, 30);
+  assert.equal(fragment(summary, 'tendency').valueMs, 30);
+});
+
+test('tendência só aparece com desvio relevante e mais de um ataque no tempo', () => {
   assert.equal(fragment(resultSummary(results([matched('a', 1, 3), matched('b', 1, 4)]), session()), 'tendency'), null);
   assert.equal(fragment(resultSummary(results([matched('a', 1, 30)]), session()), 'tendency'), null);
   const early = resultSummary(results([matched('a', 1, -20, 'early'), matched('b', 1, -24, 'early')]), session());
@@ -42,7 +50,7 @@ test('tendência só aparece com desvio relevante e mais de um ataque casado', (
   assert.equal(fragment(early, 'tendency').valueMs, -22);
 });
 
-test('consistência usa a dispersão dos ataques casados contra a tolerância', () => {
+test('consistência compara a oscilação dos ataques com a tolerância', () => {
   const regular = resultSummary(results([matched('a', 1, 10), matched('b', 1, 12), matched('c', 1, 11)]), session());
   assert.equal(regular.consistency, 'regular');
   assert.equal(fragment(regular, 'consistency').value, 'regular');
@@ -50,6 +58,7 @@ test('consistência usa a dispersão dos ataques casados contra a tolerância', 
   const irregular = resultSummary(results([matched('a', 1, -60, 'early'), matched('b', 1, 0), matched('c', 1, 60, 'late')]), session());
   assert.equal(irregular.consistency, 'irregular');
   assert.equal(fragment(irregular, 'consistency').value, 'irregular');
+  assert.ok(Math.abs(fragment(irregular, 'consistency').spreadMs - 48.98979485566356) < 1e-9, `spread ${fragment(irregular, 'consistency').spreadMs}`);
   assert.ok(fragment(irregular, 'consistency').spreadMs > 20, `spread ${fragment(irregular, 'consistency').spreadMs}`);
   assert.equal(resultSummary(results([matched('a', 1, 0), matched('b', 1, 5)]), session()).consistency, null);
 });
