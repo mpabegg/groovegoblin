@@ -1,27 +1,55 @@
 // Sessão de hoje: fila, rotinas nomeadas e resumo persistidos à parte da
-// sessão musical (rodada 4, item 4 — etapa 5).
+// sessão musical (rodada 4, item 4 — etapa 5; formato v2 na etapa 7).
 //
 // Chaves físicas próprias, nunca dentro de sessionv5:
-//  - groovegoblin.today.v1            fila ativa + estado da execução + resumo
-//  - groovegoblin.today.v1.recovery   bytes crus de uma fila corrompida
-//  - groovegoblin.today.routines.v1   rotinas nomeadas
-//  - groovegoblin.today.routines.v1.recovery
+//  - groovegoblin.today.v2            fila ativa + estado da execução + resumo
+//  - groovegoblin.today.v2.recovery   bytes crus de uma fila corrompida
+//  - groovegoblin.today.routines.v2   rotinas nomeadas
+//  - groovegoblin.today.routines.v2.recovery
 //
-// A fila guarda só referências (exerciseId + duração por item): o material
-// continua sendo o exercício canônico da biblioteca. O estado da execução
-// guarda o tempo já praticado de cada item em milissegundos somados a partir de
+// Formato v2: itens da fila, das rotinas e da sessão ganham `kind`
+// ('exercise' | 'lesson'); um item de aula guarda `courseId`/`lessonId` em vez
+// de inventar um `exerciseId`. A duração de aula é uma ESTIMATIVA (vídeo), com
+// teto próprio; o teto de 180 min continua valendo só para exercício.
+//
+// Migração v1 → v2 sem perda: os bytes originais do v1 NÃO são reescritos —
+// continuam na chave v1 e numa cópia `...v1.backup` gravada ANTES da primeira
+// migração (nunca sobrescreve uma cópia existente). A loja sempre prefere as
+// chaves v2; dado corrompido fica preservado na chave de recuperação (a do v1
+// quando a origem for v1) e nunca é sobrescrito para "corrigir".
+//
+// A fila guarda só referências (exerciseId ou courseId+lessonId, mais a
+// duração por item): o material continua sendo o exercício canônico da
+// biblioteca ou a aula do curso. O estado da execução guarda o tempo já
+// praticado/estudado de cada item em milissegundos somados a partir de
 // intervalos FECHADOS; por isso fechar/reabrir nunca cobra a noite parada.
-// Corrupção e quota não autorizam sobrescrever os bytes originais: uma loja
-// corrompida fica preservada na chave de recuperação até ação explícita.
 
-export const TODAY_KEY = 'groovegoblin.today.v1';
-export const TODAY_RECOVERY_KEY = 'groovegoblin.today.v1.recovery';
-export const ROUTINES_KEY = 'groovegoblin.today.routines.v1';
-export const ROUTINES_RECOVERY_KEY = 'groovegoblin.today.routines.v1.recovery';
-export const TODAY_VERSION = 1;
+export const TODAY_KEY = 'groovegoblin.today.v2';
+export const TODAY_RECOVERY_KEY = 'groovegoblin.today.v2.recovery';
+export const ROUTINES_KEY = 'groovegoblin.today.routines.v2';
+export const ROUTINES_RECOVERY_KEY = 'groovegoblin.today.routines.v2.recovery';
+export const TODAY_VERSION = 2;
+
+// Formato anterior (rodada 4): lido e migrado, nunca reescrito.
+export const LEGACY_VERSION = 1;
+export const LEGACY_TODAY_KEY = 'groovegoblin.today.v1';
+export const LEGACY_TODAY_RECOVERY_KEY = 'groovegoblin.today.v1.recovery';
+export const LEGACY_TODAY_BACKUP_KEY = 'groovegoblin.today.v1.backup';
+export const LEGACY_ROUTINES_KEY = 'groovegoblin.today.routines.v1';
+export const LEGACY_ROUTINES_RECOVERY_KEY = 'groovegoblin.today.routines.v1.recovery';
+export const LEGACY_ROUTINES_BACKUP_KEY = 'groovegoblin.today.routines.v1.backup';
+
+export const ITEM_KIND_EXERCISE = 'exercise';
+export const ITEM_KIND_LESSON = 'lesson';
+export const ITEM_KINDS = Object.freeze([ITEM_KIND_EXERCISE, ITEM_KIND_LESSON]);
+
 export const DEFAULT_ITEM_MINUTES = 5;
 export const MIN_ITEM_MINUTES = 1;
+// Teto de um item de PRÁTICA (exercício avulso ou vinculado).
 export const MAX_ITEM_MINUTES = 180;
+// Teto da ESTIMATIVA de uma aula (duração de vídeo); o orçamento diário do
+// curso é que limita o plano, nunca um corte silencioso da estimativa.
+export const MAX_LESSON_MINUTES = 1440;
 // Sugestão padrão de uma sessão diária; a ordenação completa continua exposta
 // por suggestQueue() para quem quiser a lista inteira.
 export const SUGGESTION_LIMIT = 6;
@@ -57,15 +85,41 @@ function numberOrNull(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-function minutesOr(value, fallback = DEFAULT_ITEM_MINUTES) {
+function clampMinutes(value, fallback, max) {
   const minutes = intOr(value, fallback);
   if (minutes < MIN_ITEM_MINUTES) return MIN_ITEM_MINUTES;
-  if (minutes > MAX_ITEM_MINUTES) return MAX_ITEM_MINUTES;
+  if (minutes > max) return max;
   return minutes;
 }
 
+function minutesOr(value, fallback = DEFAULT_ITEM_MINUTES) {
+  return clampMinutes(value, fallback, MAX_ITEM_MINUTES);
+}
+
+function lessonMinutesOr(value, fallback = DEFAULT_ITEM_MINUTES) {
+  return clampMinutes(value, fallback, MAX_LESSON_MINUTES);
+}
+
+export function itemKind(item) {
+  return item?.kind === ITEM_KIND_LESSON ? ITEM_KIND_LESSON : ITEM_KIND_EXERCISE;
+}
+
+// Minutos do item respeitando o teto do tipo: 180 para prática, o teto da
+// estimativa de vídeo para aula.
+export function itemMinutes(item) {
+  return itemKind(item) === ITEM_KIND_LESSON
+    ? lessonMinutesOr(item?.durationMin)
+    : minutesOr(item?.durationMin);
+}
+
 export function itemTargetMs(item) {
-  return minutesOr(item?.durationMin) * 60000;
+  return itemMinutes(item) * 60000;
+}
+
+// Identidade do item de aula na fila (a mesma aula pode aparecer uma vez por
+// planejamento; esta chave permite deduplicar sem inventar exercício).
+export function lessonKey(courseId, lessonId) {
+  return `${courseId ?? ''}\u0000${lessonId ?? ''}`;
 }
 
 // Ordenação sugerida: primeiro os mais antigos SEM treino (exercícios nunca
@@ -104,7 +158,14 @@ export function suggestQueue(rows = []) {
     }
     return String(a.name ?? '').localeCompare(String(b.name ?? ''), 'pt-BR');
   });
-  return ordered.map(row => ({ exerciseId: row.id, durationMin: DEFAULT_ITEM_MINUTES }));
+  return ordered.map(row => ({
+    kind: ITEM_KIND_EXERCISE,
+    exerciseId: row.id,
+    courseId: null,
+    lessonId: null,
+    name: null,
+    durationMin: DEFAULT_ITEM_MINUTES,
+  }));
 }
 
 export function queueTotalMs(items = []) {
@@ -113,10 +174,29 @@ export function queueTotalMs(items = []) {
 
 function normalizeItem(value, uuid) {
   if (!isObject(value)) throw new TypeError('Item da fila inválido.');
+  const name = isNonEmptyString(value.name) ? value.name : null;
+  if (value.kind === ITEM_KIND_LESSON) {
+    if (!isNonEmptyString(value.courseId) || !isNonEmptyString(value.lessonId)) {
+      throw new TypeError('Item de aula sem curso e aula.');
+    }
+    return {
+      id: isNonEmptyString(value.id) ? value.id : uuid(),
+      kind: ITEM_KIND_LESSON,
+      exerciseId: null,
+      courseId: value.courseId,
+      lessonId: value.lessonId,
+      name,
+      durationMin: lessonMinutesOr(value.durationMin),
+    };
+  }
   if (!isNonEmptyString(value.exerciseId)) throw new TypeError('Item da fila sem exercício.');
   return {
     id: isNonEmptyString(value.id) ? value.id : uuid(),
+    kind: ITEM_KIND_EXERCISE,
     exerciseId: value.exerciseId,
+    courseId: isNonEmptyString(value.courseId) ? value.courseId : null,
+    lessonId: isNonEmptyString(value.lessonId) ? value.lessonId : null,
+    name,
     durationMin: minutesOr(value.durationMin),
   };
 }
@@ -128,13 +208,15 @@ function normalizeItems(value, uuid) {
 
 function normalizeSessionItem(value, uuid) {
   const item = normalizeItem(value, uuid);
+  const lesson = item.kind === ITEM_KIND_LESSON;
   return {
     ...item,
-    name: isNonEmptyString(value.name) ? value.name : null,
-    instrument: value.instrument === 'bass' || value.instrument === 'guitar' ? value.instrument : null,
+    instrument: !lesson && (value.instrument === 'bass' || value.instrument === 'guitar') ? value.instrument : null,
+    // `elapsedMs` é tempo PRATICADO (exercício) ou tempo de ESTUDO cronometrado
+    // (aula): sempre soma de intervalos FECHADOS.
     elapsedMs: Math.max(0, intOr(value.elapsedMs, 0)),
-    startBpm: numberOrNull(value.startBpm),
-    endBpm: numberOrNull(value.endBpm),
+    startBpm: lesson ? null : numberOrNull(value.startBpm),
+    endBpm: lesson ? null : numberOrNull(value.endBpm),
     startedAt: isNonEmptyString(value.startedAt) ? value.startedAt : null,
     finishedAt: isNonEmptyString(value.finishedAt) ? value.finishedAt : null,
     practiced: value.practiced === true,
@@ -142,7 +224,8 @@ function normalizeSessionItem(value, uuid) {
 }
 
 // O estado da execução SEMPRE volta pausado: "running" não existe na loja —
-// retomar é um ato explícito, e nenhum intervalo aberto atravessa a recarga.
+// retomar é um ato explícito, e nenhum intervalo aberto atravessa a recarga
+// (vale para o relógio de prática e para o cronômetro de estudo da aula).
 export function normalizeSessionState(value, uuid) {
   if (!isObject(value)) throw new TypeError('Estado da sessão de hoje inválido.');
   const items = (Array.isArray(value.items) ? value.items : []).map(item => normalizeSessionItem(item, uuid));
@@ -165,16 +248,22 @@ function normalizeBpmChange(value) {
 export function normalizeSummary(value) {
   if (!isObject(value)) throw new TypeError('Resumo da sessão de hoje inválido.');
   const items = (Array.isArray(value.items) ? value.items : []).map(item => {
+    const lesson = item?.kind === ITEM_KIND_LESSON || isNonEmptyString(item?.courseId) && isNonEmptyString(item?.lessonId) && !isNonEmptyString(item?.exerciseId);
     const elapsedMs = Math.max(0, intOr(item?.elapsedMs, 0));
     return {
+      kind: lesson ? ITEM_KIND_LESSON : ITEM_KIND_EXERCISE,
       exerciseId: isNonEmptyString(item?.exerciseId) ? item.exerciseId : null,
-      name: isNonEmptyString(item?.name) ? item.name : 'Exercício',
-      instrument: item?.instrument === 'bass' || item?.instrument === 'guitar' ? item.instrument : null,
+      courseId: isNonEmptyString(item?.courseId) ? item.courseId : null,
+      lessonId: isNonEmptyString(item?.lessonId) ? item.lessonId : null,
+      name: isNonEmptyString(item?.name) ? item.name : lesson ? 'Aula' : 'Exercício',
+      instrument: !lesson && (item?.instrument === 'bass' || item?.instrument === 'guitar') ? item.instrument : null,
       elapsedMs,
-      // "Praticado" é derivado do tempo real fechado: nunca um rótulo solto.
+      // "Praticado"/"estudado" é derivado do tempo real fechado: nunca um
+      // rótulo solto. Aula nunca ganha BPM inventado.
       practiced: elapsedMs > 0,
+      study: lesson,
       plannedMs: Math.max(0, intOr(item?.plannedMs, 0)),
-      bpm: normalizeBpmChange(item?.bpm),
+      bpm: lesson ? { from: null, to: null } : normalizeBpmChange(item?.bpm),
     };
   });
   return {
@@ -185,8 +274,12 @@ export function normalizeSummary(value) {
   };
 }
 
+// Aceita v2 e v1: o v1 é o MESMO normalizador (item sem `kind` é exercício sem
+// curso/aula) — assim a migração não tem regra paralela para divergir.
 function validateJournal(value, uuid) {
-  if (!isObject(value) || value.version !== TODAY_VERSION) throw new TypeError('Fila de hoje inválida.');
+  if (!isObject(value) || (value.version !== TODAY_VERSION && value.version !== LEGACY_VERSION)) {
+    throw new TypeError('Fila de hoje inválida.');
+  }
   const queue = value.queue === null || value.queue === undefined ? null : {
     id: isNonEmptyString(value.queue.id) ? value.queue.id : uuid(),
     createdAt: isNonEmptyString(value.queue.createdAt) ? value.queue.createdAt : new Date().toISOString(),
@@ -203,7 +296,9 @@ function validateJournal(value, uuid) {
 }
 
 function validateRoutines(value, uuid) {
-  if (!isObject(value) || value.version !== TODAY_VERSION) throw new TypeError('Rotinas de hoje inválidas.');
+  if (!isObject(value) || (value.version !== TODAY_VERSION && value.version !== LEGACY_VERSION)) {
+    throw new TypeError('Rotinas de hoje inválidas.');
+  }
   const routines = (Array.isArray(value.routines) ? value.routines : []).map(routine => {
     if (!isObject(routine) || !isNonEmptyString(routine.name)) throw new TypeError('Rotina sem nome.');
     return {
@@ -228,11 +323,15 @@ export function createTodayStore({ storage = globalThis.localStorage, now = Date
   let writeWarning = null;
   let lastSaved = false;
   let recoveryRaw = null;
+  // Chave onde os bytes corrompidos foram ENCONTRADOS (v2 ou v1 legada).
+  let corruptOrigin = TODAY_KEY;
   let corruptPreserved = false;
   let routinesStatus = 'ready';
   let routinesRecoveryRaw = null;
+  let corruptRoutinesOrigin = ROUTINES_KEY;
   let routinesCorruptPreserved = false;
   let routinesWarning = null;
+  let migrated = { journal: false, routines: false, pending: false };
 
   function emit() {
     for (const listener of [...listeners]) {
@@ -261,6 +360,7 @@ export function createTodayStore({ storage = globalThis.localStorage, now = Date
     const ok = write(TODAY_KEY, JSON.stringify(journal));
     lastSaved = ok;
     writeWarning = ok ? null : 'A fila de hoje não pôde ser salva neste navegador. Ela continua na memória; libere espaço e tente de novo.';
+    if (ok && migrated.pending) migrated.pending = false;
     return ok;
   }
 
@@ -271,33 +371,86 @@ export function createTodayStore({ storage = globalThis.localStorage, now = Date
     return ok;
   }
 
+  // Grava a cópia de segurança dos bytes originais ANTES de qualquer coisa e
+  // nunca sobrescreve uma cópia existente (dado antigo não é "corrigido").
+  function backupLegacy(backupKey, raw) {
+    if (read(backupKey) === null) write(backupKey, raw);
+  }
+
   function loadJournal() {
-    const raw = read(TODAY_KEY);
-    if (raw === null) return;
+    const rawV2 = read(TODAY_KEY);
+    if (rawV2 !== null) {
+      try {
+        journal = validateJournal(JSON.parse(rawV2), uuid);
+      } catch {
+        status = 'corrupt';
+        recoveryRaw = rawV2;
+        corruptOrigin = TODAY_KEY;
+        journal = { version: TODAY_VERSION, queue: null, session: null, summary: null, updatedAt: iso() };
+        loadWarning = 'A fila de hoje guardada está corrompida. Os bytes originais ficam preservados; baixe-os antes de recuperar.';
+        if (read(TODAY_RECOVERY_KEY) === null) write(TODAY_RECOVERY_KEY, rawV2);
+        corruptPreserved = read(TODAY_RECOVERY_KEY) !== null;
+      }
+      return;
+    }
+    const rawLegacy = read(LEGACY_TODAY_KEY);
+    if (rawLegacy === null) return;
+    backupLegacy(LEGACY_TODAY_BACKUP_KEY, rawLegacy);
     try {
-      journal = validateJournal(JSON.parse(raw), uuid);
+      journal = validateJournal(JSON.parse(rawLegacy), uuid);
     } catch {
       status = 'corrupt';
-      recoveryRaw = raw;
+      recoveryRaw = rawLegacy;
+      corruptOrigin = LEGACY_TODAY_KEY;
       journal = { version: TODAY_VERSION, queue: null, session: null, summary: null, updatedAt: iso() };
       loadWarning = 'A fila de hoje guardada está corrompida. Os bytes originais ficam preservados; baixe-os antes de recuperar.';
-      if (read(TODAY_RECOVERY_KEY) === null) write(TODAY_RECOVERY_KEY, raw);
-      corruptPreserved = read(TODAY_RECOVERY_KEY) !== null;
+      if (read(LEGACY_TODAY_RECOVERY_KEY) === null) write(LEGACY_TODAY_RECOVERY_KEY, rawLegacy);
+      corruptPreserved = read(LEGACY_TODAY_RECOVERY_KEY) !== null;
+      return;
+    }
+    // Migração: grava o v2 e deixa o v1 (e a cópia) intactos como backup.
+    migrated.journal = true;
+    if (!persistJournal()) {
+      migrated.pending = true;
+      loadWarning = 'A fila antiga foi lida, mas o formato novo ainda não pôde ser gravado neste navegador. Os bytes antigos permanecem intactos.';
     }
   }
 
   function loadRoutines() {
-    const raw = read(ROUTINES_KEY);
-    if (raw === null) return;
+    const rawV2 = read(ROUTINES_KEY);
+    if (rawV2 !== null) {
+      try {
+        routines = validateRoutines(JSON.parse(rawV2), uuid);
+      } catch {
+        routinesStatus = 'corrupt';
+        routinesRecoveryRaw = rawV2;
+        corruptRoutinesOrigin = ROUTINES_KEY;
+        routines = { version: TODAY_VERSION, routines: [] };
+        routinesWarning = 'As rotinas de hoje guardadas estão corrompidas. Os bytes originais ficam preservados.';
+        if (read(ROUTINES_RECOVERY_KEY) === null) write(ROUTINES_RECOVERY_KEY, rawV2);
+        routinesCorruptPreserved = read(ROUTINES_RECOVERY_KEY) !== null;
+      }
+      return;
+    }
+    const rawLegacy = read(LEGACY_ROUTINES_KEY);
+    if (rawLegacy === null) return;
+    backupLegacy(LEGACY_ROUTINES_BACKUP_KEY, rawLegacy);
     try {
-      routines = validateRoutines(JSON.parse(raw), uuid);
+      routines = validateRoutines(JSON.parse(rawLegacy), uuid);
     } catch {
       routinesStatus = 'corrupt';
-      routinesRecoveryRaw = raw;
+      routinesRecoveryRaw = rawLegacy;
+      corruptRoutinesOrigin = LEGACY_ROUTINES_KEY;
       routines = { version: TODAY_VERSION, routines: [] };
       routinesWarning = 'As rotinas de hoje guardadas estão corrompidas. Os bytes originais ficam preservados.';
-      if (read(ROUTINES_RECOVERY_KEY) === null) write(ROUTINES_RECOVERY_KEY, raw);
-      routinesCorruptPreserved = read(ROUTINES_RECOVERY_KEY) !== null;
+      if (read(LEGACY_ROUTINES_RECOVERY_KEY) === null) write(LEGACY_ROUTINES_RECOVERY_KEY, rawLegacy);
+      routinesCorruptPreserved = read(LEGACY_ROUTINES_RECOVERY_KEY) !== null;
+      return;
+    }
+    migrated.routines = true;
+    if (!persistRoutines()) {
+      migrated.pending = true;
+      routinesWarning = 'As rotinas antigas foram lidas, mas o formato novo ainda não pôde ser gravado neste navegador.';
     }
   }
 
@@ -315,7 +468,22 @@ export function createTodayStore({ storage = globalThis.localStorage, now = Date
       get warning() { return writeWarning ?? loadWarning; },
       get routinesWarning() { return routinesWarning; },
       get recoveryRaw() { return recoveryRaw; },
+      get corruptOriginKey() { return corruptOrigin; },
       get routinesRecoveryRaw() { return routinesRecoveryRaw; },
+      get corruptRoutinesOriginKey() { return corruptRoutinesOrigin; },
+      get migrated() { return { ...migrated }; },
+      // Bytes originais do formato antigo (e a cópia feita antes da migração):
+      // ficam baixáveis para auditoria/backup.
+      get legacyRaw() { return read(LEGACY_TODAY_KEY); },
+      get legacyBackupRaw() { return read(LEGACY_TODAY_BACKUP_KEY); },
+      get routinesLegacyRaw() { return read(LEGACY_ROUTINES_KEY); },
+      get routinesLegacyBackupRaw() { return read(LEGACY_ROUTINES_BACKUP_KEY); },
+      get legacyKeys() {
+        return {
+          journal: LEGACY_TODAY_KEY, journalBackup: LEGACY_TODAY_BACKUP_KEY, journalRecovery: LEGACY_TODAY_RECOVERY_KEY,
+          routines: LEGACY_ROUTINES_KEY, routinesBackup: LEGACY_ROUTINES_BACKUP_KEY, routinesRecovery: LEGACY_ROUTINES_RECOVERY_KEY,
+        };
+      },
       get key() { return TODAY_KEY; },
       get recoveryKey() { return TODAY_RECOVERY_KEY; },
       get routinesKey() { return ROUTINES_KEY; },
@@ -324,7 +492,7 @@ export function createTodayStore({ storage = globalThis.localStorage, now = Date
       queue() { return journal.queue ? clone(journal.queue) : null; },
       items() { return journal.queue ? clone(journal.queue.items) : []; },
       totalMs() { return queueTotalMs(journal.queue?.items ?? []); },
-      // Substitui a fila inteira; itens repetidos do mesmo exercício são
+      // Substitui a fila inteira; itens repetidos do mesmo exercício/aula são
       // permitidos e a ordem é a do usuário.
       setItems(items) {
         requireWritable();
@@ -339,11 +507,20 @@ export function createTodayStore({ storage = globalThis.localStorage, now = Date
         emit();
         return clone(journal.queue);
       },
-      addItem({ exerciseId, durationMin = DEFAULT_ITEM_MINUTES } = {}) {
+      addItem({ exerciseId, durationMin = DEFAULT_ITEM_MINUTES, courseId = null, lessonId = null, name = null } = {}) {
         requireWritable();
         if (!isNonEmptyString(exerciseId)) throw new TypeError('Escolha um exercício para adicionar.');
         const items = journal.queue?.items?.slice() ?? [];
-        items.push({ id: uuid(), exerciseId, durationMin: minutesOr(durationMin) });
+        items.push({ id: uuid(), kind: ITEM_KIND_EXERCISE, exerciseId, courseId, lessonId, name, durationMin: minutesOr(durationMin) });
+        return api().setItems(items);
+      },
+      // Item de AULA na fila: sem exerciseId inventado — o vínculo é
+      // (courseId, lessonId) e a duração é a estimativa da aula.
+      addLessonItem({ courseId, lessonId, name = null, durationMin = DEFAULT_ITEM_MINUTES } = {}) {
+        requireWritable();
+        if (!isNonEmptyString(courseId) || !isNonEmptyString(lessonId)) throw new TypeError('Informe o curso e a aula.');
+        const items = journal.queue?.items?.slice() ?? [];
+        items.push({ id: uuid(), kind: ITEM_KIND_LESSON, courseId, lessonId, name, durationMin: lessonMinutesOr(durationMin) });
         return api().setItems(items);
       },
       removeItem(itemId) {
@@ -367,7 +544,7 @@ export function createTodayStore({ storage = globalThis.localStorage, now = Date
         const items = journal.queue?.items?.slice() ?? [];
         const item = items.find(candidate => candidate.id === itemId);
         if (!item) throw new RangeError('Item não encontrado na fila.');
-        item.durationMin = minutesOr(durationMin);
+        item.durationMin = itemKind(item) === ITEM_KIND_LESSON ? lessonMinutesOr(durationMin) : minutesOr(durationMin);
         return api().setItems(items);
       },
 
@@ -417,11 +594,18 @@ export function createTodayStore({ storage = globalThis.localStorage, now = Date
       },
       routine(id) { return clone(routines.routines.find(routine => routine.id === id) ?? null); },
       // Recriação em um clique: a fila passa a ser exatamente a rotina, com
-      // ids de item novos.
+      // ids de item novos (aula continua aula, nunca vira exercício).
       applyRoutine(id) {
         const routine = routines.routines.find(candidate => candidate.id === id);
         if (!routine) throw new RangeError('Rotina não encontrada.');
-        return api().setItems(routine.items.map(item => ({ exerciseId: item.exerciseId, durationMin: item.durationMin })));
+        return api().setItems(routine.items.map(item => ({
+          kind: itemKind(item),
+          exerciseId: item.exerciseId,
+          courseId: item.courseId,
+          lessonId: item.lessonId,
+          name: item.name,
+          durationMin: item.durationMin,
+        })));
       },
 
       replaceCorrupt() {

@@ -5,6 +5,12 @@
 .today-header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
 .today-status { margin: 0; font-size: 12px; }
 .today-builder { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #101a1f; }
+/* A montagem aberta rola POR DENTRO: fila longa + resumo não esticam a página
+   além da janela (limite de altura da Biblioteca/curso). */
+.today-disclosure { display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 320px); overflow-y: auto; overflow-x: hidden; padding-right: 4px; overscroll-behavior: contain; }
+/* Com a montagem aberta, a lista da Biblioteca rola por dentro para a página
+   inteira continuar cabendo na janela (em repouso nada muda). */
+#panel-library.today-open #library-mount { max-height: min(32vh, 300px); overflow-y: auto; overscroll-behavior: contain; }
 .today-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; counter-reset: today-item; }
 .today-item { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px 12px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #16232a; }
 .today-item-active { border-color: var(--accent); }
@@ -33,7 +39,7 @@
 .today-summary { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #101a1f; }
 .today-summary h3 { margin: 0; font-size: 14px; }
 .today-summary p { margin: 0; font-size: 12px; }
-.today-summary-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.today-summary-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow: auto; }
 .today-summary-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px 12px; font-size: 13px; }
 .today-summary-name { font-weight: 600; }
 
@@ -60,3 +66,23 @@
   .training-controls .today-run { margin: 0; padding: 4px 6px; }
   .training-controls .today-run-name { max-width: 16ch; }
 }
+
+/* Cursos de hoje: orçamento diário e plano dentro da montagem (o repouso da
+   Biblioteca continua com o mesmo botão de sempre). */
+.today-courses { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #0e171c; }
+.today-courses h3 { margin: 0; font-size: 13px; }
+.today-course-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow: auto; }
+.today-course { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #16232a; }
+.today-course-off { opacity: .62; }
+.today-course-active { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.today-course-main h4 { margin: 0 0 2px; font-size: 14px; }
+.today-course-meta { margin: 0; font-size: 12px; }
+.today-course .today-field input[type=number] { width: 84px; }
+
+/* Item de aula na fila: "Assistir" é destaque, sem virar exercício. */
+.today-item-lesson { margin: 0 0 2px; font-size: 14px; color: var(--accent); }
+
+/* Tira de ESTUDO da aula, na Biblioteca: sem contagem regressiva. */
+.today-lesson-run { display: flex; flex-direction: column; gap: 4px; padding: 6px 10px; border: 1px solid var(--accent); border-radius: 8px; background: #101a1f; font-size: 12px; }
+.today-lesson-run[hidden] { display: none; }
+.today-lesson-run .today-run-row { grid-template-columns: auto auto auto minmax(0, 1.4fr) auto; }

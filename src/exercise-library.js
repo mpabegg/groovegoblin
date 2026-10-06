@@ -469,6 +469,27 @@ export function createExerciseLibrary({
 
   load();
 
+  // Chave de CONTEÚDO COMPLETO do exercício: sessão canônica + metadados +
+  // histórico. O dono de cada treino e os carimbos de entrada ficam FORA da
+  // chave (um backup reimportado depois de o exercício ser retreinado não vira
+  // cópia sem fim; a cópia criada uma vez passa a casar). Metadados diferentes
+  // com a mesma sessão são exercícios DIFERENTES de propósito.
+  function fullContentKey(session, metadata) {
+    const meta = isObject(metadata) ? metadata : {};
+    const records = Array.isArray(meta.records) ? meta.records : [];
+    return JSON.stringify({
+      session: serialize(session),
+      name: isString(meta.name) ? meta.name : null,
+      tags: Array.isArray(meta.tags) ? meta.tags : [],
+      targetBPM: meta.targetBPM === undefined ? null : meta.targetBPM,
+      notes: isString(meta.notes) ? meta.notes : '',
+      records: records.map(record => {
+        const { ownerId, ...rest } = isObject(record) ? record : {};
+        return rest;
+      }),
+    });
+  }
+
   function api() {
     return {
       get status() { return status; },
@@ -667,6 +688,76 @@ export function createExerciseLibrary({
         const list = Array.isArray(payload) ? payload : Array.isArray(payload?.entries) ? payload.entries : null;
         if (!list) throw new Error('Arquivo de biblioteca inválido.');
         return mergeCandidates(list.map(entry => ({ session: entry?.session, metadata: entry?.metadata })));
+      },
+      // Importação AGREGADA (etapa 7): preserva o exercício INTEIRO — sessão,
+      // metadados, anotações e histórico. Deduplica pelo CONTEÚDO COMPLETO
+      // (sessão canônica + metadados, ignorando o dono dos treinos e os
+      // carimbos de entrada): reimportar o mesmo backup cai no mesmo exercício,
+      // e sessão igual com metadados diferentes vira OUTRO exercício,
+      // preservando os dois. Devolve o mapa origem→destino para a importação
+      // remapear os vínculos (vivos e tombstones) das aulas.
+      importEntries(entries, { activeId = null } = {}) {
+        if (status === 'corrupt') throw new Error('Biblioteca corrompida; baixe os originais em Ajuda antes de importar.');
+        if (!Array.isArray(entries)) throw new TypeError('A importação precisa da lista de exercícios.');
+        // Validação TOTAL antes de qualquer mudança: sessão canônica e nome
+        // dentro do teto. Entrada inválida rejeita a importação inteira.
+        const prepared = [];
+        entries.forEach((raw, index) => {
+          if (!isObject(raw) || !isObject(raw.session)) throw new Error(`Importação incompatível: o exercício ${index + 1} do backup não traz uma sessão. Nada foi alterado.`);
+          let session;
+          try { session = parse(JSON.stringify(raw.session)); }
+          catch { throw new Error(`Importação incompatível: a sessão do exercício ${index + 1} não é válida. Nada foi alterado.`); }
+          if (isObject(raw.metadata) && Object.hasOwn(raw.metadata, 'name') && !validName(raw.metadata.name)) {
+            throw new Error(`Importação incompatível: o nome do exercício ${index + 1} deve ter até ${SESSION_NAME_MAX} caracteres. Nada foi alterado.`);
+          }
+          prepared.push({ sourceId: isNonEmptyString(raw.id) ? raw.id : `exercicio-${index + 1}`, session, metadata: raw.metadata ?? null });
+        });
+        const known = new Map();
+        for (const entry of state.entries) known.set(fullContentKey(entry.session, entry.metadata), entry.id);
+        const next = state.entries.slice();
+        // Mapa origem→destino SEM protótipo: os ids de origem vêm do backup e
+        // podem ser `__proto__`, `constructor` ou `toString` — num objeto comum
+        // esses nomes responderiam com o protótipo em vez do destino.
+        const map = Object.create(null);
+        const created = [];
+        for (const item of prepared) {
+          const candidate = {
+            id: uuid(),
+            createdAt: now(),
+            updatedAt: now(),
+            session: clone(item.session),
+            metadata: normalizeMetadata(item.metadata, item.session),
+          };
+          const key = fullContentKey(candidate.session, candidate.metadata);
+          const existing = known.get(key);
+          if (existing) { map[item.sourceId] = existing; continue; }
+          // O dono dos treinos passa a ser o id DESTE exercício: nenhum
+          // registro fica apontando para o exercício de origem.
+          candidate.metadata.records = candidate.metadata.records.map(record => ({ ...record, ownerId: candidate.id }));
+          known.set(key, candidate.id);
+          next.push(candidate);
+          map[item.sourceId] = candidate.id;
+          created.push({ sourceId: item.sourceId, id: candidate.id });
+        }
+        const added = next.length - state.entries.length;
+        const mappedActive = isNonEmptyString(activeId) ? map[activeId] ?? null : null;
+        // Preserva a seleção atual quando ela existe e continua na biblioteca;
+        // só adota o ativo do backup quando o atual não existe mais.
+        const nextActive = state.activeId && next.some(entry => entry.id === state.activeId)
+          ? state.activeId
+          : mappedActive ?? next[0]?.id ?? null;
+        if (added > 0 || nextActive !== state.activeId) {
+          // GRAVA antes de mexer na memória: quota/armazenamento negado não cria
+          // registro fantasma nem perde o que já estava salvo.
+          const document = { version: LIBRARY_VERSION, activeId: nextActive, entries: next };
+          try { target.setItem(LIBRARY_KEY, JSON.stringify(document)); }
+          catch { throw new Error('Não foi possível salvar a importação: o armazenamento do navegador recusou (espaço). A biblioteca ficou como estava.'); }
+          state = document;
+          lastSaved = true;
+          writeWarning = null;
+          emit();
+        }
+        return { added, reused: prepared.length - added, activeId: nextActive, map, created };
       },
       captureRunContext,
       recordRun,

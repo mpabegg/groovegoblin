@@ -1,0 +1,32 @@
+/* Backup agregado da biblioteca (rodada 5, etapa 7): diálogo nativo de
+   exportação/importação, opt-in de anexos e prévia. Desktop 1280–1440. */
+
+.backup-dialog {
+  width: min(560px, 94vw);
+  max-height: 88vh;
+  overflow: auto;
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #0e181d;
+  color: var(--text);
+}
+.backup-dialog::backdrop { background: #04080a; opacity: 0.72; }
+.backup-dialog h2 { margin: 0 0 14px; font-size: 20px; letter-spacing: -0.5px; }
+.backup-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.backup-summary { margin: 0; font-size: 13px; color: var(--text); }
+.backup-field { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #16232a; font-size: 13px; }
+.backup-field[hidden] { display: none; }
+.backup-attachments-size { color: var(--muted); font-size: 12px; }
+.backup-errors { margin: 0; padding: 10px 12px 10px 26px; border: 1px solid #7a3b2e; border-radius: 8px; background: #241512; color: #ffba9d; font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+.backup-errors[hidden] { display: none; }
+.backup-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.backup-actions button { min-height: 38px; padding: 8px 14px; }
+.backup-status { margin: 14px 0 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #16232a; font-size: 13px; }
+.backup-status[hidden] { display: none; }
+.backup-status[data-error] { border-color: #7a3b2e; background: #241512; color: #ffba9d; }
+#backup-import-file { font-size: 13px; }
+
+@media (max-width: 720px) {
+  .backup-dialog { width: 96vw; padding: 18px; }
+}

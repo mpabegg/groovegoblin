@@ -4,7 +4,9 @@ import { memoryStorage } from './storage-fixture.js';
 import {
   createTodayStore, suggestQueue, queueTotalMs, itemTargetMs,
   TODAY_KEY, TODAY_RECOVERY_KEY, ROUTINES_KEY, ROUTINES_RECOVERY_KEY,
-  DEFAULT_ITEM_MINUTES, MAX_ITEM_MINUTES,
+  LEGACY_TODAY_KEY, LEGACY_TODAY_BACKUP_KEY, LEGACY_TODAY_RECOVERY_KEY,
+  LEGACY_ROUTINES_KEY, LEGACY_ROUTINES_BACKUP_KEY,
+  DEFAULT_ITEM_MINUTES, MAX_ITEM_MINUTES, MAX_LESSON_MINUTES,
 } from '../src/today-store.js';
 
 function clockNow() {
@@ -138,18 +140,19 @@ test('BPM ausente continua ausente depois de gravar e recarregar', () => {
 // ----- corrupção / quota ------------------------------------------------------
 
 test('fila corrompida fica preservada e só recupera sob ação explícita', () => {
-  const storage = memoryStorage(new Map([[TODAY_KEY, '{"version":1,"queue":']]));
+  const storage = memoryStorage(new Map([[TODAY_KEY, '{"version":2,"queue":']]));
   const store = open(storage);
   assert.equal(store.status, 'corrupt');
-  assert.equal(store.recoveryRaw, '{"version":1,"queue":');
-  assert.equal(storage.getItem(TODAY_KEY), '{"version":1,"queue":', 'bytes originais intactos');
-  assert.equal(storage.getItem(TODAY_RECOVERY_KEY), '{"version":1,"queue":');
+  assert.equal(store.recoveryRaw, '{"version":2,"queue":');
+  assert.equal(storage.getItem(TODAY_KEY), '{"version":2,"queue":', 'bytes originais intactos');
+  assert.equal(storage.getItem(TODAY_RECOVERY_KEY), '{"version":2,"queue":');
+  assert.equal(store.corruptOriginKey, TODAY_KEY);
   assert.throws(() => store.setItems([{ exerciseId: 'a' }]));
   assert.equal(store.replaceCorrupt(), true);
   assert.equal(store.status, 'ready');
   store.addItem({ exerciseId: 'a' });
   assert.equal(JSON.parse(storage.getItem(TODAY_KEY)).queue.items.length, 1);
-  assert.equal(storage.getItem(TODAY_RECOVERY_KEY), '{"version":1,"queue":', 'recuperação preservada');
+  assert.equal(storage.getItem(TODAY_RECOVERY_KEY), '{"version":2,"queue":', 'recuperação preservada');
 });
 
 test('quota negada não apaga a fila anterior nem o estado em memória', () => {
@@ -211,4 +214,193 @@ test('sugestão põe sem alvo no fim e nunca usa o próprio andamento como alvo'
     row('com-alvo-longe', { lastTrainedAt: '2026-09-20T00:00:00.000Z', bestBpm: 90, targetBPM: 200 }),
   ];
   assert.deepEqual(suggestQueue(rows).map(item => item.exerciseId), ['com-alvo-longe', 'com-alvo-perto', 'sem-alvo']);
+});
+
+// ----- formato v2: migração v1 e itens de aula (etapa 7) ----------------------
+
+const V1_JOURNAL = JSON.stringify({
+  version: 1,
+  queue: {
+    id: 'q1',
+    createdAt: '2026-09-01T09:00:00.000Z',
+    updatedAt: '2026-09-01T09:05:00.000Z',
+    items: [{ id: 'i1', exerciseId: 'a', durationMin: 6 }, { id: 'i2', exerciseId: 'b', durationMin: 4 }],
+  },
+  session: {
+    id: 's1',
+    queueId: 'q1',
+    createdAt: '2026-09-01T09:06:00.000Z',
+    activeIndex: 1,
+    announced: ['i1'],
+    items: [
+      {
+        id: 'i1', exerciseId: 'a', durationMin: 6, elapsedMs: 90000, practiced: true, name: 'A',
+        instrument: 'guitar', startBpm: 90, endBpm: 96,
+        startedAt: '2026-09-01T09:06:00.000Z', finishedAt: '2026-09-01T09:07:30.000Z',
+      },
+      {
+        id: 'i2', exerciseId: 'b', durationMin: 4, elapsedMs: 0, practiced: false, name: 'B',
+        instrument: 'bass', startBpm: null, endBpm: null, startedAt: null, finishedAt: null,
+      },
+    ],
+  },
+  summary: {
+    finishedAt: '2026-09-01T09:10:00.000Z',
+    totalElapsedMs: 90000,
+    plannedMs: 600000,
+    items: [{ exerciseId: 'a', name: 'A', instrument: 'guitar', elapsedMs: 90000, plannedMs: 360000, bpm: { from: 90, to: 96 } }],
+  },
+  updatedAt: '2026-09-01T09:10:00.000Z',
+});
+
+const V1_ROUTINES = JSON.stringify({
+  version: 1,
+  routines: [{
+    id: 'r1', name: 'Rotina', createdAt: '2026-09-01T09:00:00.000Z', updatedAt: '2026-09-01T09:00:00.000Z',
+    items: [{ id: 'x1', exerciseId: 'a', durationMin: 5 }],
+  }],
+});
+
+test('fila e rotinas v1 migram para v2 preservando os bytes originais', () => {
+  const storage = memoryStorage(new Map([[LEGACY_TODAY_KEY, V1_JOURNAL], [LEGACY_ROUTINES_KEY, V1_ROUTINES]]));
+  const store = open(storage);
+  assert.equal(store.migrated.journal, true);
+  assert.equal(store.migrated.routines, true);
+  assert.equal(store.migrated.pending, false);
+  assert.deepEqual(store.items().map(item => [item.kind, item.exerciseId, item.courseId, item.lessonId, item.durationMin]),
+    [['exercise', 'a', null, null, 6], ['exercise', 'b', null, null, 4]]);
+  const session = store.session();
+  assert.equal(session.activeIndex, 1);
+  assert.equal(session.items[0].kind, 'exercise');
+  assert.equal(session.items[0].elapsedMs, 90000);
+  assert.equal(session.items[0].startBpm, 90);
+  assert.equal(session.items[0].endBpm, 96);
+  assert.deepEqual(session.announced, ['i1']);
+  assert.equal(store.summary().items[0].kind, 'exercise');
+  assert.equal(store.summary().items[0].study, false);
+  assert.deepEqual(store.summary().items[0].bpm, { from: 90, to: 96 });
+  assert.equal(store.routines()[0].name, 'Rotina');
+  assert.equal(store.routines()[0].items[0].kind, 'exercise');
+  // Bytes originais intactos, cópia feita ANTES da migração e v2 gravado.
+  assert.equal(storage.getItem(LEGACY_TODAY_KEY), V1_JOURNAL);
+  assert.equal(storage.getItem(LEGACY_TODAY_BACKUP_KEY), V1_JOURNAL);
+  assert.equal(storage.getItem(LEGACY_ROUTINES_KEY), V1_ROUTINES);
+  assert.equal(storage.getItem(LEGACY_ROUTINES_BACKUP_KEY), V1_ROUTINES);
+  assert.equal(JSON.parse(storage.getItem(TODAY_KEY)).version, 2);
+  assert.equal(JSON.parse(storage.getItem(ROUTINES_KEY)).version, 2);
+  // Reabrir prefere o v2 e não toca nos bytes antigos.
+  const again = open(storage);
+  assert.equal(again.migrated.journal, false);
+  assert.equal(again.migrated.routines, false);
+  assert.equal(again.items().length, 2);
+  assert.equal(again.routines().length, 1);
+  assert.equal(storage.getItem(LEGACY_TODAY_KEY), V1_JOURNAL);
+  assert.equal(storage.getItem(LEGACY_TODAY_BACKUP_KEY), V1_JOURNAL);
+});
+
+test('migração com quota negada mantém o v1 intacto e conclui depois', () => {
+  const storage = memoryStorage(new Map([[LEGACY_TODAY_KEY, V1_JOURNAL]]));
+  const failing = memoryStorage(new Map([...storage._map]));
+  const set = failing.setItem;
+  failing.setItem = (key, value) => {
+    if (key === TODAY_KEY) throw new Error('QuotaExceededError');
+    return set(key, value);
+  };
+  const store = open(failing);
+  assert.equal(store.items().length, 2, 'a fila antiga continua utilizável');
+  assert.equal(store.migrated.journal, true);
+  assert.equal(store.migrated.pending, true);
+  assert.ok(store.warning, 'aviso visível de migração pendente');
+  assert.equal(failing.getItem(LEGACY_TODAY_KEY), V1_JOURNAL);
+  assert.equal(failing.getItem(LEGACY_TODAY_BACKUP_KEY), V1_JOURNAL);
+  assert.equal(failing.getItem(TODAY_KEY), null);
+  // Com espaço de novo, a próxima abertura grava o v2 e o v1 continua de pé.
+  const ok = memoryStorage(new Map([...failing._map]));
+  const reopened = open(ok);
+  assert.equal(reopened.migrated.journal, true);
+  assert.equal(reopened.migrated.pending, false);
+  assert.equal(JSON.parse(ok.getItem(TODAY_KEY)).version, 2);
+  assert.equal(ok.getItem(LEGACY_TODAY_KEY), V1_JOURNAL);
+});
+
+test('fila v1 corrompida não é sobrescrita e a recuperação grava só o v2', () => {
+  const raw = '{"version":1,"queue":';
+  const storage = memoryStorage(new Map([[LEGACY_TODAY_KEY, raw]]));
+  const store = open(storage);
+  assert.equal(store.status, 'corrupt');
+  assert.equal(store.corruptOriginKey, LEGACY_TODAY_KEY);
+  assert.equal(store.recoveryRaw, raw);
+  assert.equal(storage.getItem(LEGACY_TODAY_KEY), raw);
+  assert.equal(storage.getItem(LEGACY_TODAY_BACKUP_KEY), raw, 'cópia feita antes de tentar migrar');
+  assert.equal(storage.getItem(LEGACY_TODAY_RECOVERY_KEY), raw);
+  assert.throws(() => store.setItems([{ exerciseId: 'a' }]));
+  assert.equal(store.replaceCorrupt(), true);
+  assert.equal(storage.getItem(LEGACY_TODAY_KEY), raw, 'o v1 nunca é sobrescrito para “corrigir”');
+  assert.equal(storage.getItem(LEGACY_TODAY_BACKUP_KEY), raw);
+  assert.equal(JSON.parse(storage.getItem(TODAY_KEY)).version, 2);
+  assert.equal(store.migrated.journal, false);
+});
+
+test('itens de aula guardam curso/aula e a estimativa não é cortada em 180', () => {
+  const storage = memoryStorage();
+  const store = open(storage);
+  store.setItems([
+    { kind: 'lesson', courseId: 'c1', lessonId: 'l1', name: 'Aula 3', durationMin: 6 },
+    { exerciseId: 'a', durationMin: 5, courseId: 'c1', lessonId: 'l1' },
+    { kind: 'lesson', courseId: 'c1', lessonId: 'l2', name: 'Aula 4', durationMin: 700 },
+  ]);
+  const items = store.items();
+  assert.deepEqual(items.map(item => item.kind), ['lesson', 'exercise', 'lesson']);
+  assert.equal(items[0].exerciseId, null, 'aula nunca inventa exerciseId');
+  assert.equal(items[0].courseId, 'c1');
+  assert.equal(items[0].lessonId, 'l1');
+  assert.equal(items[0].durationMin, 6);
+  assert.equal(items[2].durationMin, 700, 'estimativa de aula acima do teto de prática é preservada');
+  assert.equal(items[1].courseId, 'c1', 'exercício vinculado guarda a origem do curso');
+  store.setItemDuration(items[1].id, 999);
+  assert.equal(store.items()[1].durationMin, MAX_ITEM_MINUTES);
+  store.setItemDuration(items[2].id, 5000);
+  assert.equal(store.items()[2].durationMin, MAX_LESSON_MINUTES);
+  assert.throws(() => store.setItems([{ kind: 'lesson', courseId: 'c1' }]), TypeError);
+  assert.throws(() => store.addLessonItem({ courseId: 'c1' }), TypeError);
+  assert.equal(store.addLessonItem({ courseId: 'c1', lessonId: 'l3', name: 'Aula 5', durationMin: 8 }).items.length, 4);
+  const routine = store.saveRoutine('Com aula', store.items());
+  assert.equal(routine.items[0].kind, 'lesson');
+  const reopened = open(storage);
+  const reapplied = reopened.applyRoutine(reopened.routines()[0].id);
+  assert.deepEqual(reapplied.items.map(item => item.kind), ['lesson', 'exercise', 'lesson', 'lesson']);
+  assert.equal(reapplied.items[0].courseId, 'c1');
+  assert.equal(reapplied.items[0].lessonId, 'l1');
+  assert.notEqual(reapplied.items[0].id, items[0].id, 'ids novos na recriação');
+});
+
+test('sessão e resumo com aula não guardam BPM nem intervalo vivo', () => {
+  const storage = memoryStorage();
+  const first = open(storage);
+  first.saveSession({
+    id: 's1', queueId: null, createdAt: '2026-10-06T09:00:00.000Z', activeIndex: 0, announced: [],
+    items: [{
+      id: 'i1', kind: 'lesson', courseId: 'c1', lessonId: 'l1', name: 'Aula 3', durationMin: 6,
+      elapsedMs: 45000, practiced: true, startBpm: 120, endBpm: 130, running: true, live: { startedAtMs: 5 },
+      startedAt: '2026-10-06T09:00:00.000Z', finishedAt: null,
+    }],
+  });
+  first.saveSummary({
+    finishedAt: '2026-10-06T09:10:00.000Z', totalElapsedMs: 45000, plannedMs: 360000,
+    items: [{ kind: 'lesson', courseId: 'c1', lessonId: 'l1', name: 'Aula 3', elapsedMs: 45000, plannedMs: 360000, bpm: { from: 100, to: 110 } }],
+  });
+  const session = open(storage).session();
+  assert.equal(session.items[0].kind, 'lesson');
+  assert.equal(session.items[0].courseId, 'c1');
+  assert.equal(session.items[0].exerciseId, null);
+  assert.equal(session.items[0].elapsedMs, 45000, 'tempo de estudo fechado sobrevive');
+  assert.equal(session.items[0].startBpm, null, 'aula nunca guarda BPM');
+  assert.equal(session.items[0].endBpm, null);
+  assert.equal('running' in session, false);
+  assert.equal('live' in session, false);
+  const summary = open(storage).summary();
+  assert.equal(summary.items[0].study, true);
+  assert.equal(summary.items[0].practiced, true);
+  assert.deepEqual(summary.items[0].bpm, { from: null, to: null });
+  assert.equal(summary.items[0].name, 'Aula 3');
 });

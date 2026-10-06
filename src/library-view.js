@@ -11,6 +11,7 @@ import { mountExerciseHistory } from './exercise-history.js';
 import { mountCourseWorkspace } from './course-workspace.js';
 import { sharedCourseStore } from './course-store.js';
 import { sharedAttachmentStore } from './course-attachments.js';
+import { mountLibraryBackup } from './library-backup-view.js';
 import { exerciseOriginBadges, mountExerciseOrigins } from './course-lesson-origins.js';
 
 const INSTRUMENTS = Object.freeze([['all', 'Todos'], ['guitar', 'Guitarra'], ['bass', 'Baixo']]);
@@ -122,6 +123,40 @@ export function mountLibrary(container, host) {
     })();
     return coursesOpening;
   }
+  // Backup agregado (biblioteca + cursos + anexos) no MESMO diálogo do menu
+  // Arquivo: montado UMA vez, na primeira vez que o usuário pede exportar ou
+  // importar. As lojas compartilhadas já vêm daqui; se alguma não carregar, o
+  // diálogo abre mesmo assim com ela ausente (“não conferidos”/recusa honesta)
+  // em vez de fingir um backup completo. Nada é montado no repouso.
+  let backupDialog = null;
+  let backupOpening = null;
+  async function backupDialogFor() {
+    if (backupDialog) return backupDialog;
+    if (!backupOpening) {
+      backupOpening = (async () => {
+        try {
+          const store = await courseStorePromise.catch(() => null);
+          const attachments = await attachmentsPromise.catch(() => null);
+          backupDialog = mountLibraryBackup(document.body, {
+            library, store, attachments, notify, download,
+          });
+          return backupDialog;
+        } finally {
+          backupOpening = null;   // a promessa em voo deixa de existir; o diálogo fica
+        }
+      })();
+    }
+    try { return await backupOpening; }
+    catch (error) {
+      notify(`Não foi possível abrir o backup da biblioteca: ${error.message}`, true);
+      return null;
+    }
+  }
+  async function openBackup(mode) {
+    const dialog = await backupDialogFor();
+    if (!dialog) return;
+    if (mode === 'import') dialog.openImport(); else dialog.openExport();
+  }
   // Abrir uma aula (da origem do exercício, do Hoje ou de qualquer outra tela):
   // vai para Cursos, garante o workspace montado e abre a página da aula.
   async function openLesson(courseId, lessonId) {
@@ -232,28 +267,15 @@ export function mountLibrary(container, host) {
     sort.value = view.sort;
     sort.addEventListener('change', () => { view.sort = sort.value; render(); });
     const exportAll = createEl('button', { id: 'library-export', type: 'button', text: 'Exportar biblioteca' });
-    exportAll.addEventListener('click', () => download(library.exportLibrary(), 'groovegoblin-biblioteca.json'));
+    exportAll.addEventListener('click', () => { void openBackup('export'); });
     const importButton = createEl('button', { id: 'library-import', type: 'button', text: 'Importar' });
-    const importFile = createEl('input', { id: 'library-import-file', type: 'file', accept: '.json,application/json', hidden: true });
-    importButton.addEventListener('click', () => importFile.click());
-    importFile.addEventListener('change', async event => {
-      const file = event.target.files?.[0];
-      event.target.value = '';
-      if (!file) return;
-      try {
-        const text = await file.text();
-        const payload = JSON.parse(text);
-        const result = payload?.kind === 'groovegoblin-exercise-library' ? library.importLibrary(text) : library.importExercise(text);
-        notify(`Importação concluída: ${result.added} exercício(s) adicionado(s), ${result.skipped} já presente(s) sem sobrescrever.`);
-      } catch (error) {
-        notify(`Importação rejeitada: ${error.message}`, true);
-      }
-      render();
-    });
+    importButton.addEventListener('click', () => { void openBackup('import'); });
     // Exportar/Importar ficam no grupo “Arquivo”: continuam a um clique e a
-    // barra em repouso não gasta dois controles permanentes com eles.
+    // barra em repouso não gasta dois controles permanentes com eles. A
+    // importação (agregado, legado ou sessão) vive no diálogo — nada de um
+    // segundo campo de arquivo com validação paralela.
     const files = createEl('details', { className: 'library-menu library-files', dataset: { disclosure: 'library-files' } });
-    files.append(createEl('summary', { text: 'Arquivo' }), createEl('div', { className: 'library-menu-content' }, [exportAll, importButton, importFile]));
+    files.append(createEl('summary', { text: 'Arquivo' }), createEl('div', { className: 'library-menu-content' }, [exportAll, importButton]));
     bar.append(add, search, createEl('label', { className: 'library-field' }, [createEl('span', { text: 'Instrumento' }), instrument]),
       createEl('label', { className: 'library-field' }, [createEl('span', { text: 'Etiqueta' }), tag]),
       createEl('label', { className: 'library-field' }, [createEl('span', { text: 'Ordenar' }), sort]),
@@ -474,6 +496,8 @@ export function mountLibrary(container, host) {
       studioOrigins?.destroy();
       historyView?.destroy();
       historyDialog.remove();
+      backupDialog?.destroy();
+      backupDialog = null;
       coursesView?.destroy();
       switchBar.remove();
       coursesMount.remove();

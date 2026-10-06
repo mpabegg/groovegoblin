@@ -32,6 +32,10 @@ function fakeActivity() {
 let idCount = 0;
 const uuid = () => `u-${++idCount}`;
 
+// O contador de aulas do curso é assíncrono (promessa): o teste espera a
+// microtarefa antes de conferir o que foi gravado.
+const flushPromises = () => new Promise(resolve => setTimeout(resolve, 0));
+
 function fixture({ exercises = ['a', 'b', 'c'], durations = null, activity = null, libraryBpm = {} } = {}) {
   const clock = fakeClock();
   const storage = memoryStorage();
@@ -444,4 +448,214 @@ test('começar sem fila avisa e não cria sessão; retomar nunca fica negativo',
   assert.equal(session.tick().remainingMs, 0);
   assert.equal(session.next().completed, false);
   assert.equal(session.finish(), null);
+});
+
+// ----- itens de aula (etapa 7) -----------------------------------------------
+
+function lessonFixture({ items, present = () => true, recordWatch = null, activity = fakeActivity() } = {}) {
+  const clock = fakeClock();
+  const storage = memoryStorage();
+  const store = createTodayStore({ storage, now: clock.now, uuid });
+  store.setItems(items);
+  const opened = [];
+  const lessons = [];
+  const notices = [];
+  const watches = [];
+  const rows = new Map([['a', {
+    id: 'a', name: 'Exercício a', instrument: 'guitar', bpm: 90, targetBPM: 120,
+    bestBpm: null, lastTrainedAt: null, createdAt: '2026-01-01T00:00:00.000Z',
+  }]]);
+  const library = {
+    list: () => [...rows.values()],
+    get: id => (rows.has(id) ? { id, metadata: { name: rows.get(id).name }, session: { bpm: rows.get(id).bpm } } : null),
+    active: () => null,
+    subscribe: () => () => {},
+  };
+  const watch = recordWatch ?? ((courseId, lessonId, interval) => { watches.push({ courseId, lessonId, ...interval }); return { ok: true }; });
+  const session = createTodaySession({
+    store, library, now: clock.now, uuid,
+    getActivity: () => activity,
+    notify: (text, error) => notices.push({ text, error }),
+    openItem: (id, options) => { opened.push({ id, ...options }); return rows.has(id); },
+    openLesson: (item, options) => { lessons.push({ courseId: item.courseId, lessonId: item.lessonId, ...options }); return true; },
+    lessonExists: (courseId, lessonId) => present(courseId, lessonId),
+    recordWatch: watch,
+  });
+  return { clock, store, session, opened, lessons, notices, watches, library, activity };
+}
+
+const lessonItem = (courseId, lessonId, name, durationMin = 6) => ({ kind: 'lesson', courseId, lessonId, name, durationMin });
+
+test('item de aula abre a página da aula, não liga relógio e não avisa meta zero', () => {
+  const { session, lessons, opened, notices, clock, activity } = lessonFixture({ items: [lessonItem('c1', 'l1', 'Aula 3')] });
+  session.start();
+  assert.deepEqual(lessons, [{ courseId: 'c1', lessonId: 'l1', start: true }], 'abre a aula (Biblioteca), nunca o exercício');
+  assert.deepEqual(opened, []);
+  let state = session.snapshot();
+  assert.equal(state.lesson, true);
+  assert.equal(state.kind, 'lesson');
+  assert.equal(state.running, false, 'aula não liga o relógio sozinha');
+  assert.equal(state.paused, true);
+  assert.equal(state.elapsedMs, 0);
+  assert.equal(state.item.exerciseId, null, 'nenhum exerciseId inventado');
+  assert.equal(state.targetMs, 360000, 'a estimativa da aula continua visível');
+  clock.advance(10 * 60 * 1000);
+  state = session.tick();
+  assert.equal(state.elapsedMs, 0, 'tempo parado na aula não conta');
+  assert.equal(state.remainingMs, 0, 'aula não tem contagem regressiva');
+  assert.equal(state.overtimeMs, 0);
+  assert.equal(notices.length, 0, 'nenhum aviso de meta atingida');
+  assert.equal(activity.list().length, 0, 'nenhum exercício fantasma no diário');
+  assert.equal(clock.now(), Date.UTC(2026, 9, 6, 9, 10, 0));
+});
+
+test('“Contar tempo” fecha intervalo positivo no curso e nunca no diário de prática', async () => {
+  const { session, clock, watches, activity, store } = lessonFixture({ items: [lessonItem('c1', 'l1', 'Aula 3')] });
+  session.start();
+  assert.equal(session.startStudy('manual').items[0].kind, 'lesson');
+  const startedAt = Date.parse(session.snapshot().item.startedAt);
+  assert.ok(Number.isFinite(startedAt), 'o estudo marca o início do item');
+  clock.advance(90000);
+  assert.equal(session.tick().studyRunning, true);
+  assert.equal(session.tick().elapsedMs, 90000);
+  const state = session.snapshot();
+  session.stopStudy('manual');
+  await flushPromises();
+  assert.equal(watches.length, 1, 'um intervalo FECHADO para o curso');
+  assert.equal(watches[0].courseId, 'c1');
+  assert.equal(watches[0].lessonId, 'l1');
+  assert.equal(Date.parse(watches[0].endedAt) - Date.parse(watches[0].startedAt), 90000);
+  assert.deepEqual(Object.keys(watches[0]).sort(), ['courseId', 'endedAt', 'lessonId', 'startedAt']);
+  assert.equal(activity.list().length, 0, 'o tempo de estudo nunca vira exercício no diário');
+  const after = session.snapshot();
+  assert.equal(after.studyRunning, false);
+  assert.equal(after.elapsedMs, 90000, 'o tempo estudado fica no item');
+  assert.equal(store.session().items[0].elapsedMs, 90000);
+  assert.equal(store.session().items[0].practiced, true);
+  assert.equal(state.studyRunning, true);
+  // Parar de novo não grava um segundo intervalo.
+  session.stopStudy('manual');
+  await flushPromises();
+  assert.equal(watches.length, 1);
+});
+
+test('aula → exercício → aula navega e cada item abre no destino certo', () => {
+  const { session, clock, lessons, opened, activity, store } = lessonFixture({
+    items: [lessonItem('c1', 'l1', 'Aula 1'), { exerciseId: 'a', durationMin: 5 }, lessonItem('c1', 'l2', 'Aula 2')],
+  });
+  session.start();
+  assert.deepEqual(lessons, [{ courseId: 'c1', lessonId: 'l1', start: true }]);
+  assert.equal(session.snapshot().lesson, true);
+  assert.equal(session.next().completed, false);
+  assert.deepEqual(opened, [{ id: 'a', start: false }], 'o exercício abre no Treinar');
+  assert.equal(session.snapshot().kind, 'exercise');
+  assert.equal(session.snapshot().running, true, 'exercício conta o tempo como sempre');
+  clock.advance(30000);
+  clock.advance(0);
+  assert.equal(session.next().completed, false);
+  assert.deepEqual(lessons, [{ courseId: 'c1', lessonId: 'l1', start: true }, { courseId: 'c1', lessonId: 'l2', start: false }]);
+  assert.equal(session.snapshot().lesson, true);
+  assert.equal(session.snapshot().running, false, 'a aula seguinte não liga relógio');
+  assert.equal(activity.list().length, 1, 'só o exercício entrou no diário');
+  assert.equal(activity.list()[0].exerciseId, 'a');
+  clock.advance(60000);
+  assert.equal(session.tick().elapsedMs, 0);
+  const summary = session.finish('manual');
+  assert.deepEqual(summary.items.map(item => item.kind), ['lesson', 'exercise', 'lesson']);
+  assert.deepEqual(summary.items.map(item => item.study), [true, false, true]);
+  assert.deepEqual(summary.items[0].bpm, { from: null, to: null }, 'aula nunca ganha BPM');
+  assert.equal(summary.items[1].elapsedMs, 30000);
+  assert.equal(summary.items[1].practiced, true);
+  assert.equal(summary.items[0].practiced, false, 'aula sem cronômetro não conta como estudada');
+  assert.equal(summary.totalElapsedMs, 30000);
+  assert.equal(store.session(), null);
+  assert.deepEqual(store.summary().items.map(item => item.study), [true, false, true]);
+});
+
+test('recarga com aula ativa volta pausada e o estudo aberto não atravessa', async () => {
+  const { session, store, clock, watches } = lessonFixture({ items: [lessonItem('c1', 'l1', 'Aula 3')] });
+  session.start();
+  session.startStudy('manual');
+  clock.advance(60000);
+  assert.equal(watches.length, 0, 'intervalo aberto não foi gravado');
+  clock.advance(10 * 3600 * 1000);
+  const reopened = createTodaySession({
+    store, now: clock.now, uuid, notify: () => {}, getActivity: () => null,
+    recordWatch: (courseId, lessonId, interval) => { watches.push({ courseId, lessonId, ...interval }); return { ok: true }; },
+  });
+  const state = reopened.snapshot();
+  assert.equal(state.lesson, true);
+  assert.equal(state.studyRunning, false, 'volta pausado');
+  assert.equal(state.reason, 'restored');
+  assert.equal(state.elapsedMs, 0, 'a noite fechada nunca entra');
+  reopened.startStudy('manual');
+  clock.advance(30000);
+  assert.equal(reopened.stopStudy('manual').items[0].elapsedMs, 30000);
+  await flushPromises();
+  assert.equal(watches.length, 1);
+});
+
+test('falha do contador de aulas fica visível e nunca gera rejeição não tratada', async () => {
+  const rejecting = lessonFixture({
+    items: [lessonItem('c1', 'l1', 'Aula 3')],
+    recordWatch: () => Promise.reject(new Error('sem espaço')),
+  });
+  rejecting.session.start();
+  rejecting.session.startStudy();
+  rejecting.clock.advance(5000);
+  rejecting.session.stopStudy();
+  await flushPromises();
+  const state = rejecting.session.snapshot();
+  assert.match(state.watch.warning, /sem espaço/);
+  assert.equal(state.watch.pending, 0);
+  assert.equal(rejecting.session.snapshot().elapsedMs, 5000, 'o tempo continua na fila');
+  assert.equal(rejecting.activity.list().length, 0);
+
+  const refusing = lessonFixture({ items: [lessonItem('c1', 'l1', 'Aula 3')], recordWatch: () => null });
+  refusing.session.start();
+  refusing.session.startStudy();
+  refusing.clock.advance(5000);
+  refusing.session.stopStudy();
+  await flushPromises();
+  assert.ok(refusing.session.snapshot().watch.warning, 'recusa do contador é visível');
+
+  const missing = lessonFixture({ items: [lessonItem('c1', 'l1', 'Aula 3')] });
+  missing.session.start();
+  missing.session.startStudy();
+  missing.clock.advance(5000);
+  missing.session.stopStudy();
+  await flushPromises();
+  assert.equal(missing.watches.length, 1);
+  assert.equal(missing.session.snapshot().watch.warning, null);
+});
+
+test('aula que saiu do curso é pulada sem inventar tempo', () => {
+  const { session, notices, lessons } = lessonFixture({
+    items: [lessonItem('c1', 'l1', 'Aula antiga'), lessonItem('c1', 'l2', 'Aula viva')],
+    present: (courseId, lessonId) => lessonId === 'l2',
+  });
+  session.start();
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0].error, true);
+  assert.deepEqual(lessons, [{ courseId: 'c1', lessonId: 'l2', start: false }]);
+  const state = session.snapshot();
+  assert.equal(state.index, 1);
+  assert.equal(state.item.lessonId, 'l2');
+  assert.equal(state.elapsedMs, 0);
+});
+
+test('sair da Biblioteca fecha o cronômetro da aula e voltar não religa sozinho', async () => {
+  const { session, clock, watches } = lessonFixture({ items: [lessonItem('c1', 'l1', 'Aula 3')] });
+  session.start();
+  session.startStudy('manual');
+  clock.advance(20000);
+  session.suspend('tab');
+  await flushPromises();
+  assert.equal(session.snapshot().studyRunning, false);
+  assert.equal(session.snapshot().elapsedMs, 20000);
+  assert.equal(watches.length, 1);
+  assert.equal(session.wake('tab'), null, 'contar tempo é sempre explícito');
+  clock.advance(60000);
+  assert.equal(session.snapshot().elapsedMs, 20000);
+  assert.equal(watches.length, 1);
 });
