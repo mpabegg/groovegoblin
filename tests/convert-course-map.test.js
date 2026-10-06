@@ -714,7 +714,9 @@ test('catálogo: liga por aula, substitui as sugestões e traz a receita de cada
   assert.deepEqual(result.counts.catalog, {
     // `replaced` conta as sugestões do MAPA que o catálogo substitui (a aula 0
     // do mapa fictício sugere 2 exercícios depois do descarte de 6 cordas).
-    entries: 6, bound: 5, replaced: 2, variations: 1, unknownLesson: 1, withoutRecipe: 1, refs: 2, ignoredFields: 3,
+    // `materials` é o material de apóstila CRIADO pelo catálogo (PDF de dentro
+    // de um pacote): este catálogo não declara `arquivo_interno`, então é zero.
+    entries: 6, bound: 5, replaced: 2, variations: 1, unknownLesson: 1, withoutRecipe: 1, refs: 2, materials: 0, ignoredFields: 3,
   });
   assert.deepEqual(result.document.course.catalog.entries, 5);
   assert.match(result.document.course.catalog.id, /^cat-[0-9a-f]{16}$/);

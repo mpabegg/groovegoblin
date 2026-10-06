@@ -18,10 +18,16 @@ import {
   describeImportResult, backupAttachmentSummary, formatByteSize, recognizeBackup, backupFileName,
 } from '../src/library-backup.js';
 import { createFingeringShapeStore } from '../src/fingering-shapes.js';
+import { createShapeBindingStore } from '../src/course-shape-binding.js';
 
 let createAttachmentStore = null;
 try { ({ createAttachmentStore } = await import('../src/course-attachments.js')); } catch { /* etapa 6 ausente */ }
 const attachmentTests = createAttachmentStore === null ? { skip: 'módulo da etapa 6 ausente neste worktree' } : {};
+
+// Backup AGREGADO COMPLETO (a semântica da rodada 5): o conteúdo de curso agora
+// é um opt-in EXPLÍCITO, então os testes que exercitam o arquivo inteiro —
+// catálogo, estados, anotações, anexos — passam por aqui, com a opção ligada.
+const fullBackup = (options = {}) => buildBackup({ includeCourseContent: true, ...options });
 
 // ------------------------------------------------------------------ fixtures
 
@@ -221,7 +227,7 @@ async function trainedWorld() {
 
 test('backup: envelope do retrato traz catálogo, estados, órfãos e exercícios', async () => {
   const world = await sourceWorld();
-  const built = await buildBackup({ library: world.library, store: world.store, attachments: world.attachments });
+  const built = await fullBackup({ library: world.library, store: world.store, attachments: world.attachments });
   assert.equal(built.ok, true);
   assert.equal(built.document.kind, 'groovegoblin-library-backup');
   assert.equal(built.document.version, 1);
@@ -240,7 +246,7 @@ test('backup: envelope do retrato traz catálogo, estados, órfãos e exercício
 
 test('backup: rodada completa preserva estado, vínculos remapeados e conclusão 90% autoral', async () => {
   const source = await sourceWorld();
-  const built = await buildBackup({ library: source.library, store: source.store, attachments: source.attachments });
+  const built = await fullBackup({ library: source.library, store: source.store, attachments: source.attachments });
   const text = serializeBackup(built.document);
 
   const dest = await destinationWorld();
@@ -310,7 +316,7 @@ test('backup: rodada completa preserva estado, vínculos remapeados e conclusão
 
 test('backup: dedup é do exercício COMPLETO (sessão + metadados + histórico)', async () => {
   const source = await sourceWorld();
-  const built = await buildBackup({ library: source.library, store: source.store });
+  const built = await fullBackup({ library: source.library, store: source.store });
   const dest = await destinationWorld();
 
   // Mesma sessão do exercício A, mas metadados diferentes: vira OUTRO exercício.
@@ -453,7 +459,7 @@ test('backup: estado inválido reprova o retrato inteiro sem gravar nada', async
 
 test('backup: quota nos cursos preserva os exercícios já importados e o que existia', async () => {
   const source = await sourceWorld();
-  const text = serializeBackup((await buildBackup({ library: source.library, store: source.store })).document);
+  const text = serializeBackup((await fullBackup({ library: source.library, store: source.store })).document);
   const backend = memoryBackend(COURSE_KEYS);
   const store = await openCourses(backend);
   await store.importText(JSON.stringify(courseDocument({ id: 'curso-exemplo', title: 'Curso Atual' })));
@@ -475,7 +481,7 @@ test('backup: quota nos cursos preserva os exercícios já importados e o que ex
 
 test('backup: quota nos exercícios não cria registro fantasma', async () => {
   const source = await sourceWorld();
-  const text = serializeBackup((await buildBackup({ library: source.library, store: source.store })).document);
+  const text = serializeBackup((await fullBackup({ library: source.library, store: source.store })).document);
   const dest = await destinationWorld();
   const before = dest.library.size();
   const rawBefore = dest.storage.getItem(dest.library.key);
@@ -492,7 +498,7 @@ test('backup: quota nos exercícios não cria registro fantasma', async () => {
 
 test('backup: sessão inválida no backup é recusada sem alterar nada (nada de sessão fantasma)', async () => {
   const source = await sourceWorld();
-  const document = (await buildBackup({ library: source.library, store: source.store })).document;
+  const document = (await fullBackup({ library: source.library, store: source.store })).document;
   // Campo desconhecido na nota: o parser canônico recusa a sessão.
   document.exercises.entries[1].session.notes[0].desconhecido = 1;
   const dest = await destinationWorld();
@@ -551,7 +557,7 @@ test('backup: envelope inválido é rejeitado com o caminho do campo', async () 
 
 test('backup: mudança concorrente entre o prepare e a aplicação não é sobrescrita', { skip: createAttachmentStore === null ? 'módulo da etapa 6 ausente' : false }, async () => {
   const source = await sourceWorld({ withAttachments: true });
-  const document = (await buildBackup({ library: source.library, store: source.store, attachments: source.attachments, includeAttachments: true })).document;
+  const document = (await fullBackup({ library: source.library, store: source.store, attachments: source.attachments, includeAttachments: true })).document;
   const text = serializeBackup(document);
   const dest = await destinationWorld();
 
@@ -581,13 +587,13 @@ test('anexos: padrão sem anexos, opt-in com bytes iguais e um arquivo compartil
   assert.equal(source.attachments.totals().files, 1);         // um único arquivo para duas aulas
   assert.equal(source.attachments.totals().refs, 2);
 
-  const lean = await buildBackup({ library: source.library, store: source.store, attachments: source.attachments });
+  const lean = await fullBackup({ library: source.library, store: source.store, attachments: source.attachments });
   const leanText = serializeBackup(lean.document);
   assert.equal(lean.document.attachments.included, false);
   assert.equal(leanText.includes('dataBase64'), false);
   assert.equal(lean.summary.attachments.files, 1);            // tamanho explícito mesmo sem bytes
 
-  const full = await buildBackup({ library: source.library, store: source.store, attachments: source.attachments, includeAttachments: true });
+  const full = await fullBackup({ library: source.library, store: source.store, attachments: source.attachments, includeAttachments: true });
   const fullText = serializeBackup(full.document);
   assert.equal(full.document.attachments.included, true);
   assert.ok(fullText.includes('dataBase64'));
@@ -615,7 +621,7 @@ test('anexos: padrão sem anexos, opt-in com bytes iguais e um arquivo compartil
 
 test('anexos: entrada malformada atrasada não adiciona exercícios nem cursos', { ...attachmentTests }, async () => {
   const source = await sourceWorld({ withAttachments: true });
-  const document = (await buildBackup({ library: source.library, store: source.store, attachments: source.attachments, includeAttachments: true })).document;
+  const document = (await fullBackup({ library: source.library, store: source.store, attachments: source.attachments, includeAttachments: true })).document;
   document.attachments.document.files[0].dataBase64 = '%%%isto não é base64%%%';
   const dest = await destinationWorld();
   const before = dest.library.size();
@@ -642,7 +648,7 @@ test('anexos: entrada malformada atrasada não adiciona exercícios nem cursos',
 
 test('anexos: falha de quota preserva cursos, exercícios e anexos já existentes', { ...attachmentTests }, async () => {
   const source = await sourceWorld({ withAttachments: true });
-  const text = serializeBackup((await buildBackup({ library: source.library, store: source.store, attachments: source.attachments, includeAttachments: true })).document);
+  const text = serializeBackup((await fullBackup({ library: source.library, store: source.store, attachments: source.attachments, includeAttachments: true })).document);
   const dest = await destinationWorld();
   await dest.attachments.put({
     courseId: 'curso-existente', lessonId: 'aula-1', resourceId: 'material-1', name: 'existente.pdf', extension: 'pdf',
@@ -685,7 +691,7 @@ test('backup: ids especiais (__proto__, constructor, toString) não somem nem vi
   assert.equal(persisted.lessons['toString'].watched, undefined);
 
   const library = openLibrary(memoryStorage());
-  const built = await buildBackup({ library, store: reopened });
+  const built = await fullBackup({ library, store: reopened });
   const entries = built.document.exercises.entries;
   entries[entries.length - 1].id = '__proto__';   // exercício com id especial no backup
   const dest = await destinationWorld();
@@ -711,7 +717,7 @@ test('backup: resumo, nomes e rótulos são estáveis', async () => {
   // Totais desconhecidos (loja não informada) NÃO viram "0 arquivo".
   assert.deepEqual(backupAttachmentSummary(null), { available: false, files: 0, refs: 0, bytes: 0, label: 'anexos não conferidos' });
   const source = await sourceWorld();
-  const built = await buildBackup({ library: source.library, store: source.store });
+  const built = await fullBackup({ library: source.library, store: source.store });
   const summary = summarizeBackup(built.document);
   assert.equal(summary.courses, 1);
   assert.equal(summary.states, 2);
@@ -729,14 +735,14 @@ test('backup: exportação agregada RECUSA quando a biblioteca ou uma loja não 
   const world = await sourceWorld();
 
   // Biblioteca corrompida/indisponível: os bytes preservados se baixam em Ajuda.
-  const corrupt = await buildBackup({ library: { exportLibrary: world.library.exportLibrary, status: 'corrupt' }, store: world.store });
+  const corrupt = await fullBackup({ library: { exportLibrary: world.library.exportLibrary, status: 'corrupt' }, store: world.store });
   assert.equal(corrupt.ok, false);
   assert.equal(corrupt.code, 'corrupt');
   assert.equal(corrupt.store, 'library');
   assert.equal(corrupt.document, null);
   assert.match(corrupt.error, /Ajuda/);
 
-  const unavailableLibrary = await buildBackup({ library: { exportLibrary: world.library.exportLibrary, status: 'unavailable' }, store: world.store });
+  const unavailableLibrary = await fullBackup({ library: { exportLibrary: world.library.exportLibrary, status: 'unavailable' }, store: world.store });
   assert.equal(unavailableLibrary.ok, false);
   assert.equal(unavailableLibrary.code, 'unavailable');
   assert.equal(unavailableLibrary.store, 'library');
@@ -745,7 +751,7 @@ test('backup: exportação agregada RECUSA quando a biblioteca ou uma loja não 
   // então nada de arquivo com "0 curso".
   const noIdb = createCourseStore({ persistent: false, error: new CourseStorageError('unavailable', 'sem IndexedDB para cursos') });
   assert.equal(noIdb.snapshotAll().records.length, 0);
-  const refusedStore = await buildBackup({ library: world.library, store: noIdb, attachments: world.attachments });
+  const refusedStore = await fullBackup({ library: world.library, store: noIdb, attachments: world.attachments });
   assert.equal(refusedStore.ok, false);
   assert.equal(refusedStore.code, 'unavailable');
   assert.equal(refusedStore.store, 'courses');
@@ -755,14 +761,14 @@ test('backup: exportação agregada RECUSA quando a biblioteca ou uma loja não 
   if (createAttachmentStore) {
     const { AttachmentStorageError } = await import('../src/course-attachments.js');
     const noAttachmentIdb = createAttachmentStore({ persistent: false, error: new AttachmentStorageError('unavailable', 'sem IndexedDB para anexos') });
-    const refusedAttachments = await buildBackup({ library: world.library, store: world.store, attachments: noAttachmentIdb });
+    const refusedAttachments = await fullBackup({ library: world.library, store: world.store, attachments: noAttachmentIdb });
     assert.equal(refusedAttachments.ok, false);
     assert.equal(refusedAttachments.store, 'attachments');
     assert.match(refusedAttachments.error, /sem IndexedDB para anexos/);
   }
 
   // Sem loja informada (API opcional) o envelope é EXPLÍCITO: não conferido.
-  const explicit = await buildBackup({ library: world.library });
+  const explicit = await fullBackup({ library: world.library });
   assert.equal(explicit.ok, true);
   assert.equal(explicit.document.courses.available, false);
   assert.equal(explicit.summary.coursesAvailable, false);
@@ -776,7 +782,7 @@ test('backup: reimportar o MESMO arquivo depois de treinar não rebaixa a conclu
   assert.equal(before.rows[0].status, 'done');
   const linkBefore = world.store.get('curso-exemplo').state.lessons['aula-1'].linkedExerciseIds;
   assert.deepEqual(linkBefore, [world.entry.id]);
-  const text = serializeBackup((await buildBackup({ library: world.library, store: world.store })).document);
+  const text = serializeBackup((await fullBackup({ library: world.library, store: world.store })).document);
 
   // O exercício vinculado é treinado de novo (o conteúdo dele muda) e o arquivo
   // ANTIGO é reimportado: a cópia do backup entra na biblioteca, mas o vínculo
@@ -795,7 +801,7 @@ test('backup: reimportar o MESMO arquivo depois de treinar não rebaixa a conclu
   await world2.store.importText(JSON.stringify(courseDocument({ sections: [{ id: 'modulo-1', title: 'Módulo 1', type: 'módulo', lessons: [lesson('aula-2')] }] })));
   const tombstoneBefore = world2.store.get('curso-exemplo').state.removed.find(entry => entry.id === 'aula-1');
   assert.deepEqual(tombstoneBefore.state.linkedExerciseIds, [world2.entry.id]);
-  const text2 = serializeBackup((await buildBackup({ library: world2.library, store: world2.store })).document);
+  const text2 = serializeBackup((await fullBackup({ library: world2.library, store: world2.store })).document);
   const context2 = world2.library.captureRunContext(world2.library.get(world2.entry.id).session, { source: 'authored' });
   world2.library.recordRun(context2, { bpm: 95, summary: { mode: 'strict', expected: 10, attackOk: 10, endOk: 10, pitchOk: 10, pitchChecked: 10, free: 0 } });
   const result2 = await importBackup(text2, { library: world2.library, store: world2.store });
@@ -809,7 +815,7 @@ test('backup: aviso parcial conta os cursos que JÁ entraram antes da falha', as
   const store = await openCourses(backend);
   await store.importText(JSON.stringify(courseDocument({ id: 'curso-a', title: 'Curso A' })));
   await store.importText(JSON.stringify(courseDocument({ id: 'curso-b', title: 'Curso B' })));
-  const text = serializeBackup((await buildBackup({ library: openLibrary(memoryStorage()), store })).document);
+  const text = serializeBackup((await fullBackup({ library: openLibrary(memoryStorage()), store })).document);
 
   const destBackend = memoryBackend(COURSE_KEYS);
   const dest = await destinationWorld({ backend: destBackend });
@@ -827,7 +833,7 @@ test('backup: aviso parcial conta os cursos que JÁ entraram antes da falha', as
 
 test('backup: backup sem cursos não vira PARCIAL e dados reais sem loja não viram sucesso', async () => {
   const world = await sourceWorld();
-  const parsed = JSON.parse(serializeBackup((await buildBackup({ library: world.library, store: world.store })).document));
+  const parsed = JSON.parse(serializeBackup((await fullBackup({ library: world.library, store: world.store })).document));
   const noIdb = createCourseStore({ persistent: false, error: new CourseStorageError('unavailable', 'sem IndexedDB') });
 
   // Envelope sem NENHUM curso/estado: a fase de cursos é pulada e o resultado é
@@ -861,7 +867,7 @@ test('backup: backup sem cursos não vira PARCIAL e dados reais sem loja não vi
 
 test('backup: recuperação crua do arquivo é avisada e NUNCA gravada', async () => {
   const source = await sourceWorld();
-  const document_ = (await buildBackup({ library: source.library, store: source.store })).document;
+  const document_ = (await fullBackup({ library: source.library, store: source.store })).document;
   document_.courses.corrupt = [{ store: 'courses', id: 'curso-sumido', raw: { id: 'curso-sumido', lixo: true } }];
   const dest = await destinationWorld();
   const result = await importBackup(document_, { library: dest.library, store: dest.store });
@@ -889,7 +895,7 @@ test('backup: o envelope agrega as formas de dedilhado e a importação é idemp
   const library = openLibrary(storage);
   const shapes = createFingeringShapeStore({ storage, uuid: nextUuid });
   shapes.save(SHAPE_MAJOR, { type: 'bass', strings: 4 });
-  const built = await buildBackup({ library, shapes, now: clock() });
+  const built = await fullBackup({ library, shapes, now: clock() });
   assert.equal(built.ok, true);
   assert.equal(built.document.shapes.available, true);
   assert.equal(built.document.shapes.version, 1);
@@ -920,7 +926,7 @@ test('backup: bloco de formas malformado é recusado antes de gravar', async () 
   const storage = memoryStorage();
   const library = openLibrary(storage);
   const shapes = createFingeringShapeStore({ storage, uuid: nextUuid });
-  const document_ = (await buildBackup({ library, shapes, now: clock() })).document;
+  const document_ = (await fullBackup({ library, shapes, now: clock() })).document;
   document_.shapes.instruments.bass4 = [{ id: 'forma-1', label: 'Sem notas', quality: 'major', degrees: [1], notes: [] }];
   const validated = validateBackup(document_);
   assert.equal(validated.ok, false);
@@ -938,7 +944,7 @@ test('backup: importar formas sem a loja de formas é parcial e honesto', async 
   const library = openLibrary(memoryStorage());
   const shapes = createFingeringShapeStore({ storage: memoryStorage(), uuid: nextUuid });
   shapes.save(SHAPE_MAJOR, { type: 'bass', strings: 4 });
-  const built = await buildBackup({ library, shapes, now: clock() });
+  const built = await fullBackup({ library, shapes, now: clock() });
   const dest = openLibrary(memoryStorage());
   const result = await importBackup(serializeBackup(built.document), { library: dest, shapes: null });
   assert.equal(result.ok, false);
@@ -958,12 +964,12 @@ test('backup: loja de formas indisponível recusa a exportação agregada', asyn
   const library = openLibrary(memoryStorage());
   const unavailable = createFingeringShapeStore({ storage: null, uuid: nextUuid });
   assert.equal(unavailable.status, 'unavailable');
-  const built = await buildBackup({ library, shapes: unavailable, now: clock() });
+  const built = await fullBackup({ library, shapes: unavailable, now: clock() });
   assert.equal(built.ok, false);
   assert.equal(built.code, 'unavailable');
   assert.equal(built.store, 'shapes');
   // Sem a loja de formas no envelope, o arquivo diz que elas não foram conferidas.
-  const withoutShapes = await buildBackup({ library, now: clock() });
+  const withoutShapes = await fullBackup({ library, now: clock() });
   assert.equal(withoutShapes.ok, true);
   assert.equal(withoutShapes.document.shapes.available, false);
   assert.equal(withoutShapes.summary.shapesAvailable, false);
@@ -977,7 +983,7 @@ test('backup: formas ilegíveis viajam preservadas no arquivo, com aviso na impo
   storage.raw.set('groovegoblin-fingering-shapes', 'não é json');
   const shapes = createFingeringShapeStore({ storage, uuid: nextUuid });
   assert.equal(shapes.status, 'corrupt');
-  const built = await buildBackup({ library, shapes, now: clock() });
+  const built = await fullBackup({ library, shapes, now: clock() });
   assert.equal(built.ok, true);
   assert.equal(built.summary.shapesCorrupt, true);
   assert.equal(built.document.shapes.corrupt.raw, 'não é json');
@@ -988,4 +994,106 @@ test('backup: formas ilegíveis viajam preservadas no arquivo, com aviso na impo
   assert.equal(result.warnings.length, 1);
   assert.match(result.warnings[0].message, /ilegíveis/);
   assert.equal(target.group('bass4').length, 0);
+});
+
+// ---------------------------------------------- vínculos rótulo→forma (A5)
+
+// Rótulo FICTÍCIO, como o catálogo referencia a forma ("Shape 1" da qualidade e
+// inversão tais) sem trazer a digitação. Nada aqui vem de curso real.
+const BINDING_LABEL = Object.freeze({ label: 'Shape 1', quality: 'major', inversion: 'fundamental' });
+
+test('backup: o envelope privado agrega os vínculos de forma e a importação é idempotente', async () => {
+  const library = openLibrary(memoryStorage());
+  const bindings = createShapeBindingStore({ storage: memoryStorage(), now: clock() });
+  bindings.remember(BINDING_LABEL, 'forma-exemplo-1', { instrument: 'bass4' });
+  const built = await fullBackup({ library, bindings, now: clock() });
+  assert.equal(built.ok, true);
+  assert.equal(built.document.shapeBindings.available, true);
+  assert.equal(built.document.shapeBindings.version, 1);
+  assert.equal(built.document.shapeBindings.bindings.length, 1);
+  assert.equal(built.summary.bindings, 1);
+  assert.equal(built.summary.bindingsAvailable, true);
+  assert.equal(validateBackup(built.document).ok, true);
+
+  const text = serializeBackup(built.document);
+  const target = createShapeBindingStore({ storage: memoryStorage(), now: clock() });
+  const first = await importBackup(text, { library: openLibrary(memoryStorage()), bindings: target });
+  assert.equal(first.ok, true);
+  assert.deepEqual(first.applied.bindings, { added: 1, total: 1 });
+  assert.equal(target.shapeFor(BINDING_LABEL), 'forma-exemplo-1');
+  assert.match(describeImportResult(first), /1 vínculo\(s\) de forma do catálogo/);
+
+  // Reimportar o mesmo arquivo não duplica nem troca o vínculo.
+  const again = await importBackup(text, { library: openLibrary(memoryStorage()), bindings: target });
+  assert.equal(again.ok, true);
+  assert.equal(again.applied.bindings.added, 0);
+  assert.equal(target.list().length, 1);
+  assert.equal(target.shapeFor(BINDING_LABEL), 'forma-exemplo-1');
+});
+
+test('backup: vínculo de forma malformado é recusado antes de gravar', async () => {
+  const library = openLibrary(memoryStorage());
+  const bindings = createShapeBindingStore({ storage: memoryStorage(), now: clock() });
+  bindings.remember(BINDING_LABEL, 'forma-exemplo-1');
+  const document_ = (await fullBackup({ library, bindings, now: clock() })).document;
+  document_.shapeBindings.bindings[0].shapeId = '';
+  const validated = validateBackup(document_);
+  assert.equal(validated.ok, false);
+  assert.equal(validated.errors[0].code, 'forma');
+
+  const target = createShapeBindingStore({ storage: memoryStorage(), now: clock() });
+  const result = await importBackup(serializeBackup(document_), { library: openLibrary(memoryStorage()), bindings: target });
+  assert.equal(result.ok, false);
+  assert.equal(result.phase, 'validate');
+  assert.equal(result.partial, false);
+  assert.equal(target.list().length, 0);
+});
+
+test('backup: importar vínculos sem a loja de vínculos é parcial e honesto', async () => {
+  const library = openLibrary(memoryStorage());
+  const bindings = createShapeBindingStore({ storage: memoryStorage(), now: clock() });
+  bindings.remember(BINDING_LABEL, 'forma-exemplo-1');
+  const built = await fullBackup({ library, bindings, now: clock() });
+  const result = await importBackup(serializeBackup(built.document), { library: openLibrary(memoryStorage()), bindings: null });
+  assert.equal(result.ok, false);
+  assert.equal(result.phase, 'shapeBindings');
+  assert.equal(result.partial, true);
+  assert.equal(result.errors[0].code, 'indisponivel');
+  assert.match(result.errors[0].message, /1 vínculo\(s\) de forma do catálogo/);
+});
+
+test('backup: gravação recusada dos vínculos é PARCIAL e não vira sucesso falso', async () => {
+  const library = openLibrary(memoryStorage());
+  const bindings = createShapeBindingStore({ storage: memoryStorage(), now: clock() });
+  bindings.remember(BINDING_LABEL, 'forma-exemplo-1');
+  const built = await fullBackup({ library, bindings, now: clock() });
+
+  // A loja real com um armazenamento que recusa a gravação.
+  const blockedStorage = { getItem: () => null, setItem: () => { throw new Error('sem espaço'); } };
+  const target = createShapeBindingStore({ storage: blockedStorage, now: clock() });
+  const result = await importBackup(serializeBackup(built.document), { library: openLibrary(memoryStorage()), bindings: target });
+  assert.equal(result.ok, false);
+  assert.equal(result.phase, 'shapeBindings');
+  assert.equal(result.partial, true);
+  assert.equal(result.errors[0].code, 'gravacao');
+  assert.match(result.errors[0].message, /preservados só no arquivo/);
+  assert.equal(target.status, 'blocked');
+});
+
+test('backup: loja de vínculos indisponível recusa a exportação agregada', async () => {
+  const library = openLibrary(memoryStorage());
+  const unavailableStorage = { getItem: () => { throw new Error('sem armazenamento'); }, setItem: () => {} };
+  const bindings = createShapeBindingStore({ storage: unavailableStorage, now: clock() });
+  assert.equal(bindings.status, 'unavailable');
+  const built = await fullBackup({ library, bindings, now: clock() });
+  assert.equal(built.ok, false);
+  assert.equal(built.code, 'unavailable');
+  assert.equal(built.store, 'shapeBindings');
+  assert.equal(built.document, null);
+  // Sem a loja no envelope, o arquivo diz que os vínculos não foram conferidos.
+  const without = await fullBackup({ library, now: clock() });
+  assert.equal(without.document.shapeBindings.available, false);
+  assert.equal(without.summary.bindingsAvailable, false);
+  assert.equal(without.summary.bindings, 0);
+  assert.equal(validateBackup(without.document).ok, true);
 });

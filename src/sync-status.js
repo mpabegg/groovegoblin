@@ -9,6 +9,8 @@
 // servidor, enviar/mesclar na primeira conexão, resolver conflitos e baixar as
 // cópias guardadas. Nada disso aparece na vista padrão.
 
+import { mountPrivateDownload } from './private-download.js';
+
 const BUTTON_LABELS = {
   sync: 'Sincronizar agora',
   find: 'Procurar servidor agora',
@@ -121,6 +123,12 @@ export function mountSyncStatus({
   const panel = el('div', { className: 'sync-panel', id: 'sync-panel' });
   details.appendChild(panel);
   helpContainer.appendChild(details);
+  // As cópias guardadas pela sincronização (conflitos e recuperação) são
+  // documentos CRUS: podem conter o curso privado inteiro, e não dá para
+  // redigir sem perder a recuperação. Saem pela MESMA convenção das outras
+  // saídas privadas: nome com a marca PRIVADO e confirmação nativa; cancelar
+  // não gera arquivo e os bytes saem intactos.
+  const privateFiles = mountPrivateDownload(helpContainer, { document: doc, download, notify });
 
   const line = el('p', { id: 'sync-status', className: 'sync-status', role: 'status', 'aria-live': 'polite' });
   const detail = el('div', { className: 'sync-detail muted' });
@@ -144,10 +152,7 @@ export function mountSyncStatus({
   const uploadButton = button(BUTTON_LABELS.upload, () => engine.sendAll().then(result => notify(`Envio concluído: ${result.sent ?? 0} documento(s).`)));
   const mergeButton = button(BUTTON_LABELS.merge, () => engine.mergeBoth().then(result => notify(`Mesclagem concluída: ${result.sent ?? 0} enviado(s), ${result.applied ?? 0} trazido(s), ${result.conflicts ?? 0} conflito(s).`)));
   const laterButton = button(BUTTON_LABELS.later, () => { first.hidden = true; });
-  const recoveredButton = button(BUTTON_LABELS.recovered, () => {
-    if (typeof download !== 'function') { notify('Download indisponível neste navegador.', true); return; }
-    download(engine.exportRecovered(), 'groovegoblin-sincronizacao-copias.json');
-  });
+  const recoveredButton = button(BUTTON_LABELS.recovered, () => privateFiles.download(engine.exportRecovered(), 'groovegoblin-sincronizacao-copias.json'));
   first.append(uploadButton, mergeButton, laterButton);
   actions.append(syncButton, findButton, recoveredButton);
 
@@ -237,6 +242,7 @@ export function mountSyncStatus({
     render,
     destroy() {
       unsubscribe();
+      privateFiles.destroy();
       details.remove?.();
       indicator?.remove?.();
     },

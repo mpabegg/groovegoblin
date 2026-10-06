@@ -49,6 +49,7 @@ export const COURSE_LIMITS = Object.freeze({
   exercises: 64,
   resourceRefs: 128,
   trackNames: 32,
+  sourceFiles: 8,
   prerequisites: 16,
   techniques: 16,
   errors: 100,
@@ -106,8 +107,15 @@ const RESOURCE_KEYS = ['id', 'name', 'extension', 'role', 'bpm', 'barsPerChord',
 const REF_KEYS = ['lessonId', 'resourceId'];
 const EXERCISE_KEYS = [
   'id', 'title', 'description', 'initialBpm', 'targetBpm', 'bars', 'trackNames', 'pdfPage', 'strings',
-  'recipe', 'practiceMode', 'catalogId', 'variantOf',
+  'recipe', 'practiceMode', 'catalogId', 'variantOf', 'material',
 ];
+// Material citado pelo exercício sugerido (v2, OPCIONAL): os NOMES de arquivo
+// que o catálogo aponta como fonte da página (`fontes[].arquivo`) e, quando o
+// conversor já os resolveu, os identificadores da aula e do recurso do MAPA.
+// O nome é a identidade estável (a mesma convenção de casamento por nome dos
+// vínculos de faixa): a reimportação pode trocar ids de aula e o nome continua
+// achando o material. Um documento v1/v2 antigo simplesmente não tem a chave.
+const MATERIAL_KEYS = ['names', 'lessonId', 'resourceId'];
 const PROGRESS_KEYS = ['watchedLessonIds'];
 
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
@@ -468,6 +476,22 @@ function normalizeRef(value, path, issues) {
   return ref;
 }
 
+function normalizeMaterial(value, path, issues) {
+  const material = { names: [], lessonId: null, resourceId: null };
+  if (!isObject(value)) {
+    note(issues, path, 'objeto', 'O material citado pelo exercício deve ser um objeto.');
+    return null;
+  }
+  readKeys(value, MATERIAL_KEYS, path, issues);
+  material.names = readTextList(value, 'names', path, { limit: COURSE_LIMITS.sourceFiles, max: COURSE_LIMITS.name }, issues);
+  material.lessonId = optText(value, 'lessonId', path, COURSE_LIMITS.id, issues);
+  material.resourceId = optText(value, 'resourceId', path, COURSE_LIMITS.id, issues);
+  // Sem nome e sem identificador não há material: nada de guardar um objeto
+  // vazio que faria a interface procurar o que não foi dito.
+  if (material.names.length === 0 && material.lessonId === null && material.resourceId === null) return null;
+  return material;
+}
+
 function normalizeExercise(value, path, issues) {
   const exercise = {
     id: null,
@@ -483,6 +507,7 @@ function normalizeExercise(value, path, issues) {
     practiceMode: null,
     catalogId: null,
     variantOf: null,
+    material: null,
   };
   if (!isObject(value)) {
     note(issues, path, 'objeto', 'A sugestão de exercício deve ser um objeto.');
@@ -501,6 +526,11 @@ function normalizeExercise(value, path, issues) {
   exercise.practiceMode = optText(value, 'practiceMode', path, COURSE_LIMITS.mediumText, issues);
   exercise.catalogId = optText(value, 'catalogId', path, COURSE_LIMITS.id, issues);
   exercise.variantOf = optText(value, 'variantOf', path, COURSE_LIMITS.id, issues);
+  // Material citado (opcional): o campo ausente continua valendo como "o
+  // catálogo não disse qual arquivo" — o leitor antigo de v1/v2 não perde nada.
+  if (value.material !== undefined && value.material !== null) {
+    exercise.material = normalizeMaterial(value.material, `${path}.material`, issues);
+  }
   // A receita de estudo é validada pelo schema do catálogo (course-catalog.js):
   // uma receita que o gerador recusaria não entra no documento.
   if (value.recipe !== undefined && value.recipe !== null) {

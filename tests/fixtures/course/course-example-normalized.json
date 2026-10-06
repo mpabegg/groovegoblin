@@ -91,7 +91,8 @@
                 "recipe": null,
                 "practiceMode": null,
                 "catalogId": null,
-                "variantOf": null
+                "variantOf": null,
+                "material": null
               },
               {
                 "id": "exercicio-de-exemplo-b",
@@ -106,7 +107,8 @@
                 "recipe": null,
                 "practiceMode": null,
                 "catalogId": null,
-                "variantOf": null
+                "variantOf": null,
+                "material": null
               }
             ]
           },

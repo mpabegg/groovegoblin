@@ -42,7 +42,7 @@ const MARKER_FILE = 'groovegoblin-data.json';
 const STATE_FILE = 'state.json';
 const LOCK_FILE = 'server.lock';
 const INIT_PREFIX = '.groovegoblin-init-';
-const SUBDIRS = ['objects', 'blobs', 'private', 'backups', 'tmp'];
+const SUBDIRS = ['objects', 'blobs', 'private', 'backups', 'tmp', 'entrada'];
 const MARKER_FORMAT = 'groovegoblin-data';
 const STATE_FORMAT = 'groovegoblin-server-state';
 const DATA_ID_PATTERN = /^[0-9a-f]{16}$/;
@@ -253,6 +253,9 @@ export class DataStore {
   get floor() { return this.#state.floor; }
   get backupsDir() { return join(this.#dir, 'backups'); }
   get tmpDir() { return join(this.#dir, 'tmp'); }
+  // Pasta de entrada dos cursos: a ORIGEM dos arquivos que o usuário copia
+  // (não entra no instantâneo/restauração — o que o app usa está em blobs/).
+  get intakeDir() { return join(this.#dir, 'entrada'); }
   now() { return this.#now(); }
 
   cursor(seq = this.#state.seq) {

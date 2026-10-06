@@ -65,6 +65,12 @@ export const CATALOG_ENTRY_FIELDS = Object.freeze([
   'compassos_por_acorde', 'total_de_compassos', 'formula_de_compasso', 'andamento_escrito',
   'modo_de_pratica', 'faixas_indicadas', 'figura_ritmica', 'contorno', 'cordas_usadas',
   'extensao_em_casas', 'igual_a', 'semelhante_a', 'comparacao_4_cordas',
+  // Fontes da partitura: `fontes[].arquivo_interno` (o PDF de dentro do pacote)
+  // e `fontes[].arquivo` (o arquivo externo, às vezes o ZIP) são os NOMES que a
+  // página do exercício cita. É a identidade explícita do material (a MESMA
+  // convenção de casamento por nome dos vínculos de faixa) e ela viaja para a
+  // sugestão; nada é inferido do título musical nem de `partitura_id`.
+  'fontes',
 ]);
 
 // Campos conhecidos e deliberadamente ignorados (sem aviso): são DESCRIÇÕES da
@@ -82,6 +88,11 @@ const RHYTHM_FIELDS = Object.freeze(['padrao_codigo', 'muda', 'variantes', 'comp
 const CONTOUR_FIELDS = Object.freeze(['padrao', 'varia', 'variantes']);
 const REGION_FIELDS = Object.freeze(['declarada', 'observada_na_tab']);
 const REGION_EDGE_FIELDS = Object.freeze(['de', 'ate']);
+// Campos de UMA fonte da partitura. `arquivo` é o arquivo EXTERNO (o pacote ZIP,
+// quando a apostila vem dentro de um) e `arquivo_interno` é o PDF de DENTRO
+// dele: é o arquivo consumível, o que a pasta de entrada casa membro a membro.
+// Os demais são descrições da página e não entram no documento.
+const FONTE_FIELDS = Object.freeze(['arquivo', 'arquivo_interno', 'pagina_fisica', 'pagina_impressa', 'nota']);
 
 export const CATALOG_PERIOD = STUDY_PERIOD;
 // Mesma versão do motor: a receita guardada no curso é a receita do A2.
@@ -119,6 +130,7 @@ export const CATALOG_LIMITS = Object.freeze({
   bpmMax: 300,
   pdfPage: 9999,
   trackNames: 32,
+  sourceFiles: 8,
   entries: 4000,
 });
 
@@ -155,6 +167,13 @@ function collapse(value) {
 
 function fold(value) {
   return collapse(value)?.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') ?? null;
+}
+
+// Convenção de nome de arquivo do curso: a MESMA do conversor do mapa
+// (`normalizeFileName` → fold). Casar material por nome usa esta função e nada
+// mais — uma segunda regra de casamento divergiria da primeira.
+export function foldFileName(value) {
+  return fold(value);
 }
 
 // Campos embrulhados em { valor, inferido }: o valor vale; a marcação é
@@ -545,6 +564,46 @@ function uniqueId(used, base, index) {
   return candidate;
 }
 
+// Fontes da partitura citadas pela entrada: os NOMES de arquivo, na ordem do
+// documento, sem repetição. Quando a fonte declara o PDF de DENTRO do pacote
+// (`arquivo_interno`), ele vem PRIMEIRO: é a identidade consumível (o arquivo
+// que a pasta de entrada casa membro a membro, dentro do ZIP) e é ele que a
+// página do exercício precisa abrir. O arquivo externo continua citado como
+// informação de origem — um pacote .zip nunca vira apóstila (só PDF abre no
+// painel), então ele não ofusca o arquivo de dentro.
+function readCitedFiles(value, limit) {
+  const list = Array.isArray(value) ? value : [];
+  const names = [];
+  for (const item of list) {
+    const source = unwrap(item);
+    if (!isObject(source)) continue;
+    for (const name of [readText(source.arquivo_interno, CATALOG_LIMITS.text), readText(source.arquivo, CATALOG_LIMITS.text)]) {
+      if (name === null || names.includes(name)) continue;
+      if (names.length >= limit) return names;
+      names.push(name);
+    }
+  }
+  return names;
+}
+
+// PDFs de DENTRO do pacote citados pela entrada (`fontes[].arquivo_interno`),
+// na ordem do documento: são os materiais consumíveis que o pacote externo
+// entrega e que a página do exercício abre. Alimentam o material da sugestão
+// (`sourceMaterial`) e a criação do recurso em `applyCatalog`. Sem
+// `arquivo_interno` a lista é vazia — o arquivo externo já é material (apostila
+// ou pacote) do mapa e nada é inventado a partir dele.
+function readInnerFiles(value, limit) {
+  const list = Array.isArray(value) ? value : [];
+  const names = [];
+  for (const item of list) {
+    if (names.length >= limit) break;
+    const source = unwrap(item);
+    const name = isObject(source) ? readText(source.arquivo_interno, CATALOG_LIMITS.text) : null;
+    if (name !== null && !names.includes(name)) names.push(name);
+  }
+  return names;
+}
+
 // Andamento escrito ("♩ = 110") vira BPM inicial; sem número inequívoco, nulo.
 function bpmFromWritten(value) {
   const text = collapse(value);
@@ -553,6 +612,16 @@ function bpmFromWritten(value) {
   if (numbers.length !== 1) return null;
   const number = Number(numbers[0]);
   return Number.isInteger(number) && number >= CATALOG_LIMITS.bpmMin && number <= CATALOG_LIMITS.bpmMax ? number : null;
+}
+
+// Material do exercício segundo o catálogo: os nomes de arquivo citados em
+// `fontes` (o PDF de dentro do pacote primeiro, o arquivo externo depois). Sem
+// fonte citada o material fica INDEFINIDO (null) — o app não escolhe "o primeiro
+// PDF" no lugar do catálogo.
+function sourceMaterial(entry) {
+  const names = readCitedFiles(entry?.fontes, CATALOG_LIMITS.sourceFiles);
+  if (names.length === 0) return null;
+  return { names, lessonId: null, resourceId: null };
 }
 
 // Sugestão de exercício + receita a partir de uma entrada do catálogo.
@@ -574,6 +643,11 @@ export function catalogSuggestion(entry, { id, index = 0 } = {}) {
       trackNames: readTextList(entry?.faixas_indicadas, { limit: CATALOG_LIMITS.trackNames, max: CATALOG_LIMITS.title }),
       pdfPage: readInteger(entry?.pagina_do_pdf, { min: 1, max: CATALOG_LIMITS.pdfPage }),
       strings,
+      // Identidade EXPLÍCITA do material da página: os nomes de arquivo citados
+      // em `fontes` — o PDF de dentro do pacote primeiro, o arquivo externo
+      // depois. O conversor liga esses nomes ao recurso do curso pela MESMA
+      // convenção de nome das faixas; os ids entram como dica, quando der.
+      material: sourceMaterial(entry),
       recipe,
       practiceMode: readText(entry?.modo_de_pratica, CATALOG_LIMITS.text),
       catalogId: readText(entry?.id, CATALOG_LIMITS.id) ?? id,
@@ -606,16 +680,57 @@ function catalogReferenceKeys(entry) {
   return keys;
 }
 
+// Material citado por um exercício do catálogo, resolvido no curso que está
+// sendo convertido. O NOME manda (a MESMA convenção `foldFileName` das faixas:
+// a reimportação pode trocar ids) e os ids só desempatam nomes repetidos.
+//
+// Quando o PDF de DENTRO do pacote (`fontes[].arquivo_interno`) ainda não é
+// material do mapa, `createMaterial` — injetado pelo conversor — cria o recurso
+// uma única vez; `materials` guarda o material canônico desta conversão, então o
+// mesmo PDF citado por vários exercícios (ou aulas) aponta para UM recurso só, em
+// vez de uma cópia por citação. O arquivo EXTERNO nunca vira a apóstila por
+// conta própria: ele é, no máximo, o pacote que o mapa já declara, e o vínculo
+// por nome já o encontra.
+function resolveCitedMaterial(record, { findResource, createMaterial, materials }) {
+  const material = record.suggestion.material;
+  if (material === null || material === undefined) return null;
+  const inner = new Set(readInnerFiles(record.entry?.fontes, CATALOG_LIMITS.sourceFiles).map(foldFileName));
+  for (const name of material.names) {
+    const key = foldFileName(name);
+    const known = key === null ? undefined : materials.get(key);
+    if (known !== undefined) return known;
+    if (typeof findResource === 'function') {
+      const found = findResource(record.target, name);
+      if (found !== null) return { lessonId: found.lesson.id, resourceId: found.resource.id };
+    }
+    if (key === null || !inner.has(key) || typeof createMaterial !== 'function') continue;
+    const created = createMaterial(record.target.lesson, name, record.path);
+    if (created === null) continue;
+    const canonical = { lessonId: record.target.lesson.id, resourceId: created.id };
+    materials.set(key, canonical);
+    // A marca viaja só nesta resposta: quem repete a citação recebe o material
+    // canônico do registro e NÃO conta como criação de novo.
+    return { ...canonical, created: true };
+  }
+  return null;
+}
+
 // Liga o catálogo ao curso: cada entrada vai para a aula indicada por `aula_id`
 // (o id numérico do mapa, já texto), os exercícios sugeridos dessas aulas são
 // SUBSTITUÍDOS pelos do catálogo e as faixas indicadas viram vínculos com os
-// materiais (pelo `findResource` injetado, o mesmo do conversor do mapa).
+// materiais (pelo `findResource` injetado, o mesmo do conversor do mapa). O
+// material citado pela página (`fontes`) vira vínculo da aula do mesmo jeito e,
+// quando é o PDF de dentro de um pacote que o mapa ainda não tem, o conversor o
+// cria (`createMaterial`) para o arquivo casar material na pasta de entrada.
 //
 // Exercícios de 5 cordas entram como VARIAÇÕES do exercício de 4 cordas
 // correspondente (`igual_a`/`semelhante_a`; sem referência, o exercício de 4
 // cordas da mesma aula), no mesmo lugar do curso que ele.
-export function applyCatalog(course, entries, { catalogId = null, findResource = null, warnings = [] } = {}) {
-  const counts = { entries: 0, bound: 0, replaced: 0, variations: 0, unknownLesson: 0, withoutRecipe: 0, refs: 0, ignoredFields: 0 };
+export function applyCatalog(course, entries, { catalogId = null, findResource = null, createMaterial = null, warnings = [] } = {}) {
+  const counts = { entries: 0, bound: 0, replaced: 0, variations: 0, unknownLesson: 0, withoutRecipe: 0, refs: 0, materials: 0, ignoredFields: 0 };
+  // Material canônico criado NESTA conversão, por nome dobrado: um PDF citado
+  // por vários exercícios/aulas é um recurso só, com vários vínculos.
+  const materials = new Map();
   // Trabalha numa cópia: a estrutura entra e sai sem efeito colateral no que o
   // chamador já tinha em mãos.
   const sections = (Array.isArray(course?.sections) ? course.sections : []).map(section => ({
@@ -664,6 +779,19 @@ export function applyCatalog(course, entries, { catalogId = null, findResource =
             warnings.push({ path: `${path}.regiao_do_braco.${edgeName}.${key}`, code: 'catalogo-campo-ignorado', message: 'Campo do catálogo não reconhecido; foi ignorado.' });
             counts.ignoredFields += 1;
           }
+        }
+      }
+    }
+    // `fontes` é uma LISTA de objetos (o loop acima só cobre objetos aninhados).
+    const citedSources = unwrap(entry.fontes);
+    if (Array.isArray(citedSources)) {
+      for (const [sourceIndex, rawSource] of citedSources.entries()) {
+        const source = unwrap(rawSource);
+        if (!isObject(source)) continue;
+        for (const key of Object.keys(source)) {
+          if (FONTE_FIELDS.includes(key)) continue;
+          warnings.push({ path: `${path}.fontes[${sourceIndex}].${key}`, code: 'catalogo-campo-ignorado', message: 'Campo do catálogo não reconhecido; foi ignorado.' });
+          counts.ignoredFields += 1;
         }
       }
     }
@@ -717,6 +845,19 @@ export function applyCatalog(course, entries, { catalogId = null, findResource =
     const host = counterpart !== null ? counterpart.target : record.target;
     const group = groups.get(host.lesson.id) ?? { lesson: host.lesson, item: host, suggestions: [] };
     groups.set(host.lesson.id, group);
+    // Material do catálogo: o MESMO `findResource` das faixas liga o nome
+    // citado ao recurso do mapa. O nome continua sendo a identidade que vale (a
+    // reimportação pode trocar ids); os ids só desempatam nomes repetidos.
+    // Quando o PDF de dentro do pacote ainda não é material do mapa, ele é
+    // criado AQUI (uma vez) — sem o recurso, o membro do ZIP não casa material
+    // na pasta de entrada e a apostila nunca abre.
+    const cited = resolveCitedMaterial(record, { findResource, createMaterial, materials });
+    record.citedMaterial = cited;
+    if (cited !== null) {
+      record.suggestion.material.lessonId = cited.lessonId;
+      record.suggestion.material.resourceId = cited.resourceId;
+      if (cited.created === true) counts.materials += 1;
+    }
     group.suggestions.push(record);
   }
   // Ids finais, únicos dentro da aula: a variação de 5 cordas só pode apontar
@@ -738,6 +879,17 @@ export function applyCatalog(course, entries, { catalogId = null, findResource =
         variantOf: record.suggestion.variantOf === null ? null : finalIds.get(record.suggestion.variantOf) ?? null,
       };
       counts.bound += 1;
+      // O material citado pela página também é vínculo da aula (a mesma chave
+      // composta dos anexos): um PDF que mora em outra aula continua abrindo
+      // aqui, e um material citado por dois exercícios entra uma vez só.
+      const cited = record.citedMaterial ?? null;
+      if (cited !== null) {
+        const list = refsBySuggestion.get(suggestion) ?? [];
+        if (!list.some(ref => ref.lessonId === cited.lessonId && ref.resourceId === cited.resourceId)) {
+          list.push({ lessonId: cited.lessonId, resourceId: cited.resourceId });
+        }
+        refsBySuggestion.set(suggestion, list);
+      }
       // As faixas indicadas viram vínculos com o material do curso. Um material
       // citado por dois exercícios entra uma vez só na aula.
       for (const name of suggestion.trackNames) {

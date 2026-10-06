@@ -12,12 +12,16 @@ import { mountCourseWorkspace } from './course-workspace.js';
 import { sharedCourseStore } from './course-store.js';
 import { sharedAttachmentStore } from './course-attachments.js';
 import { mountLibraryBackup } from './library-backup-view.js';
+import { createCourseContentClient } from './course-content.js';
+import { sharedMaterialPanel } from './material-panel.js';
 // As formas de dedilhado (A3) vivem fora da sessão e entram na cópia de
 // segurança: a MESMA instância usada pelo painel Braço.
 import { fingeringShapeStore, shapeChoicesForRecipe, shapeForRecipe } from './fingering-shapes-controller.js';
 import { sharedShapeBindingStore } from './course-shape-binding.js';
-import { exerciseOriginBadges, mountExerciseOrigins } from './course-lesson-origins.js';
+import { exerciseMaterialActions, exerciseOriginBadges, mountExerciseOrigins } from './course-lesson-origins.js';
 import { createStudyController } from './study-controller.js';
+import { bindCoursePrivacy, COURSE_EXPORT_NOTICE, isCourseContent } from './course-privacy.js';
+import { mountPrivateDownload } from './private-download.js';
 
 const INSTRUMENTS = Object.freeze([['all', 'Todos'], ['guitar', 'Guitarra'], ['bass', 'Baixo']]);
 const SORTS = Object.freeze([
@@ -72,9 +76,13 @@ export function mountLibrary(container, host) {
   // IndexedDB a loja nasce `persistent:false` e nada finge ser salvo.
   let courseStore = null;
   const courseStorePromise = sharedCourseStore().then(store => { courseStore = store; return store; });
+  const disposePrivacy = bindCoursePrivacy(library, courseStorePromise);
   const attachmentsPromise = sharedAttachmentStore();
   const originsOf = exerciseId => (courseStore ? courseStore.originsOf(exerciseId) : []);
   void courseStorePromise.catch(() => {});
+  // A loja carrega depois do primeiro desenho: redesenha quando ela chega, para
+  // a origem e a apostila do exercício aparecerem sem visitar Cursos antes.
+  void courseStorePromise.then(() => renderAll()).catch(() => {});
   // Alternador Exercícios/Cursos dentro da MESMA aba da Biblioteca: os quatro
   // destinos principais do app não mudam, e os cursos ficam ao lado dos
   // exercícios sem virar uma aba própria. A escolha é um seletor único — dois
@@ -91,6 +99,15 @@ export function mountLibrary(container, host) {
   let mode = 'exercises';
   let coursesView = null;
   let coursesOpening = null;
+  // Conteúdo de curso no servidor: sonda quieta; ao ficar pronto, a página de
+  // cursos se redesenha para mostrar a pasta de entrada e os materiais.
+  const content = createCourseContentClient({ onChange: () => coursesView?.render() });
+  void content.start();
+  // O painel do material é UM só para o app: a página da aula o monta no host
+  // do workspace e a origem do exercício (Estúdio/Biblioteca) abre a apostila
+  // nele. `panelFor()` é preguiçoso de propósito — a instância nasce na
+  // primeira chamada, quando o body já existe.
+  const panelFor = () => sharedMaterialPanel({ content });
   function setMode(next) {
     mode = next;
     modeSelect.value = next;
@@ -130,6 +147,12 @@ export function mountLibrary(container, host) {
             shape: (id, profile) => shapeForRecipe(id, profile),
           },
           bindings: sharedShapeBindingStore(),
+          // Conteúdo do curso no servidor (etapa 8): o cliente da API de
+          // materiais e o painel lateral único do app (apostila embutida e
+          // faixa com Range). Sem servidor, os dois ficam inertes e a página
+          // mostra só os anexos manuais de sempre.
+          content,
+          panel: sharedMaterialPanel({ content }),
           openFretboard: typeof host.openFretboard === 'function' ? host.openFretboard : undefined,
           openMaterial: typeof host.openMaterial === 'function' ? host.openMaterial : undefined,
           serverImport: typeof host.serverImport === 'function' ? host.serverImport : undefined,
@@ -159,6 +182,9 @@ export function mountLibrary(container, host) {
           backupDialog = mountLibraryBackup(document.body, {
             library, store, attachments, notify, download,
             shapes: fingeringShapeStore(),
+            // Vínculos rótulo→forma do catálogo (A5): a MESMA loja única do app
+            // que a página da aula usa, para o backup privado levá-los.
+            bindings: sharedShapeBindingStore(),
           });
           return backupDialog;
         } finally {
@@ -198,6 +224,10 @@ export function mountLibrary(container, host) {
       store,
       exerciseId: library.active(),
       onOpenLesson: (courseId, lessonId) => { void openLesson(courseId, lessonId); },
+      library,
+      content,
+      panel: panelFor(),
+      notify,
     });
   }).catch(() => { /* sem loja de cursos: sem linha de origem, sem mentira */ });
   container.append(switchBar, root, coursesMount);
@@ -209,6 +239,10 @@ export function mountLibrary(container, host) {
   const historyBody = createEl('div', { className: 'history-dialog-body' });
   historyDialog.appendChild(historyBody);
   (document.body ?? container).appendChild(historyDialog);
+  // Bytes crus da biblioteca (legado/recuperação) podem carregar nome de
+  // exercício e origem de aula: nome PRIVADO + confirmação nativa; cancelar não
+  // gera arquivo e os bytes originais saem intactos.
+  const privateFiles = mountPrivateDownload(document.body ?? container, { download, notify });
   let historyView = null;
   const view = { instrument: 'all', tag: 'all', query: '', sort: 'untrained', page: 1 };
   let undo = null;
@@ -391,7 +425,12 @@ export function mountLibrary(container, host) {
         case 'tags': editing = { id: entry.id, field: 'tags' }; render(); break;
         case 'target': editing = { id: entry.id, field: 'targetBPM' }; render(); break;
         case 'notes': editing = { id: entry.id, field: 'notes' }; render(); break;
-        case 'export': download(library.exportExercise(entry.id), `${slugify(entry.metadata.name)}.json`); break;
+        case 'export': {
+          const text = library.exportExercise(entry.id);
+          download(text, `${slugify(JSON.parse(text).exercise.metadata.name)}.json`);
+          if (isCourseContent({ entry, session: entry.session })) notify(COURSE_EXPORT_NOTICE);
+          break;
+        }
         case 'history': openHistory(entry.id); break;
         case 'delete': {
           const removed = host.deleteExercise(entry.id);
@@ -441,6 +480,11 @@ export function mountLibrary(container, host) {
       ...exerciseOriginBadges(originsOf(row.id), {
         onOpenLesson: (courseId, lessonId) => { void openLesson(courseId, lessonId); },
       }),
+      // "Ver na apostila" do exercício gerado: o MESMO painel, no material
+      // exato que o exercício guardou. Sem servidor não devolve nó nenhum.
+      ...exerciseMaterialActions(courseStore, row.id, {
+        library, content, panel: panelFor(), notify,
+      }),
       (() => {
         const menu = createEl('details', { className: 'library-menu' });
         menu.append(createEl('summary', { text: 'Mais ações' }), createEl('div', { className: 'library-menu-content' }, [
@@ -488,8 +532,8 @@ export function mountLibrary(container, host) {
       const bar = createEl('div', { className: 'library-recovery' });
       bar.append(createEl('span', { text: 'A biblioteca guardada está corrompida. Os bytes originais ficam preservados; recupere só depois de baixar o backup em Ajuda.' }));
       if (library.recoveryRaw !== null) {
-        const downloadButton = createEl('button', { type: 'button', text: 'Baixar bytes corrompidos' });
-        downloadButton.addEventListener('click', () => download(library.recoveryRaw, 'groovegoblin-biblioteca-corrompida.json'));
+        const downloadButton = createEl('button', { type: 'button', dataset: { raw: 'library' }, text: 'Baixar bytes corrompidos' });
+        downloadButton.addEventListener('click', () => { void privateFiles.download(library.recoveryRaw, 'groovegoblin-biblioteca-corrompida.json'); });
         bar.append(downloadButton);
       }
       const recover = createEl('button', { type: 'button', text: 'Recuperar biblioteca' });
@@ -542,8 +586,10 @@ export function mountLibrary(container, host) {
     destroy() {
       unsubscribe?.();
       studies.destroy();
+      disposePrivacy();
       studioOrigins?.destroy();
       historyView?.destroy();
+      privateFiles.destroy();
       historyDialog.remove();
       backupDialog?.destroy();
       backupDialog = null;

@@ -40,6 +40,9 @@ import {
 import { resolveCatalogRecipe, shapeChoicesForLabel, sharedShapeBindingStore } from './course-shape-binding.js';
 import { mountShapeChooser } from './course-shape-chooser.js';
 import { CATALOG_CONTINUOUS_FAMILIES } from './course-catalog.js';
+import { CONTENT_KINDS } from './course-content.js';
+import { apostilaButtonNode, serverMaterialNodes } from './material-panel.js';
+import { exerciseMaterialTargets, suggestionMaterialChoices } from './course-lesson-origins.js';
 
 export const BASS_STRINGS = Object.freeze([4, 5]);
 
@@ -119,41 +122,39 @@ export function suggestionRecipeSummary(recipe) {
   return bits;
 }
 
-// Onde o exercício gerado abre a apostila: o material da PRÓPRIA aula (ou a
-// referência a material de outra aula) que é apostila em PDF, com a página que
-// o catálogo indicou. Publicado também para a página do exercício (etapa 8) usar
-// o mesmo alvo — o app nunca inventa o arquivo nem a página.
+// Onde o exercício gerado abre a apostila: o material que o CATÁLOGO apontou
+// (nome do arquivo em `suggestion.material`) resolvido no mapa atual, ou — sem
+// fonte explícita — o ÚNICO PDF inequívoco da aula, com a página que o catálogo
+// indicou. Dois materiais possíveis não viram "o primeiro": a página da aula
+// usa `suggestionMaterialChoices` e mostra as opções. Publicado também para a
+// página do exercício (etapa 8) usar o mesmo alvo — o app nunca inventa o
+// arquivo nem a página.
 export function suggestionMaterialTarget(course, lesson, suggestion) {
-  if (!course || !lesson || !suggestion) return null;
-  const page = Number.isInteger(suggestion.pdfPage) ? suggestion.pdfPage : null;
-  const lessons = new Map(courseLessons(course).map(item => [item.id, item]));
-  const candidates = [];
-  const own = (lesson.resources ?? [])
-    .filter(resource => resource.role === 'apostila' || resource.extension === 'pdf')
-    .map(resource => ({ ownerLessonId: lesson.id, resource }));
-  candidates.push(...own);
-  for (const ref of lesson.resourceRefs ?? []) {
-    const owner = lessons.get(ref.lessonId);
-    const resource = (owner?.resources ?? []).find(item => item.id === ref.resourceId);
-    if (!resource) continue;
-    if (resource.role !== 'apostila' && resource.extension !== 'pdf') continue;
-    if (ref.lessonId === lesson.id && own.some(entry => entry.resource.id === resource.id)) continue;
-    candidates.push({ ownerLessonId: ref.lessonId, resource });
-  }
-  if (candidates.length === 0) return null;
-  const chosen = candidates[0];
-  const refKey = attachmentRefKey(course.id, chosen.ownerLessonId, chosen.resource.id);
-  return {
-    courseId: course.id,
-    lessonId: chosen.ownerLessonId,
-    resourceId: chosen.resource.id,
-    refKey,
-    page,
-    name: chosen.resource.name,
-    extension: chosen.resource.extension ?? '',
-    fromOtherLesson: chosen.ownerLessonId !== lesson.id,
-    ownerLessonTitle: lessons.get(chosen.ownerLessonId)?.title ?? null,
+  const { choices } = suggestionMaterialChoices(course, lesson, suggestion);
+  return choices.length === 1 ? choices[0] : null;
+}
+
+// Vínculo de origem do exercício gerado: aula + curso (rótulo privado) e, quando
+// a sugestão aponta UM material, o material EXATO com a página — o exercício
+// guarda o que precisa para reabrir a MESMA apostila depois, sem depender da
+// aula nem do id de recurso de hoje. Sem material resolvido o vínculo continua
+// exatamente o de antes (nada é inventado).
+export function courseOrigin(lesson, target = null) {
+  const origin = {
+    id: lesson?.id ?? null,
+    name: lesson?.title ?? lesson?.id ?? null,
+    kind: 'course',
+    private: true,
   };
+  if (target !== null && target !== undefined) {
+    origin.material = {
+      name: target.name ?? null,
+      lessonId: target.lessonId ?? null,
+      resourceId: target.resourceId ?? null,
+      page: Number.isInteger(target.page) && target.page > 0 ? target.page : null,
+    };
+  }
+  return origin;
 }
 
 export const NOTES_STATUS_LABELS = Object.freeze({
@@ -389,6 +390,12 @@ export function mountCourseLesson(container, host) {
   const store = host?.store;
   if (!store || typeof store.get !== 'function') throw new TypeError('Loja de cursos ausente na aula.');
   const attachments = host?.attachments ?? null;
+  // Conteúdo de curso no servidor (etapa 8): o cliente dos materiais casados na
+  // pasta de entrada e o painel lateral único do app (apostila embutida na
+  // própria origem e faixa com Range). Sem servidor, os dois são nulos e a
+  // página cai nos anexos manuais de sempre.
+  const content = host?.content ?? null;
+  const panel = host?.panel ?? null;
   const library = host?.library ?? null;
   const notify = (text, error = false) => host.notify?.(text, error);
   const openExercise = typeof host.openExercise === 'function' ? host.openExercise : null;
@@ -786,10 +793,11 @@ export function mountCourseLesson(container, host) {
     if (!lesson) { notify('Esta aula não está mais no curso.', true); return null; }
     const recipe = await resolveSuggestion(suggestion);
     if (recipe === null) return null;
+    const target = lessonMaterialTarget(suggestion);
     let entry = null;
     try {
       entry = studies.create(recipe, {
-        origin: { id: view.lessonId, name: lesson.title, kind: 'course', private: true },
+        origin: courseOrigin(lesson, target),
         bpm: Number.isFinite(suggestion.initialBpm) ? suggestion.initialBpm : undefined,
         open: false,
       });
@@ -838,8 +846,56 @@ export function mountCourseLesson(container, host) {
     return { created, failed };
   }
 
+  // Cópia no servidor (pasta de entrada casada): o painel embutido da própria
+  // origem tem prioridade sobre o anexo manual e sobre o gancho do pai — a
+  // apostila abre DENTRO do app, já na página pedida.
+  function serverReady() {
+    return Boolean(panel && content && typeof content.available === 'function' && content.available());
+  }
+
+  // A ação do material do SERVIDOR só aparece com servidor — e nunca fica
+  // escondida para sempre por causa da sondagem: nasce escondida e se mostra
+  // quando a sondagem responde (`content.start()` é idempotente e memorizado,
+  // então recarregar direto na aula não precisa visitar outra tela). Sem
+  // servidor o caminho é o anexo manual salvo, que continua na linha.
+  function gateServerNode(node) {
+    if (!node) return node;
+    const apply = () => { node.hidden = !serverReady(); };
+    apply();
+    if (node.hidden && typeof content?.start === 'function') Promise.resolve(content.start()).catch(() => {}).then(apply);
+    return node;
+  }
+
+  function serverRefFor(refKey) {
+    if (!serverReady() || typeof refKey !== 'string') return null;
+    const ref = content.refFor(view.courseId, refKey);
+    return ref && typeof ref.sha256 === 'string' ? ref : null;
+  }
+
+  // Apostila da aula atual no servidor (a mesma que a sugestão usa), com a
+  // página do exercício vinculado quando o catálogo a indica.
+  function serverApostilaRef(page = null) {
+    if (!serverReady()) return null;
+    const found = store.get(view.courseId);
+    const lesson = found ? courseLessons(found.course).find(entry => entry.id === view.lessonId) ?? null : null;
+    if (!found || !lesson) return null;
+    const row = lessonMaterialRows(found.course, lesson).find(entry => entry.role === 'apostila' && !entry.missing && !entry.crossLesson) ?? null;
+    const ref = row ? serverRefFor(row.refKey) : null;
+    return ref ? { ...ref, page } : null;
+  }
+
   async function openMaterialPage(target) {
     if (target === null) { notify('O catálogo não indica página da apostila para este exercício.', true); return false; }
+    const serverRef = serverRefFor(target.refKey);
+    if (serverRef && panel.open({
+      sha256: serverRef.sha256,
+      kind: CONTENT_KINDS.pdf,
+      name: serverRef.name ?? target.name,
+      size: serverRef.size,
+      page: target.page,
+    })) {
+      return true;
+    }
     if (openMaterialHook) {
       try {
         const handled = openMaterialHook({ ...target });
@@ -1074,7 +1130,12 @@ export function mountCourseLesson(container, host) {
     if (row.missing) item.append(createEl('span', { className: 'lesson-material-missing muted', text: 'este material não está mais no mapa do curso; o arquivo guardado continua acessível' }));
     const actions = createEl('span', { className: 'lesson-material-actions' });
     if (!attachment) {
-      actions.append(createEl('span', { className: 'lesson-material-none muted', text: attachmentsReady() ? 'sem arquivo aqui' : 'anexos indisponíveis neste navegador' }));
+      // Cópia no servidor (pasta de entrada casada): a apostila abre no painel
+      // embutido da própria origem e a faixa toca do blob autenticado, com
+      // Range — sem anexar arquivo por arquivo.
+      const serverRef = row.missing ? null : serverRefFor(row.refKey);
+      if (serverRef) actions.append(...serverMaterialNodes({ panel, ref: serverRef, index, name }));
+      else actions.append(createEl('span', { className: 'lesson-material-none muted', text: attachmentsReady() ? 'sem arquivo aqui' : 'anexos indisponíveis neste navegador' }));
       if (attachmentsReady() && writable() && !row.missing) actions.append(...withUploader(row, index));
     } else {
       // O tipo salvo vem do CONTEÚDO conferido no envio: PDF e áudio aparecem
@@ -1250,8 +1311,9 @@ export function mountCourseLesson(container, host) {
         : 'Cria o exercício já com notas, vinculado a esta aula.';
       generate.addEventListener('click', () => void generateSuggestion(suggestion));
       actions.append(generate);
-      const target = lessonMaterialTarget(suggestion);
-      if (target !== null) {
+      const choices = suggestionMaterialChoicesFor(suggestion);
+      if (choices.choices.length === 1) {
+        const target = choices.choices[0];
         const material = createEl('button', {
           id: `lesson-suggestion-material-${index}`, type: 'button',
           dataset: { action: 'open-material', suggestionId: suggestion.id },
@@ -1261,7 +1323,37 @@ export function mountCourseLesson(container, host) {
           ? `Abre o material de “${target.ownerLessonTitle ?? 'outra aula'}” na página do exercício.`
           : 'Abre a apostila da aula na página deste exercício.';
         material.addEventListener('click', () => void openMaterialPage(target));
+        gateServerNode(material);
         actions.append(material);
+      } else if (choices.choices.length > 1) {
+        // Mais de um material possível: a escolha é do usuário, nunca "o
+        // primeiro PDF". Um `<details>` é o ÚNICO controle no repouso.
+        const picker = createEl('details', {
+          id: `lesson-suggestion-material-${index}`, className: 'lesson-suggestion-material-more',
+          dataset: { action: 'pick-material', suggestionId: suggestion.id, disclosure: 'lesson-suggestion-material' },
+        });
+        picker.append(createEl('summary', {
+          text: 'Ver na apostila…',
+          title: choices.explicit
+            ? 'O catálogo aponta mais de um material possível para este exercício.'
+            : 'Esta aula tem mais de um PDF e o catálogo não diz qual é o deste exercício.',
+        }));
+        const list = createEl('ul', { className: 'lesson-suggestion-material-list' });
+        for (const [position, target] of choices.choices.entries()) {
+          const option = createEl('button', {
+            id: `lesson-suggestion-material-${index}-${position}`, type: 'button',
+            dataset: { action: 'open-material', suggestionId: suggestion.id, refKey: target.refKey },
+            text: target.page === null ? (target.name ?? 'material') : `${target.name ?? 'material'} (página ${target.page})`,
+          });
+          option.title = target.fromOtherLesson
+            ? `Abre o material de “${target.ownerLessonTitle ?? 'outra aula'}” no painel.`
+            : 'Abre este material no painel.';
+          option.addEventListener('click', () => void openMaterialPage(target));
+          list.append(createEl('li', { className: 'lesson-suggestion-material-item' }, [option]));
+        }
+        picker.append(list);
+        gateServerNode(picker);
+        actions.append(picker);
       }
       if (studies && typeof studies.open === 'function') {
         const adjust = createEl('button', {
@@ -1276,7 +1368,7 @@ export function mountCourseLesson(container, host) {
           try {
             studies.open({
               recipe: suggestion.recipe,
-              origin: { id: view.lessonId, name: lesson?.title ?? view.lessonId, kind: 'course', private: true },
+              origin: courseOrigin(lesson, suggestionMaterialTarget(found?.course ?? null, lesson, suggestion)),
               title: `Exercício sugerido de “${lesson?.title ?? 'aula'}”`,
             });
           } catch (error) {
@@ -1336,6 +1428,16 @@ export function mountCourseLesson(container, host) {
     return suggestionMaterialTarget(found.course, lesson, suggestion);
   }
 
+  // Materiais possíveis desta sugestão no mapa ATUAL: um só (o caso normal) ou
+  // as opções, quando o catálogo cita mais de um arquivo ou a aula tem mais de
+  // um PDF sem fonte explícita.
+  function suggestionMaterialChoicesFor(suggestion) {
+    const found = store.get(view.courseId);
+    const lesson = found ? courseLessons(found.course).find(entry => entry.id === view.lessonId) ?? null : null;
+    if (!found || !lesson) return { choices: [], explicit: false };
+    return suggestionMaterialChoices(found.course, lesson, suggestion);
+  }
+
   function suggestionGroup(outcome) {
     const suggestions = outcome.lesson?.suggestedExercises ?? [];
     const lessonState = store.lessonState(view.courseId, view.lessonId);
@@ -1372,7 +1474,7 @@ export function mountCourseLesson(container, host) {
 
   // `editable: false` (aula removida do curso) mantém a leitura do vínculo e do
   // estado do exercício, sem oferecer uma ação que a loja não aceita.
-  function linkNode(link, { editable = true } = {}) {
+  function linkNode(link, { editable = true, apostilaRef = null } = {}) {
     const entry = link.exists ? resolveExercise(link.id) : null;
     const name = entry?.metadata?.name ?? `exercício ${link.id}`;
     const instrument = entry?.session?.extensions?.studio?.instrument?.type ?? null;
@@ -1391,6 +1493,20 @@ export function mountCourseLesson(container, host) {
     open.disabled = !openExercise;
     open.addEventListener('click', () => openExercise?.(link.id, { train: false }));
     actions.append(open);
+    // Cópia no servidor da apostila: o MESMO painel embutido, aberto da página
+    // do exercício vinculado. Se o exercício guardou o material EXATO (etapa 8),
+    // a linha abre esse material na página que o catálogo indicou; sem vínculo
+    // guardado vale a apostila da aula, na primeira página (honesto).
+    const saved = exerciseMaterialTargets(store, link.id, { library })[0] ?? null;
+    const savedRef = saved === null ? null : serverRefFor(saved.refKey);
+    const ver = apostilaButtonNode({
+      panel,
+      ref: savedRef ?? apostilaRef,
+      index: `link-${link.id}`,
+      // A página só é afirmada quando o painel abre o MESMO material guardado.
+      page: savedRef === null ? null : saved.page,
+    });
+    if (ver) actions.append(ver);
     if (editable) {
       const unlink = createEl('button', { type: 'button', dataset: { action: 'unlink', exerciseId: link.id }, text: 'Desvincular' });
       unlink.disabled = !writable();
@@ -1415,7 +1531,8 @@ export function mountCourseLesson(container, host) {
         : 'Esta aula não tem exercício sugerido nem vinculado: basta marcar como assistida para concluir.' }));
     } else {
       const list = createEl('ul', { id: 'lesson-link-list', className: 'lesson-link-list' });
-      for (const link of outcome.links) list.append(linkNode(link));
+      const apostilaRef = serverApostilaRef();
+      for (const link of outcome.links) list.append(linkNode(link, { apostilaRef }));
       body.append(list);
     }
     if (library && typeof library.list === 'function') {
@@ -1684,6 +1801,13 @@ export function mountCourseLesson(container, host) {
     try { await store.ready(); storeLoaded = true; } catch (error) { notify(error.message ?? String(error), true); }
     if (token !== lifecycle) return;
     if (attachmentsReady()) { try { await attachments.ready(); } catch (error) { notify(error.message ?? String(error), true); } }
+    if (token !== lifecycle) return;
+    // Material do curso no servidor: garante os vínculos casados antes de
+    // desenhar os botões de apostila e faixa. Sem servidor, é inerte e a página
+    // segue com os anexos manuais de sempre.
+    if (serverReady() && typeof content.loadRefs === 'function') {
+      try { await content.loadRefs(courseId); } catch { /* segue com o que já está gravado */ }
+    }
     if (token !== lifecycle) return;
     const found = store.get(courseId);
     const live = found ? courseLessons(found.course).some(item => item.id === lessonId) : false;

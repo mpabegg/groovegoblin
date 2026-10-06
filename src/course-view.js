@@ -14,7 +14,9 @@
 // filtros por tipo/estado e navegação por teclado na lista.
 
 import { createEl, renderKeepingFocus } from './practice.js';
+import { sharedCourseMaterials } from './course-content.js';
 import { LESSON_STATUS, lessonPending, videoMinutes } from './course-progress.js';
+import { mountPrivateDownload } from './private-download.js';
 
 const STATUS_LABELS = Object.freeze({
   [LESSON_STATUS.notStarted]: 'Não iniciada',
@@ -73,6 +75,10 @@ export function mountCourses(container, host) {
 
   const root = createEl('section', { className: 'courses-root', 'aria-label': 'Cursos' });
   container.appendChild(root);
+  // "Exportar curso" NUNCA é um arquivo público: leva catálogo, títulos, autor,
+  // URLs e a lista de aulas. Nome PRIVADO + confirmação nativa; cancelar não
+  // gera arquivo nenhum.
+  const privateFiles = mountPrivateDownload(document.body ?? container, { download: host.download, notify });
   const view = { courseId: null, query: '', type: 'all', status: 'all', open: new Set() };
   // Remoção em dois passos, confirmada no próprio painel: um clique só nunca
   // apaga a estrutura, e nenhum diálogo nativo trava a página.
@@ -221,8 +227,8 @@ export function mountCourses(container, host) {
     exportButton.addEventListener('click', () => {
       const result = store.exportText(record.id);
       if (!result.ok) { notify(result.error, true); return; }
-      if (host.download) host.download(result.text, `groovegoblin-curso.json`);
-      else notify('Download indisponível neste navegador.', true);
+      if (!host.download) { notify('Download indisponível neste navegador.', true); return; }
+      void privateFiles.download(result.text, 'groovegoblin-curso.json');
     });
     const removeButton = createEl('button', { type: 'button', dataset: { action: 'remove' }, text: 'Remover da biblioteca' });
     removeButton.addEventListener('click', () => { removing = record.id; render(); });
@@ -424,6 +430,11 @@ export function mountCourses(container, host) {
       head.append(createEl('p', { className: 'course-meta' }, [createEl('a', { href: found.course.url, target: '_blank', rel: 'noopener noreferrer', text: 'Página do curso (abre em nova aba) ☍' })]));
     }
     page.append(head);
+    // Material do curso no servidor: nada aparece sem servidor; com servidor, o
+    // relatório da pasta de entrada (disponíveis/faltantes/não casados), o envio
+    // por arrastar e o vínculo manual. Uma instância por curso.
+    const materials = sharedCourseMaterials({ content: host?.content ?? null, courseId: view.courseId, notify });
+    if (materials) page.append(materials);
 
     const types = [...new Set(summary.rows.map(row => row.lesson.type ?? 'aula'))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     page.append(filters(types, summary));
@@ -523,6 +534,7 @@ export function mountCourses(container, host) {
     openCourse,
     destroy() {
       unsubscribe?.();
+      privateFiles.destroy();
       root.remove();
     },
   };

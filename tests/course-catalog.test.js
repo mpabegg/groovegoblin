@@ -434,6 +434,58 @@ test('o catálogo substitui as sugestões de várias aulas e mantém ids únicos
   assert.equal(second.suggestedExercises[0].id, 'cat-1');
 });
 
+// ---------------------------------------- material citado (PDF do pacote)
+
+test('fontes: o PDF de dentro do pacote vem primeiro e o arquivo externo fica citado', () => {
+  const { suggestion } = catalogSuggestion(entry({
+    fontes: [{ arquivo: 'Pacote Fictício.zip', arquivo_interno: 'Apostila de Dentro.pdf', pagina_fisica: 3, pagina_impressa: 3, nota: null }],
+  }), { id: 'cat-1', index: 0 });
+  assert.deepEqual(suggestion.material.names, ['Apostila de Dentro.pdf', 'Pacote Fictício.zip']);
+  assert.equal(suggestion.material.lessonId, null);
+  assert.equal(suggestion.material.resourceId, null);
+});
+
+test('fontes: campo desconhecido na fonte continua avisado, e sem `createMaterial` nada é criado', () => {
+  const warnings = [];
+  const doc = course([lesson('7')]);
+  const result = applyCatalog(doc, [entry({
+    fontes: [{ arquivo: 'Pacote Fictício.zip', arquivo_interno: 'Apostila de Dentro.pdf', campo_estranho: true }],
+  })], { findResource: () => null, warnings });
+  assert.equal(result.counts.materials, 0);
+  assert.equal(result.counts.refs, 0);
+  assert.deepEqual(result.course.sections[0].lessons[0].resources, []);
+  assert.deepEqual(
+    warnings.filter(warning => warning.code === 'catalogo-campo-ignorado').map(warning => warning.path),
+    ['catalogo[0].fontes[0].campo_estranho'],
+  );
+});
+
+test('material do pacote: `createMaterial` cria UMA vez e o vínculo aponta o recurso canônico', () => {
+  const doc = course([lesson('7')]);
+  const created = [];
+  const createMaterial = (targetLesson, name) => {
+    const resource = {
+      id: `novo-${created.length + 1}`, name, extension: 'pdf', role: 'apostila',
+      bpm: null, barsPerChord: null, style: null, extended: false, strings: null,
+    };
+    targetLesson.resources.push(resource);
+    created.push(resource);
+    return resource;
+  };
+  const result = applyCatalog(doc, [
+    entry({ id: 'cat-1', aula_id: 7, fontes: [{ arquivo: 'Pacote Fictício.zip', arquivo_interno: 'Apostila de Dentro.pdf' }] }),
+    entry({ id: 'cat-2', aula_id: 7, fontes: [{ arquivo: 'Outro Pacote.zip', arquivo_interno: 'apostila de dentro.PDF' }] }),
+  ], { findResource: () => null, createMaterial });
+  // O MESMO arquivo (caixa e extensão à parte) é um recurso só: o segundo
+  // exercício aponta o material canônico do primeiro, com um vínculo.
+  assert.equal(created.length, 1);
+  assert.equal(result.counts.materials, 1);
+  const target = result.course.sections[0].lessons[0];
+  assert.deepEqual(target.suggestedExercises.map(exercise => exercise.material.resourceId), ['novo-1', 'novo-1']);
+  assert.deepEqual(target.resourceRefs, [{ lessonId: '7', resourceId: 'novo-1' }]);
+  assert.equal(result.counts.refs, 1);
+});
+
 // ------------------------------------------------------- receita do gerador
 
 test('a receita do gerador não leva o rótulo da forma nem inventa digitação', () => {

@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { createSession, parseSession, serializeSession } from '../src/session.js';
 import { createExerciseLibrary } from '../src/exercise-library.js';
 import { createCourseStore, CourseStorageError } from '../src/course-store.js';
+import { createShapeBindingStore } from '../src/course-shape-binding.js';
 import { buildBackup, serializeBackup } from '../src/library-backup.js';
 import { mountLibraryBackup } from '../src/library-backup-view.js';
 
@@ -162,6 +163,7 @@ async function setup({ withAttachments = false, withCourse = true } = {}) {
   const store = createCourseStore({ backend: memoryBackend(COURSE_KEYS), now: clock(), uuid: nextUuid });
   await store.ready();
   if (withCourse) await store.importText(JSON.stringify(COURSE_DOC));
+  const bindings = createShapeBindingStore({ storage: memoryStorage(), now: clock() });
   let attachments = null;
   if (createAttachmentStore) {
     attachments = createAttachmentStore({ backend: memoryBackend(ATTACHMENT_KEYS), now: clock(), uuid: nextUuid });
@@ -173,11 +175,11 @@ async function setup({ withAttachments = false, withCourse = true } = {}) {
     }
   }
   const view = mountLibraryBackup(container, {
-    library, store, attachments, now: clock(),
+    library, store, attachments, bindings, now: clock(),
     download: (text, filename) => downloads.push({ text, filename }),
     notify: (text, error = false) => messages.push({ text, error }),
   });
-  return { document_, container, view, library, store, attachments, downloads, messages };
+  return { document_, container, view, library, store, attachments, bindings, downloads, messages };
 }
 
 const file = text => ({ text: async () => text });
@@ -192,7 +194,8 @@ test('view: montagem exige contêiner e biblioteca', () => {
 
 test('view: exportação abre o diálogo nativo e baixa o envelope sem anexos por padrão', async () => {
   const world = await setup();
-  assert.equal(world.document_.body.children.length, 1);          // o diálogo mora no body
+  // O diálogo de backup e a confirmação privada moram no body.
+  assert.equal(world.document_.body.children.length, 2);
   assert.equal(world.view.dialog.id, 'library-backup-dialog');
   world.view.openExport();
   assert.equal(world.view.dialog.open, true);
@@ -209,29 +212,100 @@ test('view: exportação abre o diálogo nativo e baixa o envelope sem anexos po
   assert.equal(document_.kind, 'groovegoblin-library-backup');
   assert.equal(document_.attachments.included, false);
   assert.equal(JSON.stringify(document_).includes('dataBase64'), false);
-  assert.match(world.view.status.textContent, /sem anexos/);
+  // PADRÃO: conteúdo de curso fora, e o arquivo diz isso.
+  assert.equal(document_.privacy.courseContent, 'omitted');
+  assert.equal(document_.courses.omitted, true);
+  assert.deepEqual(document_.courses.records, []);
+  assert.equal(document_.shapeBindings.omitted, true);
+  assert.deepEqual(document_.shapeBindings.bindings, []);
+  assert.match(world.view.status.textContent, /sem conteúdo de curso/);
   assert.match(world.downloads[0].filename, /^groovegoblin-backup-.*\.json$/);
+  assert.doesNotMatch(world.downloads[0].filename, /PRIVADO/);
 });
 
-test('view: opt-in de anexos mostra quantidade/tamanho e inclui os bytes', { skip: createAttachmentStore === null ? 'módulo da etapa 6 ausente' : false }, async () => {
+test('view: a opção privada é visível, começa desmarcada e só ela libera os anexos', async () => {
   const world = await setup({ withAttachments: true });
   world.view.openExport();
-  const checkbox = world.view.dialog.querySelector('#backup-include-attachments');
-  const size = world.view.dialog.querySelector('#backup-attachments-size');
-  assert.match(size.textContent, /1 arquivo\(s\)/);
-  assert.equal(checkbox.disabled, false);
-  checkbox.checked = true;
+  const privateBox = world.view.dialog.querySelector('#backup-include-course-content');
+  const attachmentsBox = world.view.dialog.querySelector('#backup-include-attachments');
+  assert.equal(privateBox.checked, false);
+  assert.equal(privateBox.disabled, false);
+  assert.match(world.view.dialog.querySelector('#backup-private-field').textContent, /Incluir conteúdo privado de cursos/);
+  // Sem o opt-in privado, os anexos não são selecionáveis.
+  assert.equal(attachmentsBox.disabled, true);
+  assert.match(world.view.dialog.querySelector('#backup-attachments-size').textContent, /Só com conteúdo privado/);
+
+  privateBox.checked = true;
+  privateBox.dispatch('change');
+  assert.equal(attachmentsBox.disabled, false);
+  assert.match(world.view.dialog.querySelector('#backup-attachments-size').textContent, /1 arquivo\(s\)/);
+
+  // Desmarcar volta a travar (e desmarca) os anexos.
+  privateBox.checked = false;
+  privateBox.dispatch('change');
+  assert.equal(attachmentsBox.disabled, true);
+  assert.equal(attachmentsBox.checked, false);
+});
+
+test('view: opt-in privado exige confirmação nativa e o cancelamento não baixa nada', async () => {
+  const world = await setup();
+  world.view.openExport();
+  const privateBox = world.view.dialog.querySelector('#backup-include-course-content');
+  privateBox.checked = true;
+  privateBox.dispatch('change');
+
   world.view.dialog.querySelector('#backup-export-confirm').click();
   await new Promise(resolve => setImmediate(resolve));
+  // Nada baixou ainda: a confirmação está aberta.
+  assert.equal(world.downloads.length, 0);
+  assert.equal(world.view.privateDialog.open, true);
+  assert.equal(world.view.privatePending, true);
+  assert.match(world.view.privateDialog.querySelector('#backup-private-dialog-body').textContent, /conteúdo pago dos seus cursos/);
+  assert.match(world.view.privateDialog.querySelector('#backup-private-dialog-body').textContent, /não compartilhe/i);
+
+  // Cancelar: nenhum arquivo, e o motivo fica visível.
+  world.view.privateDialog.querySelector('#backup-private-cancel').click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(world.downloads.length, 0);
+  assert.equal(world.view.privatePending, false);
+  assert.match(world.view.status.textContent, /cancelada/i);
+});
+
+test('view: opt-in privado confirmado baixa o arquivo PRIVADO com curso e anexos', { skip: createAttachmentStore === null ? 'módulo da etapa 6 ausente' : false }, async () => {
+  const world = await setup({ withAttachments: true });
+  world.bindings.remember({ label: 'Shape 1', quality: 'major', inversion: 'fundamental' }, 'forma-exemplo-1', { instrument: 'bass4' });
+  world.view.openExport();
+  const privateBox = world.view.dialog.querySelector('#backup-include-course-content');
+  privateBox.checked = true;
+  privateBox.dispatch('change');
+  // O resumo mostra os vínculos só sob o opt-in privado (o rótulo nunca aparece).
+  assert.match(world.view.dialog.querySelector('#backup-export-summary').textContent, /1 vínculo\(s\) de forma do catálogo/);
+  const attachmentsBox = world.view.dialog.querySelector('#backup-include-attachments');
+  attachmentsBox.checked = true;
+
+  world.view.dialog.querySelector('#backup-export-confirm').click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(world.downloads.length, 0);
+  world.view.privateDialog.querySelector('#backup-private-confirm').click();
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.equal(world.downloads.length, 1);
+  assert.match(world.downloads[0].filename, /PRIVADO/);
   const document_ = JSON.parse(world.downloads[0].text);
+  assert.equal(document_.privacy.courseContent, 'included');
+  assert.equal(document_.courses.omitted, false);
+  assert.equal(document_.courses.records.length, 1);
+  assert.equal(document_.shapeBindings.bindings.length, 1);
+  assert.equal(document_.shapeBindings.bindings[0].shapeId, 'forma-exemplo-1');
   assert.equal(document_.attachments.included, true);
   assert.equal(document_.attachments.document.files[0].dataBase64.length > 0, true);
-  assert.match(world.view.status.textContent, /com anexos/);
+  assert.match(world.view.status.textContent, /PRIVADO/);
 });
 
 test('view: importação válida mostra a prévia, só habilita depois de conferir e aplica', async () => {
   const source = await setup();
-  await source.view.exportLibrary();
+  await source.view.exportLibrary({ includeCourseContent: true, confirmed: true });
   const text = source.downloads[0].text;
 
   const dest = await setup({ withCourse: false });
@@ -283,7 +357,7 @@ test('view: backup legado entra pelo caminho antigo (só exercícios)', async ()
 
 test('view: anexo malformado recusa inteiro e o diálogo continua utilizável', { skip: createAttachmentStore === null ? 'módulo da etapa 6 ausente' : false }, async () => {
   const source = await setup({ withAttachments: true });
-  const built = await buildBackup({ library: source.library, store: source.store, attachments: source.attachments, includeAttachments: true });
+  const built = await buildBackup({ library: source.library, store: source.store, attachments: source.attachments, includeAttachments: true, includeCourseContent: true });
   built.document.attachments.document.files[0].dataBase64 = '%%%não é base64%%%';
   const dest = await setup({ withCourse: false });
   dest.view.openImport();

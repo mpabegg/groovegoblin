@@ -10,6 +10,7 @@ import { blobCsp, blobDisposition, parseRange, receiveBlob, sniffBlob, SNIFF_BYT
 import { backupBytes, createDailyBackup, dailyName, downloadName, listBackups, MAX_RECORD_BYTES } from './backup.js';
 import { StorageError, openRead, removeQuiet } from './fsutil.js';
 import { HttpError, apiHeaders, readJson, requireContentType, sendError, sendJson } from './http.js';
+import { createIntakeService, intakeHttpStatus, isIntakeError } from './intake.js';
 import { COLLECTIONS, PRIVATE_NAMES, PreconditionError, SHA256_PATTERN, isValidId } from './store.js';
 
 export const API_VERSION = 1;
@@ -83,6 +84,14 @@ function preconditionFailed(error) {
 export function createApiHandler({ store, auth, basePath, maxBlobBytes, backupKeep, mode, version, log, convertMap = convertCourseMap }) {
   const prefix = `${basePath}api`;
   const context = { hsts: mode === 'tailscale' };
+
+  // Preguiçoso de propósito: se a pasta de entrada não estiver disponível, só as
+  // rotas de material falham — o resto da API continua de pé.
+  let intake = null;
+  function intakeService() {
+    if (intake === null) intake = createIntakeService({ store, root: store.intakeDir, now: () => store.now() });
+    return intake;
+  }
 
   // ── rotas ────────────────────────────────────────────────────────────────
   async function health(request, response) {
@@ -401,6 +410,72 @@ export function createApiHandler({ store, auth, basePath, maxBlobBytes, backupKe
     sendJson(response, context, saved.created ? 201 : 200, { ok: true, saved: true, created: saved.created, rev: saved.entry.rev, cursor: store.cursor(), ...summary }, { ETag: etag(saved.entry.rev), 'X-Groove-Rev': saved.entry.rev });
   }
 
+  function intakeFailure(error) {
+    return isIntakeError(error) ? new HttpError(intakeHttpStatus(error.code), error.code, error.message) : null;
+  }
+
+  // GET/HEAD: LEITURA. `report` não grava vínculo nem blob (nem cria a pasta):
+  // quem importa é o POST .../materials/scan. Um GET não pode escrever fora do
+  // check de Origin/Sec-Fetch-Site, que só cobre métodos de escrita.
+  async function getMaterials(request, response, courseId) {
+    try {
+      sendJson(response, context, 200, { ...(await intakeService().report(courseId)), cursor: store.cursor() });
+    } catch (error) {
+      throw intakeFailure(error) ?? error;
+    }
+  }
+
+  async function postMaterial(request, response, courseId) {
+    requireContentType(request, 'application/octet-stream');
+    const header = request.headers['x-groove-filename'];
+    if (header === undefined) throw new HttpError(400, 'filename_required', 'Envie o nome do arquivo no cabeçalho X-Groove-Filename.');
+    if (typeof header !== 'string' || header.includes(',')) throw new HttpError(400, 'invalid_filename', 'Nome de arquivo ambíguo.');
+    let name;
+    try {
+      name = decodeURIComponent(header);
+    } catch {
+      throw new HttpError(400, 'invalid_filename', 'Nome de arquivo inválido.');
+    }
+    // Sem `store.ensureSpace(declared)`: o teto declarado (413) e a reserva de
+    // disco ficam DENTRO do receiveBlob, como no PUT de blob — inclusive sem
+    // Content-Length (chunked), quando a reserva é o teto inteiro do blob.
+    const received = await receiveBlob(request, {
+      tmpDir: store.tmpDir,
+      maxBytes: maxBlobBytes,
+      reserveSpace: (bytes) => store.reserveSpace(bytes),
+    });
+    try {
+      const result = await intakeService().upload(courseId, { name, path: received.path });
+      sendJson(response, context, 201, { ...result, cursor: store.cursor() });
+    } catch (error) {
+      await removeQuiet(received.path);
+      throw intakeFailure(error) ?? error;
+    }
+  }
+
+  // POST: IMPORTA. Casa a pasta de entrada com os materiais e grava os vínculos e
+  // blobs que faltam; devolve o mesmo relatório do GET. É o único caminho que
+  // importa arquivos copiados para `entrada/` fora do upload/bind.
+  async function postMaterialScan(request, response, courseId) {
+    try {
+      sendJson(response, context, 200, { ...(await intakeService().scan(courseId)), cursor: store.cursor() });
+    } catch (error) {
+      throw intakeFailure(error) ?? error;
+    }
+  }
+
+  async function postMaterialBind(request, response, courseId) {
+    const value = await readJson(request, LIMITS.doc);
+    if (!value || typeof value.refKey !== 'string' || typeof value.id !== 'string' || Object.keys(value).some((key) => key !== 'refKey' && key !== 'id')) {
+      throw new HttpError(400, 'bad_request', 'Envie somente { refKey, id } para vincular.');
+    }
+    try {
+      sendJson(response, context, 200, { ...(await intakeService().bind(courseId, { refKey: value.refKey, id: value.id })), cursor: store.cursor() });
+    } catch (error) {
+      throw intakeFailure(error) ?? error;
+    }
+  }
+
   async function sendBackupFile(request, response, name, date) {
     let handle;
     try {
@@ -482,6 +557,16 @@ export function createApiHandler({ store, auth, basePath, maxBlobBytes, backupKe
       return [`/api/private/${second}`, Object.keys(handlers), (q, s, r) => handlers[r.method](r, s, second)];
     }
     if (head === 'courses' && second === 'convert' && n === 2) return ['/api/courses/convert', ['POST'], (q, s, r) => convert(r, s)];
+    if (head === 'courses' && n >= 3 && third === 'materials') {
+      if (!isValidId(second)) throw new HttpError(400, 'invalid_id', 'Id de curso inválido.');
+      if (n === 3) {
+        const handlers = { GET: (q, s, r) => getMaterials(r, s, second), HEAD: (q, s, r) => getMaterials(r, s, second), POST: (q, s, r) => postMaterial(r, s, second) };
+        return ['/api/courses/:id/materials', ['GET', 'HEAD', 'POST'], (q, s, r) => handlers[r.method](q, s, r)];
+      }
+      if (n === 4 && segments[3] === 'scan') return ['/api/courses/:id/materials/scan', ['POST'], (q, s, r) => postMaterialScan(r, s, second)];
+      if (n === 4 && segments[3] === 'bind') return ['/api/courses/:id/materials/bind', ['POST'], (q, s, r) => postMaterialBind(r, s, second)];
+      return null;
+    }
     if (head === 'backup' && n === 1) return ['/api/backup', ['GET', 'HEAD'], (q, s, r) => backups(r, s, ['backups', 'latest'])];
     if (head === 'backups') {
       if (n === 1) return ['/api/backups', ['GET', 'HEAD', 'POST'], (q, s, r) => backups(r, s, segments)];

@@ -14,6 +14,7 @@
 // explícito do host (clearRecords) que preserva exercício e metadados.
 
 import { createEl, formatDatePt, renderKeepingFocus } from './practice.js';
+import { COURSE_EXPORT_NOTICE, PUBLIC_EXERCISE_NAME, isCourseContent } from './course-privacy.js';
 import { materialKey, referenceFingerprint, summarize } from './exercise-library.js';
 import { parseInstant } from './history-time.js';
 import { accuracyChart, bpmChart } from './history-charts.js';
@@ -267,21 +268,36 @@ export function historySummary(records = [], session = null, metadata = null) {
   };
 }
 
+// A classificação é a MESMA da biblioteca e do backup (course-privacy.js): a
+// marca pegajosa, a origem de curso na sessão e a loja real de cursos. Um
+// exercício de aula nunca sai identificado pelo título da aula.
+function isPrivateEntry(entry) {
+  return isCourseContent({ entry, session: entry?.session });
+}
+
 // Payload de exportação do histórico (mantém os registros completos, sem
-// reescrever a sessão autoral nem os metadados do exercício).
-export function historyExportPayload(entry, { now = () => new Date().toISOString() } = {}) {
+// reescrever a sessão autoral nem os metadados do exercício). Os treinos REAIS
+// — datas, BPM, aproveitamento, duração e alvo — nunca são alterados; o que sai
+// genérico é a IDENTIDADE do exercício quando ele é conteúdo de curso.
+export function historyExportPayload(entry, { now = () => new Date().toISOString(), privateContent = isPrivateEntry(entry) } = {}) {
   return JSON.stringify({
     version: 1,
     kind: 'groovegoblin-exercise-history',
     exportedAt: now(),
     exercise: {
-      id: entry?.id ?? null,
-      name: entry?.metadata?.name ?? entry?.session?.name ?? 'Exercício',
+      id: privateContent ? 'public-exercise' : entry?.id ?? null,
+      name: privateContent ? PUBLIC_EXERCISE_NAME : entry?.metadata?.name ?? entry?.session?.name ?? 'Exercício',
       targetBPM: targetOf(entry?.session, entry?.metadata),
       instrument: entry?.session?.extensions?.studio?.instrument?.type ?? null,
     },
     records: (entry?.metadata?.records ?? []).map(record => ({ ...record })),
   });
+}
+
+// Nome do arquivo: conteúdo de curso sai genérico (o mesmo nome público do
+// exercício, como no exportar da Biblioteca); o público mantém o nome.
+export function historyExportFileName(entry, { privateContent = isPrivateEntry(entry) } = {}) {
+  return `${slugify(privateContent ? PUBLIC_EXERCISE_NAME : entry?.metadata?.name)}-historico.json`;
 }
 
 function slugify(text) {
@@ -405,12 +421,12 @@ export function mountExerciseHistory(container, host) {
   }
 
   function exportButton(entry) {
-    const button = createEl('button', { type: 'button', text: 'Exportar histórico (.json)' });
+    const button = createEl('button', { type: 'button', dataset: { action: 'export-history' }, text: 'Exportar histórico (.json)' });
     button.addEventListener('click', () => {
-      const payload = historyExportPayload(entry);
-      const name = `${slugify(entry?.metadata?.name)}-historico.json`;
-      if (host?.download) host.download(payload, name);
-      else notify('Download indisponível neste navegador.', true);
+      if (!host?.download) { notify('Download indisponível neste navegador.', true); return; }
+      const privateContent = isPrivateEntry(entry);
+      host.download(historyExportPayload(entry, { privateContent }), historyExportFileName(entry, { privateContent }));
+      if (privateContent) notify(COURSE_EXPORT_NOTICE);
     });
     return button;
   }

@@ -714,13 +714,27 @@ test('marca de conteúdo de curso sobrevive a criar, marcar, exportar e importar
   assert.equal(library.get(entry.id).metadata.courseContent, false, 'exercício comum não nasce marcado');
   library.updateMetadata(entry.id, { courseContent: true });
   assert.equal(library.get(entry.id).metadata.courseContent, true, 'a marca persiste na loja');
+  // A marca é PEGAJOSA (B6): um valor que não marca não apaga a marca que já
+  // existe — o vínculo de curso não pode ser "desmarcado" por uma edição.
   library.updateMetadata(entry.id, { courseContent: 'sim' });
-  assert.equal(library.get(entry.id).metadata.courseContent, false, 'só `true` marca: nada de quase privado');
+  assert.equal(library.get(entry.id).metadata.courseContent, true, 'a marca existente não é apagada');
+  // Num exercício comum, valor que não é `true` não cria marca nenhuma.
+  const plain = library.new({ session: createSession({ name: 'Sem marca' }) });
+  library.updateMetadata(plain.id, { courseContent: 'sim' });
+  assert.equal(library.get(plain.id).metadata.courseContent, false, 'só `true` marca: nada de quase privado');
   library.updateMetadata(entry.id, { courseContent: true });
+  // A exportação PADRÃO de um exercício de curso sai genérica (B6): o nome não
+  // vaza e o exercício importado é público.
   const other = open(memoryStorage(), createSession({ name: 'Outra' }));
   other.importExercise(library.exportExercise(entry.id));
-  const row = other.list().find(candidate => candidate.name === 'Da aula');
-  assert.equal(other.get(row.id).metadata.courseContent, true, 'a marca viaja na exportação/importação');
+  const publicRow = other.list().find(candidate => candidate.name === 'Estudo musical');
+  assert.ok(publicRow, 'a exportação padrão redige o nome do exercício de curso');
+  assert.equal(other.get(publicRow.id).metadata.courseContent, false);
+  // O retrato privado (opt-in explícito) é que leva a marca e o nome.
+  const raw = open(memoryStorage(), createSession({ name: 'Terceira' }));
+  raw.importEntries(JSON.parse(library.exportLibrary({ includeCourseContent: true })).entries);
+  const row = raw.list().find(candidate => candidate.name === 'Da aula');
+  assert.equal(raw.get(row.id).metadata.courseContent, true, 'a marca viaja no retrato privado');
 });
 
 test('receitas diferentes com a mesma sessão são exercícios diferentes; a mesma receita deduplica', () => {
@@ -806,17 +820,28 @@ test('vínculo de curso é marcado como privado e sobrevive a exportar/importar'
   const study = library.get(entry.id).metadata.study;
   assert.deepEqual(study.origin, { id: 'aula-7', name: 'Título privado', kind: 'course', private: true });
   assert.deepEqual(study.group, { id: 'g-aula', label: 'Rótulo privado', private: true });
-  // A marca viaja junto (a política de exportação da etapa 8 remove
-  // origin/group privados e conserva a receita musical).
+  // A exportação PADRÃO do exercício (B6/etapa 8) sai SEM o bloco `study`
+  // inteiro: a receita pode carregar texto livre (nome/id de forma, resumo,
+  // campos importados), então o público não leva vínculo, grupo nem receita. A
+  // música que o exercício toca continua na sessão.
+  const exported = library.exportExercise(entry.id);
+  assert.equal(exported.includes('Título privado'), false, 'o título da aula não sai');
+  assert.equal(exported.includes('aula-7'), false, 'o id da aula não sai');
+  assert.equal(exported.includes('Rótulo privado'), false, 'o rótulo do catálogo não sai');
   const other = open(memoryStorage(), createSession({ name: 'Outra' }));
-  other.importExercise(library.exportExercise(entry.id));
-  const row = other.list().find(candidate => candidate.name === 'Estudo F#');
-  const imported = other.get(row.id).metadata.study;
-  assert.equal(imported.origin.private, true);
-  assert.equal(imported.group.private, true);
-  assert.equal(imported.recipe.family, 'arpejo_triade_forma_unica');
-  // Remover os rótulos e conservar a receita é o que a exportação padrão fará.
-  const { origin, group, ...musical } = imported;
-  assert.deepEqual(Object.keys(musical).sort(), ['recipe', 'summary', 'version']);
-  assert.equal(origin.private && group.private, true);
+  other.importExercise(exported);
+  const row = other.list().find(candidate => candidate.name === 'Estudo musical');
+  assert.ok(row, 'o exercício sai com nome genérico');
+  assert.equal(other.get(row.id).metadata.study, null, 'nada do bloco study sai no público');
+  assert.deepEqual(
+    other.get(row.id).session.notes.map(note => [note.pitch, note.start, note.duration, note.string]),
+    entry.session.notes.map(note => [note.pitch, note.start, note.duration, note.string]),
+  );
+  // A loja de origem continua intacta: exportar não muta o exercício.
+  assert.equal(library.get(entry.id).metadata.study.origin.private, true);
+  assert.equal(library.get(entry.id).metadata.name, 'Estudo F#');
+  // O retrato PRIVADO explícito é quem leva o bloco inteiro.
+  const raw = JSON.parse(library.exportLibrary({ includeCourseContent: true }));
+  assert.equal(raw.entries.find(candidate => candidate.id === entry.id).metadata.study.origin.private, true);
+  assert.equal(raw.entries.find(candidate => candidate.id === entry.id).metadata.study.recipe.family, 'arpejo_triade_forma_unica');
 });

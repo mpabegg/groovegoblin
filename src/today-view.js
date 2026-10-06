@@ -23,6 +23,7 @@ import { courseLessons, courseSummary, videoMinutes } from './course-progress.js
 import { sharedCourseStore } from './course-store.js';
 import { assistCoursePlan, practiceCoursePlan, DEFAULT_COURSE_MINUTES, DEFAULT_ASSIST_MINUTES } from './today-courses.js';
 import { COURSE_LIMITS } from './course-format.js';
+import { mountPrivateDownload } from './private-download.js';
 
 const INSTRUMENT_LABELS = Object.freeze({ guitar: 'Guitarra', bass: 'Baixo' });
 
@@ -196,6 +197,11 @@ export function mountTodayPanel(container, host) {
     if (typeof host.download === 'function') host.download(text, filename);
     else notify('Download indisponível neste navegador.', true);
   }
+
+  // As três cópias CRUAS da fila (v1, cópia da migração e recuperação) podem
+  // carregar curso/lição e título de aula: nome PRIVADO + confirmação nativa.
+  // Cancelar não gera arquivo; os bytes originais saem intactos.
+  const privateFiles = mountPrivateDownload(container, { download, notify });
 
   function rowsById() {
     return new Map(library.list({ sort: 'name' }).map(row => [row.id, row]));
@@ -642,13 +648,13 @@ export function mountTodayPanel(container, host) {
         createEl('span', { text: 'A fila/rotinas antigas foram lidas no formato novo. Os bytes originais continuam guardados como backup.' }),
       ]);
       if (store.legacyRaw !== null) {
-        const raw = createEl('button', { type: 'button', text: 'Baixar fila antiga (v1)' });
-        raw.addEventListener('click', () => download(store.legacyRaw, 'groovegoblin-fila-v1.json'));
+        const raw = createEl('button', { type: 'button', dataset: { raw: 'legacy' }, text: 'Baixar fila antiga (v1)' });
+        raw.addEventListener('click', () => { void privateFiles.download(store.legacyRaw, 'groovegoblin-fila-v1.json'); });
         bar.append(raw);
       }
       if (store.legacyBackupRaw !== null && store.legacyBackupRaw !== store.legacyRaw) {
-        const raw = createEl('button', { type: 'button', text: 'Baixar cópia da migração' });
-        raw.addEventListener('click', () => download(store.legacyBackupRaw, 'groovegoblin-fila-v1-backup.json'));
+        const raw = createEl('button', { type: 'button', dataset: { raw: 'legacy-backup' }, text: 'Baixar cópia da migração' });
+        raw.addEventListener('click', () => { void privateFiles.download(store.legacyBackupRaw, 'groovegoblin-fila-v1-backup.json'); });
         bar.append(raw);
       }
       box.append(bar);
@@ -658,8 +664,8 @@ export function mountTodayPanel(container, host) {
         createEl('span', { text: `A fila guardada está corrompida (${store.corruptOriginKey}). Os bytes originais ficam preservados; baixe-os antes de recuperar.` }),
       ]);
       if (store.recoveryRaw !== null) {
-        const raw = createEl('button', { type: 'button', text: 'Baixar fila corrompida' });
-        raw.addEventListener('click', () => download(store.recoveryRaw, 'groovegoblin-fila-corrompida.json'));
+        const raw = createEl('button', { type: 'button', dataset: { raw: 'corrupt' }, text: 'Baixar fila corrompida' });
+        raw.addEventListener('click', () => { void privateFiles.download(store.recoveryRaw, 'groovegoblin-fila-corrompida.json'); });
         bar.append(raw);
       }
       const recover = createEl('button', { type: 'button', text: 'Recuperar fila' });
@@ -837,6 +843,7 @@ export function mountTodayPanel(container, host) {
       observer.disconnect();
       window.removeEventListener('resize', onResize);
       setPanelOpen(false);
+      privateFiles.destroy();
       root.remove();
     },
   };

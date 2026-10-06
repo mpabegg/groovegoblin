@@ -5,12 +5,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createSession } from '../src/session.js';
 import { materialKey, referenceFingerprint } from '../src/exercise-library.js';
+import { buildSuggestedExercise } from '../src/course-lesson.js';
+import { PUBLIC_EXERCISE_NAME, isCourseContent } from '../src/course-privacy.js';
 import {
   accuracyPoints,
   authoredMaterialKey,
   bpmPoints,
   exerciseProgress,
   formatDuration,
+  historyExportFileName,
   historyExportPayload,
   historySummary,
   progressRanking,
@@ -212,6 +215,38 @@ test('exportação do histórico preserva todos os campos de todos os registros'
   assert.equal(payload.exercise.name, 'Arpejos');
   assert.equal(payload.exercise.targetBPM, 120);
   assert.deepEqual(payload.records, records);
+});
+
+test('histórico de aula não leva o título: nome genérico no arquivo e no payload, treinos intactos', () => {
+  // Produtor REAL: a sugestão da aula batiza a sessão e marca o exercício.
+  const built = buildSuggestedExercise({ suggestion: { title: 'CANARIO-TITULO-DA-AULA', initialBpm: 90, targetBpm: 140 } });
+  assert.equal(built.metadata.courseContent, true);
+  assert.equal(built.session.name, 'CANARIO-TITULO-DA-AULA');
+  const records = [
+    record({ id: 'aula-1', bpm: 96, materialKey: authoredMaterialKey(built.session), metric: 0.8, startedAt: '2026-10-01T10:00:00.000Z', endedAt: '2026-10-01T10:10:00.000Z' }),
+    record({ id: 'aula-2', bpm: 104, materialKey: authoredMaterialKey(built.session), startedAt: '2026-10-02T10:00:00.000Z', endedAt: '2026-10-02T10:20:00.000Z' }),
+  ];
+  const entry = {
+    id: 'ex-da-aula',
+    createdAt: '2026-10-01T09:00:00.000Z',
+    updatedAt: '2026-10-02T10:20:00.000Z',
+    session: built.session,
+    metadata: { ...built.metadata, records },
+  };
+  assert.equal(isCourseContent({ entry, session: entry.session }), true, 'a classificação é a MESMA da biblioteca');
+
+  const payload = JSON.parse(historyExportPayload(entry, { now: () => '2026-10-06T12:00:00.000Z' }));
+  assert.equal(payload.exercise.name, PUBLIC_EXERCISE_NAME);
+  assert.equal(payload.exercise.id, 'public-exercise');
+  assert.equal(payload.exercise.targetBPM, 140);
+  assert.deepEqual(payload.records, records, 'os treinos reais (datas, BPM, aproveitamento) saem inteiros');
+  assert.equal(JSON.stringify(payload).includes('CANARIO-TITULO-DA-AULA'), false);
+  assert.equal(historyExportFileName(entry), 'estudo-musical-historico.json');
+
+  // O histórico PÚBLICO não muda: o nome do exercício segue no payload e no arquivo.
+  const publicEntry = entryOf(records);
+  assert.equal(JSON.parse(historyExportPayload(publicEntry)).exercise.name, 'Arpejos');
+  assert.equal(historyExportFileName(publicEntry), 'arpejos-historico.json');
 });
 
 test('alvo ausente nunca vira o andamento: histórico, progresso e exportação preservam o sem alvo', () => {

@@ -1,0 +1,32 @@
+/* Material do curso no servidor (rodada 6, etapa 8 / B4b).
+   Página do curso: relatório da pasta de entrada, envio por arrastar/soltar e
+   vínculo manual. Aula/exercício: painel lateral com a apostila embutida da
+   própria origem e player nativo da faixa. Desktop 1280–1440, sem toque. */
+
+.course-content { display: flex; flex-direction: column; gap: 8px; }
+.course-content-group { border: 1px solid var(--line); border-radius: 10px; background: #111b20; padding: 8px 12px; }
+.course-content-group > summary { cursor: pointer; min-height: 28px; display: flex; align-items: center; font-size: 13px; }
+.course-content-body { display: flex; flex-direction: column; gap: 8px; padding-top: 6px; }
+.course-content-count { margin: 0; font-size: 13px; color: var(--blue); font-weight: 600; }
+.course-content-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow: auto; }
+.course-content-item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 8px; border: 1px solid #223037; border-radius: 8px; background: #0d1519; font-size: 12px; }
+.course-content-name { font-weight: 600; }
+.course-content-item select { min-width: 180px; }
+
+.course-intake-drop { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border: 1px dashed #3a4d55; border-radius: 10px; background: #0d1519; }
+.course-intake-drop[data-dragging="true"] { border-color: var(--blue); background: #16232a; }
+.course-intake-hint { margin: 0; font-size: 12px; }
+
+/* Painel lateral: o PDF roda dentro da própria origem (a resposta do blob é
+   `inline` e a CSP do app permite `frame-src 'self'`), já na página pedida. */
+.material-panel { position: fixed; inset: 0 0 0 auto; z-index: 40; display: flex; flex-direction: column; width: min(620px, 48vw); border-left: 1px solid var(--line); background: #0b1216; box-shadow: -12px 0 32px #000a; }
+.material-panel[hidden] { display: none; }
+.material-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: #111b20; }
+.material-panel-heading h2 { margin: 0 0 2px; font-size: 15px; }
+.material-panel-meta { margin: 0; font-size: 12px; }
+.material-panel-frame-wrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.material-panel-frame { flex: 1 1 auto; min-height: 0; width: 100%; border: 0; background: #1b1b1b; }
+.material-panel-audio-wrap { display: flex; flex-direction: column; gap: 8px; padding: 14px; }
+.material-panel-audio { width: 100%; }
+.material-panel-note { margin: 0; padding: 8px 14px; font-size: 12px; }
+.material-panel-download { color: var(--blue); }

@@ -740,6 +740,11 @@ function convertExercise(raw, { path, lessonId, usedIds, index }, warnings, coun
       practiceMode: null,
       catalogId: null,
       variantOf: null,
+      // O mapa cita arquivos em `arquivo_correspondente` (faixas e, às vezes, a
+      // apostila): o vínculo por NOME já cobre isso em `resourceRefs`. Sem o
+      // catálogo não há fonte explícita da página, então o material fica nulo e
+      // a resolução usa o ÚNICO PDF inequívoco da aula — nunca o primeiro.
+      material: null,
     },
   };
 }
@@ -912,6 +917,54 @@ function normalizeFileName(value) {
   return foldText(value);
 }
 
+// Material de apóstila que o catálogo cita DENTRO de um pacote
+// (`fontes[].arquivo_interno`) e o mapa ainda não tem. O recurso nasce com as
+// MESMAS regras dos anexos (nome, extensão, papel, id único e descarte de 6
+// cordas), porque é o arquivo de dentro do ZIP que precisa casar material na
+// pasta de entrada: sem recurso, o membro do pacote não casa nada e a apostila
+// nunca abre. A criação é uma só por arquivo — quem repete a citação recebe o
+// mesmo recurso e um vínculo, nunca uma cópia.
+function catalogMaterialFactory(warnings, counts) {
+  return (lesson, name, path) => {
+    if (exclusiveSixStrings(name)) {
+      warn(warnings, path, 'cordas-6', 'Um material de 6 cordas foi descartado.');
+      counts.discarded += 1;
+      return null;
+    }
+    if (lesson.resources.length >= COURSE_LIMITS.resources) {
+      warn(warnings, path, 'lista-longa', 'Os materiais desta aula eram muitos e o excedente foi descartado.');
+      counts.discarded += 1;
+      return null;
+    }
+    const declared = extensionOf(null, name, warnings, `${path}.arquivo_interno`);
+    // O campo é o PDF de dentro do pacote: sem extensão declarada no nome, ele
+    // é um PDF; uma extensão diferente é respeitada como está (nada de mentir
+    // sobre o arquivo).
+    const extension = declared === null || declared === 'pdf' ? 'pdf' : declared;
+    const used = new Set(lesson.resources.map((resource) => resource.id).filter((id) => typeof id === 'string' && id !== ''));
+    const resource = {
+      id: null,
+      name,
+      extension,
+      role: extension === 'pdf' ? 'apostila' : convertRole(null, { kind: 'anexo', extension }, `${path}.arquivo_interno`, warnings),
+      bpm: null,
+      barsPerChord: null,
+      style: null,
+      extended: false,
+      strings: null,
+    };
+    resource.id = ensureUniqueId(
+      used,
+      slugifyId(name, `${lesson.id}-material-${lesson.resources.length + 1}`),
+      `${path}.arquivo_interno`,
+      warnings,
+    );
+    lesson.resources.push(resource);
+    counts.resources += 1;
+    return resource;
+  };
+}
+
 function withoutExtension(fileName) {
   return (fileName ?? '').replace(/\.[a-z0-9]{1,8}$/, '');
 }
@@ -1061,6 +1114,10 @@ function buildCourse(root, warnings, counts, catalog = null) {
     const applied = applyCatalog(course, catalog, {
       catalogId: catalogIdFor(catalog),
       findResource: (entry, name) => findResource(entry, name, entries),
+      // O PDF de dentro de um pacote (`fontes[].arquivo_interno`) que o mapa
+      // ainda não tem vira recurso de apóstila: sem o recurso, o arquivo de
+      // dentro do ZIP não casa material na pasta de entrada.
+      createMaterial: catalogMaterialFactory(warnings, counts),
       warnings,
     });
     Object.assign(course, applied.course);
@@ -1277,7 +1334,7 @@ async function main(argv) {
   console.log(`Seções ${counts.sections} · aulas ${counts.lessons} · materiais ${counts.resources}${counts.merged > 0 ? ` (${counts.merged} mesclado(s))` : ''} · exercícios ${counts.exercises} · vínculos ${counts.resourceRefs} · descartados ${counts.discarded}`);
   if (counts.catalog !== null) {
     const c = counts.catalog;
-    console.log(`Catálogo: ${c.bound} exercício(s) ligado(s) à aula (${c.variations} variação(ões) de 5 cordas) · ${c.replaced} sugestão(ões) do mapa substituída(s) · ${c.withoutRecipe} sem receita · ${c.unknownLesson} sem aula no mapa · ${c.refs} vínculo(s) de faixa`);
+    console.log(`Catálogo: ${c.bound} exercício(s) ligado(s) à aula (${c.variations} variação(ões) de 5 cordas) · ${c.replaced} sugestão(ões) do mapa substituída(s) · ${c.withoutRecipe} sem receita · ${c.unknownLesson} sem aula no mapa · ${c.refs} vínculo(s) de material · ${c.materials} material(is) de apóstila criado(s)`);
   }
   const watched = result.document.progress?.watchedLessonIds.length ?? 0;
   console.log(args.includeProgress

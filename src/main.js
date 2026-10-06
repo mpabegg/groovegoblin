@@ -31,6 +31,8 @@ import { mountTrainingResult } from './training-result.js';
 import { quietTakeNotices } from './take-notices.js';
 import { mountToday } from './today-view.js';
 import { mountShareLink } from './share-link.js';
+import { exportCurrentExercise } from './exercise-export.js';
+import { download, mountPrivateDownload } from './private-download.js';
 
 const $ = id => document.getElementById(id);
 // Origem declarada do material da execução. O controlador real (treinador)
@@ -415,14 +417,8 @@ practiceTracks = mountPracticeTracks($('practice-audible-mount'), {
 window.addEventListener('blur', () => { if (busy()) stop('Prática interrompida ao perder o foco.'); repertoire.stop(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { stop(); repertoire.stop(); } });
 
-function download(text, filename) {
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-  const link = document.createElement('a'); link.href = url; link.download = filename; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-$('export').addEventListener('click', () => {
-  if (library.activeEntry()) download(library.exportExercise(library.active()), 'groovegoblin-exercicio.json');
-  else { download(serializeSession(session), 'groovegoblin-documento-atual.json'); message('Biblioteca indisponível: exportado só o documento musical atual, sem metadados. Baixe também os originais em Ajuda.', true); }
-});
+const privateFiles = mountPrivateDownload();
+$('export').addEventListener('click', () => exportCurrentExercise({ library, session, download, notify: message }));
 $('import').addEventListener('click', () => $('import-file').click());
 $('import-file').addEventListener('change', async event => {
   const file = event.target.files?.[0]; event.target.value = ''; if (!file) return;
@@ -449,7 +445,9 @@ function previewShare() {
 function dismissShare() { sharedSession = null; $('share-preview').hidden = true; window.history.replaceState(null, '', `${location.pathname}${location.search}`); renderControls(); }
 $('apply-share').addEventListener('click', () => { if (sharedSession && replaceSession(sharedSession, { notice: 'Exercício recebido aplicado.' })) dismissShare(); });
 $('dismiss-share').addEventListener('click', dismissShare); window.addEventListener('hashchange', previewShare);
-$('download-recovery').addEventListener('click', () => { if (recoveryRaw !== null) download(recoveryRaw, 'groovegoblin-originais.json'); });
+// Bytes crus de recuperação (sessão e biblioteca) podem carregar o nome/título
+// de uma aula: nome PRIVADO + confirmação nativa; cancelar não gera arquivo.
+$('download-recovery').addEventListener('click', () => { if (recoveryRaw !== null) void privateFiles.download(recoveryRaw, 'groovegoblin-originais.json'); });
 // Único caminho de troca de exercício: mantém session/history em sincronia com
 // a biblioteca e nunca recorre (o autosave não chama isto).
 function syncActive() {
@@ -494,7 +492,7 @@ mountToday($('today-mount'), $('today-trainer-mount'), {
 });
 $('new-session').addEventListener('click', () => openExercise(library.new({ session: createStudioSession() }).id));
 $('duplicate-session').addEventListener('click', () => { const active = library.active(); if (active) openExercise(library.duplicate(active).id); else message('Não há exercício para duplicar.'); });
-for (const [id, raw, name] of [['download-library-backup', library.backupRaw, 'groovegoblin-backup-legado.json'], ['download-library-recovery', library.recoveryRaw, 'groovegoblin-biblioteca-corrompida.json']]) { $(id).hidden = raw === null; $(id).addEventListener('click', () => download(raw, name)); }
+for (const [id, raw, name] of [['download-library-backup', library.backupRaw, 'groovegoblin-backup-legado.json'], ['download-library-recovery', library.recoveryRaw, 'groovegoblin-biblioteca-corrompida.json']]) { $(id).hidden = raw === null; $(id).addEventListener('click', () => { void privateFiles.download(raw, name); }); }
 
 function frame() {
   const position = audio.position;

@@ -29,6 +29,8 @@ import {
 import { pickOnsets, midiToName, ANALYSIS_SAMPLE_RATE } from './repertoire-analysis.js';
 import { encodeWav, decodeWav, sessionToMidi, notesToMidi, parseMidi, midiToSessionPatch, defaultMidiTrack, QUANTIZE_GRIDS } from './repertoire-formats.js';
 import { createAssignmentPackage, serializePackage, parsePackage, PACKAGE_EXTENSION, MAX_EMBEDDED_AUDIO_BYTES } from './repertoire-package.js';
+import { COURSE_EXPORT_NOTICE, isCourseContent, shareableSession } from './course-privacy.js';
+import { mountPrivateDownload } from './private-download.js';
 import { drawWaveform, timeAtX } from './repertoire-waveform.js';
 
 export const AUDIO_ACCEPT = 'audio/*,.wav,.mp3,.ogg,.oga,.opus,.flac,.m4a,.aac,.webm';
@@ -105,6 +107,16 @@ function download(blob, filename) {
   anchor.click();
   anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+// MIDI da sessão para download, pela MESMA redação dos outros caminhos de
+// exportação: um exercício de curso não leva o título no nome do arquivo nem no
+// evento de texto do MIDI (o nome é conteúdo de curso). Os eventos musicais
+// (frase no canal 1 e acordes no canal 2) saem inteiros.
+export function sessionMidiDownload(session) {
+  const privateContent = isCourseContent({ session });
+  const exported = shareableSession(session, { privateContent });
+  return { bytes: sessionToMidi(exported), fileName: `${slug(exported.name || 'sessao')}.mid`, privateContent };
 }
 
 function channelsOf(buffer) {
@@ -382,6 +394,14 @@ export function mountRepertoire(container, host) {
     statusLine, jobBox,
     h('div', { class: 'rep-layout' }, library, lab));
   container.replaceChildren(root);
+  // Cópia bruta de registro danificado: os bytes crus podem carregar o nome de
+  // um exercício de curso importado (pacote de tarefa). Nome PRIVADO +
+  // confirmação nativa; cancelar não gera arquivo e os bytes de recuperação
+  // saem intactos — nada aqui redige o que existe só para recuperar.
+  const privateFiles = mountPrivateDownload(container, {
+    download: (text, filename) => download(new Blob([text], { type: 'application/json' }), filename),
+    notify: host.notify,
+  });
   tabPanel.addEventListener('input', event => {
     if (event.target.matches('input, textarea, select')) event.target.dataset.uiDirty = 'true';
   }, true);
@@ -850,7 +870,7 @@ export function mountRepertoire(container, host) {
         h('span', { text: `${record.store}: ${record.id ?? 'sem identificador'}` }),
         h('button', { type: 'button', onclick: () => {
           const text = JSON.stringify(record.raw, (key, value) => (value instanceof Blob ? `[Blob ${value.size} bytes]` : value), 2);
-          download(new Blob([text ?? 'null'], { type: 'application/json' }), `registro-danificado-${index + 1}.json`);
+          void privateFiles.download(text ?? 'null', `registro-danificado-${index + 1}.json`);
         }, text: 'Baixar cópia bruta' }),
         h('button', { type: 'button', onclick: async () => {
           try {
@@ -2227,7 +2247,7 @@ export function mountRepertoire(container, host) {
       audio,
     });
     const text = serializePackage(pkg);
-    return { text, file: new File([text], `${slug(options.title)}${PACKAGE_EXTENSION}`, { type: 'application/json' }) };
+    return { text, file: new File([text], `${slug(pkg.title)}${PACKAGE_EXTENSION}`, { type: 'application/json' }) };
   }
 
   function shareTab() {
@@ -2249,8 +2269,9 @@ export function mountRepertoire(container, host) {
       h('div', { class: 'rep-row' },
         h('button', { type: 'button', onclick: () => {
           try {
-            download(new Blob([sessionToMidi(host.getSession())], { type: 'audio/midi' }), `${slug(session?.name || 'sessao')}.mid`);
-            setStatus('MIDI da sessão exportado.');
+            const { bytes, fileName, privateContent } = sessionMidiDownload(host.getSession());
+            download(new Blob([bytes], { type: 'audio/midi' }), fileName);
+            setStatus(privateContent ? `MIDI da sessão exportado. ${COURSE_EXPORT_NOTICE}` : 'MIDI da sessão exportado.');
           } catch (error) {
             reportError(error);
           }
@@ -2374,6 +2395,7 @@ export function mountRepertoire(container, host) {
     player.close().catch(() => {});
     buffers.clear();
     processedCache.clear();
+    privateFiles.destroy();
     container.replaceChildren();
   }
 

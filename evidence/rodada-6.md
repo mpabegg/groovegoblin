@@ -395,3 +395,145 @@ Perfis e fixtures só com dados fictícios (`example.invalid`, `groove.exemplo.t
 identificador real de curso ou de infraestrutura: a auditoria privada desta etapa saiu com 0
 ocorrências e nada de `local/` foi para o commit.
 
+## Etapa 8 — conteúdo do curso no app e barreiras contra vazamento (B4b/B6)
+
+Servidor local fictício (`GROOVE_DATA_DIR` fora do repositório, modo `dev` em `127.0.0.1`),
+curso **fictício** criado por mim (`example.invalid`) e material **autogerado** (PDFs próprios,
+MP3 sintetizado com ffmpeg, ZIP com PDF dentro). Nenhum dado real de curso foi usado, lido ou
+impresso; nenhum perfil de navegador do usuário foi tocado (Chromium próprio, perfil novo).
+
+### Critério 23b — pasta de entrada, casamento e relatório
+
+Curso importado pela própria interface no fluxo "Converter no servidor" (mapa + catálogo
+fictícios). Pasta `entrada/<id>/` com **5 arquivos**: as duas apostilas fictícias, uma **cópia
+renomeada** da primeira (`Apostila Exemplo 4 Cordas (1).PDF`), a faixa MP3 e um `nao casado.pdf`
+distinto. Resultado observado na página do curso:
+
+- **"3 de 3 materiais disponíveis"**; "Pasta de entrada: 5 arquivo(s), 42 KB"; **Faltando (0)**;
+  **Não casaram (1)**: `nao casado.pdf` (`reason: no-material`).
+- **Deduplicação por conteúdo:** as duas cópias da mesma apostila (nome e caixa diferentes)
+  viraram **um** blob — o diretório de dados ficou com exatamente 3 blobs (`0dae5563…`,
+  `d03f0cc8…`, `e417a8db…`), um por conteúdo, e 3 vínculos.
+- O relatório é leitura (`GET`); casar a pasta e gravar vínculos é escrita da própria origem
+  (`POST .../materials/scan`) — a cola HTTP cobre o 403 sem `Origin`/cross-site.
+
+### Critério 23c — apostila e faixa dentro do app
+
+- **Catálogo aponta a SEGUNDA apostila:** a sugestão da aula tem `pdfPage: 3` e
+  `material.names = ["Apostila Exemplo 5 Cordas.pdf", …]` com `resourceId` do **segundo** PDF.
+  Clicar em **"Ver na apostila (página 3)"** abriu o painel único com
+  `/api/blobs/d03f0cc891992d0b82a388b6d23ab740c4530dfaf57535cdb5468feae61fbdac#page=3`
+  (`application/pdf`) — o **segundo** PDF, **não** o primeiro nem "sem página"; o visualizador
+  nativo do Chromium renderizou o documento dentro do app (captura conferida).
+- **UM painel só:** em todo o percurso existe **um** `<iframe>`; a página da aula usa a mesma
+  instância do Estúdio/Biblioteca.
+- **Exercício gerado:** "Gerar" (com a forma escolhida no diálogo) criou o exercício com
+  `metadata.courseContent: true` e
+  `metadata.study.origin.material = { name: "Apostila Exemplo 5 Cordas.pdf", lessonId: "1",
+  resourceId: "apostila-exemplo-5-cordas-pdf", page: 3 }` (25 compassos, 37 notas).
+- **Recarga DIRETA no Estúdio:** sem visitar Cursos antes, a linha de origem já mostra
+  "Ver na apostila (página 3)"; clicar abre o **mesmo** PDF e a **mesma** página. A linha da
+  **Biblioteca** mostra a mesma ação e abre o mesmo material.
+- **Vídeo:** zero `<video>` e nenhuma requisição de vídeo; a aula mantém só o link externo.
+- **Faixa com `Range`:** `Range: bytes=100-599` → **206**, `Content-Range: bytes 100-599/36720`,
+  `Accept-Ranges: bytes`, `audio/mpeg`, e os 500 bytes conferem byte a byte com o arquivo
+  completo; no player, `duration` 3 s e `currentTime` avançando (1,377 s em 1,5 s reais).
+- **Repouso:** Biblioteca em 1440×900 com **22** controles visíveis e **sem rolagem** vertical
+  (o grupo novo do material é um único `<details>`).
+
+### Uso offline do material (mesmo servidor, rede cortada)
+
+Com **todas** as chamadas `/api/*` abortadas e a página recarregada (servidor configurado, mas
+inalcançável):
+
+- as ações novas do servidor **não aparecem**: os três nós "Ver na apostila" nascem escondidos e
+  um deles (a sugestão da aula) precisou do mesmo portão dos outros — corrigido nesta etapa
+  (`gateServerNode` em `course-lesson.js`);
+- os **anexos manuais salvos** continuam e funcionam **offline**: o PDF abriu de um `blob:` com o
+  aviso "PDF aberto em nova aba a partir da cópia salva neste navegador (funciona offline)" e a
+  faixa tocou do `blob:` (`currentTime` 1,465 s de 3 s, `readyState` 4);
+- "Anexos guardados neste navegador: **2 arquivo(s), 37,8 kB**";
+- **zero** requisições a `/api/blob`: só **2** sondagens `/api/health`, e a linha de estado diz
+  "Sem servidor (dados só neste navegador)".
+
+### Critério 23d — saídas compartilháveis sem conteúdo de curso
+
+- **Exportar exercício** (exercício vinculado à aula, baixado de verdade no navegador):
+  `estudo-musical.json`, `id` genérico `public-exercise`, **sem** o título da aula, **sem** o nome
+  do arquivo de material e **sem** o bloco `study` — a música sai inteira.
+- Provas de unidade com canário próprio cobrem o resto da família: link de compartilhamento,
+  MIDI da sessão, pacote de tarefa, histórico (nome genérico, treinos intactos), `exportLibrary`
+  padrão e o retrato privado levando tudo; e a **cópia em conflito da sincronização** só sai pela
+  convenção privada (nome `PRIVADO` + confirmação nativa, cancelar ⇒ **0** arquivos, bytes
+  **idênticos**), agora num teste de consumidor com motor real e servidor de contrato real.
+- **Marca pegajosa no caminho NOVO do sync:** `applyRemoteEntry` não rebaixa
+  `courseContent: true` quando o documento remoto é antigo/sem marca, e o vínculo
+  `origin.material` sobrevive à aplicação remota (mesma origem) — canário próprio.
+
+### Critério 23e — build e blobs
+
+- `npm run build` com um **PDF plantado** em `dist/`: **falha** (exit 1), com o arquivo
+  **preservado**; o mesmo vale para **symlink** apontando para `local/` e para **áudio renomeado**
+  com nome licenciado. Build limpo: "Static site built in dist/; public-content boundary
+  verified", e `dist/` sem nenhum PDF/MP3/ZIP — só os **três** WAV CC0 de bateria já licenciados.
+- Os blobs de curso vivem **só** no diretório de dados e saem apenas por `/api/blobs/:sha256`
+  (tipo conferido por assinatura, `Cache-Control: private, no-store`); nenhum deles existe na
+  árvore estática. No modo `tailscale` a rota exige identidade (coberto na etapa 6).
+
+### Critério 23f — gancho de `pre-commit` (invocação real)
+
+Repositório **descartável** com o gancho e o guarda reais e a **lista real** de termos copiada
+(nunca impressa): um commit com `dist/evil.pdf` novo, `local/foo.txt` e uma linha contendo um
+termo da lista foi **recusado** (exit 1) apontando `dist/evil.pdf`:1 `material-novo`,
+`local/foo.txt`:1 `caminho-privado`, `local/termos-privados.txt`:1 `caminho-privado` e
+`src/sample.js`:2 `termo-privado` — e a saída **não continha nenhum dos 11 termos** (conferência
+termo a termo no próprio processo). A mensagem final: "Nenhum termo ou trecho foi exibido."
+
+### PDF de dentro do pacote (`fontes[].arquivo_interno`)
+
+Fatia `R6ZipCatalogOrigins` (relatório em `local://round6-zip-catalog-origins.md`): o PDF de
+dentro do ZIP agora é lido **primeiro** e vira, quando não existe, um **material canônico de
+apóstila** (`role: apostila`, extensão `pdf`, id único) com vínculo na aula — o mesmo PDF citado
+por várias aulas vira **um** recurso com vários vínculos. No curso real: **45 citações → 30
+recursos canônicos**, `counts.catalog.materials = 30`, **335/335** sugestões com
+`material.resourceId` (278 com página), conversão `valid` sem problemas e **0** avisos citando
+`arquivo_interno`. No curso **fictício** desta etapa: o conversor criou
+`Apostila Interna Exemplo.pdf` (`role: apostila`), ligou o `resourceRefs` da aula ao PDF e a
+sugestão saiu com `material.names = ["Apostila Interna Exemplo.pdf", "Pacote Exemplo.zip"]`,
+`resourceId` do PDF e `pdfPage: 2`. A cola de entrada não precisou de patch: o índice do servidor
+indexa todo `lesson.resources[]` e casa membro a membro (teste com ZIP de bytes reais na fatia).
+
+### Defeitos reais corrigidos nesta etapa
+
+1. **Portão do servidor faltando na sugestão da aula.** Com a rede cortada, "Ver na apostila
+   (página 3)" continuava **visível** e prometia o painel do servidor; agora a ação nasce
+   escondida e se mostra quando a sondagem responde (`gateServerNode`), como no Estúdio e na
+   Biblioteca.
+2. **Loja de Hoje única vazando entre casos de teste.** Depois do FF da etapa 7, `mountToday`
+   passou a usar `sharedTodayStore()`; os testes de saída privada do Hoje precisavam de
+   `resetSharedTodayStore()` por caso (senão o status/bytes do caso anterior vazavam).
+3. **Documento remoto rebaixando a marca.** `applyRemoteEntry` (caminho NOVO da etapa 7) agora
+   preserva `courseContent: true` anterior e o `origin.material` da mesma origem — sem isso, um
+   documento antigo vindo do servidor transformava o exercício privado em cópia pública.
+4. **Cópias cruas da sincronização.** "Baixar cópias guardadas" (conflitos e recuperação) saía
+   cru, sem marca e sem confirmação; passou pela convenção privada (`PRIVADO` + confirmação
+   nativa, cancelar ⇒ 0 arquivos, bytes intactos).
+
+### Verificação executada
+
+- `npm test` na etapa: **1347 testes, 1345 passam, 0 falham, 2 ignorados**
+  (amostra física e o teste contra o servidor real, que roda por flag).
+- `npm run check`: **276 módulos, 0 falhas**.
+- `npm run build` (limpo e com venenos plantados): observado acima.
+- `GROOVE_SYNC_REAL_SERVER=1 node --test tests/sync-real-server.test.js`: 1/1 contra o servidor
+  real (rodado na etapa 7 e mantido).
+- Navegador próprio (Chromium novo, perfil novo, 1440×900) com dados fictícios; servidor de teste
+  em `127.0.0.1` com `GROOVE_DATA_DIR` fora do repositório.
+
+### Privacidade
+
+Curso, materiais, mapa e catálogo **fictícios** (`example.invalid`, PDFs/MP3/ZIP autogerados);
+nenhum identificador real de curso, host, IP, login ou token em arquivo, teste, evidência ou
+mensagem de commit. A auditoria privada desta etapa saiu com **0 ocorrências** e nada de `local/`
+foi para o commit.
+

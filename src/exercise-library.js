@@ -16,6 +16,7 @@
 
 import { readSessionLibrary, SESSION_LIBRARY_KEY } from './studio-state.js';
 import { SESSION_NAME_MAX } from './session.js';
+import { shareableExercise, shareableLibrary } from './course-privacy.js';
 
 export const LIBRARY_KEY = 'groovegoblin.exercise-library.v1';
 export const LIBRARY_BACKUP_KEY = 'groovegoblin.exercise-library.v1.backup';
@@ -209,13 +210,33 @@ function normalizeRecord(value) {
 // PRIVACIDADE (B6): um vínculo pode ser marcado `private: true` — o rótulo
 // (`name`/`label`) vem de material de curso e NÃO pode sair em exportação
 // padrão. `kind` (`exercise`/`course`/`material`) diz de onde o vínculo veio.
-// A receita em si é sempre musical (parâmetros), então a política de
-// exportação pode remover `origin`/`group` e conservar `recipe` inteiro.
-function normalizeLink(value, labelKey) {
+// A exportação padrão remove o bloco `study` INTEIRO: a receita pode carregar
+// texto livre (nome de forma, resumo, campos importados), então conservá-la não
+// é seguro; o que o exercício toca está na sessão.
+// Material exato do vínculo de curso (etapa 8/B4b): o nome do arquivo é a
+// identidade que vale e os ids são dica; a página só existe quando o catálogo a
+// indicou. Campo opcional — vínculo antigo simplesmente não tem, e a resolução
+// cai no único PDF inequívoco da aula. O bloco inteiro (`study`) já não sai em
+// exportação pública: o nome de um arquivo de curso é conteúdo de terceiros.
+function normalizeMaterialRef(value) {
+  if (!isObject(value)) return null;
+  const name = isString(value.name) && value.name.trim() !== '' ? value.name : null;
+  const lessonId = isNonEmptyString(value.lessonId) ? value.lessonId : null;
+  const resourceId = isNonEmptyString(value.resourceId) ? value.resourceId : null;
+  const page = Number.isInteger(value.page) && value.page > 0 ? value.page : null;
+  if (name === null && lessonId === null && resourceId === null) return null;
+  return { name, lessonId, resourceId, page };
+}
+
+function normalizeLink(value, labelKey, { material = false } = {}) {
   if (!isObject(value) || !isNonEmptyString(value.id)) return null;
   const link = { id: value.id, [labelKey]: isString(value[labelKey]) ? value[labelKey] : '' };
   if (['exercise', 'course', 'material'].includes(value.kind)) link.kind = value.kind;
   if (value.private === true) link.private = true;
+  if (material) {
+    const ref = normalizeMaterialRef(value.material);
+    if (ref !== null) link.material = ref;
+  }
   return link;
 }
 
@@ -227,7 +248,7 @@ function normalizeStudy(value) {
     version: Number.isInteger(value.version) ? value.version : LIBRARY_VERSION,
     recipe,
     summary: isObject(value.summary) ? clone(value.summary) : null,
-    origin: normalizeLink(value.origin, 'name'),
+    origin: normalizeLink(value.origin, 'name', { material: true }),
     group: normalizeLink(value.group, 'label'),
   };
 }
@@ -247,8 +268,10 @@ function normalizeMetadata(value, session) {
     // Marca de conteúdo de curso (B6): o exercício nasceu de material de curso
     // (sugestão gerada ou vínculo manual) e a exportação padrão/compartilhamento
     // NÃO pode levar o que é de terceiros. Só `true` explícito marca; qualquer
-    // outro valor vira `false` (nunca "quase privado").
-    courseContent: value.courseContent === true,
+    // outro valor vira `false` (nunca "quase privado"). O vínculo de origem já
+    // marcado (variação de exercício de curso, A4/B6) também tinge o exercício:
+    // a marca derivada é conservadora e igual à de `isCourseContent`.
+    courseContent: value.courseContent === true || value.study?.origin?.kind === 'course' || value.study?.origin?.private === true,
     records,
   };
 }
@@ -576,12 +599,32 @@ export function createExerciseLibrary({
         if (status === 'corrupt') throw new Error('Biblioteca corrompida; baixe os originais em Ajuda antes de sincronizar.');
         if (!isObject(entry) || !isNonEmptyString(entry.id)) throw new TypeError('Documento remoto sem identificador.');
         const session = parse(JSON.stringify(entry.session));
+        const previous = find(entry.id);
+        const metadata = normalizeMetadata(entry.metadata, session);
+        // B6 (etapa 8): a marca de conteúdo de curso é PEGAJOSA também no
+        // documento REMOTO. Um documento antigo (ou escrito por um navegador
+        // numa versão sem a marca) não pode APAGAR a marca local: o mesmo
+        // exercício privado voltaria a sair inteiro na exportação padrão e no
+        // compartilhamento. A marca sobe, nunca desce — a mesclagem seguinte
+        // devolve a versão marcada ao servidor. `normalizeMetadata` já cobre o
+        // que vier marcado ou tingido pelo vínculo (`study.origin`).
+        if (previous?.metadata.courseContent === true) metadata.courseContent = true;
+        // O vínculo de material (`study.origin.material`) é dado do exercício:
+        // um documento remoto MAIS ANTIGO, do mesmo exercício, não pode apagar a
+        // apostila/página que a aula já conhecia. Só a mesma origem (mesmo id)
+        // restaura o vínculo; estudo ausente ou origem diferente vale como veio
+        // (nunca ressuscita receita nem vínculo de outra aula).
+        const previousOrigin = previous?.metadata.study?.origin ?? null;
+        const incomingOrigin = metadata.study?.origin ?? null;
+        if (previousOrigin?.material && incomingOrigin && incomingOrigin.id === previousOrigin.id && !incomingOrigin.material) {
+          metadata.study = { ...metadata.study, origin: { ...incomingOrigin, material: previousOrigin.material } };
+        }
         const next = {
           id: entry.id,
           createdAt: isString(entry.createdAt) ? entry.createdAt : now(),
           updatedAt: isString(entry.updatedAt) ? entry.updatedAt : now(),
           session,
-          metadata: normalizeMetadata(entry.metadata, session),
+          metadata,
         };
         const index = state.entries.findIndex(candidate => candidate.id === next.id);
         if (index >= 0) state.entries[index] = next; else state.entries.push(next);
@@ -684,6 +727,7 @@ export function createExerciseLibrary({
           }
         }
         const next = normalizeMetadata({ ...entry.metadata, ...patch }, entry.session);
+        next.courseContent ||= entry.metadata.courseContent === true;
         entry.metadata = next;
         entry.session.name = next.name;
         entry.updatedAt = now();
@@ -753,26 +797,27 @@ export function createExerciseLibrary({
         return () => listeners.delete(listener);
       },
       exportExercise(id) {
-        const entry = requireEntry(id);
+        const entry = shareableExercise(requireEntry(id));
         return JSON.stringify({
           version: LIBRARY_VERSION, kind: 'groovegoblin-exercise', exportedAt: now(),
           exercise: { id: entry.id, createdAt: entry.createdAt, updatedAt: entry.updatedAt, metadata: clone(entry.metadata), session: clone(entry.session) },
         });
       },
-      exportLibrary() {
-        return JSON.stringify({
+      exportLibrary({ includeCourseContent = false } = {}) {
+        const document = {
           version: LIBRARY_VERSION, kind: 'groovegoblin-exercise-library', exportedAt: now(),
-          activeId: state.activeId, entries: state.entries.map(clone),
-        });
+          activeId: state.activeId, entries: clone(state.entries),
+        };
+        return JSON.stringify(includeCourseContent ? document : shareableLibrary(document));
       },
       // Mescla sem sobrescrever: sessões idênticas já presentes são ignoradas.
       importExercise(text) {
         const payload = JSON.parse(text);
         const candidates = [];
         if (isObject(payload) && payload.kind === 'groovegoblin-exercise' && isObject(payload.exercise)) {
-          candidates.push({ session: payload.exercise.session, metadata: payload.exercise.metadata });
+          candidates.push({ id: payload.exercise.id, session: payload.exercise.session, metadata: payload.exercise.metadata });
         } else if (isObject(payload) && isObject(payload.entry) && isObject(payload.entry.session)) {
-          candidates.push({ session: payload.entry.session, metadata: payload.entry.metadata });
+          candidates.push({ id: payload.entry.id, session: payload.entry.session, metadata: payload.entry.metadata });
         } else {
           candidates.push({ session: payload, metadata: null });
         }
@@ -782,7 +827,7 @@ export function createExerciseLibrary({
         const payload = JSON.parse(text);
         const list = Array.isArray(payload) ? payload : Array.isArray(payload?.entries) ? payload.entries : null;
         if (!list) throw new Error('Arquivo de biblioteca inválido.');
-        return mergeCandidates(list.map(entry => ({ session: entry?.session, metadata: entry?.metadata })));
+        return mergeCandidates(list.map(entry => ({ id: entry?.id, session: entry?.session, metadata: entry?.metadata })));
       },
       // Importação AGREGADA (etapa 7): preserva o exercício INTEIRO — sessão,
       // metadados, anotações e histórico. Deduplica pelo CONTEÚDO COMPLETO
@@ -809,6 +854,20 @@ export function createExerciseLibrary({
         });
         const known = new Map();
         for (const entry of state.entries) known.set(fullContentKey(entry.session, entry.metadata), entry.id);
+        // B6: herança de marca na importação legada. Um documento que chega com
+        // o id OU com a MESMA sessão canônica de um exercício localmente marcado
+        // é o mesmo material de curso: nasce marcado, e a marca nunca é
+        // rebaixada. Sem isto, importar um backup/exercício antigo (sem
+        // `courseContent`) criaria uma cópia PÚBLICA do mesmo nome/anotações
+        // privados — a chave de conteúdo inclui a marca, então a cópia entraria
+        // como documento novo.
+        const taintedIds = new Set();
+        const taintedSessions = new Set();
+        for (const entry of state.entries) {
+          if (entry.metadata.courseContent !== true) continue;
+          taintedIds.add(entry.id);
+          taintedSessions.add(serialize(entry.session));
+        }
         const next = state.entries.slice();
         // Mapa origem→destino SEM protótipo: os ids de origem vêm do backup e
         // podem ser `__proto__`, `constructor` ou `toString` — num objeto comum
@@ -824,6 +883,12 @@ export function createExerciseLibrary({
             session: clone(item.session),
             metadata: normalizeMetadata(item.metadata, item.session),
           };
+          // Antes da chave de conteúdo: a marca herdada faz o documento casar
+          // com o exercício marcado já existente (reuso) em vez de virar cópia
+          // pública, e nunca é rebaixada.
+          if (!candidate.metadata.courseContent && (taintedIds.has(item.sourceId) || taintedSessions.has(serialize(candidate.session)))) {
+            candidate.metadata.courseContent = true;
+          }
           const key = fullContentKey(candidate.session, candidate.metadata);
           // O `known` é a fotografia da biblioteca ANTES do arquivo: a
           // importação nunca apaga um exercício do backup, então duas entradas
@@ -888,21 +953,40 @@ export function createExerciseLibrary({
       if (isObject(candidate?.metadata) && Object.hasOwn(candidate.metadata, 'name') && !validName(candidate.metadata.name)) {
         throw new Error(`Importação incompatível: o nome do exercício deve ter até ${SESSION_NAME_MAX} caracteres. Nada foi alterado.`);
       }
-      return { session, metadata: candidate?.metadata };
+      return { session, metadata: candidate?.metadata, sourceId: isString(candidate?.id) ? candidate.id : null };
     });
-    const seen = new Set(state.entries.map(entry => serialize(entry.session)));
+    const seen = new Map(state.entries.map(entry => [serialize(entry.session), entry]));
+    // B6 (importação legada): um documento que chega com o id de um exercício
+    // LOCALMENTE marcado é o mesmo material de curso — mesmo que venha sem a
+    // marca e com a sessão levemente diferente (logo, documento novo pela chave
+    // de conteúdo). A marca é herdada por ID, nunca por semelhança musical, e
+    // nunca é rebaixada; sem isto a importação criaria uma cópia PÚBLICA do
+    // mesmo nome/anotações privados.
+    const taintedIds = new Set(state.entries.filter(entry => entry.metadata.courseContent === true).map(entry => entry.id));
     let added = 0;
     let skipped = 0;
-    for (const { session, metadata: raw } of prepared) {
+    let markedPrivate = false;
+    for (const { session, metadata: raw, sourceId } of prepared) {
       const canonical = serialize(session);
-      if (seen.has(canonical)) { skipped += 1; continue; }
-      seen.add(canonical);
-      state.entries.push({
-        id: uuid(), createdAt: now(), updatedAt: now(), session: clone(session), metadata: normalizeMetadata(raw, session),
-      });
+      const existing = seen.get(canonical);
+      if (existing) {
+        if (normalizeMetadata(raw, session).courseContent && !existing.metadata.courseContent) {
+          existing.metadata.courseContent = true;
+          markedPrivate = true;
+        }
+        skipped += 1;
+        continue;
+      }
+      const entry = { id: uuid(), createdAt: now(), updatedAt: now(), session: clone(session), metadata: normalizeMetadata(raw, session) };
+      if (sourceId !== null && taintedIds.has(sourceId) && !entry.metadata.courseContent) {
+        entry.metadata.courseContent = true;
+        markedPrivate = true;
+      }
+      seen.set(canonical, entry);
+      state.entries.push(entry);
       added += 1;
     }
-    if (added > 0) { persist(); emit(); }
+    if (added > 0 || markedPrivate) { persist(); emit(); }
     return { added, skipped };
   }
 

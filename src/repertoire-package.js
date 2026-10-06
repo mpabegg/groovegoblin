@@ -3,6 +3,7 @@
 // referência embutido em base64. Importação estrita e atômica.
 
 import { normalizeMarker, normalizeExercise, normalizeRegion } from './repertoire.js';
+import { shareableAssignment } from './course-privacy.js';
 
 export const PACKAGE_FORMAT = 'groovegoblin-assignment';
 export const PACKAGE_VERSION = 1;
@@ -54,7 +55,7 @@ export function createAssignmentPackage({ title, objective = '', session = null,
   if (audio && (!(audio.bytes instanceof Uint8Array) || audio.bytes.length > MAX_EMBEDDED_AUDIO_BYTES)) {
     throw new RangeError(`O áudio embutido deve ter no máximo ${Math.round(MAX_EMBEDDED_AUDIO_BYTES / 1024 / 1024)} MB; compartilhe sem áudio e envie o arquivo separadamente.`);
   }
-  return {
+  return shareableAssignment({
     format: PACKAGE_FORMAT,
     version: PACKAGE_VERSION,
     createdAt: new Date().toISOString(),
@@ -64,11 +65,12 @@ export function createAssignmentPackage({ title, objective = '', session = null,
     reference: item ? referenceFromItem(item) : null,
     exercises: exercises.map(exercise => ({ ...exercise, practice: undefined })),
     audio: audio ? { mimeType: audio.mimeType || 'application/octet-stream', fileName: audio.fileName || '', size: audio.bytes.length, data: bytesToBase64(audio.bytes) } : null,
-  };
+  });
 }
 
 export function serializePackage(pkg) {
-  return JSON.stringify(pkg, null, pkg.audio ? 0 : 2);
+  const publicPackage = shareableAssignment(pkg);
+  return JSON.stringify(publicPackage, null, publicPackage.audio ? 0 : 2);
 }
 
 function fail(error) {

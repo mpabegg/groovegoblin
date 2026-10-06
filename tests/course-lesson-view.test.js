@@ -13,7 +13,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createCourseStore } from '../src/course-store.js';
-import { createAttachmentStore } from '../src/course-attachments.js';
+import { attachmentRefKey, createAttachmentStore } from '../src/course-attachments.js';
 import { mountCourseLesson } from '../src/course-lesson.js';
 import { exerciseOriginBadges, mountExerciseOrigins } from '../src/course-lesson-origins.js';
 import { makeRoot, installDom, dispatchWindow, document as fakeDocument, makeEvent } from './course-lesson-dom.js';
@@ -323,6 +323,65 @@ test('origem: aula removida do curso continua abrindo a versão arquivada', asyn
   assert.deepEqual(opened, [{ c: 'curso-exemplo', l: 'aula-2' }]);
 });
 
+test('origem: "Ver na apostila" do exercício gerado abre o painel no material guardado (página incluída)', async t => {
+  const release = installDom();
+  const store = createCourseStore({ backend: memoryBackend(), now: NOW, uuid: () => 'estado' });
+  await store.ready();
+  // Aula com DOIS PDFs: o exercício guardou o SEGUNDO, na página 3.
+  const document = courseDocument();
+  document.course.sections[0].lessons[0].resources = [
+    { id: 'material-1', name: 'Apostila Primeira.pdf', extension: 'pdf', role: 'apostila' },
+    { id: 'material-2', name: 'Apostila Segunda.pdf', extension: 'pdf', role: 'apostila' },
+  ];
+  const imported = await store.importText(JSON.stringify(document), { source: 'teste' });
+  assert.equal(imported.ok, true, imported.error);
+  const courseId = imported.courseId;
+  const library = fakeLibrary();
+  library.register({
+    id: 'exercicio-gerado',
+    metadata: {
+      name: 'Estudo de Exemplo',
+      study: {
+        version: 1,
+        recipe: { version: 1, family: 'arpejo_triade_forma_unica' },
+        origin: { id: 'aula-1', name: 'Aula aula-1', kind: 'course', private: true,
+          material: { name: 'Apostila Segunda.pdf', lessonId: 'aula-1', resourceId: 'material-2', page: 3 } },
+      },
+    },
+  });
+  await store.linkExercise(courseId, 'aula-1', 'exercicio-gerado');
+
+  const sha = 'a'.repeat(64);
+  const refKey = attachmentRefKey(courseId, 'aula-1', 'material-2');
+  const opened = [];
+  const content = {
+    available: () => true,
+    loadRefs: async () => ({}),
+    refFor: (id, refKey) => ({ sha256: sha, size: 2048, kind: 'pdf', name: 'Apostila Segunda.pdf', refKey }),
+  };
+  const panel = { open: target => { opened.push(target); return true; } };
+  const container = makeRoot();
+  const origins = mountExerciseOrigins(container, {
+    store, library, exerciseId: 'exercicio-gerado', onOpenLesson: () => {}, content, panel, notify: () => {},
+  });
+  t.after(() => { origins.destroy(); release(); });
+
+  const ver = container.querySelector('.course-origin-material');
+  assert.ok(ver, 'a ação aparece com servidor');
+  assert.equal(ver.textContent, 'Ver na apostila (página 3)');
+  assert.equal(ver.dataset.refKey, refKey);
+  ver.click();
+  await sleep(10);
+  assert.deepEqual(opened, [{ sha256: sha, kind: 'pdf', name: 'Apostila Segunda.pdf', size: 2048, page: 3, refKey }]);
+
+  // Sem servidor (ou sem painel) a ação NÃO aparece: nada finge funcionar.
+  const offline = makeRoot();
+  const withoutServer = mountExerciseOrigins(offline, { store, library, exerciseId: 'exercicio-gerado', onOpenLesson: () => {} });
+  t.after(() => withoutServer.destroy());
+  assert.equal(offline.querySelector('.course-origin-material'), null);
+  assert.equal(offline.querySelector('.course-origin').textContent.includes('Aula aula-1'), true, 'a origem continua lá');
+});
+
 test('aula: anexo de PDF real sem extensão no mapa abre em nova aba (magia do conteúdo)', async t => {
   const backend = memoryBackend({ keyPaths: { files: 'id', refs: 'key' } });
   const attachments = createAttachmentStore({ backend, now: NOW, uuid: () => 'anexo' });
@@ -586,7 +645,12 @@ test('aula: "Gerar" cria o exercício com notas, vincula, marca a sugestão e ti
   assert.equal(recipe.shape.id, SHAPE.id, 'a forma lembrada entra na receita');
   assert.equal(Object.hasOwn(recipe, 'shapeLabel'), false, 'o rótulo do curso não vai para o gerador');
   assert.equal(options.open, false, 'a geração não tira o usuário da aula');
-  assert.deepEqual(options.origin, { id: 'aula-1', name: 'Aula aula-1', kind: 'course', private: true });
+  assert.deepEqual(options.origin, {
+    id: 'aula-1', name: 'Aula aula-1', kind: 'course', private: true,
+    // Material exato do catálogo (etapa 8): o exercício guarda o arquivo e a
+    // página para reabrir a MESMA apostila depois, sem depender da aula de hoje.
+    material: { name: 'Apostila de Exemplo', lessonId: 'aula-1', resourceId: 'material-1', page: 12 },
+  });
   assert.equal(options.bpm, undefined);
   // Vinculado à aula e lembrado como sugestão gerada.
   const state = store.lessonState(courseId, 'aula-1');
@@ -712,4 +776,80 @@ test('aula: a receita do catálogo aparece resumida e o material abre pela pági
   assert.deepEqual(material.map(option => [option.courseId, option.lessonId, option.resourceId, option.page, option.name]), [
     [courseId, 'aula-1', 'material-1', 12, 'Apostila de Exemplo'],
   ]);
+});
+
+test('aula: dois PDFs sem fonte explícita viram escolha honesta (sem "o primeiro" e sem página)', async t => {
+  const library = fakeLibrary();
+  const material = [];
+  const document = recipeDocument();
+  document.course.sections[0].lessons[0].resources = [
+    { id: 'material-1', name: 'Apostila Primeira.pdf', extension: 'pdf', role: 'apostila' },
+    { id: 'material-2', name: 'Apostila Segunda.pdf', extension: 'pdf', role: 'apostila' },
+  ];
+  const context = await setup({
+    host: { library, studies: fakeStudies(library), shapes: shapeAccess, bindings: boundBindings(), openMaterial: options => { material.push(options); return true; } },
+    document,
+  });
+  t.after(() => context.cleanup());
+  const { container, lesson, courseId } = context;
+  await lesson.show(courseId, 'aula-1');
+
+  assert.equal([...container.querySelectorAll('button')].some(node => /^Ver na apostila \(página/.test(node.textContent)), false,
+    'não afirma a página de um material que o catálogo não indicou');
+  const picker = container.querySelector('.lesson-suggestion-material-more');
+  assert.ok(picker, 'a escolha fica em um details');
+  assert.equal(picker.querySelectorAll('button').length, 2, 'as duas apostilas da aula aparecem');
+  const texts = [...picker.querySelectorAll('button')].map(node => node.textContent);
+  assert.deepEqual(texts.sort(), ['Apostila Primeira.pdf', 'Apostila Segunda.pdf']);
+  for (const node of picker.querySelectorAll('button')) node.click();
+  await sleep(10);
+  assert.deepEqual(material.map(option => [option.resourceId, option.page]).sort(), [['material-1', null], ['material-2', null]],
+    'abre o material escolhido, sem afirmar página');
+});
+
+test('aula: a linha do exercício vinculado abre o MESMO material guardado, na MESMA página', async t => {
+  const library = fakeLibrary();
+  library.register({
+    id: 'exercicio-gerado',
+    metadata: {
+      name: 'Estudo de Exemplo',
+      study: {
+        version: 1,
+        recipe: { version: 1, family: 'arpejo_triade_forma_unica' },
+        origin: { id: 'aula-1', name: 'Aula aula-1', kind: 'course', private: true,
+          material: { name: 'Apostila Segunda.pdf', lessonId: 'aula-1', resourceId: 'material-2', page: 3 } },
+      },
+    },
+  });
+  const document = courseDocument();
+  document.course.sections[0].lessons[0].resources = [
+    { id: 'material-1', name: 'Apostila Primeira.pdf', extension: 'pdf', role: 'apostila' },
+    { id: 'material-2', name: 'Apostila Segunda.pdf', extension: 'pdf', role: 'apostila' },
+  ];
+  const sha = 'b'.repeat(64);
+  const opened = [];
+  const content = {
+    available: () => true,
+    loadRefs: async () => ({}),
+    refFor: (courseId, refKey) => (refKey === attachmentRefKey(courseId, 'aula-1', 'material-2')
+      ? { sha256: sha, size: 1024, kind: 'pdf', name: 'Apostila Segunda.pdf', refKey }
+      : null),
+  };
+  const context = await setup({
+    host: { library, content, panel: { open: target => { opened.push(target); return true; } } },
+    document,
+  });
+  t.after(() => context.cleanup());
+  const { store, container, lesson, courseId } = context;
+  await store.linkExercise(courseId, 'aula-1', 'exercicio-gerado');
+  await lesson.show(courseId, 'aula-1');
+
+  const row = [...container.querySelectorAll('.lesson-link')].find(item => /Estudo de Exemplo/.test(item.textContent));
+  assert.ok(row, 'a linha do exercício vinculado aparece');
+  const ver = row.querySelector('[data-action="open-apostila"]');
+  assert.ok(ver, 'a linha tem "Ver na apostila" no servidor');
+  ver.click();
+  await sleep(10);
+  assert.deepEqual(opened, [{ sha256: sha, kind: 'pdf', name: 'Apostila Segunda.pdf', size: 1024, page: 3 }],
+    'abre o material guardado na página 3, não a primeira apostila');
 });

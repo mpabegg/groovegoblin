@@ -424,10 +424,18 @@ test('vínculo de curso (B6): receita musical no exercício, rótulo privado FOR
   assert.deepEqual(entry.metadata.study.group, { id: 'g-aula', label: 'Rótulo privado do grupo', private: true });
   assert.equal(entry.metadata.study.recipe.family, 'arpejo_triade_forma_unica', 'os parâmetros musicais ficam no exercício');
   assert.match(context.notifications[0][0], /rótulo musical/);
-  // A exportação do exercício leva o bloco inteiro: a etapa 8 decide o que
-  // remover (origin/group) e o que conservar (recipe).
-  const exported = JSON.parse(context.library.exportExercise(entry.id));
-  assert.equal(exported.exercise.metadata.study.origin.private, true);
+  // A exportação PADRÃO do exercício (B6/etapa 8) sai SEM o bloco `study`: a
+  // receita pode carregar texto livre (nome/id de forma, resumo, campos
+  // importados), e o público não leva vínculo, grupo nem receita.
+  const exportedText = context.library.exportExercise(entry.id);
+  assert.equal(exportedText.includes('privado'), false, 'nada privado sai na exportação padrão');
+  const exported = JSON.parse(exportedText);
+  assert.equal(Object.hasOwn(exported.exercise.metadata, 'study'), false, 'o bloco study fica de fora');
+  // A música continua a mesma: o que sai é só metadado de curso.
+  assert.deepEqual(
+    exported.exercise.session.notes.map(note => [note.pitch, note.start, note.duration]),
+    entry.session.notes.map(note => [note.pitch, note.start, note.duration]),
+  );
   // `privateName` explícito assume o rótulo interno (uso interno do curso).
   const named = context.controller.create(recipe, {
     origin: { id: 'aula-7', name: 'Título privado', kind: 'course', private: true },

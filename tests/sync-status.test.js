@@ -21,6 +21,11 @@ class El {
   replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
   setAttribute(name, value) { this.attributes[name] = String(value); }
   getAttribute(name) { return this.attributes[name] ?? null; }
+  removeAttribute(name) { delete this.attributes[name]; }
+  // `<dialog>` nativo: o painel de sincronização monta a confirmação de
+  // download privado, que usa `showModal`/`close` quando existem.
+  showModal() { this.open = true; }
+  close() { this.open = false; this.dispatch('close'); }
   addEventListener(type, listener) {
     if (!this.listeners.has(type)) this.listeners.set(type, []);
     this.listeners.get(type).push(listener);
