@@ -1,6 +1,7 @@
 import { CHORD_QUALITIES, findKey, getDiatonicChords, chordNowNext } from './progression.js';
 import { getInstrumentProfile, formatInstrumentNote } from './instrument-profile.js';
 import { generateGuitarVoicing } from './guitar-voicing.js';
+import { mountFingeringShapesInFretboard } from './fingering-shapes-controller.js';
 
 const pc = pitch => ((pitch % 12) + 12) % 12;
 const NATURAL_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
@@ -76,19 +77,27 @@ export function mountStudioFretboard(host) {
   controls.append(label, context, nextLabel);
   const scroll = document.createElement('div'); scroll.className = 'fretboard-scroll';
   const table = document.createElement('table'); table.id = 'fretboard-notes'; table.className = 'fretboard-notes'; scroll.append(table);
-  const legend = document.createElement('p'); legend.className = 'tool-hint muted'; legend.textContent = 'T = fundamental (destaque forte); 3, 5 e 7 = graus do acorde. ♭/♯, suspensões e extensões mostram os intervalos reais. Sem acorde, a escala do tom. Cordas: aguda em cima, grave embaixo. O contorno tracejado, quando ligado, mostra as notas do próximo acorde na posição do áudio.';
+  const legend = document.createElement('p'); legend.className = 'tool-hint muted'; legend.textContent = 'T = fundamental (destaque forte); 3, 5 e 7 = graus do acorde. ♭/♯, suspensões e extensões mostram os intervalos reais. Sem acorde, a escala do tom. Cordas: aguda em cima, grave embaixo. O contorno tracejado, quando ligado, mostra as notas do próximo acorde na posição do áudio. A forma de dedilhado escolhida em “Formas de dedilhado” entra com contorno próprio sobre estas marcas.';
   panel.append(summary, controls, scroll, legend); document.getElementById('studio-inspector').after(panel);
   const diagram = document.createElement('figure'); diagram.id = 'chord-diagram'; diagram.className = 'chord-diagram'; diagram.hidden = true;
   document.getElementById('chord-inspector').append(diagram);
   let session; let selected; let events = []; let positionValue = { mode: 'idle', tick: 0 }; let hidden = true;
   let boardSignature = ''; let diagramSignature = '';
+  // Formas de dedilhado (A3): o editor vive DENTRO deste painel e o destaque da
+  // forma escolhida entra na mesma tabela, sem HTML novo no app.
+  const shapes = mountFingeringShapesInFretboard({
+    panel,
+    table,
+    repaint: () => { boardSignature = ''; paintBoard(); },
+  });
   function paintBoard() {
     if (!session || !panel.open) return;
     const profile = getInstrumentProfile(session);
     const value = fretboardContext(session, selected, events, positionValue, hidden);
     const next = nextOverlay.checked && !hidden ? chordNowNext(session, positionValue.tick ?? 0)?.next?.chord ?? null : null;
     const nextTones = next ? new Set(chordToneRoles(next).keys()) : null;
-    const signature = JSON.stringify([profile, range.value, value.title, [...value.roles], next?.symbol ?? null]);
+    shapes.render(profile);
+    const signature = JSON.stringify([profile, range.value, value.title, [...value.roles], next?.symbol ?? null, shapes.signature()]);
     if (signature === boardSignature) return;
     boardSignature = signature; context.textContent = value.title; table.replaceChildren(); table.setAttribute('aria-label', `Braço ${profile.type === 'bass' ? 'do baixo' : 'da guitarra'}, ${value.title}, casas ${range.value} a ${Number(range.value) + 12}${next ? `, contorno tracejado nas notas de ${next.symbol}` : ''}`);
     const head = table.createTHead().insertRow(); const corner = document.createElement('th'); corner.textContent = 'Corda'; head.append(corner);
@@ -107,6 +116,9 @@ export function mountStudioFretboard(host) {
         cell.setAttribute('aria-label', `${formatInstrumentNote(pitch, profile)}, casa ${fret}${role ? `, ${role}` : ', fora da seleção'}${upcoming ? `, também no próximo acorde ${next.symbol}` : ''}`);
       }
     }
+    // Destaque da forma de dedilhado (A3): entra depois das notas do acorde, na
+    // mesma tabela, sem deslocar nenhuma marca do desenho atual.
+    shapes.decorate(table, { profile, root: value.root, from: Number(range.value), to: Number(range.value) + 12 });
   }
   function render(nextSession, nextSelected, nextEvents) {
     session = nextSession; selected = nextSelected; events = nextEvents;

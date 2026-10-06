@@ -74,6 +74,7 @@ export function mountLibraryBackup(container, host = {}) {
   }
   const store = host.store ?? null;
   const attachments = host.attachments ?? null;
+  const shapes = host.shapes ?? null;
   const now = host.now ?? (() => new Date().toISOString());
   const notify = (text, error = false) => host.notify?.(text, error);
   let destroyed = false;
@@ -138,6 +139,9 @@ export function mountLibraryBackup(container, host = {}) {
     if (attachments && attachments.persistent === false) {
       return `Os anexos guardados não podem ser lidos agora${attachments.error ? ` (${attachments.error})` : ''}; exporte em um navegador com IndexedDB.`;
     }
+    if (shapes && shapes.status === 'unavailable') {
+      return `As formas de dedilhado guardadas não podem ser lidas agora${shapes.warning ? ` (${shapes.warning})` : ''}; exporte em um navegador com armazenamento disponível.`;
+    }
     return null;
   }
 
@@ -147,8 +151,12 @@ export function mountLibraryBackup(container, host = {}) {
     clear(body);
     const summary = exerciseSummary(library);
     const courses = store && typeof store.snapshotAll === 'function' ? store.snapshotAll() : null;
+    const shapeCount = shapes && typeof shapes.exportDocument === 'function'
+      ? Object.values(shapes.exportDocument().instruments ?? {}).reduce((total, list) => total + (Array.isArray(list) ? list.length : 0), 0)
+      : null;
     exportSummary.textContent = `${summary.entries} exercício(s), ${summary.records} treino(s) registrado(s)`
-      + (courses ? `; ${courses.records.length} curso(s) e ${courses.states.length} estado(s) de progresso (${courses.orphans.length} órfão(s))` : '');
+      + (courses ? `; ${courses.records.length} curso(s) e ${courses.states.length} estado(s) de progresso (${courses.orphans.length} órfão(s))` : '')
+      + (shapeCount === null ? '' : `; ${shapeCount} forma(s) de dedilhado`);
     const blocked = exportBlockReason();
     exportConfirm.disabled = blocked !== null;
     if (blocked) {
@@ -173,6 +181,9 @@ export function mountLibraryBackup(container, host = {}) {
     if (summary.coursesAvailable === false) parts.push('cursos não conferidos (backup gerado sem a loja de cursos)');
     else parts.push(`${summary.courses} curso(s)`, `${summary.states} estado(s) de progresso`);
     if (summary.orphans > 0) parts.push(`${summary.orphans} estado(s) órfão(s)`);
+    if (summary.shapesAvailable === false) parts.push('formas de dedilhado não conferidas');
+    else parts.push(`${summary.shapes} forma(s) de dedilhado`);
+    if (summary.shapesCorrupt) parts.push('formas de dedilhado ilegíveis (bytes só no arquivo)');
     if (summary.attachments.included) parts.push(`anexos: ${summary.attachments.label}`);
     else if (summary.attachments.files > 0) parts.push(`sem anexos (o backup citava ${summary.attachments.label})`);
     else if (summary.attachments.available === false) parts.push('anexos não conferidos');
@@ -255,7 +266,7 @@ export function mountLibraryBackup(container, host = {}) {
   async function exportLibrary(options = {}) {
     const includeAttachments = options.includeAttachments ?? exportPayload().includeAttachments;
     try {
-      const built = await buildBackup({ library, store, attachments, includeAttachments, now });
+      const built = await buildBackup({ library, store, attachments, includeAttachments, now, shapes });
       if (built?.ok !== true) {
         // Recusa honesta (biblioteca corrompida/indisponível, loja não
         // persistente): nenhum arquivo é gerado e o motivo fica visível.
@@ -283,7 +294,7 @@ export function mountLibraryBackup(container, host = {}) {
   }
 
   async function importText(text) {
-    const result = await importBackup(text, { library, store, attachments, now });
+    const result = await importBackup(text, { library, store, attachments, now, shapes });
     const message = describeImportResult(result);
     setStatus(message, !result.ok);
     notify(message, !result.ok);

@@ -66,3 +66,16 @@ Total: **335 materiais; 216 sem divergência nos campos conferíveis, 113 com di
 A revisão independente encontrou um percurso de cinco cordas que exige cinco compassos: a ação agora permite esse mínimo apenas nas famílias de percurso, sem truncar; arpejos continuam limitados a quatro compassos por acorde. A figura de arpejo em colcheias toca uma vez, com a última nota sustentada, em vez de repetir e cortar na barra. O final padrão repete o primeiro acorde. A grafia fora das quartas maiores reutiliza as tonalidades do app. O controle numérico de quantidade de formas, que não alterava o resultado, foi removido do contrato.
 
 `npm test`: 957 testes, 956 passaram, nenhum falhou e uma amostra física ausente foi pulada. `npm run check`: 198 módulos, nenhuma falha.
+
+## Etapa 3 — formas criadas no Braço
+
+Navegador real isolado, 1440 × 900, somente dados fictícios:
+
+1. **Nova forma** em baixo de quatro cordas; cliques em corda/casa `4/3`, `3/2`, `3/5` criaram G–B–D, graus 1–3–5. Um clique em `3/4` foi recusado por estar a seis semitons da tônica; as três notas válidas ficaram intactas.
+2. A ordem foi alterada pelas setas para **1–5–3** e salva como “Forma de exemplo R6”. O documento da biblioteca/sessão permaneceu byte a byte igual durante essa edição: a forma ficou na loja própria.
+3. Trocar para cinco cordas mostrou **“do baixo 4 cordas”**. Em C, a forma usou `5/1`, `4/0`, `4/3` na região visível 0–12. Na reprodução real, o destaque acompanhou **Cmaj7 → Fmaj7 → G7 → Cmaj7**, com três posições em cada acorde.
+4. O botão real de exportação gerou um backup com a forma e a ordem 1–5–3. Após excluir somente essa fixture pelo editor e confirmar a exclusão, o mesmo arquivo foi escolhido no diálogo **Importar backup**: uma forma restaurada, exercício existente reutilizado. O bloco de formas restaurado foi idêntico ao exportado.
+
+[Forma no baixo de quatro cordas](rodada-6/forma-baixo-1440.png) · [Reutilização no baixo de cinco cordas](rodada-6/forma-cinco-cordas-1440.png).
+
+Nenhum erro de página foi registrado. A primeira execução automatizada encontrou uma fixture com terça musicalmente inválida, um DOM de teste que percorria nós de texto como elementos e uma expectativa incorreta sobre deduplicação; foram corrigidos nos testes, sem relaxar a validação musical. Verificação final da branch: **979 testes, 978 passaram, nenhuma falha, uma amostra física ausente pulada; 202 módulos verificados, nenhuma falha**.

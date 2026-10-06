@@ -17,6 +17,7 @@ import {
   buildBackup, serializeBackup, importBackup, validateBackup, summarizeBackup,
   describeImportResult, backupAttachmentSummary, formatByteSize, recognizeBackup, backupFileName,
 } from '../src/library-backup.js';
+import { createFingeringShapeStore } from '../src/fingering-shapes.js';
 
 let createAttachmentStore = null;
 try { ({ createAttachmentStore } = await import('../src/course-attachments.js')); } catch { /* etapa 6 ausente */ }
@@ -870,4 +871,121 @@ test('backup: recuperação crua do arquivo é avisada e NUNCA gravada', async (
   assert.equal(dest.store.corrupt().length, 0);
   assert.equal(dest.store.list().length, 1);
   assert.match(describeImportResult(result), /1 aviso\(s\) registrados/);
+});
+
+// ---------------------------------------------- formas de dedilhado (A3)
+
+// Uma forma de tríade maior escrita no baixo de 4 cordas (a mesma dos testes do
+// A3). Nada aqui vem de curso: o bloco de formas é conteúdo autoral do usuário.
+const SHAPE_MAJOR = {
+  label: 'Maior · fundamental',
+  quality: 'major',
+  degrees: [1, 3, 5],
+  notes: [{ string: 4, fret: 3, degree: 1 }, { string: 3, fret: 2, degree: 3 }, { string: 3, fret: 5, degree: 5 }],
+};
+
+test('backup: o envelope agrega as formas de dedilhado e a importação é idempotente', async () => {
+  const storage = memoryStorage();
+  const library = openLibrary(storage);
+  const shapes = createFingeringShapeStore({ storage, uuid: nextUuid });
+  shapes.save(SHAPE_MAJOR, { type: 'bass', strings: 4 });
+  const built = await buildBackup({ library, shapes, now: clock() });
+  assert.equal(built.ok, true);
+  assert.equal(built.document.shapes.available, true);
+  assert.equal(built.document.shapes.version, 1);
+  assert.equal(built.document.shapes.instruments.bass4.length, 1);
+  assert.equal(built.summary.shapes, 1);
+  assert.equal(built.summary.shapesAvailable, true);
+  assert.equal(summarizeBackup(built.document).shapesCorrupt, false);
+  assert.equal(validateBackup(built.document).ok, true);
+
+  const text = serializeBackup(built.document);
+  const dest = openLibrary(memoryStorage());
+  const target = createFingeringShapeStore({ storage: memoryStorage(), uuid: nextUuid });
+  const first = await importBackup(text, { library: dest, shapes: target });
+  assert.equal(first.ok, true);
+  assert.deepEqual(first.applied.shapes, { added: 1, reused: 0, renamed: 0 });
+  assert.equal(target.group('bass4').length, 1);
+  assert.match(describeImportResult(first), /1 forma\(s\) de dedilhado/);
+
+  // Reimportar o mesmo arquivo não duplica a forma.
+  const again = await importBackup(text, { library: dest, shapes: target });
+  assert.equal(again.ok, true);
+  assert.equal(again.applied.shapes.added, 0);
+  assert.equal(again.applied.shapes.reused, 1);
+  assert.equal(target.group('bass4').length, 1);
+});
+
+test('backup: bloco de formas malformado é recusado antes de gravar', async () => {
+  const storage = memoryStorage();
+  const library = openLibrary(storage);
+  const shapes = createFingeringShapeStore({ storage, uuid: nextUuid });
+  const document_ = (await buildBackup({ library, shapes, now: clock() })).document;
+  document_.shapes.instruments.bass4 = [{ id: 'forma-1', label: 'Sem notas', quality: 'major', degrees: [1], notes: [] }];
+  const validated = validateBackup(document_);
+  assert.equal(validated.ok, false);
+  assert.equal(validated.errors[0].code, 'notas');
+
+  const target = createFingeringShapeStore({ storage: memoryStorage(), uuid: nextUuid });
+  const result = await importBackup(serializeBackup(document_), { library: openLibrary(memoryStorage()), shapes: target });
+  assert.equal(result.ok, false);
+  assert.equal(result.phase, 'validate');
+  assert.equal(result.partial, false);
+  assert.equal(target.group('bass4').length, 0);
+});
+
+test('backup: importar formas sem a loja de formas é parcial e honesto', async () => {
+  const library = openLibrary(memoryStorage());
+  const shapes = createFingeringShapeStore({ storage: memoryStorage(), uuid: nextUuid });
+  shapes.save(SHAPE_MAJOR, { type: 'bass', strings: 4 });
+  const built = await buildBackup({ library, shapes, now: clock() });
+  const dest = openLibrary(memoryStorage());
+  const result = await importBackup(serializeBackup(built.document), { library: dest, shapes: null });
+  assert.equal(result.ok, false);
+  assert.equal(result.phase, 'shapes');
+  assert.equal(result.partial, true);
+  // O retrato saiu de uma biblioteca fresca: o único exercício é a sessão base,
+  // idêntica à do destino — a dedup por conteúdo COMPLETO a reconhece (nada é
+  // duplicado: reusada, não adicionada). A fase dos exercícios foi aplicada
+  // mesmo assim; o que falta são só as formas.
+  assert.equal(result.applied.exercises.added, 0);
+  assert.equal(result.applied.exercises.reused, 1);
+  assert.equal(result.errors[0].code, 'indisponivel');
+  assert.match(result.errors[0].message, /1 forma\(s\) de dedilhado/);
+});
+
+test('backup: loja de formas indisponível recusa a exportação agregada', async () => {
+  const library = openLibrary(memoryStorage());
+  const unavailable = createFingeringShapeStore({ storage: null, uuid: nextUuid });
+  assert.equal(unavailable.status, 'unavailable');
+  const built = await buildBackup({ library, shapes: unavailable, now: clock() });
+  assert.equal(built.ok, false);
+  assert.equal(built.code, 'unavailable');
+  assert.equal(built.store, 'shapes');
+  // Sem a loja de formas no envelope, o arquivo diz que elas não foram conferidas.
+  const withoutShapes = await buildBackup({ library, now: clock() });
+  assert.equal(withoutShapes.ok, true);
+  assert.equal(withoutShapes.document.shapes.available, false);
+  assert.equal(withoutShapes.summary.shapesAvailable, false);
+  assert.equal(withoutShapes.summary.shapes, 0);
+  assert.equal(validateBackup(withoutShapes.document).ok, true);
+});
+
+test('backup: formas ilegíveis viajam preservadas no arquivo, com aviso na importação', async () => {
+  const storage = memoryStorage();
+  const library = openLibrary(storage);
+  storage.raw.set('groovegoblin-fingering-shapes', 'não é json');
+  const shapes = createFingeringShapeStore({ storage, uuid: nextUuid });
+  assert.equal(shapes.status, 'corrupt');
+  const built = await buildBackup({ library, shapes, now: clock() });
+  assert.equal(built.ok, true);
+  assert.equal(built.summary.shapesCorrupt, true);
+  assert.equal(built.document.shapes.corrupt.raw, 'não é json');
+
+  const target = createFingeringShapeStore({ storage: memoryStorage(), uuid: nextUuid });
+  const result = await importBackup(serializeBackup(built.document), { library: openLibrary(memoryStorage()), shapes: target });
+  assert.equal(result.ok, true);
+  assert.equal(result.warnings.length, 1);
+  assert.match(result.warnings[0].message, /ilegíveis/);
+  assert.equal(target.group('bass4').length, 0);
 });

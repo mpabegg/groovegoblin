@@ -149,6 +149,16 @@ Arpejos respeitam a ordem dos graus; a linha contínua escolhe a próxima altura
 
 `node scripts/check-study-generator.js` confere exemplos públicos inventados. Com um caminho de catálogo privado como argumento, compara valores derivados e imprime **apenas contagens por família e motivo**; divergências retornam código 1. `--formas=CAMINHO/formas.json` fornece digitações vinculadas. Sem uma forma, a conferência não alega correspondência de casas/cordas de uma figura de forma única. Arquivos privados ficam em `local/`, nunca nos exemplos públicos.
 
+### Formas de dedilhado no Braço
+
+1. Abra **Estúdio → Braço → Nova forma**.
+2. Escolha a qualidade, nomeie a forma e clique nas notas: a primeira é a tônica; as seguintes precisam corresponder aos graus escolhidos na afinação atual.
+3. Ordene os graus com as setas e clique em **Salvar forma**. A ordem escrita é a ordem da figura, não uma ordenação automática por altura.
+
+**Destacar no braço** transpõe a forma para a fundamental do acorde atual e acompanha a reprodução. Uma forma de baixo de quatro cordas também aparece no baixo de cinco cordas, identificada como reutilizada; quando cabe, usa a corda Si. As três formas incluídas — tríade maior, menor e oitava — são genéricas, sem associação a curso. Alterá-las e salvar cria uma forma sua.
+
+As formas ficam numa loja própria por instrumento, fora da Sessão v5. **Biblioteca → Arquivo → Exportar biblioteca** leva as formas salvas; **Importar** restaura e une sem duplicar. Arquivos ilegíveis ficam preservados para recuperação; falha de armazenamento não é apresentada como gravação bem-sucedida.
+
 ## Curso importado (formato `groovegoblin-course`)
 
 Além da biblioteca de exercícios, o GrooveGoblin lê **Cursos** descritos no documento JSON `groovegoblin-course` **versão 1**: o catálogo de seções, aulas, materiais e sugestões de exercício. Curso, progresso e vínculos ficam **fora** da Sessão; o formato não embute nem baixa vídeo, PDF, áudio, iframe ou prévia de link e nunca consulta a rede. Só entram **baixo de 4 ou 5 cordas**: material ou sugestão de 6 cordas é descartado com aviso, e um curso que declara 6 cordas é **incompatível** — a conversão falha apontando `course.strings` e nada é gravado. O esquema completo, campo a campo, está em [`guide.html#course`](./guide.html#course).

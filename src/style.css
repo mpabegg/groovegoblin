@@ -567,6 +567,25 @@ details.studio-fretboard:not([open]) { padding-block: 10px; }
 .fretboard-tone { background: #315142; color: var(--text); font-weight: 600; }
 .fretboard-root { background: var(--accent); color: #182717; font-weight: 800; }
 .fretboard-next { outline: 2px dashed var(--blue); outline-offset: -2px; }
+/* Formas de dedilhado (A3): o destaque entra na MESMA tabela do Braço, sobre as
+   classes do acorde, sem deslocar nada do desenho atual. */
+.fretboard-notes [data-shape-degree] { outline: 2px solid var(--accent); outline-offset: -3px; }
+.fretboard-notes [data-shape-degree="1"] { outline-width: 3px; box-shadow: inset 0 0 0 4px #b9ef8033; }
+.fretboard-notes[data-shape-editing="true"] td { cursor: crosshair; }
+.fingering-shapes { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 12px; }
+.fingering-shapes h3 { margin: 0 0 6px; font-size: 13px; }
+.fingering-shapes .tool-row { margin-bottom: 8px; }
+.shape-field input[type=text] { width: 200px; background: #111b20; border: 1px solid #4b5c63; border-radius: 6px; color: var(--text); padding: 8px; }
+.shape-degrees { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px 10px; margin: 0 0 10px; }
+.shape-degrees legend { font-size: 11px; color: var(--muted); padding: 0 4px; }
+.shape-order { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.shape-order li { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+.shape-order button { padding: 3px 7px; font-size: 11px; }
+.shape-notes { list-style: none; margin: 0; padding: 0; font-size: 12px; }
+.shape-notes li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+.shape-notes button { padding: 4px 8px; font-size: 11px; }
+#shape-status[data-error="true"] { color: #ffb6a2; }
+.shape-recovery { border: 1px solid var(--blue); border-radius: 8px; padding: 10px; font-size: 12px; }
 .chord-diagram { margin: 12px 0 0; width: 200px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
 .chord-diagram figcaption { font-size: 11px; }
 .chord-diagram svg { display: block; width: 170px; max-width: 100%; }

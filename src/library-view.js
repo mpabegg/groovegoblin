@@ -12,6 +12,9 @@ import { mountCourseWorkspace } from './course-workspace.js';
 import { sharedCourseStore } from './course-store.js';
 import { sharedAttachmentStore } from './course-attachments.js';
 import { mountLibraryBackup } from './library-backup-view.js';
+// As formas de dedilhado (A3) vivem fora da sessão e entram na cópia de
+// segurança: a MESMA instância usada pelo painel Braço.
+import { fingeringShapeStore } from './fingering-shapes-controller.js';
 import { exerciseOriginBadges, mountExerciseOrigins } from './course-lesson-origins.js';
 
 const INSTRUMENTS = Object.freeze([['all', 'Todos'], ['guitar', 'Guitarra'], ['bass', 'Baixo']]);
@@ -139,6 +142,7 @@ export function mountLibrary(container, host) {
           const attachments = await attachmentsPromise.catch(() => null);
           backupDialog = mountLibraryBackup(document.body, {
             library, store, attachments, notify, download,
+            shapes: fingeringShapeStore(),
           });
           return backupDialog;
         } finally {

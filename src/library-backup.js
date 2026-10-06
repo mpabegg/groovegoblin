@@ -87,6 +87,8 @@ export function summarizeBackup(document) {
   const orphans = states.filter(state => !records.some(record => record.id === state.courseId)).length;
   const attachments = document?.attachments ?? {};
   const courses = document?.courses ?? {};
+  const shapes = document?.shapes ?? {};
+  const shapeList = shapes.instruments !== null && typeof shapes.instruments === 'object' ? Object.values(shapes.instruments) : [];
   return {
     exercises: entries.length,
     records: entries.reduce((total, entry) => total + (entry?.metadata?.records?.length ?? 0), 0),
@@ -96,6 +98,10 @@ export function summarizeBackup(document) {
     // Uma loja AUSENTE não vira "0 curso": o arquivo diz que não foi conferida.
     coursesAvailable: courses.available !== false,
     corrupt: Array.isArray(courses.corrupt) ? courses.corrupt.length : 0,
+    // Idem para as formas de dedilhado: contagem só quando a loja foi conferida.
+    shapesAvailable: shapes.available === true,
+    shapes: shapeList.reduce((total, list) => total + (Array.isArray(list) ? list.length : 0), 0),
+    shapesCorrupt: shapes.available === true && shapes.corrupt !== undefined && shapes.corrupt !== null,
     attachments: attachments.included === true
       ? { included: true, ...backupAttachmentSummary(attachments.document?.totals ?? attachments.totals) }
       : { included: false, ...backupAttachmentSummary(attachments.totals ?? null) },
@@ -125,7 +131,7 @@ function controllerReason(controller, fallback) {
 // corrompida/indisponível ou controlador entregue com `persistent === false`
 // RECUSAM a exportação agregada, com o caminho de recuperação na mensagem.
 export async function buildBackup({
-  library, store = null, attachments = null, includeAttachments = false, now = isoNow, app = null,
+  library, store = null, attachments = null, includeAttachments = false, now = isoNow, app = null, shapes = null,
 } = {}) {
   if (!library || typeof library.exportLibrary !== 'function') throw new TypeError('Biblioteca de exercícios ausente para exportar.');
   const status = typeof library.status === 'string' ? library.status : null;
@@ -134,11 +140,18 @@ export async function buildBackup({
       ? 'A biblioteca de exercícios está corrompida: os bytes originais se baixam em Ajuda antes de qualquer backup novo. Nada foi exportado.'
       : 'A biblioteca de exercícios está indisponível neste navegador; nada foi exportado (o documento musical atual se baixa pela Ajuda).');
   }
+  if (shapes !== null && typeof shapes.exportDocument !== 'function') throw new TypeError('Loja de formas de dedilhado inválida para exportar.');
   if (controllerUnavailable(store)) {
     return exportRefusal('unavailable', 'courses', `Os cursos guardados não podem ser lidos agora (${controllerReason(store, 'loja de cursos indisponível')}). Nada foi exportado: o arquivo sairia sem os cursos e o progresso que continuam no disco.`);
   }
   if (controllerUnavailable(attachments)) {
     return exportRefusal('unavailable', 'attachments', `Os anexos guardados não podem ser lidos agora (${controllerReason(attachments, 'loja de anexos indisponível')}). Nada foi exportado: o arquivo sairia sem os arquivos que continuam no disco.`);
+  }
+  // Formas de dedilhado: loja indisponível RECUSA (o arquivo sairia sem elas).
+  // Documento ILEGÍVEL não recusa: os bytes vão no envelope, preservados, para o
+  // usuário não perder a única cópia.
+  if (shapes !== null && shapes.status === 'unavailable') {
+    return exportRefusal('unavailable', 'shapes', `As formas de dedilhado guardadas não podem ser lidas agora (${controllerReason(shapes, 'loja de formas indisponível')}). Nada foi exportado: o arquivo sairia sem elas.`);
   }
   const exercises = JSON.parse(library.exportLibrary());
   // Loja de cursos AUSENTE (API opcional): o envelope é explícito sobre isso.
@@ -152,6 +165,18 @@ export async function buildBackup({
       states: snapshot.states,
       orphans: snapshot.orphans.map(state => state.courseId),
       corrupt: snapshot.corrupt.map(entry => ({ store: entry.store, id: entry.id ?? null, raw: entry.raw ?? null })),
+    };
+  }
+  // Formas de dedilhado (A3): loja AUSENTE vira `available:false` explícito,
+  // nunca "0 forma" silencioso.
+  let shapeBlock = { available: false, version: null, instruments: {}, corrupt: null };
+  if (shapes !== null) {
+    const exported = shapes.exportDocument();
+    shapeBlock = {
+      available: true,
+      version: exported.version,
+      instruments: exported.instruments,
+      corrupt: shapes.status === 'corrupt' ? { raw: shapes.recoveryRaw ?? null, error: shapes.warning ?? null } : null,
     };
   }
   let attachmentBlock = { included: false, document: null, totals: null };
@@ -174,6 +199,7 @@ export async function buildBackup({
     app,
     exercises,
     courses,
+    shapes: shapeBlock,
     attachments: attachmentBlock,
   };
   return { ok: true, document, summary: summarizeBackup(document) };
@@ -236,6 +262,39 @@ export function validateBackup(document) {
       errors.push(issue('attachments.included', 'estrutura', 'O bloco de anexos precisa dizer se os arquivos foram incluídos.'));
     }
   }
+  const shapes = document.shapes;
+  if (shapes !== undefined && shapes !== null) {
+    if (!isObject(shapes)) {
+      errors.push(issue('shapes', 'estrutura', 'O bloco de formas de dedilhado do backup está inválido.'));
+    } else if (shapes.available !== true && shapes.available !== false) {
+      errors.push(issue('shapes.available', 'estrutura', 'O bloco de formas de dedilhado precisa dizer se foi conferido.'));
+    } else if (shapes.available === true) {
+      if (!isObject(shapes.instruments)) {
+        errors.push(issue('shapes.instruments', 'estrutura', 'O bloco de formas de dedilhado está sem os instrumentos.'));
+      } else {
+        for (const [id, list] of Object.entries(shapes.instruments)) {
+          if (!Array.isArray(list)) { errors.push(issue(`shapes.instruments.${id}`, 'estrutura', 'Cada instrumento do backup de formas deve listar as formas.')); continue; }
+          list.forEach((shape, index) => {
+            const path = `shapes.instruments.${id}[${index}]`;
+            if (!isObject(shape)) { errors.push(issue(path, 'forma', 'Cada forma do backup deve ser um objeto.')); return; }
+            if (!isText(shape.id)) errors.push(issue(`${path}.id`, 'id', 'A forma do backup precisa de um identificador.'));
+            if (!isText(shape.label)) errors.push(issue(`${path}.label`, 'nome', 'A forma do backup precisa de um nome.'));
+            if (!isText(shape.quality)) errors.push(issue(`${path}.quality`, 'qualidade', 'A forma do backup precisa de uma qualidade.'));
+            if (!Array.isArray(shape.degrees) || shape.degrees.length === 0) errors.push(issue(`${path}.degrees`, 'graus', 'A forma do backup precisa dos graus.'));
+            if (!Array.isArray(shape.notes) || shape.notes.length === 0) { errors.push(issue(`${path}.notes`, 'notas', 'A forma do backup precisa das notas clicadas no braço.')); return; }
+            shape.notes.forEach((note, position) => {
+              if (!isObject(note) || !Number.isInteger(note.string) || !Number.isInteger(note.fret) || !Number.isInteger(note.degree)) {
+                errors.push(issue(`${path}.notes[${position}]`, 'nota', 'Cada nota da forma precisa de corda, casa e grau inteiros.'));
+              }
+            });
+          });
+        }
+      }
+      if (shapes.corrupt !== undefined && shapes.corrupt !== null && !isObject(shapes.corrupt)) {
+        errors.push(issue('shapes.corrupt', 'recuperacao', 'O bloco de recuperação das formas está inválido.'));
+      }
+    }
+  }
   if (errors.length > 0) return { ok: false, errors: errors.slice(0, MAX_ERRORS) };
   return { ok: true, errors: [] };
 }
@@ -283,7 +342,7 @@ function attachmentErrorMessage(error) {
 // Ordem: exercícios (commit antes da memória) → cursos (remapeando vínculos com
 // o mapa origem→destino) → anexos. Assim nenhum curso aponta para exercício que
 // não entrou, e os anexos, que são o volume maior, entram por último.
-export async function importBackup(input, { library, store = null, attachments = null } = {}) {
+export async function importBackup(input, { library, store = null, attachments = null, shapes = null } = {}) {
   if (!library || typeof library.importEntries !== 'function') throw new TypeError('Biblioteca de exercícios ausente para importar.');
   let document = input;
   let text = null;
@@ -324,7 +383,7 @@ export async function importBackup(input, { library, store = null, attachments =
   } catch (error) {
     return { ok: false, phase: 'exercises', partial: false, applied: null, errors: [issue('exercises', 'importacao', error?.message ?? 'Importação de exercícios recusada.')] };
   }
-  const applied = { exercises: { added: exerciseResult.added, reused: exerciseResult.reused }, courses: null, attachments: null };
+  const applied = { exercises: { added: exerciseResult.added, reused: exerciseResult.reused }, courses: null, shapes: null, attachments: null };
 
   const courseSnapshot = document.courses ?? { records: [], states: [] };
   const courseRecords = Array.isArray(courseSnapshot.records) ? courseSnapshot.records : [];
@@ -365,6 +424,32 @@ export async function importBackup(input, { library, store = null, attachments =
       };
     }
     applied.courses = courseResult.report;
+  }
+
+  // Formas de dedilhado (A3): união idempotente. Forma recusada vira AVISO (o
+  // arquivo continua com ela; nada foi apagado para "corrigir").
+  const shapeSnapshot = document.shapes ?? null;
+  if (shapeSnapshot?.available === true) {
+    const incoming = Object.values(shapeSnapshot.instruments ?? {}).reduce((total, list) => total + (Array.isArray(list) ? list.length : 0), 0);
+    if (incoming > 0) {
+      if (!shapes || typeof shapes.importDocument !== 'function') {
+        return {
+          ok: false, phase: 'shapes', partial: true, applied, warnings,
+          errors: [issue('shapes', 'indisponivel', `O backup traz ${incoming} forma(s) de dedilhado, mas a loja de formas não está disponível neste navegador; os exercícios${applied.courses ? ' e os cursos' : ''} entraram e as formas não.`)],
+          report: courseResult?.report ?? null,
+        };
+      }
+      const result = shapes.importDocument(shapeSnapshot);
+      applied.shapes = { added: result.added, reused: result.reused, renamed: result.renamed };
+      for (const error of (result.errors ?? []).slice(0, 5)) {
+        warnings.push(issue(`shapes.${error.code ?? 'forma'}`, 'formas', `Forma não importada: ${error.message}`));
+      }
+    } else {
+      applied.shapes = { added: 0, reused: 0, renamed: 0 };
+    }
+    if (shapeSnapshot.corrupt !== undefined && shapeSnapshot.corrupt !== null) {
+      warnings.push(issue('shapes.corrupt', 'recuperacao', 'Havia formas ilegíveis no backup (bytes preservados só no arquivo); elas não foram gravadas.'));
+    }
   }
 
   let attachmentResult = null;
@@ -420,6 +505,7 @@ export function describeImportResult(result) {
   }
   const exercises = result.applied?.exercises ?? { added: 0, reused: 0 };
   const courses = result.applied?.courses ?? { added: 0, merged: 0, orphans: 0 };
+  const shapes = result.applied?.shapes ?? null;
   const attachments = result.attachments ?? null;
   const parts = [
     `${exercises.added} exercício(s) adicionado(s)`,
@@ -427,6 +513,7 @@ export function describeImportResult(result) {
     `${courses.added} curso(s) novo(s)`,
     `${courses.merged + courses.orphans} estado(s) atualizado(s)`,
   ];
+  if (shapes) parts.push(`${shapes.added} forma(s) de dedilhado`);
   if (attachments) parts.push(`${attachments.addedFiles ?? 0} arquivo(s) de anexo`);
   const warnings = result.warnings?.length ?? 0;
   return `Importação concluída: ${parts.join('; ')}.${warnings > 0 ? ` ${warnings} aviso(s) registrados.` : ''}`;
