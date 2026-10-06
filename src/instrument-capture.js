@@ -38,20 +38,31 @@ export class InstrumentCapture {
   #deviceListener = null;
   #pitchListeners = new Set();
   #attackListeners = new Set();
+  #sampleListeners = new Set();
   #pitchStream = null;
   constructor({ onAttack, onLevel, onError, onDevices = () => {} }) {
     this.onAttack = onAttack; this.onLevel = onLevel; this.onError = onError; this.onDevices = onDevices;
     this.deviceId = ''; this.calibrationDeviceId = null; this.inputLatencySeconds = 0; this.settings = {};
   }
   get active() { return this.#worklet !== null; }
+  // Real rate of the running context, never a requested/ideal value.
+  get sampleRate() { return this.#context?.sampleRate ?? null; }
   subscribePitch(listener) {
     this.#pitchListeners.add(listener);
     this.configure({ pitchEnabled: true });
-    return () => { this.#pitchListeners.delete(listener); this.configure({ pitchEnabled: this.#pitchListeners.size > 0 }); };
+    return () => { this.#pitchListeners.delete(listener); this.configure({ pitchEnabled: this.#pitchListeners.size > 0 || this.#sampleListeners.size > 0 }); };
   }
   subscribeAttacks(listener) {
     this.#attackListeners.add(listener);
     return () => this.#attackListeners.delete(listener);
+  }
+  // Ephemeral PCM batches of the selected channel over the SAME capture and
+  // worklet as onsets/pitch; subscribing never opens another microphone and
+  // retaining the returned blocks is the caller's explicit choice.
+  subscribeSamples(listener) {
+    this.#sampleListeners.add(listener);
+    this.configure({ pitchEnabled: true });
+    return () => { this.#sampleListeners.delete(listener); this.configure({ pitchEnabled: this.#pitchListeners.size > 0 }); };
   }
   async devices() {
     if (!navigator.mediaDevices?.enumerateDevices) return [];
@@ -97,7 +108,9 @@ export class InstrumentCapture {
         const pair = { contextTime: context.currentTime, performanceTime: performance.now() };
         const frameTime = frame => captureFrameTime(frame, context.sampleRate, pair, this.inputLatencySeconds);
         if (data.type === 'samples') {
-          if (!this.#pitchListeners.size || data.channel !== this.settings.channel) return;
+          if (data.channel !== this.settings.channel) return;
+          for (const listener of this.#sampleListeners) listener(data.samples);
+          if (!this.#pitchListeners.size) return;
           this.#pitchStream ??= createPitchStream(context.sampleRate);
           this.#pitchStream.push(data.samples, data.startFrame, result => {
             const pitch = { ...result, sampleRate: context.sampleRate, captureId: generation, deviceId: this.deviceId,
@@ -150,6 +163,7 @@ export class InstrumentCapture {
     for (const node of [this.#source, this.#worklet, this.#mute]) node?.disconnect();
     this.#source = this.#worklet = this.#mute = null;
     this.#pitchStream = null;
+    this.#sampleListeners.clear();
     if (this.#stream) for (const track of this.#stream.getTracks()) { track.onended = track.onmute = null; track.stop(); }
     this.#stream = null;
     const context = this.#context; this.#context = null;

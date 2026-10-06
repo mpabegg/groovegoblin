@@ -5,6 +5,7 @@ import { calibrateInput, compensatedTime, detectClickLeak, inputTailSeconds, cal
 import { getInstrumentProfile } from './instrument-profile.js';
 import { mountInstrumentTuner } from './instrument-tuner.js';
 import { InstrumentPitchEvaluation, instrumentPitchAvailable, INSTRUMENT_PITCH_TAIL_SECONDS } from './instrument-pitch-evaluation.js';
+import { createDiagnosticLog, createSampleRecorder, diagnosticReport, encodeSampleWav, SAMPLE_SECONDS } from './instrument-diagnostics.js';
 
 const $ = id => document.getElementById(id);
 function el(tag, props = {}, ...children) {
@@ -45,6 +46,10 @@ export function mountPerformanceInput(host) {
   let leakAttacks = [];
   let leakWarned = false;
   let storedCalibration = readCalibration('keyboard');
+  const diagnostics = createDiagnosticLog();
+  let diagnosticPitchOff = null;
+  let sampleRecorder = null;
+  let observedSampleRate = null;
 
   const entry = el('select', { id: 'performance-entry', 'aria-label': 'Entrada do treino' },
     el('option', { value: 'keyboard', text: 'Teclado' }), el('option', { value: 'instrument', text: 'Instrumento' }));
@@ -59,9 +64,16 @@ export function mountPerformanceInput(host) {
   const reason = el('p', { id: 'instrument-goal-reason', className: 'tool-hint muted', text: 'Instrumento avalia ataques e, em frases monofônicas, alturas (±50 cents; baixa confiança = não identificada). Durações não são medidas; use Teclado para avaliar pressão e soltura.', hidden: true });
   const test = el('button', { id: 'instrument-test', type: 'button', text: 'Testar entrada' });
   const diagnostic = el('ol', { id: 'instrument-diagnostic', className: 'instrument-diagnostic', hidden: true, 'aria-label': 'Ataques detectados: instante e nível' });
+  const exportDiagnostics = el('button', { id: 'input-diagnostics-export', type: 'button', text: 'Exportar diagnóstico (JSON)' });
+  const sampleButton = el('button', { id: 'instrument-sample', type: 'button', text: `Salvar amostra · ${SAMPLE_SECONDS} s` });
+  const cancelSample = el('button', { id: 'instrument-sample-cancel', type: 'button', text: 'Cancelar amostra', hidden: true });
+  const sampleProgress = el('progress', { id: 'instrument-sample-progress', max: SAMPLE_SECONDS, value: 0, hidden: true, 'aria-label': `Progresso da amostra de ${SAMPLE_SECONDS} segundos` });
+  const sampleStatus = el('output', { id: 'instrument-sample-status', role: 'status', 'aria-live': 'polite' });
   const instrumentPanel = el('div', { id: 'instrument-panel', hidden: true },
     el('div', { className: 'tool-row' }, label('Dispositivo', device), label('Canal', channel), label('Sensibilidade', sensitivity)),
-    el('p', { className: 'tool-hint muted', text: 'Use fones: o clique e a banda podem vazar no microfone e gerar ataques falsos. Durante a contagem, espere sem tocar para diagnosticar vazamento.' }), test, diagnostic);
+    el('p', { className: 'tool-hint muted', text: 'Use fones: o clique e a banda podem vazar no microfone e gerar ataques falsos. Durante a contagem, espere sem tocar para diagnosticar vazamento.' }), test, diagnostic,
+    el('div', { className: 'tool-row' }, exportDiagnostics, sampleButton, cancelSample, sampleProgress), sampleStatus,
+    el('p', { className: 'tool-hint muted', text: `Exportar diagnóstico baixa um JSON com dispositivo, canal, taxa real, sensibilidade, compensação, perfil e os ataques realmente observados (instante, nível, altura estimada e confiança) do último Testar entrada ou treino — sem áudio. Salvar amostra é a única exceção que grava: ${SAMPLE_SECONDS} s do canal escolhido, baixados como WAV neste dispositivo; cancelar ou sair descarta a gravação.` }));
   const calibrate = el('button', { id: 'input-calibrate', type: 'button', text: 'Calibrar latência · 8 cliques' });
   const cancelCalibration = el('button', { id: 'input-calibration-cancel', type: 'button', text: 'Cancelar calibração', hidden: true });
   const manual = el('input', { id: 'input-compensation', type: 'number', min: '-500', max: '500', step: '1', value: storedCalibration ?? 0 });
@@ -77,7 +89,7 @@ export function mountPerformanceInput(host) {
       el('summary', { text: 'Calibração de latência (teclado ou instrumento)' }),
       el('p', { className: 'tool-hint muted', text: 'Toque junto dos oito cliques. Os dois primeiros são aquecimento; a mediana dos seis restantes compensa o atraso residual. Use fones e pulso estável. A calibração inclui seu tempo de resposta, não é uma medição laboratorial.' }),
       el('div', { className: 'tool-row' }, calibrate, cancelCalibration, label('Compensação manual (ms)', manual), clearCalibration), compensation),
-    el('p', { id: 'instrument-privacy', className: 'tool-hint muted', text: 'Privacidade: áudio analisado somente neste dispositivo, sem gravação ou envio. Ativar instrumento pode pedir permissão. A última entrada escolhida é lembrada; ao entrar em Praticar, reabrimos somente se a permissão já estiver concedida. Teclado, sair de Praticar ou perder foco encerra a captura.' }));
+    el('p', { id: 'instrument-privacy', className: 'tool-hint muted', text: `Privacidade: o áudio da entrada é analisado somente neste dispositivo; nada é enviado nem guardado no navegador. Exceção explícita: "Salvar amostra · ${SAMPLE_SECONDS} s" grava ${SAMPLE_SECONDS} segundos do canal escolhido apenas enquanto você pede e baixa um WAV local; cancelar, trocar de canal ou sair descarta a gravação. Ativar instrumento pode pedir permissão. A última entrada escolhida é lembrada; ao entrar em Praticar, reabrimos somente se a permissão já estiver concedida. Teclado, sair de Praticar ou perder foco encerra a captura.` }));
   const panel = el('section', { className: 'performance-entry', 'aria-label': 'Entrada e calibração' },
     el('div', { className: 'input-compact' }, label('Entrada', entry), activateInstrument, summary,
       el('div', { className: 'instrument-meter' }, level, levelText), tunerButton, configure),
@@ -144,6 +156,7 @@ export function mountPerformanceInput(host) {
       watchPermission(null);
       preparing = false; mode = 'keyboard'; entry.value = mode;
       testing = false; diagnostic.hidden = true; test.textContent = 'Testar entrada';
+      closeDiagnostics(); stopSample('Captura encerrada durante a amostra; o áudio foi descartado.');
       recoveringDevices = recover; enumeratingDevices = recover;
       if (recover) { configuration.hidden = false; configure.setAttribute('aria-expanded', 'true'); }
       if (recover) {
@@ -164,6 +177,10 @@ export function mountPerformanceInput(host) {
         diagnostic.prepend(item); while (diagnostic.children.length > 32) diagnostic.lastChild.remove();
       }
       if (calibration) { calibration.attacks.push(attack.time); return; }
+      if (testing || trainingActive()) {
+        observedSampleRate = attack.sampleRate ?? observedSampleRate;
+        diagnostics.attack(attack);
+      }
       const time = compensatedTime(attack.time, storedCalibration ?? 0);
       const currentMode = audio.position.mode;
       if (trainingActive()) pitchEvaluation.attack(attack, gate.attack(time));
@@ -186,8 +203,38 @@ export function mountPerformanceInput(host) {
     practicePreparing: () => preparing,
     preparation: () => preparation,
     ready: () => { void monitorPermission(); },
-    closed: () => { if (!capture.active && !preparing) watchPermission(null); },
+    closed: () => { stopSample('Captura encerrada durante a amostra; o áudio foi descartado.'); if (!capture.active && !preparing) watchPermission(null); },
   });
+  // Diagnostics borrow the live capture: subscribing to pitch only while a
+  // Test/training is observed keeps the real estimate paired with each attack.
+  function openDiagnostics(source) {
+    diagnostics.reset(source);
+    diagnosticPitchOff ??= capture.subscribePitch(event => {
+      if (event.stopped) return;
+      observedSampleRate = event.sampleRate ?? observedSampleRate;
+      diagnostics.pitch(event);
+    });
+  }
+  function closeDiagnostics() { diagnosticPitchOff?.(); diagnosticPitchOff = null; }
+  function stopSample(message = '') {
+    const recorder = sampleRecorder;
+    sampleRecorder = null;
+    if (!recorder) return false;
+    recorder.cancel();
+    if (message) sampleStatus.textContent = message;
+    return true;
+  }
+  function channelText() { return channel.options[['1', '2', 'sum'].indexOf(preferences.channel)]?.textContent ?? preferences.channel; }
+  function downloadFile(name, blob) {
+    if (typeof document === 'undefined' || typeof URL?.createObjectURL !== 'function') return false;
+    const url = URL.createObjectURL(blob);
+    const anchor = el('a', { href: url, download: name, hidden: true });
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    return true;
+  }
   async function monitorPermission() {
     if (permissionStatus || !navigator.permissions?.query) return;
     const request = selectionGeneration;
@@ -213,7 +260,7 @@ export function mountPerformanceInput(host) {
     recoveringDevices = false; enumeratingDevices = false;
     if (!automatic) host.stop();
     reset(); capture.stop(); testing = false; diagnostic.hidden = true;
-    test.textContent = 'Testar entrada';
+    test.textContent = 'Testar entrada'; diagnostics.reset(null); sampleStatus.textContent = '';
     mode = value; entry.value = value; preparing = value === 'instrument';
     status.textContent = preparing ? 'Abrindo entrada de áudio…' : 'Entrada por teclado/toque; captura encerrada.';
     loadCompensation(); host.changed();
@@ -270,13 +317,51 @@ export function mountPerformanceInput(host) {
     if (mode === 'instrument') void chooseMode('instrument', { reopen: true });
     else { status.textContent = 'Entrada selecionada. Ative instrumento para abri-la; o teclado continua ativo.'; render(); host.changed(); }
   });
-  channel.addEventListener('change', () => { preferences.channel = channel.value; capture.configure({ channel: channel.value }); persistPreferences(); render(); });
+  channel.addEventListener('change', () => {
+    stopSample('Canal alterado durante a amostra; a gravação foi descartada.');
+    preferences.channel = channel.value; capture.configure({ channel: channel.value }); persistPreferences(); render();
+  });
   sensitivity.addEventListener('input', () => { preferences.sensitivity = Number(sensitivity.value); capture.configure({ sensitivity: preferences.sensitivity }); persistPreferences(); });
   test.addEventListener('click', () => {
     testing = !testing; diagnostic.hidden = !testing; diagnostic.replaceChildren();
     test.textContent = testing ? 'Encerrar teste da entrada' : 'Testar entrada';
+    if (testing) { openDiagnostics('test'); sampleStatus.textContent = ''; }
+    else closeDiagnostics();
     status.textContent = testing ? 'Diagnóstico sem treino: toque no instrumento e confira instantes e níveis abaixo.' : 'Diagnóstico encerrado; entrada continua ativa.';
+    render();
   });
+  exportDiagnostics.addEventListener('click', () => {
+    const selected = [...device.options].find(option => option.value === capture.deviceId);
+    const report = diagnosticReport({
+      attacks: diagnostics.entries(), source: diagnostics.source,
+      device: { deviceId: capture.deviceId, calibrationDeviceId: capture.calibrationDeviceId, label: selected?.textContent ?? '' },
+      channel: preferences.channel, sampleRate: capture.sampleRate ?? observedSampleRate,
+      sensitivity: preferences.sensitivity, compensation: storedCalibration,
+      profile: getInstrumentProfile(host.getSession()),
+    });
+    sampleStatus.textContent = downloadFile('groovegoblin-entrada-diagnostico.json', new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }))
+      ? `Diagnóstico exportado: ${report.attacks.length} ataque(s) observado(s), sem áudio.`
+      : 'Download indisponível neste ambiente.';
+  });
+  sampleButton.addEventListener('click', () => {
+    const rate = capture.sampleRate;
+    if (sampleRecorder || !capture.active || !Number.isFinite(rate)) { sampleStatus.textContent = 'Ative o instrumento antes de salvar a amostra.'; return; }
+    const recorder = createSampleRecorder({
+      capture, channel: preferences.channel, sampleRate: rate,
+      onProgress({ seconds, total }) { sampleProgress.value = seconds; sampleProgress.max = total; sampleStatus.textContent = `Gravando ${seconds.toFixed(1)} s de ${total} s do canal ${channelText()}…`; },
+      onFinish({ data, sampleRate }) {
+        sampleRecorder = null;
+        const ok = downloadFile(`groovegoblin-amostra-${SAMPLE_SECONDS}s-canal-${preferences.channel}.wav`, new Blob([encodeSampleWav({ data, sampleRate })], { type: 'audio/wav' }));
+        sampleStatus.textContent = ok ? `Amostra de ${SAMPLE_SECONDS} s do canal ${channelText()} baixada em ${sampleRate} Hz (WAV PCM 16 bits).` : 'Download indisponível neste ambiente; a amostra foi descartada.';
+        render();
+      },
+      onCancel() { sampleRecorder = null; sampleStatus.textContent = 'Amostra cancelada; a gravação foi descartada e a entrada continua ativa.'; render(); },
+      onError(message) { sampleRecorder = null; sampleStatus.textContent = message; host.notify(message, true); render(); },
+    });
+    if (!recorder.start()) { sampleStatus.textContent = 'Não foi possível iniciar a amostra; verifique a entrada.'; return; }
+    sampleRecorder = recorder; render();
+  });
+  cancelSample.addEventListener('click', () => stopSample());
   manual.addEventListener('change', () => {
     if (manual.value === '' || !manual.reportValidity()) { manual.value = storedCalibration ?? 0; return; }
     saveCompensation(Number(manual.value));
@@ -310,6 +395,8 @@ export function mountPerformanceInput(host) {
 
   function reset() {
     unsubscribeEvaluationPitch?.(); unsubscribeEvaluationPitch = null; pitchEvaluation.reset();
+    closeDiagnostics();
+    stopSample('Amostra cancelada ao reiniciar o transporte; a gravação foi descartada.');
     if (calibration) {
       status.textContent = 'Calibração cancelada; compensação anterior preservada.';
       $('train-state').textContent = 'Calibração interrompida. Você pode tentar novamente.';
@@ -362,6 +449,7 @@ export function mountPerformanceInput(host) {
     preparing = false; recoveringDevices = false; enumeratingDevices = false;
     capture.stop(); mode = 'keyboard'; entry.value = mode;
     tuner.suspend(typeof message === 'string' ? message : 'Captura encerrada ao perder foco. Ative entrada para reabrir.');
+    stopSample('Captura encerrada; a amostra foi descartada.');
     if (hadCapture) host.stop();
     reset(); loadCompensation(); status.textContent = typeof message === 'string' ? message : 'Captura encerrada ao perder foco. Ative instrumento para reabrir.'; host.changed();
   }
@@ -385,6 +473,11 @@ export function mountPerformanceInput(host) {
     channel.disabled = mode !== 'instrument' || preparing || locked;
     sensitivity.disabled = mode !== 'instrument' || preparing || !!calibration;
     test.disabled = !capture.active || locked;
+    exportDiagnostics.disabled = mode !== 'instrument' || preparing || locked || !capture.active;
+    sampleButton.disabled = exportDiagnostics.disabled || !!calibration || !!sampleRecorder;
+    cancelSample.hidden = !sampleRecorder;
+    sampleProgress.hidden = !sampleRecorder;
+    if (!sampleRecorder) sampleProgress.value = 0;
     calibrate.disabled = preparing || locked || (mode === 'instrument' && !capture.active);
     cancelCalibration.hidden = !calibration; manual.disabled = clearCalibration.disabled = locked || preparing;
     compensation.textContent = storedCalibration === null ? 'Sem calibração. Compensação 0 ms.' : `Compensação ${storedCalibration} ms (${mode === 'instrument' ? 'dispositivo atual' : 'teclado/toque'}).`;
@@ -434,6 +527,7 @@ export function mountPerformanceInput(host) {
         pitchEvaluation.start(); unsubscribeEvaluationPitch = capture.subscribePitch(event => pitchEvaluation.pitch(event));
       }
       gate.reset(); testing = false; diagnostic.hidden = true; test.textContent = 'Testar entrada';
+      if (mode === 'instrument') openDiagnostics('training');
       leakClicks = audio.countInClicks; leakAttacks = []; leakWarned = false;
       capture.configure({ refractory: refractorySeconds(value), instrumentType: getInstrumentProfile(value).type });
     },
