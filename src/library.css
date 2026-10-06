@@ -2,6 +2,11 @@
    Desktop 1280–1440; nada depende de toque. */
 
 .library-root { display: flex; flex-direction: column; gap: 12px; }
+/* O conteúdo da Biblioteca é escolhido num seletor único (Exercícios/Cursos):
+   a página em repouso gasta um controle em vez de dois. */
+.library-switch { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; margin-bottom: 12px; }
+.library-switch .library-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.library-switch select { min-width: 190px; min-height: 38px; }
 .library-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #111b20; }
 .library-toolbar .library-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
 .library-toolbar input[type=search], .library-toolbar select { min-width: 150px; }
@@ -23,6 +28,13 @@
 .library-actions { display: flex; flex-wrap: wrap; align-items: start; gap: 6px; }
 .library-actions > button { min-height: 34px; }
 .library-menu > summary { cursor: pointer; padding: 7px 10px; font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; }
+/* Grupo “Arquivo” da barra: exportar/importar continuam a um clique. */
+.library-files { align-self: end; }
+.library-files > summary { min-height: 38px; display: inline-flex; align-items: center; }
+.library-files .library-menu-content { min-width: 220px; }
+/* Paginação da lista: o seletor só existe quando há mais de uma página. */
+.library-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: #16232a; font-size: 12px; }
+.library-pager select { min-width: 160px; }
 .library-menu-content { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #16232a; }
 .library-menu-content button { text-align: left; }
 .library-editor { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; margin-top: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #16232a; }

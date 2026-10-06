@@ -8,6 +8,8 @@
 import { createEl, renderKeepingFocus } from './practice.js';
 import { SESSION_NAME_MAX } from './session.js';
 import { mountExerciseHistory } from './exercise-history.js';
+import { mountCourses } from './course-view.js';
+import { sharedCourseStore } from './course-store.js';
 
 const INSTRUMENTS = Object.freeze([['all', 'Todos'], ['guitar', 'Guitarra'], ['bass', 'Baixo']]);
 const SORTS = Object.freeze([
@@ -16,6 +18,9 @@ const SORTS = Object.freeze([
   ['name', 'Nome (A–Z)'],
 ]);
 const INSTRUMENT_LABELS = Object.freeze({ guitar: 'Guitarra', bass: 'Baixo' });
+// A lista em repouso mostra poucas linhas por página: mantém a janela sem
+// rolagem e o número de controles estável, sem esconder nenhuma ação.
+const LIST_PAGE_SIZE = 2;
 
 function relativeFromNow(iso, now = Date.now()) {
   if (!iso) return 'nunca treinado';
@@ -53,7 +58,45 @@ export function mountLibrary(container, host) {
   }
 
   const root = createEl('section', { className: 'library-root', 'aria-label': 'Biblioteca de exercícios' });
-  container.appendChild(root);
+  // Alternador Exercícios/Cursos dentro da MESMA aba da Biblioteca: os quatro
+  // destinos principais do app não mudam, e os cursos ficam ao lado dos
+  // exercícios sem virar uma aba própria. A escolha é um seletor único — dois
+  // botões ocupariam um controle a mais na página em repouso sem acrescentar
+  // nada (o limite da Biblioteca vale para a página inteira, não só a lista).
+  const coursesMount = createEl('div', { id: 'courses-mount', hidden: true });
+  const modeSelect = createEl('select', { id: 'library-mode', 'aria-label': 'Conteúdo da biblioteca' });
+  fillSelect(modeSelect, [['exercises', 'Exercícios'], ['courses', 'Cursos']]);
+  modeSelect.value = 'exercises';
+  modeSelect.addEventListener('change', () => setMode(modeSelect.value));
+  const switchBar = createEl('div', { className: 'library-switch' }, [
+    createEl('label', { className: 'library-field' }, [createEl('span', { text: 'Conteúdo' }), modeSelect]),
+  ]);
+  let mode = 'exercises';
+  let coursesView = null;
+  function setMode(next) {
+    mode = next;
+    modeSelect.value = next;
+    root.hidden = next !== 'exercises';
+    coursesMount.hidden = next !== 'courses';
+    if (next === 'courses') void openCourses();
+    else render();
+  }
+  // A loja de cursos vive em IndexedDB próprio e é montada na primeira visita à
+  // lista; sem IndexedDB a própria lista avisa e recusa salvar.
+  async function openCourses() {
+    if (coursesView) { coursesView.render(); return; }
+    coursesMount.replaceChildren(createEl('p', { className: 'courses-summary muted', role: 'status', text: 'Carregando cursos…' }));
+    try {
+      const store = await sharedCourseStore();
+      if (coursesView) return;
+      coursesMount.replaceChildren();
+      coursesView = mountCourses(coursesMount, { store, library, notify: host.notify, download: host.download });
+    } catch (error) {
+      coursesMount.replaceChildren(createEl('p', { className: 'courses-error', role: 'alert', text: `Não foi possível abrir a loja de cursos: ${error.message}` }));
+    }
+  }
+  container.append(switchBar, root, coursesMount);
+
   // O histórico do exercício abre em um diálogo nativo (Esc e foco vêm do
   // navegador) e lê apenas a biblioteca; mora no body para sobreviver às
   // reconstruções da lista.
@@ -62,7 +105,7 @@ export function mountLibrary(container, host) {
   historyDialog.appendChild(historyBody);
   (document.body ?? container).appendChild(historyDialog);
   let historyView = null;
-  const view = { instrument: 'all', tag: 'all', query: '', sort: 'untrained' };
+  const view = { instrument: 'all', tag: 'all', query: '', sort: 'untrained', page: 1 };
   let undo = null;
   let editing = null;
 
@@ -157,10 +200,14 @@ export function mountLibrary(container, host) {
       }
       render();
     });
+    // Exportar/Importar ficam no grupo “Arquivo”: continuam a um clique e a
+    // barra em repouso não gasta dois controles permanentes com eles.
+    const files = createEl('details', { className: 'library-menu library-files', dataset: { disclosure: 'library-files' } });
+    files.append(createEl('summary', { text: 'Arquivo' }), createEl('div', { className: 'library-menu-content' }, [exportAll, importButton, importFile]));
     bar.append(add, search, createEl('label', { className: 'library-field' }, [createEl('span', { text: 'Instrumento' }), instrument]),
       createEl('label', { className: 'library-field' }, [createEl('span', { text: 'Etiqueta' }), tag]),
       createEl('label', { className: 'library-field' }, [createEl('span', { text: 'Ordenar' }), sort]),
-      exportAll, importButton, importFile);
+      files);
     return bar;
   }
 
@@ -293,8 +340,18 @@ export function mountLibrary(container, host) {
 
   function renderAll() {
     root.replaceChildren();
-    const list = rows();
+    const all = rows();
     const total = library.size();
+    // Paginação curta: a página em repouso não estica a janela nem multiplica
+    // controles por causa de muitos exercícios. O seletor de página só aparece
+    // quando existe mais de uma página.
+    const pages = Math.max(1, Math.ceil(all.length / LIST_PAGE_SIZE));
+    if (editing?.id) {
+      const index = all.findIndex(row => row.id === editing.id);
+      if (index >= 0) view.page = Math.floor(index / LIST_PAGE_SIZE) + 1;
+    }
+    view.page = Math.min(pages, Math.max(1, view.page));
+    const list = all.slice((view.page - 1) * LIST_PAGE_SIZE, view.page * LIST_PAGE_SIZE);
     root.append(
       renderToolbar(),
       createEl('p', { id: 'library-summary', className: 'library-summary muted', role: 'status', text: `${total} exercício(s) na biblioteca · ${list.length} exibido(s). Cada treino é salvo automaticamente aqui.` }),
@@ -322,11 +379,27 @@ export function mountLibrary(container, host) {
     for (const row of list) container_.append(renderItem(row));
     root.append(container_);
     if (list.length === 0) root.append(createEl('p', { className: 'library-empty muted', text: 'Nenhum exercício corresponde aos filtros.' }));
+    if (pages > 1) root.append(renderPager(all.length, pages));
+  }
+
+  // Seletor de página (um controle): aparece só com mais de uma página, e a
+  // lista visível nunca passa de LIST_PAGE_SIZE itens.
+  function renderPager(filtered, pages) {
+    const bar = createEl('div', { className: 'library-pager' });
+    const first = (view.page - 1) * LIST_PAGE_SIZE + 1;
+    const last = Math.min(filtered, view.page * LIST_PAGE_SIZE);
+    const select = createEl('select', { id: 'library-page', 'aria-label': 'Página da lista de exercícios' });
+    for (let page = 1; page <= pages; page += 1) select.append(createEl('option', { value: String(page), text: `Página ${page} de ${pages}` }));
+    select.value = String(view.page);
+    select.addEventListener('change', () => { view.page = Number(select.value) || 1; render(); });
+    bar.append(createEl('span', { className: 'muted', text: `Mostrando ${first}–${last} de ${filtered} exercício(s) no filtro.` }), select);
+    return bar;
   }
 
   // Enquanto o painel está oculto não vale reconstruir a lista; o main chama
-  // render() ao ativar a aba.
+  // render() ao ativar a aba. No modo Cursos quem redesenha é a lista de cursos.
   function render() {
+    if (mode === 'courses') { coursesView?.render(); return; }
     if (root.closest('[hidden]')) return;
     renderKeepingFocus(root, renderAll);
   }
@@ -340,6 +413,9 @@ export function mountLibrary(container, host) {
       unsubscribe?.();
       historyView?.destroy();
       historyDialog.remove();
+      coursesView?.destroy();
+      switchBar.remove();
+      coursesMount.remove();
       root.remove();
     },
   };
