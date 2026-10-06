@@ -75,6 +75,43 @@ Capturas reais: [1440×900](rodada-4-resultado-1440x900.png), [1280×800](rodada
 
 Verificação da branch: `npm test && npm run check` — **585 aprovados, 1 ignorado, zero falhas**; **142 módulos**, zero falhas. O único ignorado continua sendo o fixture opcional de instrumento. Regressões permanentes cobrem resumos/estados/oitava, agregação, limites de trecho, comparação, identidade da execução, atalhos e escopo da supressão dos avisos.
 
+## Etapa 4 — biblioteca autosalva
+
+- `groovegoblin.exercise-library.v1` passa a ser a fonte única dos exercícios. Sessão v5 e metadados ficam separados. As chaves legadas permanecem intactas e o backup cru das seis chaves anteriores é capturado em `groovegoblin.exercise-library.v1.backup` **antes** de `loadSession`.
+- Biblioteca é a primeira aba; abre no início quando há mais de um exercício. Com um só, o Estúdio continua sendo a entrada. Novo preserva o anterior e começa sem notas/acordes; duplicar mantém o original.
+- Trocas de exercício sincronizam `activeId`, sessão editada e Undo. Duplicar um item não ativo não pode copiar por cima dele a frase que estava no Estúdio.
+- Nomes acima de 80 caracteres são rejeitados antes de qualquer escrita. A cópia reserva espaço para “ · cópia”, sem alterar o nome original. Importação incompatível é rejeitada integralmente, sem sobrescrever exercícios.
+- Não há descarte automático aos 200 registros. O histórico completo é preservado ao registrar, recarregar e importar; falta de armazenamento continua sendo um erro explícito, não autorização para remover dados.
+
+### Prova no navegador
+
+Fluxos nativos em Chromium privado na porta 5214, mais integração independente na porta 5204:
+
+| Cenário | Resultado observado |
+| --- | --- |
+| Sessão atual + três antigas distintas | **4 exercícios**, Biblioteca ativa, backup cru e originais preservados |
+| Uma antiga idêntica à atual | **3 exercícios**, sem duplicação |
+| Somente uma sessão | **1 exercício**, Estúdio ativo |
+| Duplicar Arpejos não ativo | cópia abre com **96 BPM**, original de 120 permanece intacto; editar a cópia para 100 não altera o original |
+| Excluir ativo / Desfazer | vizinho assume a edição; Desfazer restaura conteúdo e posição, sem sobrescrever o vizinho |
+| Renomear / mudar BPM no Estúdio | nome permanece igual em metadados, sessão e campo de edição |
+| Novo / recarregar | exercício vazio e todos os anteriores preservados; nenhum botão Salvar na biblioteca em repouso |
+| Metadados e busca | etiquetas, alvo **150**, anotações, filtros de instrumento/etiqueta e ordenações exercitados; caret preservado inclusive em inserção no meio da busca |
+| Treino nativo de teclado | **3/32** gravado somente no exercício iniciado, com timestamps, BPM e duração reais |
+| Treino após integrar o resultado compacto | entrada controlada +30 ms → **32/32**; um registro no dono correto, **120 BPM**, **18.194 ms**; os três outros exercícios continuam sem registros |
+| Exportar/importar exercício | metadados, alvo e registro preservados; reimportar não sobrescreve o existente |
+| JSON de sessão antigo / biblioteca inteira | importação exercitada; mesmo ID com conteúdo diferente preserva as duas versões |
+| Backup e corrupção | downloads reais; bytes corrompidos preservados e baixados exatamente, sem recuperação destrutiva automática |
+| Nome de 80 / 81 caracteres | 80 aceito; 81 rejeitado com armazenamento byte a byte inalterado; recarregamento permanece válido |
+| Histórico de 201 registros | importação nativa de fixture e recarregamento mantêm **201**, do ID `history-proof-0` ao `history-proof-200` |
+| 1440×900 / 1280×800 | documentos **900 / 861 px**, sem overflow horizontal; busca com o estilo comum dos campos |
+
+O histórico de 201 itens é uma fixture de fronteira, não 201 execuções humanas. O teste dessa fronteira falhou antes da correção por perder o primeiro registro e passou depois. O último exercício não é excluído: a interface explica que a biblioteca precisa de ao menos um, mantendo a invariância de exercício ativo.
+
+Capturas reais: [1440×900](rodada-4-biblioteca-1440x900.png), [1280×800](rodada-4-biblioteca-1280x800.png).
+
+Verificação final da branch já sobre a etapa 2: `npm test && npm run check` — **613 aprovados, 1 ignorado, zero falhas**; **145 módulos**, zero falhas. Regressões cobrem migração, backup, corrupção/quota, identidade da execução, ida/volta, nomes e preservação integral dos registros. Testes de encaminhamento por mocks de DOM foram removidos em favor dos fluxos reais acima.
+
 ## Etapa 7 — diagnóstico da entrada
 
 Etapa independente, verificada antes das etapas de biblioteca/treinador. A captura existente é compartilhada: exportar JSON não grava áudio; “Salvar amostra · 10 s” é a única ação que começa a retenção de PCM para um WAV.
@@ -112,11 +149,11 @@ Captura: [configuração e exceção explícita de gravação, 1440×900](rodada
 | 8 | Treinador único, seis combinações | Pendente |
 | 9 | Treinador com até 30 controles e 900 px | Pendente |
 | 10 | Jogos de ouvido em Explorar | Pendente |
-| 11 | Migração integral, deduplicação e backup | Pendente |
-| 12 | Autosave, Novo e recarregamento | Pendente |
-| 13 | Metadados, filtros e ordenação | Pendente |
-| 14 | Registro no exercício dono da execução | Pendente |
-| 15 | Intercâmbio de metadados e legado | Pendente |
+| 11 | Migração integral, deduplicação e backup | Aprovado na etapa 4 |
+| 12 | Autosave, Novo e recarregamento | Aprovado na etapa 4 |
+| 13 | Metadados, filtros e ordenação | Aprovado na etapa 4 |
+| 14 | Registro no exercício dono da execução | Aprovado na etapa 4; também após integrar o resultado |
+| 15 | Intercâmbio de metadados e legado | Aprovado na etapa 4 |
 | 16 | Fila de hoje, timer, resumo e retomada | Pendente |
 | 17 | Histórico com gráficos e alvo | Pendente |
 | 18 | Ordem do inspetor com Braço aberto/fechado | Aprovado na etapa 1 |
@@ -124,4 +161,4 @@ Captura: [configuração e exceção explícita de gravação, 1440×900](rodada
 | 20 | Cordas nomeadas e Drop D | Aprovado na etapa 1 |
 | 21 | Baixo sem convite redundante nem baixo gerado forçado | Aprovado na etapa 1 |
 | 22 | Diagnóstico JSON, WAV explícito e fixtures opcionais | Aprovado na etapa 7; áudio sintético, sem hardware físico |
-| 23 | Preservação das rodadas anteriores | Suítes aprovadas nas etapas 1, 2 e 7; revisão final pendente |
+| 23 | Preservação das rodadas anteriores | Suítes aprovadas nas etapas 1, 2, 4 e 7; revisão final pendente |

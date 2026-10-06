@@ -1,0 +1,456 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createSession, parseSession, serializeSession, SESSION_NAME_MAX } from '../src/session.js';
+import {
+  captureLegacyBackup, createExerciseLibrary, summarize, materialKey,
+  LIBRARY_KEY, LIBRARY_BACKUP_KEY, LIBRARY_RECOVERY_KEY,
+  LEGACY_SESSION_KEY, LEGACY_SESSION_RECOVERY_KEY, LEGACY_PHRASE_KEY,
+  LEGACY_PREFERENCES_KEY, LEGACY_MIXER_KEY,
+} from '../src/exercise-library.js';
+import { SESSION_LIBRARY_KEY } from '../src/studio-state.js';
+import { History } from '../src/history.js';
+import { memoryStorage } from './storage-fixture.js';
+
+function clockNow() {
+  let time = Date.UTC(2026, 0, 1, 12, 0, 0);
+  return () => new Date(time += 1000).toISOString();
+}
+
+let idCount = 0;
+function nextUuid() { return `ex-${++idCount}`; }
+
+function open(storage, currentSession) {
+  return createExerciseLibrary({
+    storage, parse: parseSession, serialize: serializeSession,
+    currentSession, now: clockNow(), uuid: nextUuid,
+  });
+}
+
+function legacyEntry(id, savedAt, session) {
+  return { id, savedAt, session };
+}
+
+// ----- backup ----------------------------------------------------------------
+
+test('backup captura todo o estado legado cru, uma única vez, sem sobrescrever', () => {
+  const storage = memoryStorage(new Map([
+    [LEGACY_SESSION_KEY, '{"version":2,"raw":"sessao"}'],
+    [LEGACY_SESSION_RECOVERY_KEY, '{"corrompido":true}'],
+    [LEGACY_PHRASE_KEY, '{"v1":true}'],
+    [LEGACY_PREFERENCES_KEY, '{"tom":"C"}'],
+    [LEGACY_MIXER_KEY, '{"phrase":{"volume":1}}'],
+    [SESSION_LIBRARY_KEY, '[{"id":"a"}]'],
+  ]));
+  const first = captureLegacyBackup(storage);
+  assert.equal(first.created, true);
+  const snapshot = JSON.parse(first.raw);
+  assert.equal(snapshot.kind, 'groovegoblin-exercise-backup');
+  assert.equal(snapshot.keys[LEGACY_SESSION_KEY], '{"version":2,"raw":"sessao"}');
+  assert.equal(snapshot.keys[LEGACY_SESSION_RECOVERY_KEY], '{"corrompido":true}');
+  assert.equal(snapshot.keys[LEGACY_PHRASE_KEY], '{"v1":true}');
+  assert.equal(snapshot.keys[LEGACY_PREFERENCES_KEY], '{"tom":"C"}');
+  assert.equal(snapshot.keys[LEGACY_MIXER_KEY], '{"phrase":{"volume":1}}');
+  assert.equal(snapshot.keys[SESSION_LIBRARY_KEY], '[{"id":"a"}]');
+  // Legado permanece intacto.
+  assert.equal(storage.getItem(LEGACY_SESSION_KEY), '{"version":2,"raw":"sessao"}');
+  // Segunda chamada não reescreve o backup já existente.
+  storage.setItem(LEGACY_SESSION_KEY, '{"version":2,"raw":"alterado"}');
+  const second = captureLegacyBackup(storage);
+  assert.equal(second.created, false);
+  assert.equal(second.reason, 'exists');
+  assert.equal(second.raw, first.raw);
+});
+
+test('backup vazio não cria chave', () => {
+  const storage = memoryStorage();
+  const result = captureLegacyBackup(storage);
+  assert.equal(result.created, false);
+  assert.equal(result.reason, 'empty');
+  assert.equal(storage.getItem(LIBRARY_BACKUP_KEY), null);
+});
+
+// ----- migração e deduplicação ----------------------------------------------
+
+test('migra sessão atual + sessões antigas deduplicando sessões idênticas', () => {
+  const current = createSession({ name: 'Atual', bpm: 100, bars: 4 });
+  const other = createSession({ name: 'Antiga B', bpm: 90, bars: 2 });
+  const third = createSession({ name: 'Antiga C', bpm: 80, bars: 1 });
+  const storage = memoryStorage(new Map([
+    [SESSION_LIBRARY_KEY, JSON.stringify([
+      legacyEntry('old-a', '2026-01-01T00:00:00.000Z', current), // duplicata da atual
+      legacyEntry('old-b', '2026-01-02T00:00:00.000Z', other),
+      legacyEntry('old-c', '2026-01-03T00:00:00.000Z', third),
+    ])],
+  ]));
+  const library = open(storage, current);
+  assert.equal(library.size(), 3);
+  assert.equal(library.warning, null);
+  const rows = library.list();
+  assert.deepEqual(rows.map(row => row.name).sort(), ['Antiga B', 'Antiga C', 'Atual']);
+  // O exercício ativo é a sessão atual; a duplicata não criou entrada nova.
+  assert.equal(library.get(library.active()).metadata.name, 'Atual');
+  // Legado nunca é alterado.
+  assert.match(storage.getItem(SESSION_LIBRARY_KEY), /old-a/);
+  // A loja nova é canônica e persistida.
+  const stored = JSON.parse(storage.getItem(LIBRARY_KEY));
+  assert.equal(stored.entries.length, 3);
+  assert.equal(stored.activeId, library.active());
+});
+
+test('migra sessão atual sozinha quando não há biblioteca antiga', () => {
+  const current = createSession({ name: 'Única', bpm: 120 });
+  const library = open(memoryStorage(), current);
+  assert.equal(library.size(), 1);
+  assert.equal(library.get(library.active()).metadata.targetBPM, 120);
+});
+
+test('biblioteca antiga corrompida preserva bytes e avisa sem perder a sessão atual', () => {
+  const current = createSession({ name: 'Atual', bpm: 100 });
+  const raw = '[{"id":42}]';
+  const storage = memoryStorage(new Map([[SESSION_LIBRARY_KEY, raw]]));
+  const library = open(storage, current);
+  assert.equal(library.size(), 1);
+  assert.match(library.warning, /corrompida|preservados/i);
+  assert.equal(storage.getItem(SESSION_LIBRARY_KEY), raw);
+});
+
+// ----- corrupção e quota -----------------------------------------------------
+
+test('loja nova corrompida nunca é sobrescrita e recupera só após backup preservado', () => {
+  const current = createSession({ name: 'Atual', bpm: 100 });
+  const corrupt = '{nao é json';
+  const storage = memoryStorage(new Map([[LIBRARY_KEY, corrupt]]));
+  const library = open(storage, current);
+  assert.equal(library.status, 'corrupt');
+  assert.equal(library.recoveryRaw, corrupt);
+  assert.equal(storage.getItem(LIBRARY_KEY), corrupt);
+  assert.equal(storage.getItem(LIBRARY_RECOVERY_KEY), corrupt);
+  // Estado em memória foi reconstruído a partir do legado, mas nada é gravado.
+  assert.equal(library.size(), 1);
+  library.autosave(createSession({ name: 'Editado', bpm: 110 }));
+  assert.equal(library.saved, false);
+  assert.equal(storage.getItem(LIBRARY_KEY), corrupt);
+  // Recuperação explícita grava a loja nova, mantendo os bytes corrompidos.
+  assert.equal(library.replaceCorrupt(), true);
+  assert.equal(library.status, 'ready');
+  const stored = JSON.parse(storage.getItem(LIBRARY_KEY));
+  assert.equal(stored.entries.length, 1);
+  assert.equal(stored.entries[0].metadata.name, 'Editado');
+  assert.equal(storage.getItem(LIBRARY_RECOVERY_KEY), corrupt);
+});
+
+test('quota negada mantém o trabalho na memória e nunca perde dados', () => {
+  const current = createSession({ name: 'Atual', bpm: 100 });
+  const storage = memoryStorage();
+  const realSet = storage.setItem;
+  storage.setItem = (key, value) => { if (key === LIBRARY_KEY) throw new Error('QuotaExceededError'); realSet(key, value); };
+  const library = open(storage, current);
+  assert.equal(library.status, 'ready');
+  assert.equal(library.saved, false);
+  assert.match(library.warning, /memória|salva/i);
+  assert.equal(storage.getItem(LIBRARY_KEY), null);
+  library.autosave(createSession({ name: 'Editado', bpm: 115 }));
+  assert.equal(library.get(library.active()).metadata.name, 'Editado');
+  assert.equal(library.get(library.active()).session.bpm, 115);
+});
+
+// ----- ida e volta / sem sobrescrita ----------------------------------------
+
+test('exporta e importa um exercício com metadados, alvo e treinos sem sobrescrever', () => {
+  const session = createSession({ name: 'Escala', bpm: 100, bars: 2 });
+  const source = open(memoryStorage(), session);
+  const id = source.active();
+  source.updateMetadata(id, { name: 'Escala maior', tags: ['escala', 'aquecimento'], targetBPM: 140, notes: 'Subir por graus' });
+  const context = source.captureRunContext(source.get(id).session, { source: 'authored', objective: 'timing' });
+  source.recordRun(context, { bpm: 100, mode: 'train', goal: 'timing', repetitions: 2, summary: { mode: 'strict', expected: 16, attackOk: 15, endOk: 14, pitchOk: 0, pitchChecked: 0, free: 0 }, metric: 0.9375, tempoDelta: 0 });
+  const exported = source.exportExercise(id);
+
+  const target = open(memoryStorage(), createSession({ name: 'Outra', bpm: 90 }));
+  const first = target.importExercise(exported);
+  assert.deepEqual(first, { added: 1, skipped: 0 });
+  const imported = target.list().find(row => row.name === 'Escala maior');
+  assert.ok(imported);
+  assert.deepEqual(target.get(imported.id).metadata.tags, ['escala', 'aquecimento']);
+  assert.equal(target.get(imported.id).metadata.targetBPM, 140);
+  assert.equal(target.get(imported.id).metadata.notes, 'Subir por graus');
+  assert.equal(target.get(imported.id).metadata.records.length, 1);
+  assert.equal(target.get(imported.id).metadata.records[0].summary.expected, 16);
+  // Reimportar não sobrescreve nem duplica.
+  const again = target.importExercise(exported);
+  assert.deepEqual(again, { added: 0, skipped: 1 });
+  assert.equal(target.list().filter(row => row.name === 'Escala maior').length, 1);
+});
+
+test('importa documento de sessão legado (v2) como novo exercício', () => {
+  const legacy = serializeSession(createSession({ name: 'Legado', bpm: 88, bars: 2 }));
+  const target = open(memoryStorage(), createSession({ name: 'Base', bpm: 100 }));
+  const result = target.importExercise(legacy);
+  assert.deepEqual(result, { added: 1, skipped: 0 });
+  assert.ok(target.list().some(row => row.name === 'Legado'));
+});
+
+test('importa biblioteca inteira mesclando sem sobrescrever', () => {
+  const a = open(memoryStorage(), createSession({ name: 'A', bpm: 100 }));
+  a.duplicate(a.active());
+  const b = open(memoryStorage(), createSession({ name: 'B', bpm: 100 }));
+  const result = b.importLibrary(a.exportLibrary());
+  assert.equal(result.added, 2);
+  assert.equal(b.size(), 3);
+  const repeat = b.importLibrary(a.exportLibrary());
+  assert.deepEqual(repeat, { added: 0, skipped: 2 });
+});
+
+// ----- dono e início capturados no começo -----------------------------------
+
+test('treino registra no dono capturado no início, não no ativo ao terminar', () => {
+  const library = open(memoryStorage(), createSession({ name: 'Primeiro', bpm: 100 }));
+  const firstId = library.active();
+  const before = JSON.stringify(library.get(firstId).session);
+  const context = library.captureRunContext(library.get(firstId).session, { source: 'authored', objective: 'timing' });
+  const second = library.duplicate(firstId); // duplicar não troca o ativo
+  assert.equal(library.active(), firstId);
+  library.select(second.id); // o usuário troca de exercício antes de concluir
+  const record = library.recordRun(context, { bpm: 100, mode: 'train', goal: 'timing', repetitions: 1, summary: { mode: 'strict', expected: 8, attackOk: 8, endOk: 8, pitchOk: 0, pitchChecked: 0, free: 0 }, metric: 1 });
+  assert.equal(record.ownerId, firstId);
+  assert.equal(library.records(firstId).length, 1);
+  assert.equal(library.records(second.id).length, 0);
+  // A sessão autoral nunca é reescrita pelo registro.
+  assert.equal(JSON.stringify(library.get(firstId).session), before);
+  // Início e fim reais ficam gravados, não deduzidos do último ataque.
+  assert.ok(Date.parse(record.startedAt) < Date.parse(record.completedAt));
+  assert.ok(record.durationMs > 0);
+});
+
+test('modo livre não entra no melhor resultado e mantém denominador explícito', () => {
+  const library = open(memoryStorage(), createSession({ name: 'Livre', bpm: 100 }));
+  const id = library.active();
+  const context = library.captureRunContext(library.get(id).session, { source: 'generated', objective: 'timing' });
+  library.recordRun(context, { bpm: 100, mode: 'train', goal: 'timing', repetitions: 1, summary: { mode: 'free', expected: 0, attackOk: 3, endOk: 0, pitchOk: 0, pitchChecked: 0, free: 3 } });
+  const record = library.records(id)[0];
+  assert.equal(record.summary.expected, 0);
+  assert.equal(record.summary.free, 3);
+  assert.equal(record.source, 'generated');
+  assert.equal(summarize(library.get(id)).bestAtCurrentBpm, null);
+});
+
+test('fonte detectada pelo material: o próprio exercício é autoral, derivado é gerado', () => {
+  const session = createSession({ name: 'Base', bpm: 100, bars: 1 });
+  const library = open(memoryStorage(), session);
+  const id = library.active();
+  const same = library.captureRunContext(library.get(id).session, { objective: 'timing' });
+  assert.equal(same.source, 'authored');
+  const derived = library.captureRunContext(createSession({ name: 'Base', bpm: 100, bars: 2 }), { objective: 'timing' });
+  assert.equal(derived.source, 'generated');
+  assert.equal(derived.ownerId, id);
+});
+
+test('melhor por BPM não mistura material gerado diferente do autoral', () => {
+  const session = createSession({ name: 'Base', bpm: 100, bars: 1 });
+  const library = open(memoryStorage(), session);
+  const id = library.active();
+  const goal = session.training.goal;
+  const repetitions = session.training.repetitions;
+  const authored = library.captureRunContext(library.get(id).session, { source: 'authored', objective: 'timing' });
+  library.recordRun(authored, { bpm: 100, mode: 'train', goal, repetitions, summary: { mode: 'strict', expected: 4, attackOk: 4, endOk: 4, pitchOk: 0, pitchChecked: 0, free: 0 }, metric: 1 });
+  const generatedSession = createSession({ name: 'Gerado', bpm: 100, bars: 1 });
+  const generated = library.captureRunContext(generatedSession, { source: 'generated', objective: 'timing' });
+  library.recordRun(generated, { bpm: 140, mode: 'train', goal, repetitions, summary: { mode: 'strict', expected: 4, attackOk: 4, endOk: 4, pitchOk: 0, pitchChecked: 0, free: 0 }, metric: 1 });
+  const rows = library.list();
+  // O melhor BPM autoral é 100; o gerado a 140 não conta para o alvo autoral.
+  assert.equal(rows[0].bestBpm, 100);
+  assert.equal(rows[0].bestAtCurrentBpm.score, 100);
+  assert.notEqual(materialKey(library.records(id)[0]), materialKey(library.records(id)[1]));
+});
+
+// ----- metadados, exclusão e ordenação --------------------------------------
+
+test('renomear sincroniza o nome da sessão e o alvo é editável', () => {
+  const library = open(memoryStorage(), createSession({ name: 'Nome', bpm: 100 }));
+  const id = library.active();
+  library.updateMetadata(id, { name: 'Novo nome', targetBPM: 160 });
+  assert.equal(library.get(id).metadata.name, 'Novo nome');
+  assert.equal(library.get(id).session.name, 'Novo nome');
+  assert.equal(library.get(id).metadata.targetBPM, 160);
+});
+
+test('excluir guarda desfazer e restaura na mesma posição', () => {
+  const library = open(memoryStorage(), createSession({ name: 'A', bpm: 100 }));
+  library.duplicate(library.active());
+  const [first, second] = library.list({ sort: 'name' }).map(row => row.id);
+  library.deleteUndo(second);
+  assert.equal(library.size(), 1);
+  assert.equal(library.canUndoDelete(), true);
+  const restored = library.undoDelete();
+  assert.equal(restored.id, second);
+  assert.deepEqual(library.list({ sort: 'name' }).map(row => row.id), [first, second]);
+  assert.equal(library.canUndoDelete(), false);
+});
+
+test('filtros por instrumento, etiqueta e nome, e ordenação por treino', () => {
+  const library = open(memoryStorage(), createSession({ name: 'Base', bpm: 100 }));
+  const base = library.active();
+  library.updateMetadata(base, { tags: ['escala'] });
+  const bass = library.duplicate(base);
+  library.updateMetadata(bass.id, { name: 'Baixo', tags: ['groove'] });
+  const bassSession = library.get(bass.id).session;
+  bassSession.extensions = { studio: { instrument: { type: 'bass' } } };
+  library.autosave(bassSession, bass.id);
+  library.select(bass.id);
+  const groove = library.captureRunContext(library.get(bass.id).session, { source: 'authored', objective: 'timing' });
+  library.recordRun(groove, { bpm: 100, mode: 'train', goal: 'timing', repetitions: 1, summary: { mode: 'strict', expected: 4, attackOk: 4, endOk: 4, pitchOk: 0, pitchChecked: 0, free: 0 }, metric: 1 });
+  library.select(base);
+
+  assert.deepEqual(library.list({ filter: { instrument: 'bass' } }).map(row => row.name), ['Baixo']);
+  assert.deepEqual(library.list({ filter: { tag: 'escala' } }).map(row => row.name), ['Base']);
+  assert.deepEqual(library.list({ filter: { query: 'baix' } }).map(row => row.name), ['Baixo']);
+  // Mais tempo sem treinar vem primeiro: o nunca treinado antes do treinado.
+  assert.equal(library.list({ sort: 'untrained' })[0].name, 'Base');
+  assert.equal(library.list({ sort: 'name' })[0].name, 'Baixo');
+  assert.ok(library.list({ sort: 'goal' }).length === 2);
+});
+
+test('reset escopa o desfazer por exercício', () => {
+  const history = new History();
+  const a = createSession({ name: 'A', bpm: 100 });
+  const b = createSession({ name: 'B', bpm: 90 });
+  history.push(a);
+  history.push(createSession({ name: 'A editada', bpm: 105 }));
+  assert.equal(history.canUndo, true);
+  history.reset(b);
+  assert.equal(history.canUndo, false);
+  assert.equal(history.canRedo, false);
+  assert.equal(history.current.name, 'B');
+});
+
+test('assinatura recebe mudanças e é cancelável', () => {
+  const library = open(memoryStorage(), createSession({ name: 'A', bpm: 100 }));
+  let calls = 0;
+  const unsubscribe = library.subscribe(() => { calls += 1; });
+  library.duplicate(library.active());
+  assert.equal(calls, 1);
+  unsubscribe();
+  library.duplicate(library.active());
+  assert.equal(calls, 1);
+});
+
+test('novo exercício exige sessão e nunca clona a sessão atual', () => {
+  const library = open(memoryStorage(), createSession({ name: 'Atual', bpm: 120, bars: 4 }));
+  assert.throws(() => library.new({}), /sessão/);
+  const fresh = library.new({ session: createSession({ name: 'Novo', bpm: 90, bars: 1 }) });
+  assert.equal(fresh.session.name, 'Novo');
+  assert.equal(fresh.session.bpm, 90);
+  assert.equal(fresh.metadata.records.length, 0);
+  assert.equal(library.active(), fresh.id);
+});
+
+test('duplicar não troca o exercício ativo por conta própria', () => {
+  const library = open(memoryStorage(), createSession({ name: 'Ativo', bpm: 100 }));
+  const firstId = library.active();
+  const copy = library.duplicate(firstId);
+  assert.notEqual(copy.id, firstId);
+  assert.equal(library.active(), firstId);
+  assert.equal(library.get(copy.id).metadata.name, 'Ativo · cópia');
+  assert.equal(library.get(copy.id).metadata.records.length, 0);
+});
+
+test('excluir o exercício ativo move o ativo para outro exercício', () => {
+  const library = open(memoryStorage(), createSession({ name: 'A', bpm: 100 }));
+  const firstId = library.active();
+  const copy = library.duplicate(firstId);
+  library.deleteUndo(firstId);
+  assert.equal(library.active(), copy.id);
+  assert.equal(library.size(), 1);
+});
+
+// ----- teto do nome (sessionv5) ---------------------------------------------
+
+test('o teto do nome da biblioteca é o mesmo da sessão canônica', () => {
+  assert.equal(SESSION_NAME_MAX, 80);
+  const session = createSession({ name: 'ok' });
+  assert.equal(parseSession(JSON.stringify({ ...session, name: 'x'.repeat(SESSION_NAME_MAX) })).name.length, SESSION_NAME_MAX);
+  assert.throws(() => parseSession(JSON.stringify({ ...session, name: 'x'.repeat(SESSION_NAME_MAX + 1) })), /80 caracteres/);
+});
+
+test('renomear acima do teto é rejeitado antes de gravar e a loja recarrega inteira', () => {
+  const storage = memoryStorage();
+  const library = open(storage, createSession({ name: 'Curto', bpm: 100 }));
+  const id = library.active();
+  const bytes = storage.getItem(LIBRARY_KEY);
+  assert.throws(() => library.updateMetadata(id, { name: 'x'.repeat(SESSION_NAME_MAX + 1) }), /80 caracteres/);
+  // Nada mudou: nem na memória, nem nos bytes gravados.
+  assert.equal(library.get(id).metadata.name, 'Curto');
+  assert.equal(library.get(id).session.name, 'Curto');
+  assert.equal(storage.getItem(LIBRARY_KEY), bytes);
+  // O limite exato continua aceito e a loja recarrega sem virar corrompida.
+  library.updateMetadata(id, { name: 'x'.repeat(SESSION_NAME_MAX) });
+  assert.equal(library.get(id).metadata.name.length, SESSION_NAME_MAX);
+  assert.equal(library.get(id).session.name.length, SESSION_NAME_MAX);
+  const reopened = open(storage, createSession({ name: 'Outra' }));
+  assert.equal(reopened.status, 'ready');
+  assert.equal(reopened.get(id).metadata.name.length, SESSION_NAME_MAX);
+  assert.equal(reopened.get(id).session.name.length, SESSION_NAME_MAX);
+});
+
+test('duplicar reserva o espaço do sufixo e a cópia recarrega válida', () => {
+  const storage = memoryStorage();
+  const library = open(storage, createSession({ name: 'Curto', bpm: 100 }));
+  const id = library.active();
+  const original = JSON.stringify(library.get(id).session);
+  library.updateMetadata(id, { name: 'x'.repeat(SESSION_NAME_MAX) });
+  const before = JSON.stringify(library.get(id).session);
+  const copy = library.duplicate(id);
+  assert.match(copy.session.name, /· cópia$/);
+  assert.ok(copy.session.name.length <= SESSION_NAME_MAX);
+  assert.equal(copy.metadata.name, copy.session.name);
+  // O original nunca é alterado pela duplicação.
+  assert.equal(JSON.stringify(library.get(id).session), before);
+  assert.notEqual(before, original);
+  const reopened = open(storage, createSession({ name: 'Outra' }));
+  assert.equal(reopened.status, 'ready');
+  assert.equal(reopened.size(), 2);
+  assert.equal(reopened.list().filter(row => /· cópia$/.test(row.name)).length, 1);
+});
+
+test('importar nome fora do teto rejeita tudo e não sobrescreve nada', () => {
+  const library = open(memoryStorage(), createSession({ name: 'Base', bpm: 100 }));
+  const id = library.active();
+  const session = library.get(id).session;
+  const before = JSON.stringify(library.get(id));
+  // Metadados com nome fora do teto: a sessão é válida, mas o nome não.
+  const envelope = JSON.stringify({ kind: 'groovegoblin-exercise', exercise: { session, metadata: { name: 'x'.repeat(SESSION_NAME_MAX + 1) } } });
+  assert.throws(() => library.importExercise(envelope), /80 caracteres/);
+  // Sessão com nome fora do teto também rejeita a importação inteira.
+  assert.throws(() => library.importExercise(JSON.stringify({ ...session, name: 'y'.repeat(SESSION_NAME_MAX + 1) })), /incompatível/);
+  assert.equal(library.size(), 1);
+  assert.equal(JSON.stringify(library.get(id)), before);
+});
+
+test('não permite excluir o último exercício nem operar id inexistente', () => {
+  const library = open(memoryStorage(), createSession({ name: 'Único', bpm: 100 }));
+  const id = library.active();
+  assert.equal(library.deleteUndo(id), null);
+  assert.equal(library.size(), 1);
+  assert.equal(library.active(), id);
+  assert.equal(library.duplicate('nao-existe'), null);
+  assert.equal(library.select('nao-existe'), null);
+  assert.equal(library.active(), id);
+});
+
+
+test('histórico acima de 200 treinos permanece integral ao salvar, recarregar e importar', () => {
+  const storage = memoryStorage();
+  const session = createSession({ name: 'Histórico longo', bpm: 100 });
+  const library = open(storage, session);
+  const id = library.active();
+  const expected = Array.from({ length: 201 }, () => library.recordRun(
+    library.captureRunContext(session, { source: 'authored', objective: 'timing' }),
+    { summary: { mode: 'strict', expected: 4, attackOk: 4 }, metric: 1 },
+  ));
+  assert.deepEqual(library.get(id).metadata.records, expected);
+  const reloaded = open(storage, session);
+  assert.deepEqual(reloaded.get(id).metadata.records, expected);
+  const target = open(memoryStorage(), createSession({ name: 'Outro exercício', bpm: 80 }));
+  target.importExercise(reloaded.exportExercise(id));
+  const imported = target.list().find(row => row.name === session.name);
+  assert.deepEqual(target.get(imported.id).metadata.records, expected);
+});

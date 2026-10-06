@@ -55,6 +55,16 @@ export class History {
     this.#index = this.#states.length - 1;
   }
 
+  // Recomeça o histórico a partir de uma sessão-base: usado ao trocar de
+  // exercício para que o desfazer nunca restaure outro exercício.
+  reset(session) {
+    const result = validateSession(session);
+    if (!result.ok) throw new TypeError(`O histórico requer uma sessão válida: ${result.error}`);
+    this.#states = [freezeDeep(result.session)];
+    this.#keys = [snapshotKey(result.session)];
+    this.#index = 0;
+  }
+
   undo() {
     if (!this.canUndo) return null;
     this.#index -= 1;

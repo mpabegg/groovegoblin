@@ -1,6 +1,6 @@
 import { GrooveAudio, renderSession } from './audio.js';
-import { loadSession, saveSession, validateSession, serializeSession, parseSession, encodeSessionLink, decodeSessionLink, drumEditStructureError, ticksPerBar as barTicks, METRONOME_PATTERNS, ARTICULATIONS } from './session.js';
-import { evaluateSession } from './feedback.js';
+import { loadSession, validateSession, serializeSession, parseSession, encodeSessionLink, decodeSessionLink, drumEditStructureError, ticksPerBar as barTicks, METRONOME_PATTERNS, ARTICULATIONS } from './session.js';
+import { evaluateSession, summarizeFeedback } from './feedback.js';
 import { getDiatonicChords, invertChord } from './progression.js';
 import { mountPractice } from './practice.js';
 import { mountPlayground } from './playground.js';
@@ -8,7 +8,9 @@ import { mountJourney } from './practice-view.js';
 import { mountRepertoire } from './repertoire-view.js';
 import { setupOffline } from './offline.js';
 import { mountTour } from './tour.js';
-import { mergeSession, readSessionLibrary, SESSION_LIBRARY_KEY } from './studio-state.js';
+import { mergeSession } from './studio-state.js';
+import { captureLegacyBackup, createExerciseLibrary } from './exercise-library.js';
+import { mountLibrary } from './library-view.js';
 import { History } from './history.js';
 import { playbackEditPolicy } from './studio-editing.js';
 import { EVALUATION_MODES, EVALUATION_MODE_LABELS, GOALS, GOAL_LABELS } from './session.js';
@@ -28,6 +30,8 @@ import { mountTrainingResult } from './training-result.js';
 import { quietTakeNotices } from './take-notices.js';
 
 const $ = id => document.getElementById(id);
+// Estado legado cru é preservado ANTES de qualquer leitura/migração.
+captureLegacyBackup();
 const restored = loadSession();
 let session = withStudioChoices(initialStudioSession(restored));
 let recoveryRaw = restored.recoveryRaw;
@@ -45,6 +49,7 @@ let generation = 0;
 let pending = null;
 let sharedSession = null;
 let lastMode = 'idle';
+let runContext = null;
 let executionSession = null;
 let exercisePlayback = false;
 let executionMode = null;
@@ -54,7 +59,8 @@ let playground;
 let journey;
 let lastRepertoireBusy = false;
 const history = new History();
-const library = readSessionLibrary(undefined, parseSession);
+const library = createExerciseLibrary({ parse: parseSession, serialize: serializeSession, currentSession: session });
+let activeExerciseId = library.active(); session = withStudioChoices(library.activeEntry()?.session ?? session);
 const notices = mountStudioNotices({ isBusy: () => false, canUndo: () => history.canUndo, current: () => history.current, undo: () => travelHistory('undo') });
 const audio = new GrooveAudio({ onState: () => renderControls(), onFinish: (attempts, detail) => {
   performanceInput?.reset();
@@ -63,9 +69,12 @@ const audio = new GrooveAudio({ onState: () => renderControls(), onFinish: (atte
   const reference = detail.session, results = detail.results ?? evaluateSession(reference, attempts);
   const finished = { ...detail, session: reference, results };
   trainingResult.finished({ session: reference, results, focus });
-  practice?.onFinish(attempts, finished);
-  // A captura automática do playground roda dentro da janela de avisos mudos:
-  // a gravação continua, a confirmação automática não aparece sobre o resultado.
+  const practiceResult = practice?.onFinish(attempts, finished);
+  if (runContext) library.recordRun(runContext, {
+    bpm: reference.bpm, mode: 'train', goal: reference.training.goal, repetitions: reference.training.repetitions,
+    summary: practiceResult?.summary ?? summarizeFeedback(results), metric: practiceResult?.metric ?? null, tempoDelta: practiceResult?.adapt?.bpmDelta ?? 0 });
+  runContext = null;
+  // A gravação continua, sem confirmação automática sobre o resultado.
   takeNotices.around(() => playground?.onFinish(attempts, finished));
   journey?.render();
   void saveTake(attempts, finished).catch(error => message(`Treino concluído; não foi possível guardar a tomada: ${error.message}`, true));
@@ -78,9 +87,9 @@ const playback = createStudioPlayback({ getSession: () => session, getPlaybackSe
 function message(text, error = false) { notices.show(text, { error }); }
 function busy() { return pending !== null || audio.position.mode !== 'idle' || !!performanceInput?.calibrating || !!performanceInput?.preparing; }
 function persist() {
-  sessionSaved = recoveryRaw === null && saveSession(session);
-  $('saved').textContent = recoveryRaw !== null ? 'Só na memória · originais protegidos'
-    : sessionSaved ? 'Sessão salva neste navegador' : 'Só na memória · exporte para guardar';
+  library.autosave(session);
+  sessionSaved = library.saved;
+  $('saved').textContent = sessionSaved ? 'Exercício salvo na biblioteca' : 'Só na memória · exporte para guardar';
 }
 function updateSession(patch, { notice = null, structural = false, drumDecision = false } = {}) {
   const next = mergeSession(session, patch);
@@ -129,6 +138,7 @@ function stop(reason) {
   executionSession = null;
   exercisePlayback = false;
   executionMode = null;
+  runContext = null;
   performanceInput?.reset();
   if (wasDragging) studioTimeline.renderNotes();
   renderControls();
@@ -158,6 +168,7 @@ async function begin(mode = 'loop', practiceSession = null, { listen = false } =
   playback.setListening(listen);
   executionSession = snapshot;
   exercisePlayback = practiceSession !== null || listen;
+  runContext = mode === 'train' ? library.captureRunContext(executionSession, { objective: executionSession.extensions?.practice?.objective ?? null }) : null;
   try {
     await audio.playSession(snapshot, {
       mode, startTick: mode === 'train' || practiceSession || listen ? null : playback.getStartTick(),
@@ -200,6 +211,7 @@ const studio = mountStudio({ onActivate: id => {
   notices.close();
   if (id !== 'tab-repertoire') repertoire?.stop();
   void performanceInput?.activate(id);
+  if (id === 'tab-library') libraryView.render();
   renderControls();
 } });
 const transport = mountStudioTransport({
@@ -303,10 +315,8 @@ function renderControls() {
   $('train').disabled = pending !== null || (session.training.evaluation !== 'free' && !session.notes.some(note => note.start >= session.loop.startBar * barTicks(session) && note.start < session.loop.endBar * barTicks(session)));
   $('train-pad').disabled = !audio.position.training;
   $('clear').disabled = session.notes.length === 0;
-  for (const id of ['generate', 'variation', 'load-groove', 'generate-drums', 'generate-progression', 'new-session', 'duplicate-session', 'save-session', 'restore-session', 'delete-session', 'replace-recovery', 'replace-library-recovery', 'apply-share']) $(id).disabled = false;
+  for (const id of ['generate', 'variation', 'load-groove', 'generate-drums', 'generate-progression', 'new-session', 'duplicate-session', 'apply-share']) $(id).disabled = false;
   $('load-groove').disabled ||= !$('groove-library').value;
-  $('restore-session').disabled ||= !$('session-library').value;
-  $('delete-session').disabled ||= !$('session-library').value;
   $('apply-share').disabled ||= !sharedSession;
   inspector.render();
   instrument.render();
@@ -323,7 +333,7 @@ function renderControls() {
       continue;
     }
     input.dataset.enabledTitle ??= input.title;
-    input.title = locked ? 'Pare a reprodução antes de fazer esta alteração' : input.id === 'clear' || input.id === 'transpose-phrase' ? 'A frase está vazia; escreva ou carregue notas primeiro' : ['restore-session', 'delete-session'].includes(input.id) ? 'Escolha uma sessão guardada primeiro' : input.title || 'Selecione um item para usar esta ação';
+    input.title = locked ? 'Pare a reprodução antes de fazer esta alteração' : input.id === 'clear' || input.id === 'transpose-phrase' ? 'A frase está vazia; escreva ou carregue notas primeiro' : input.title || 'Selecione um item para usar esta ação';
   }
 }
 
@@ -412,46 +422,33 @@ function dismissShare() { sharedSession = null; $('share-preview').hidden = true
 $('apply-share').addEventListener('click', () => { if (sharedSession && replaceSession(sharedSession, { notice: 'Sessão recebida aplicada.' })) dismissShare(); });
 $('dismiss-share').addEventListener('click', dismissShare); window.addEventListener('hashchange', previewShare);
 $('download-recovery').addEventListener('click', () => { if (recoveryRaw !== null) download(recoveryRaw, 'groovegoblin-originais.json'); });
-$('replace-recovery').addEventListener('click', () => {
-  if (!saveSession(session)) { message('Armazenamento indisponível; originais preservados.', true); return; }
-  recoveryRaw = null; $('recovery').hidden = true; persist();
-});
-function renderLibrary() {
-  const previous = $('session-library').value; $('session-library').replaceChildren();
-  const empty = document.createElement('option'); empty.value = ''; empty.textContent = 'Escolha uma sessão'; $('session-library').append(empty);
-  for (const item of library.entries) { const option = document.createElement('option'); option.value = item.id; option.textContent = `${item.session.name} · ${item.session.bpm} BPM · ${new Date(item.savedAt).toLocaleDateString('pt-BR')}`; $('session-library').append(option); }
-  $('session-library').value = previous;
-  $('library-status').textContent = library.warning ?? `${library.entries.length} sessões guardadas neste navegador.`;
-  $('library-recovery').hidden = library.recoveryRaw === null;
+// Único caminho de troca de exercício: mantém session/history em sincronia com
+// a biblioteca e nunca recorre (o autosave não chama isto).
+function syncActive() {
+  const entry = library.activeEntry();
+  if (!entry) return null;
+  if (entry.id !== activeExerciseId) {
+    activeExerciseId = entry.id; history.reset(entry.session);
+    replaceSession(entry.session, { record: false, notice: `Exercício “${entry.metadata.name}” aberto.` });
+  } else if (session.name !== entry.metadata.name) { session = mergeSession(session, { name: entry.metadata.name }); persist(); }
+  return entry;
 }
-function writeLibrary(entries) {
-  if (library.recoveryRaw !== null) { message(library.warning, true); return false; }
-  try { localStorage.setItem(SESSION_LIBRARY_KEY, JSON.stringify(entries)); library.entries = entries; library.warning = null; renderLibrary(); renderControls(); return true; }
-  catch { message('Biblioteca não pôde ser salva. Exporte a sessão.', true); return false; }
+function openExercise(id, { train = false } = {}) {
+  if (!library.select(id)) return; syncActive();
+  if (train) { studio.activate($('tab-practice')); practice.useSession({ train: true }); }
+  else studio.activate($('tab-studio'));
 }
-$('new-session').addEventListener('click', () => {
-  replaceSession(createStudioSession(), { notice: 'Nova sessão de quatro compassos criada.' });
+const libraryView = mountLibrary($('library-mount'), {
+  library, openExercise, notify: message, download,
+  newExercise: () => { library.new({ session: createStudioSession() }); return syncActive(); },
+  duplicateExercise: id => { const copy = library.duplicate(id); if (copy) openExercise(copy.id); return copy; },
+  deleteExercise: id => { const removed = library.deleteUndo(id); if (!removed) message('A biblioteca precisa de ao menos um exercício.'); syncActive(); return removed; },
+  undoDeleteExercise: () => { const restored = library.undoDelete(); syncActive(); return restored; },
+  updateExerciseMetadata: (id, patch) => { const entry = library.updateMetadata(id, patch); syncActive(); return entry; },
 });
-$('duplicate-session').addEventListener('click', () => {
-  const copy = mergeSession(session, { name: `${session.name.slice(0, 112)} · cópia` });
-  const item = { id: crypto.randomUUID(), savedAt: new Date().toISOString(), session: copy };
-  if (writeLibrary([...library.entries, item]) && replaceSession(copy, { notice: 'Cópia guardada na biblioteca e aberta.' })) {
-    $('session-library').value = item.id; renderControls();
-  }
-});
-$('save-session').addEventListener('click', () => {
-  const item = { id: crypto.randomUUID(), savedAt: new Date().toISOString(), session: structuredClone(session) };
-  if (writeLibrary([...library.entries, item])) { $('session-library').value = item.id; renderControls(); message('Sessão completa guardada na biblioteca.'); }
-});
-$('session-library').addEventListener('change', renderControls);
-$('restore-session').addEventListener('click', () => { const item = library.entries.find(entry => entry.id === $('session-library').value); if (item) replaceSession(item.session, { notice: 'Sessão guardada aberta.' }); });
-$('delete-session').addEventListener('click', () => writeLibrary(library.entries.filter(entry => entry.id !== $('session-library').value)));
-$('download-library-recovery').addEventListener('click', () => { if (library.recoveryRaw !== null) download(library.recoveryRaw, 'groovegoblin-biblioteca-original.json'); });
-$('replace-library-recovery').addEventListener('click', () => {
-  const original = library.recoveryRaw; library.recoveryRaw = null;
-  if (!writeLibrary([{ id: crypto.randomUUID(), savedAt: new Date().toISOString(), session: structuredClone(session) }])) library.recoveryRaw = original;
-  renderLibrary();
-});
+$('new-session').addEventListener('click', () => openExercise(library.new({ session: createStudioSession() }).id));
+$('duplicate-session').addEventListener('click', () => { const active = library.active(); if (active) openExercise(library.duplicate(active).id); else message('Não há exercício para duplicar.'); });
+for (const [id, raw, name] of [['download-library-backup', library.backupRaw, 'groovegoblin-backup-legado.json'], ['download-library-recovery', library.recoveryRaw, 'groovegoblin-biblioteca-corrompida.json']]) { $(id).hidden = raw === null; $(id).addEventListener('click', () => download(raw, name)); }
 
 function frame() {
   const position = audio.position;
@@ -473,12 +470,12 @@ practice = mountPractice($('practice-mount'), host);
 playground = mountPlayground($('playground-mount'), { ...host, notify: takeNotices.notify });
 journey = mountJourney($('journey-mount'), host);
 setupOffline({ isBusy: () => busy() || repertoire.isBusy(), canReload: () => sessionSaved, notify: message });
-history.push(session); playback.applyMixer(); renderLibrary(); renderAll();
+history.push(session); playback.applyMixer(); renderAll();
 mountStudioPatterns({ getSession: () => session, isBusy: () => false, updateSession, notify: message, renderControls });
-studio.activate($('tab-studio'));
+studio.activate($(library.size() > 1 ? 'tab-library' : 'tab-studio'));
 $('recovery').hidden = recoveryRaw === null; persist();
 if (restored.warnings?.length) message(restored.warnings.join(' '), true);
-if (library.warning) $('library-status').textContent = library.warning;
+if (library.warnings.length) message(library.warnings.join(' '), true);
 previewShare(); requestAnimationFrame(frame);
 mountTour($('tour-open'), {
   activateTab: id => studio.activate($(id)),

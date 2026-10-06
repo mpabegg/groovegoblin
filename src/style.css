@@ -40,7 +40,7 @@ p { font-size: 14px; line-height: 1.6; margin: 4px 0 9px; }.muted { color: var(-
 [hidden] { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .intentions { display: flex; flex-direction: column; gap: 10px; margin: 0 0 20px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: #111b20; }
-.primary-activities { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.primary-activities { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .primary-activities button { min-width: 0; min-height: 72px; background: transparent; border-color: transparent; text-align: left; }
 .primary-activities button span { display: block; font-size: 16px; }
 .primary-activities button small { display: block; margin-top: 5px; font-size: 12px; font-weight: 400; color: var(--muted); }
@@ -52,10 +52,8 @@ p { font-size: 14px; line-height: 1.6; margin: 4px 0 9px; }.muted { color: var(-
 .studio-detail[open] > summary { margin-bottom: 24px; }
 .studio-detail h2, .intention-panel h2 { margin-bottom: 18px; }
 .tool-row .toggle { flex-direction: row; align-items: center; min-height: 36px; }
-input[type=text], textarea { background: #111b20; border: 1px solid #4b5c63; border-radius: 6px; padding: 9px; color: var(--text); min-width: 0; max-width: 100%; }
+input[type=text], input[type=search], textarea { background: #111b20; border: 1px solid #4b5c63; border-radius: 6px; padding: 9px; color: var(--text); min-width: 0; max-width: 100%; }
 .session-library { margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--line); }
-#session-library { max-width: 100%; min-width: 170px; }
-#library-status { font-size: 12px; color: var(--muted); }
 #offline-status { font-size: 12px; color: var(--muted); text-align: right; max-width: 50%; }
 #offline-status button { margin: 4px; }
 .performance-focus #practice-studio, .performance-focus .practice-root > .practice-disclosure, .performance-focus .practice-current > .practice-disclosure { display: none; }

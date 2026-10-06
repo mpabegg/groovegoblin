@@ -10,14 +10,16 @@
   <link rel="stylesheet" href="./src/style.css">
   <link rel="stylesheet" href="./src/practice.css">
   <link rel="stylesheet" href="./src/repertoire.css">
+  <link rel="stylesheet" href="./src/library.css">
   <link rel="stylesheet" href="./src/tour.css">
   <script type="module" src="./src/main.js"></script>
 </head>
 <body>
 <main>
-  <header class="masthead"><div><div class="eyebrow">SEU PARCEIRO DE PRÁTICA</div><h1>Groove<span>Goblin</span></h1></div><div class="masthead-actions"><span id="global-transport" class="global-transport"></span><details id="app-menu" class="app-options"><summary>Ajuda e app</summary><div class="app-menu-content"><button id="shortcuts-open" type="button" aria-haspopup="dialog" title="Atalhos de teclado (?)">Atalhos</button><button id="tour-open" type="button" class="help-button" aria-haspopup="dialog">Como usar</button><details><summary>Offline</summary><div id="offline-status" aria-live="polite"></div></details></div></details></div></header>
+  <header class="masthead"><div><div class="eyebrow">SEU PARCEIRO DE PRÁTICA</div><h1>Groove<span>Goblin</span></h1></div><div class="masthead-actions"><span id="global-transport" class="global-transport"></span><details id="app-menu" class="app-options"><summary>Ajuda e app</summary><div class="app-menu-content"><button id="shortcuts-open" type="button" aria-haspopup="dialog" title="Atalhos de teclado (?)">Atalhos</button><button id="tour-open" type="button" class="help-button" aria-haspopup="dialog">Como usar</button><details><summary>Offline</summary><div id="offline-status" aria-live="polite"></div></details><details><summary>Biblioteca</summary><div class="tool-row"><button id="download-library-backup" type="button" hidden>Baixar backup da migração</button><button id="download-library-recovery" type="button" hidden>Baixar bytes corrompidos</button></div><p class="tool-hint muted">O backup guarda o estado antigo intacto antes da migração. Nada é apagado do navegador.</p></details></div></details></div></header>
   <nav class="intentions" role="tablist" aria-label="O que você quer fazer?">
     <div class="primary-activities" role="presentation">
+      <button id="tab-library" role="tab" aria-selected="false" aria-controls="panel-library" tabindex="-1"><span>Biblioteca</span><small>Seus exercícios, sempre salvos</small></button>
       <button id="tab-studio" role="tab" aria-selected="true" aria-controls="panel-studio"><span>Estúdio</span><small>Edite e toque sua sessão</small></button>
       <button id="tab-practice" role="tab" aria-selected="false" aria-controls="panel-practice" tabindex="-1"><span>Treinar</span><small>Toque e compare</small></button>
       <button id="tab-repertoire" role="tab" aria-selected="false" aria-controls="panel-repertoire" tabindex="-1"><span>Músicas</span><small>Importe e repita trechos</small></button>
@@ -28,9 +30,10 @@
     </div></details>
   </nav>
   <div id="studio-notices" class="studio-notices">
-    <section id="recovery" class="notice" hidden><h3>Dados originais protegidos</h3><p>Edições ficam na memória até você autorizar a substituição. Exporte os originais antes de continuar.</p><button id="download-recovery">Baixar originais</button><button id="replace-recovery">Substituir pela sessão atual</button></section>
+    <section id="recovery" class="notice" hidden><h3>Dados originais protegidos</h3><p>A biblioteca agora é a autoridade e os originais ficam preservados. Baixe-os antes de qualquer limpeza manual.</p><button id="download-recovery">Baixar originais</button></section>
     <section id="share-preview" class="notice" hidden><h3>Sessão recebida por link</h3><p id="share-description"></p><p>Nada foi substituído. Aplicar permite desfazer depois.</p><button id="apply-share">Aplicar sessão recebida</button><button id="dismiss-share">Dispensar</button></section>
   </div>
+  <section id="panel-library" class="intention-panel" role="tabpanel" aria-labelledby="tab-library" hidden><div id="library-mount"></div></section>
   <section id="panel-studio" class="intention-panel" role="tabpanel" aria-labelledby="tab-studio">
   <div id="session-workspace">
   <section id="studio-transport" class="panel studio-transport" aria-label="Transporte da sessão">
@@ -68,7 +71,7 @@
         <p class="tool-hint muted">Pulsos igualmente espaçados contra o compasso; o acento marca cada novo ciclo. Silêncios alternam com compassos audíveis, no mesmo relógio.</p>
       </div></details>
       <span id="position-text" class="position-text" role="status">Pronto</span>
-      <label class="session-name-label">Nome <input id="session-name" data-path="name" type="text" maxlength="120" aria-label="Nome da sessão"></label>
+      <label class="session-name-label">Nome <input id="session-name" data-path="name" type="text" maxlength="80" aria-label="Nome da sessão"></label>
       <details id="meter-options" class="transport-disclosure"><summary>Compasso</summary><div class="transport-popover"><div class="tool-row">
         <label>Tempos<input id="meter-beats" data-path="meter.beats" type="number" min="1" max="16" step="1" aria-label="Tempos por compasso"></label>
         <label>Unidade<select id="meter-unit" data-path="meter.unit" aria-label="Unidade do compasso"><option value="2">2</option><option value="4">4</option><option value="8">8</option><option value="16">16</option></select></label>
@@ -78,7 +81,7 @@
       <label>Compassos <input id="bars" data-path="bars" type="number" min="1" max="16" step="1"></label>
       <button id="undo" type="button" aria-label="Desfazer" title="Desfazer (Ctrl+Z)">↶</button><button id="redo" type="button" aria-label="Refazer" title="Refazer (Ctrl+Shift+Z)">↷</button>
     <details id="session-storage" class="transport-disclosure"><summary>Sessão</summary>
-    <section class="session-library transport-popover" aria-label="Sessões guardadas e compartilhamento"><div class="tool-row"><button id="new-session" type="button">Nova</button><button id="duplicate-session" type="button">Duplicar</button><button id="save-session">Salvar na biblioteca</button><select id="session-library" aria-label="Sessões guardadas"><option value="">Escolha uma sessão</option></select><button id="restore-session">Abrir</button><button id="delete-session">Excluir sessão guardada</button><button id="export">Exportar sessão</button><button id="import">Importar sessão</button><button id="share">Compartilhar link</button><input id="import-file" type="file" accept=".json,application/json" hidden></div><p id="library-status" role="status"></p><div id="library-recovery" hidden><button id="download-library-recovery">Baixar biblioteca original</button><button id="replace-library-recovery">Substituir biblioteca pela sessão atual</button></div><div id="share-output" class="notice" hidden><label for="share-url">Link completo, sem servidor</label><input id="share-url" type="text" readonly><p>Quem recebe pode ler a sessão inteira, incluindo opções e mixer.</p></div></section>
+    <section class="session-library transport-popover" aria-label="Arquivo da sessão e compartilhamento"><div class="tool-row"><button id="new-session" type="button">Novo</button><button id="duplicate-session" type="button">Duplicar</button><button id="export">Exportar sessão</button><button id="import">Importar sessão</button><button id="share">Compartilhar link</button><input id="import-file" type="file" accept=".json,application/json" hidden></div><div id="share-output" class="notice" hidden><label for="share-url">Link completo, sem servidor</label><input id="share-url" type="text" readonly><p>Quem recebe pode ler a sessão inteira, incluindo opções e mixer.</p></div></section>
     <span id="saved" class="saved" role="status"></span>
     </details>
     </div>

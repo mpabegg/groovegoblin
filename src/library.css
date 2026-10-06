@@ -1,0 +1,31 @@
+/* Biblioteca de exercícios (rodada 4, item 3): lista, filtros e ações.
+   Desktop 1280–1440; nada depende de toque. */
+
+.library-root { display: flex; flex-direction: column; gap: 12px; }
+.library-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #111b20; }
+.library-toolbar .library-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.library-toolbar input[type=search], .library-toolbar select { min-width: 150px; }
+.library-toolbar button { min-height: 38px; }
+.library-summary { margin: 0; font-size: 12px; }
+.library-warning { margin: 0; padding: 10px 12px; border: 1px solid #7a3b2e; border-radius: 8px; background: #241512; color: #ffba9d; }
+.library-recovery { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid #7a3b2e; border-radius: 8px; background: #1d1412; }
+.library-undo { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: #16232a; }
+.library-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.library-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #101a1f; }
+.library-item-active { border-color: var(--accent); }
+.library-item-main h3 { margin: 0 0 4px; font-size: 16px; }
+.library-meta { margin: 0 0 4px; font-size: 13px; color: var(--text); }
+.library-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 4px; }
+.library-tag { padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 11px; color: var(--accent); }
+.library-stats { margin: 0 0 6px; font-size: 12px; }
+.library-progress { height: 6px; border-radius: 3px; background: #223037; overflow: hidden; }
+.library-progress span { display: block; height: 100%; background: var(--accent); }
+.library-actions { display: flex; flex-wrap: wrap; align-items: start; gap: 6px; }
+.library-actions > button { min-height: 34px; }
+.library-menu > summary { cursor: pointer; padding: 7px 10px; font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; }
+.library-menu-content { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #16232a; }
+.library-menu-content button { text-align: left; }
+.library-editor { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; margin-top: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #16232a; }
+.library-editor input, .library-editor textarea { width: 100%; box-sizing: border-box; }
+.library-editor-actions { display: flex; gap: 8px; }
+.library-empty { margin: 0; padding: 12px; }

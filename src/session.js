@@ -26,6 +26,9 @@ export const DEFAULT_BPM = 100;
 export const METER_UNITS = Object.freeze([2, 4, 8, 16]);
 export const MAX_BEATS = 16;
 export const SUBDIVISIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8]);
+// Teto do nome da sessão (sessionv5). Exportado para a biblioteca validar
+// contra o MESMO limite antes de persistir, sem duplicar a constante.
+export const SESSION_NAME_MAX = 80;
 export const SWING_MAX = 0.75;
 export const SWING_UNITS = Object.freeze(['eighth', 'sixteenth']);
 export const MIXER_CHANNELS = Object.freeze(['phrase', 'metronome', 'drums', 'chords', 'bass']);
@@ -204,7 +207,7 @@ const SECTION_LABELS = {
 
 const TOP_LEVEL = {
   version: value => [2, 3, 4, SESSION_VERSION].includes(value),
-  name: value => typeof value === 'string' && value.length <= 80,
+  name: value => typeof value === 'string' && value.length <= SESSION_NAME_MAX,
   bpm: value => isInt(value, BPM_MIN, BPM_MAX),
   bars: value => isInt(value, MIN_BARS, MAX_BARS),
   subdivision: value => SUBDIVISIONS.includes(value),
@@ -214,7 +217,7 @@ const TOP_LEVEL = {
 
 const TOP_LEVEL_MESSAGES = {
   version: 'A versão da sessão não é compatível.',
-  name: 'O nome da sessão deve ser um texto de até 80 caracteres.',
+  name: `O nome da sessão deve ser um texto de até ${SESSION_NAME_MAX} caracteres.`,
   bpm: `O BPM deve ser um inteiro entre ${BPM_MIN} e ${BPM_MAX}.`,
   bars: `A sessão deve ter de ${MIN_BARS} a ${MAX_BARS} compassos.`,
   subdivision: 'A subdivisão deve ser de 1 a 8 partes por semínima.',
