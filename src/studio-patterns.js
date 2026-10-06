@@ -64,6 +64,29 @@ export function starterHarmony(session) {
   return Array.from({ length: session.bars }, (_, bar) => ({ ...diatonic[degrees[bar % degrees.length] - 1], startBar: bar, durationBars: 1 }));
 }
 
+// With the bass profile your own part is the bass: starters complete the band with drums and
+// chords and never switch the generated bass on.
+export function bandStarterState(session) {
+  const ownBass = getInstrumentProfile(session).type === 'bass';
+  const harmony = session.progression.enabled && session.progression.chords.length > 0;
+  return { ownBass, complete: session.drums.enabled && harmony && (ownBass || session.band.bassEnabled) };
+}
+
+export function bandStarterPatch(session, full) {
+  const { ownBass } = bandStarterState(session); const withChords = full || ownBass;
+  const created = withChords && !session.progression.chords.length;
+  const patch = { drums: { enabled: true, style: 'pop', density: 'medium', seed: 1 }, band: { style: 'pop', density: 'medium', role: 'solo', mode: 'steady' }, mixer: { drums: { muted: false } } };
+  if (!ownBass) { patch.band.bassEnabled = true; patch.mixer.bass = { muted: false }; }
+  if (withChords) {
+    patch.progression = created ? { enabled: true, cycleBars: session.bars, chords: starterHarmony(session) } : { enabled: true };
+    patch.mixer.chords = { muted: false };
+  }
+  const chords = created ? `${session.bars} ${session.bars === 1 ? 'acorde criado' : 'acordes criados'}, um por compasso` : 'progressão preservada';
+  const notice = ownBass ? `Bateria Pop e acordes ligados; ${chords}. O baixo continua sendo a sua parte.`
+    : withChords ? created ? `Banda Pop ligada; ${chords}.` : 'Banda Pop e acordes ligados; progressão preservada.' : 'Bateria e baixo Pop ligados.';
+  return { patch, notice };
+}
+
 export function mountStudioPatterns(host) {
   const $ = id => document.getElementById(id);
   const phraseDialog = $('phrase-tools-dialog');
@@ -167,13 +190,8 @@ export function mountStudioPatterns(host) {
   for (const id of ['variation', 'generate-phrase', 'empty-generate']) $(id).addEventListener('click', () => generate(true));
   function startBand(full) {
     if (host.isBusy()) return;
-    const session = host.getSession(); const created = full && !session.progression.chords.length;
-    const patch = { drums: { enabled: true, style: 'pop', density: 'medium', seed: 1 }, band: { bassEnabled: true, style: 'pop', density: 'medium', role: 'solo', mode: 'steady' }, mixer: { drums: { muted: false }, bass: { muted: false } } };
-    if (full) {
-      patch.progression = created ? { enabled: true, cycleBars: session.bars, chords: starterHarmony(session) } : { enabled: true };
-      patch.mixer.chords = { muted: false };
-    }
-    host.updateSession(patch, { notice: full ? created ? `Banda Pop ligada; ${session.bars} ${session.bars === 1 ? 'acorde criado' : 'acordes criados'}, um por compasso.` : 'Banda Pop e acordes ligados; progressão preservada.' : 'Bateria e baixo Pop ligados.' });
+    const { patch, notice } = bandStarterPatch(host.getSession(), full);
+    host.updateSession(patch, { notice });
   }
   $('start-band').addEventListener('click', () => startBand(false));
   $('start-full-band').addEventListener('click', () => startBand(true));

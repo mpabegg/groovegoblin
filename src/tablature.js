@@ -1,4 +1,4 @@
-import { getInstrumentProfile } from './instrument-profile.js';
+import { getInstrumentProfile, formatInstrumentNote } from './instrument-profile.js';
 
 export const MAX_TAB_FRET = 24;
 export const TAB_DIGIT_WINDOW_MS = 600;
@@ -86,10 +86,16 @@ export function mountPhraseView(host) {
     const track = document.getElementById('track-phrase'); track.classList.toggle('phrase-tab', select.value === 'tab');
     track.style.setProperty('--tab-strings', profile.strings);
     const lines = document.getElementById('tab-strings'); lines.replaceChildren();
+    const labels = document.getElementById('tab-string-labels'); labels.replaceChildren();
     if (select.value !== 'tab') return;
+    // Labels live in the sticky header beside the lane, so tick 0 and the shared x-axis stay clear.
     for (let string = 1; string <= profile.strings; string += 1) {
+      const top = `${(string - 0.5) / profile.strings * 100}%`; const open = stringPitch(profile, string);
       const line = document.createElement('span'); line.className = 'tab-string'; line.dataset.string = string;
-      line.style.top = `${(string - 0.5) / profile.strings * 100}%`; lines.append(line);
+      line.style.top = top; lines.append(line);
+      const label = document.createElement('span'); label.className = 'tab-string-label'; label.dataset.string = string;
+      label.textContent = formatInstrumentNote(open, profile, { octave: false }); label.title = `Corda ${string} · ${formatInstrumentNote(open, profile)}`;
+      label.style.top = top; labels.append(label);
     }
   };
 }

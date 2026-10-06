@@ -1,6 +1,7 @@
 import { TIMBRES, TIMBRE_LABELS, STYLES, DENSITIES, STYLE_LABELS, DENSITY_LABELS } from './session.js';
 import { getInstrumentProfile } from './instrument-profile.js';
 import { mountStudioBassStudy } from './studio-bass-study.js';
+import { mountTrackLayout } from './studio-track-layout.js';
 
 const names = { phrase: 'Frase', chords: 'Acordes', drums: 'Bateria', bass: 'Baixo', metronome: 'Metrônomo' };
 
@@ -60,6 +61,7 @@ export function mountStudioTracks(host) {
     controls.push({ channel, volume, output, mute, solo, timbre, summary });
   }
   const bassStudy = mountStudioBassStudy(host);
+  const layout = mountTrackLayout();
   function render() {
     const session = host.getSession();
     const phraseName = getInstrumentProfile(session).type === 'bass' ? 'Baixo (meu)' : 'Guitarra';
@@ -87,6 +89,7 @@ export function mountStudioTracks(host) {
       // An inactive track keeps its enable switch, not a bank of inactive controls.
       for (const node of row.querySelectorAll('.track-extra, .track-inline-mixer, .track-lane')) node.hidden = !enabled;
     }
+    layout.render();
     document.getElementById('track-drums').classList.toggle('role-suppressed', session.band.role === 'drums');
     document.getElementById('track-bass').classList.toggle('role-suppressed', session.band.role === 'bass');
     document.getElementById('track-chords').classList.toggle('role-suppressed', session.band.role === 'harmony');

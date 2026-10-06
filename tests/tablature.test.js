@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createSession, patchSession } from '../src/session.js';
-import { standardInstrumentProfile } from '../src/instrument-profile.js';
+import { standardInstrumentProfile, instrumentTuning, formatInstrumentNote } from '../src/instrument-profile.js';
 import { phraseView, resolveTabPosition, stringPitch, tabStringPatches, tabFretPatches, octaveToFitPatch, tabDigit, tabStringAtPointer, mountPhraseView } from '../src/tablature.js';
 import { editNotes, pasteNotes } from '../src/studio-editing.js';
 import { copyBar, duplicateBar, repeatPhraseInNewBars } from '../src/studio-bars.js';
@@ -105,7 +105,7 @@ function dom(t) {
     focus() {}
     closest(selector) { return selector === '.note' && this.dataset.id ? this : null; }
   }
-  for (const id of ['creation-duration', 'grid', 'phrase-view', 'tab-strings', 'track-phrase']) { const node = new Node('div'); node.id = id; }
+  for (const id of ['creation-duration', 'grid', 'phrase-view', 'tab-strings', 'tab-string-labels', 'track-phrase']) { const node = new Node('div'); node.id = id; }
   const original = globalThis.document;
   globalThis.document = { getElementById: id => nodes.get(id), createElement: tag => new Node(tag), querySelector: () => null };
   t.after(() => { if (original === undefined) delete globalThis.document; else globalThis.document = original; });
@@ -175,4 +175,23 @@ test('the single view selector defaults to rhythm and renders exactly 6/4/5 phys
   }
   nodes.get('phrase-view').value = 'rhythm'; nodes.get('phrase-view').listeners.change();
   assert.deepEqual(changes, [{ extensions: { studio: { phraseView: 'rhythm' } } }]);
+});
+
+test('string labels follow every physical line and the current tuning/naming, and leave rhythm view', t => {
+  const { nodes } = dom(t); let session;
+  const render = mountPhraseView({ getSession: () => session, updateSession() {} });
+  const dropD = { ...guitar, tuning: instrumentTuning(guitar, 'drop-d') };
+  for (const profile of [guitar, dropD, { ...dropD, noteNames: 'solfege' }, standardInstrumentProfile('bass', 5)]) {
+    session = createSession({ extensions: { studio: { phraseView: 'tab', instrument: profile } } }); render();
+    const lines = nodes.get('tab-strings').children; const labels = nodes.get('tab-string-labels').children;
+    assert.deepEqual(labels.map(label => [label.dataset.string, label.style.top]), lines.map(line => [line.dataset.string, line.style.top]));
+    assert.deepEqual(labels.map(label => label.textContent), labels.map(label => formatInstrumentNote(stringPitch(profile, label.dataset.string), profile, { octave: false })));
+  }
+  session = createSession({ extensions: { studio: { phraseView: 'tab', instrument: guitar } } }); render();
+  const standardSixth = nodes.get('tab-string-labels').children.at(-1).textContent;
+  session = createSession({ extensions: { studio: { phraseView: 'tab', instrument: dropD } } }); render();
+  assert.notEqual(nodes.get('tab-string-labels').children.at(-1).textContent, standardSixth);
+  assert.equal(nodes.get('tab-string-labels').children[0].textContent, formatInstrumentNote(guitar.tuning.at(-1), guitar, { octave: false }));
+  session = createSession({ extensions: { studio: { phraseView: 'rhythm', instrument: guitar } } }); render();
+  assert.equal(nodes.get('tab-string-labels').children.length, 0);
 });

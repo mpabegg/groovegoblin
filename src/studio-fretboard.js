@@ -72,7 +72,7 @@ export function mountStudioFretboard(host) {
   const scroll = document.createElement('div'); scroll.className = 'fretboard-scroll';
   const table = document.createElement('table'); table.id = 'fretboard-notes'; table.className = 'fretboard-notes'; scroll.append(table);
   const legend = document.createElement('p'); legend.className = 'tool-hint muted'; legend.textContent = 'T = fundamental (destaque forte); 3, 5 e 7 = graus do acorde. ♭/♯, suspensões e extensões mostram os intervalos reais. Sem acorde, a escala do tom. Cordas: aguda em cima, grave embaixo.';
-  panel.append(summary, controls, scroll, legend); document.getElementById('studio-editor').after(panel);
+  panel.append(summary, controls, scroll, legend); document.getElementById('studio-inspector').after(panel);
   const diagram = document.createElement('figure'); diagram.id = 'chord-diagram'; diagram.className = 'chord-diagram'; diagram.hidden = true;
   document.getElementById('chord-inspector').append(diagram);
   let session; let selected; let events = []; let positionValue = { mode: 'idle', tick: 0 }; let hidden = true;

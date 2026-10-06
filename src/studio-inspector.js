@@ -2,6 +2,7 @@ import { sessionTicks, ticksPerBar } from './session.js';
 import { musicalDuration } from './studio-bars.js';
 import { getInstrumentProfile, formatInstrumentNote } from './instrument-profile.js';
 import { resolveTabPosition, stringPitch, validTabFret, tabFretPatches, octaveToFitPatch } from './tablature.js';
+import { bandStarterState } from './studio-patterns.js';
 
 export function mountStudioInspector(host) {
   const $ = id => document.getElementById(id);
@@ -61,7 +62,11 @@ export function mountStudioInspector(host) {
     $('phrase-actions').hidden = kind !== null || empty;
     $('selection-text').hidden = kind !== 'note';
     if (note) $('selection-text').textContent = (selection.ids?.length ?? 1) > 1 ? `${selection.ids.length} notas selecionadas · edição conjunta` : `Nota · ${formatInstrumentNote(note.pitch, profile)} · compasso ${Math.floor(note.start / ticksPerBar(session)) + 1}`;
-    $('band-starters').hidden = writing || (session.drums.enabled && session.band.bassEnabled && session.progression.enabled && session.progression.chords.length > 0);
+    const starters = bandStarterState(session);
+    $('band-starters').hidden = writing || starters.complete;
+    $('start-band').hidden = starters.ownBass;
+    $('start-full-band').textContent = starters.ownBass ? 'Ligar bateria e acordes' : 'Ligar banda completa (bateria, baixo e acordes)';
+    $('start-full-band').title = starters.ownBass ? 'Liga a bateria padrão e os acordes; o baixo gerado continua desligado porque o baixo é a sua parte. Cria acordes somente se a progressão estiver vazia' : 'Liga bateria e baixo padrão; cria acordes somente se a progressão estiver vazia';
     $('note-detail').hidden = !note;
     $('studio-inspector').hidden = empty && !kind;
     for (const field of ['start', 'duration', 'pitch', 'velocity', 'articulation', 'offsetMs']) {

@@ -417,6 +417,22 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 .drum-lanes:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 .drum-lanes:focus-visible .drum-cursor { border-color: var(--blue); background: #74c8ed20; }
 #restore-generated-drums { font-size: 9px; padding: 2px 3px; }
+/* Generated drums/bass collapse to one line: enable, M/S, volume and the expand toggle stay. */
+#track-drums.track-compact, #track-bass.track-compact { height: 34px; min-height: 34px; }
+.track-compact .track-header { display: flex; align-items: center; gap: 4px; padding: 3px 8px; }
+.track-compact .track-name { flex: 0 0 auto; margin: 0; }
+.track-compact .track-inline-mixer { flex: 1; min-width: 0; width: auto; margin: 0; }
+.track-compact .track-extra, .track-compact .track-sound, .track-compact .drum-voice-labels { display: none; }
+#track-drums.track-compact .track-header { padding-right: 8px; }
+.track-compact .drum-line { cursor: default; }
+.track-compact .drum-hit { top: 1px; height: calc(100% - 2px); width: 3px; cursor: default; }
+.track-compact .bass-note { top: 4px; height: 24px; padding: 3px 2px; }
+.track-layout-toggle { flex: 0 0 auto; min-width: 24px; padding: 3px; font-size: 10px; line-height: 18px; }
+/* Open-string names sit in the sticky header beside each tab line, never over tick 0. */
+.tab-string-labels { display: none; }
+#track-phrase.phrase-tab .track-header { padding-right: 34px; }
+#track-phrase.phrase-tab .tab-string-labels { display: block; position: absolute; inset: 0 0 0 auto; width: 28px; background: #1d2930; border-left: 1px solid var(--line); }
+.tab-string-label { position: absolute; right: 4px; transform: translateY(-50%); color: var(--muted); font-size: 10px; font-weight: 700; line-height: 1; white-space: nowrap; }
 #bar-actions-dialog { max-width: min(620px, calc(100vw - 32px)); }
 .creation-duration { flex-wrap: nowrap; align-items: center; }
 .creation-duration > .track-disclosure { flex: 0 0 auto; }
@@ -471,6 +487,7 @@ main { max-width: 1440px; padding: 12px 24px 20px; }
 .tuner-reference input { width: 76px; padding: 4px 6px; }
 #tuner-activate { margin-right: 8px; }
 .studio-fretboard { padding: 14px 20px; }
+details.studio-fretboard:not([open]) { padding-block: 10px; }
 .studio-fretboard > summary { cursor: pointer; font-size: 13px; font-weight: 600; }
 .studio-fretboard[open] > summary { margin-bottom: 14px; }
 .studio-fretboard .tool-row { align-items: center; }
