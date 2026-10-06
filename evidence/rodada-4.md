@@ -176,6 +176,34 @@ Captura: [configuração e exceção explícita de gravação, 1440×900](rodada
 - Contrato do sidecar: `expectedOnsets` em segundos; opcionais `channel` (índice a partir de zero), `sampleRate`, `sensitivity`, `refractory`, `instrumentType` e `toleranceSeconds`. O teste decodifica o WAV e executa o detector real em blocos de 128 amostras.
 - Testes permanentes exercitam duração exata, opt-in, cancelamento, callbacks atrasados após encerramento, compartilhamento da captura, formato WAV e ataques/alturas observados. Asserções de redação e de arredondamento incidental foram removidas.
 
+## Etapa 3 — um treinador para seis combinações
+
+- Fonte **Frase da sessão / Exercício gerado** × modo **Avaliado / Tocar junto / Rotina**, com uma partitura, entrada, transporte e resultado. O botão principal assume a ação da etapa; não existe outro botão primário de rotina. Durante Ouvir, a prévia redundante fica oculta.
+- Referência gerada é transitória, inclusive na prévia “Ouvir frase”; não precisa substituir as notas autorais. Prova com frase vazia: Treinar e Ouvir permaneceram disponíveis e a execução recebeu notas `ex-*`, enquanto a biblioteca manteve zero notas. Aplicar é ação explícita no Avançado; Desfazer restaurou a sessão anterior byte a byte.
+- Execução real a 180 BPM, quatro compassos/duas repetições, com timestamps controlados de +5 ms: **32/32**, registro `source: generated` associado ao dono inicial, andamento canônico ainda 180. O cartão manteve **Melhor BPM: 120**, sem inflar o progresso autoral. Outra tomada controlada de +30 ms mostrou atraso mediano de **30,000 ms** e comparação anterior; em 180 BPM esse desvio excede a tolerância estrita existente. Não houve alteração no avaliador nem alegação de instrumento físico.
+- Prova nativa da rotina pelo transporte único: ouvir → tocar → ler → memorizar → improvisar → concluir, cinco etapas completas. Memorizar manteve dois compassos silenciosos (cliques observados separados por 500/500/500/4500 ms). Tocar junto acelerou 120→125→130 e restaurou 120 ao parar.
+- Integração com Hoje: **Próximo durante loop real** interrompeu `loop → idle`, abriu o item seguinte e fechou um intervalo `together` de **742 ms**, com o dono correto. O intervalo da fila foi preservado separadamente; Percurso une sobreposições.
+- Histórico e revisões abre o histórico real do exercício. Jogos de ouvido em **Explorar → Jogos de ouvido**: pergunta gerada, prévia real e resposta “Correto: 3ª maior (4 semitons)” observadas.
+
+### Layout medido
+
+Em 1440×900, todas as combinações tiveram documento de **900 px**, sem overflow horizontal. Contagem de `button,input,select,summary` visíveis, incluindo desabilitados:
+
+| Fonte | Modo | Painel | Página inteira |
+| --- | --- | ---: | ---: |
+| Sessão | Avaliado | 18 | 24 |
+| Sessão | Tocar junto | 18 | 24 |
+| Sessão | Rotina | 19 | 25 |
+| Gerado | Avaliado | 20 | 26 |
+| Gerado | Tocar junto | 20 | 26 |
+| Gerado | Rotina | 21 | 27 |
+
+Em 1280×800, as seis combinações ficaram entre **801 e 875 px**, sem overflow horizontal; pode haver rolagem vertical nessa altura menor, dentro do limite solicitado de 900 px. A captura final Gerado/Rotina mede 874 px.
+
+Capturas: [1440×900](rodada-4-treinador-parent-gerado-1440x900.png) e [1280×800](rodada-4-treinador-parent-1280x800.png).
+
+- Suíte integrada: **690 aprovados, 1 fixture opcional ignorada, zero falhas**; **161 módulos**, zero falhas. `practice.js` foi reduzido de 1988 para **1048 linhas**; integração de Hoje extraída para `today-view.js`, mantendo `main.js` dentro do limite.
+
 ## Critérios de aceitação
 
 | Nº | Critério | Estado observado |
@@ -187,9 +215,9 @@ Captura: [configuração e exceção explícita de gravação, 1440×900](rodada
 | 5 | Repetir, −10 BPM e +4 BPM condicionado | Aprovado na etapa 2 |
 | 6 | Comparação com tentativa anterior | Aprovado na etapa 2 |
 | 7 | Sem timeline sobreposta; tabela recolhida | Aprovado na etapa 2 |
-| 8 | Treinador único, seis combinações | Pendente |
-| 9 | Treinador com até 30 controles e 900 px | Pendente |
-| 10 | Jogos de ouvido em Explorar | Pendente |
+| 8 | Treinador único, seis combinações | Aprovado na etapa 3; material transitório, rotina completa e loop real |
+| 9 | Treinador com até 30 controles e 900 px | Aprovado na etapa 3; 24–27 controles na página, seis combinações com 900 px |
+| 10 | Jogos de ouvido em Explorar | Aprovado na etapa 3; pergunta, prévia e resposta no navegador |
 | 11 | Migração integral, deduplicação e backup | Aprovado na etapa 4 |
 | 12 | Autosave, Novo e recarregamento | Aprovado na etapa 4 |
 | 13 | Metadados, filtros e ordenação | Aprovado na etapa 4 |

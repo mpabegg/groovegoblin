@@ -10,7 +10,7 @@ import { evaluateSession, summarizeFeedback } from '../src/feedback.js';
 import { harness, audioContext, deferred, close } from './audio-harness.js';
 import { mountPracticeTracks, practiceVoices } from '../src/practice-tracks.js';
 import { createStudioPlayback } from '../src/studio-playback.js';
-import { mountPractice } from '../src/practice.js';
+import { mountPractice } from '../src/practice-trainer.js';
 
 import { MIN_PITCH_FREQUENCY } from '../src/instrument-pitch.js';
 function signal(rate, seconds, notes = [], noise = 0.001) {
@@ -444,6 +444,7 @@ function performanceUI(t, audio, session = trainingSession()) {
     showModal() { this.open = true; }
     close() { if (!this.open) return; this.open = false; this.fire('close'); }
     addEventListener(type, callback) { (this.listeners[type] ??= []).push(callback); }
+    removeEventListener(type, callback) { this.listeners[type] = (this.listeners[type] ?? []).filter(listener => listener !== callback); }
     fire(type, props = {}) {
       const event = { target: this, button: 0, pointerId: 1, timeStamp: performance.now(), preventDefault() {}, ...props };
       for (const callback of this.listeners[type] ?? []) callback(event);
@@ -478,8 +479,15 @@ function performanceUI(t, audio, session = trainingSession()) {
     notify: message => notices.push(message),
     changed() { nodes.get('train').disabled = false; surface?.render(); },
   };
+  // Os consumidores montados no teste registram aqui o seu encerramento: roda
+  // ANTES de restaurar os globais falsos (window/document), que é o que o
+  // destroy precisa para remover os listeners.
+  const cleanups = [];
   t.after(() => {
-    try { win.fire('pagehide'); surface?.reset(); }
+    try {
+      win.fire('pagehide'); surface?.reset();
+      for (const cleanup of cleanups.splice(0).reverse()) cleanup();
+    }
     finally {
       for (const [name, { original, value }] of [...originals].reverse()) {
         if (Object.getOwnPropertyDescriptor(globalThis, name)?.value !== value) continue;
@@ -489,6 +497,7 @@ function performanceUI(t, audio, session = trainingSession()) {
   });
   return {
     nodes, win, doc, storage, notices, install, host,
+    teardown(cleanup) { cleanups.push(cleanup); },
     mount() { surface = mountPerformanceInput(host); return surface; },
     get surface() { return surface; }, get stops() { return stops; },
     choose(id, value) { const node = nodes.get(id); node.value = value; node.fire('change'); },
@@ -1114,31 +1123,48 @@ test('mounted Instrument offers pitch, receives the shared real stream after fin
   assert.equal(h.ctx.sources.length, 0, 'instrument evaluation never synthesizes monitoring');
 });
 
-test('Treinar esta frase preserves the selected pitch goal through useSession and the executed Instrument snapshot, while generated routines retain timing', async t => {
+test('Treinar esta frase preserves the selected pitch goal through useSession and the executed Instrument snapshot, while generated material retains timing', async t => {
   const h = harness(t);
   const source = trainingSession({ training: { goal: 'pitch', countInBars: 0, repetitions: 1 },
     notes: [{ id: 'chosen', start: 1, duration: 2, pitch: 40 }] });
   const before = serializeSession(source), ui = performanceUI(t, h.audio, source);
   captureDevices(ui, h.ctx, [inputDevice('a')]); ui.mount();
   ui.choose('performance-entry', 'instrument'); await settleInput();
-  const executed = [], container = ui.doc.createElement('div');
+  const executed = [], applied = [], container = ui.doc.createElement('div');
+  let current = source;
   const practice = mountPractice(container, {
-    ...ui.host, isInstrumentInput: () => ui.surface.instrument, updateSession() { throw new Error('Training must not replace the saved phrase.'); },
+    ...ui.host, getSession: () => current, isInstrumentInput: () => ui.surface.instrument,
+    // Como no app real, aplicar a frase substitui a sessão e o Desfazer é do histórico.
+    updateSession(patch) { applied.push(patch); current = { ...current, ...patch }; return true; },
     async play(mode, value) {
       const snapshot = ui.surface.session(value); executed.push(snapshot);
       await h.audio.playSession(snapshot, { mode, ...ui.surface.playOptions(mode, snapshot) }); ui.surface.started(snapshot);
     },
   }, { storage: ui.storage });
-  t.after(() => practice.destroy());
+  ui.teardown(() => practice.destroy());
   practice.useSession({ train: true }); await settleInput();
   assert.equal(executed.length, 1); assert.equal(executed[0].training.goal, 'pitch');
   assert.equal(executed[0].extensions.performanceInput.mode, 'instrument');
   assert.deepEqual(executed[0].notes.map(note => [note.id, note.start, note.duration, note.pitch]),
     source.notes.map(note => [note.id, note.start, note.duration, note.pitch]));
   assert.equal(serializeSession(source), before);
+  assert.equal(applied.length, 0, 'training the session phrase never replaces the saved phrase');
   ui.host.stop();
+  // A fonte "Exercício gerado" prepara uma referência transitória: os treinos
+  // passam a usar ESSE material e a frase autoral continua intacta; aplicar à
+  // sessão é ação explícita e separada (com Desfazer).
+  const selectByOption = text => { const node = container.querySelectorAll('select').find(item => item.children.some(option => option.textContent === text)); assert.ok(node, text); return node; };
+  const choose = (optionText, value) => { const node = selectByOption(optionText); node.value = value; node.fire('change'); };
   const click = text => { const button = container.querySelectorAll('button').find(node => node.textContent === text); assert.ok(button, text); button.fire('click'); };
-  click('Exercício gerado'); click('Pular etapa'); click('Tocar o ritmo'); await settleInput();
+  choose('Exercício gerado', 'generated');
+  assert.equal(applied.length, 0, 'preparar a referência gerada não substitui a frase guardada');
+  choose('Rotina', 'routine');
+  click('Pular etapa'); practice.useSession({ train: true }); await settleInput();
   assert.equal(executed.length, 2); assert.equal(executed[1].training.goal, 'timing');
+  assert.equal(executed[1].extensions.practice.source, 'generated');
+  assert.ok(executed[1].notes.every(note => String(note.id).startsWith('ex-')), 'a execução usa o material gerado, não as notas autorais');
+  assert.equal(applied.length, 0, 'treinar o material gerado não substitui a frase guardada');
   assert.equal(serializeSession(source), before);
+  click('Aplicar à sessão');
+  assert.equal(applied.length, 1, 'a cópia para a sessão é a única ação que substitui a frase');
 });

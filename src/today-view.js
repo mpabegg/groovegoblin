@@ -9,9 +9,32 @@
 // Nenhum HTML não confiável é interpretado: cada nó é criado por createEl.
 
 import { createEl, renderKeepingFocus } from './practice.js';
-import { suggestQueue, queueTotalMs, DEFAULT_ITEM_MINUTES, MIN_ITEM_MINUTES, MAX_ITEM_MINUTES, SUGGESTION_LIMIT } from './today-store.js';
+import { createTodayStore, suggestQueue, queueTotalMs, DEFAULT_ITEM_MINUTES, MIN_ITEM_MINUTES, MAX_ITEM_MINUTES, SUGGESTION_LIMIT } from './today-store.js';
+import { createTodaySession } from './today-session.js';
 
 const INSTRUMENT_LABELS = Object.freeze({ guitar: 'Guitarra', bass: 'Baixo' });
+
+// Um controlador atende à Biblioteca e à tira; todos os modos usam o transporte do host.
+export function mountToday(panelContainer, trainerContainer, host) {
+  const { library, notify, download, activateTab } = host;
+  const store = createTodayStore();
+  let panel, trainer;
+  const session = createTodaySession({
+    store, library, notify,
+    getActivity: () => host.activity,
+    openItem: (id, { start = false } = {}) => {
+      if (!host.openExercise(id, { train: start })) return false;
+      activateTab('tab-practice');
+      return true;
+    },
+    getOwner: () => library.active(),
+    isExecuting: host.isBusy,
+    stopExecution: host.stopExecution,
+    onEvent: () => { panel?.render(); trainer?.render(); },
+  });
+  panel = mountTodayPanel(panelContainer, { store, session, library, notify, download, activateTab });
+  trainer = mountTodayTrainer(trainerContainer, { session, library, notify });
+}
 
 function requireHost(host, names) {
   if (!host || typeof host !== 'object') throw new TypeError('A sessão de hoje requer um host.');

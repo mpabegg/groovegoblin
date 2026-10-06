@@ -181,18 +181,20 @@
       <div id="practice-audible-mount"></div>
       <section id="performance-input" class="practice-input" aria-label="Toque o ritmo">
         <button id="train-pad" type="button" class="train-pad" disabled aria-label="Tocar o ritmo: pressione no início da nota e solte no final" title="Espaço: pressione no ataque, segure e solte no término"><span id="train-state">Escolha Treinar esta frase para começar.</span><span id="held-state" class="held-state">ESPAÇO ou toque</span></button>
-        <details id="input-options" class="control-detail"><summary>Avançado · opções de toque</summary><div class="tool-row"><label>Altura ao tocar (MIDI)<input id="input-pitch" type="number" min="21" max="108" value="69"></label><label class="toggle"><input id="minimal" type="checkbox"> Foco na execução</label></div><p class="tool-hint muted">A altura do Teclado é escolhida manualmente, não medida pelo toque. Teclado mede pressionar e soltar; Instrumento avalia apenas ataques, sem medir duração, altura ou força. A entrada é analisada localmente e nada é enviado; nada é gravado nem guardado no navegador, exceto a amostra de 10 s que você pede explicitamente em Configurar. Use fones, teste a entrada e calibre a latência.</p></details>
       </section>
-      <details id="training-options" class="control-detail"><summary>Configurar treino</summary><div class="tool-row">
+      <div class="practice-options-row">
+        <details id="input-options" class="control-detail"><summary>Avançado · opções de toque</summary><div class="tool-row"><label>Altura ao tocar (MIDI)<input id="input-pitch" type="number" min="21" max="108" value="69"></label><label class="toggle"><input id="minimal" type="checkbox"> Foco na execução</label></div><p class="tool-hint muted">A altura do Teclado é escolhida manualmente, não medida pelo toque. Teclado mede pressionar e soltar; Instrumento avalia apenas ataques, sem medir duração, altura ou força. A entrada é analisada localmente e nada é enviado; nada é gravado nem guardado no navegador, exceto a amostra de 10 s que você pede explicitamente em Configurar. Use fones, teste a entrada e calibre a latência.</p></details>
+        <details id="training-options" class="control-detail"><summary>Configurar treino</summary><div class="tool-row">
         <label>Entrada (compassos)<input id="count-in" data-path="training.countInBars" type="number" min="0" max="4"></label>
         <label>Repetições<input id="repetitions" data-path="training.repetitions" type="number" min="1" max="64"></label>
         <label>Avaliação<select id="training-evaluation" data-path="training.evaluation"></select></label>
         <label>Objetivo<select id="training-goal" data-path="training.goal"></select></label>
         <label class="toggle"><input data-path="training.monitor" type="checkbox"> Ouvir teclado/toque no treino</label>
       </div><p class="tool-hint muted">Treinos usam o loop da fonte, no BPM e compasso da sessão, sem percorrer a forma variável. Metrônomo e polirritmia são configurados no Estúdio.</p></details>
+      </div>
+      <div id="practice-mount"></div>
     </section>
     <section id="training-result" class="panel training-result" role="region" aria-label="Resultado do treino" hidden></section>
-    <details id="practice-studio" class="panel studio-detail"><summary>Prática guiada · objetivos, rotina e jogos de ouvido</summary><p class="muted">Um exercício gerado à parte da sua frase guardada. Abra para escolher objetivo, seguir uma rotina em etapas ou jogar os jogos de ouvido.</p><div id="practice-mount"></div></details>
   </section>
   <section id="panel-explore" class="intention-panel" role="tabpanel" aria-labelledby="tab-explore" hidden><div id="playground-mount"></div></section>
   <section id="panel-repertoire" class="intention-panel" role="tabpanel" aria-labelledby="tab-repertoire" hidden><div id="repertoire-mount"></div></section>

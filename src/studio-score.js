@@ -165,14 +165,17 @@ export function mountStudioScores(studioContainer, practiceContainer, host) {
   function render(session, notes = session.notes) {
     studioSession = notes === session.notes ? session : { ...session, notes };
     studioRows = renderView(studioContainer, studioSession);
-    if (!execution) { practiceSession = session; practiceRows = renderView(practiceContainer, practiceSession); }
+    // A partitura do Treinar mostra a fonte atual do treinador (frase da sessão
+    // ou o exercício gerado transitório), sem tocar na sessão autoral.
+    const source = host.getSourceSession?.() ?? session;
+    if (!execution) { practiceSession = source; practiceRows = renderView(practiceContainer, practiceSession); }
   }
   function position(value, { hidden = false } = {}) {
     const active = value.mode !== 'idle';
     const snapshot = active ? host.getExecutionSession?.() ?? null : null;
     if (snapshot !== execution) {
       execution = snapshot;
-      practiceSession = snapshot ?? host.getSession();
+      practiceSession = snapshot ?? host.getSourceSession?.() ?? host.getSession();
       practiceRows = renderView(practiceContainer, practiceSession);
     }
     positionScore(studioRows, value, { hidden: hidden && value.mode === 'train' });

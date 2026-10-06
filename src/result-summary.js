@@ -188,6 +188,29 @@ export function resultSummary(results, session) {
   };
 }
 
+// Sugestão de andamento depois de uma execução AVALIADA (com notas esperadas):
+// ≥90% dos ataques no tempo sugere +4 BPM; <70% sugere −4 BPM. É só uma
+// sugestão — nada muda sozinho; o CTA explícito do resultado aplica.
+export const SUGGEST_HIGH_RATIO = 0.9;
+export const SUGGEST_LOW_RATIO = 0.7;
+export const SUGGEST_BPM = 4;
+
+export function tempoSuggestion(summary, bpm) {
+  const ratio = typeof summary?.ratio === 'number' ? summary.ratio : null;
+  const base = Number.isFinite(bpm) ? Math.round(bpm) : null;
+  if (ratio === null || base === null || summary?.verdict?.kind !== 'attacks') return null;
+  const clampBpm = value => Math.max(MIN_BPM, Math.min(MAX_BPM, value));
+  if (ratio >= SUGGEST_HIGH_RATIO) {
+    const target = clampBpm(base + SUGGEST_BPM);
+    return target === base ? null : { direction: 'up', delta: target - base, bpm: target, ratio };
+  }
+  if (ratio < SUGGEST_LOW_RATIO) {
+    const target = clampBpm(base - SUGGEST_BPM);
+    return target === base ? null : { direction: 'down', delta: target - base, bpm: target, ratio };
+  }
+  return null;
+}
+
 function fragmentText(fragment) {
   if (fragment.kind === 'tendency') {
     return `${fragment.valueMs > 0 ? 'Atraso' : 'Adiantamento'} mediano de ${ms(fragment.valueMs)} nos ataques casados.`;

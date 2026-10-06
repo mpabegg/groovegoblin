@@ -23,6 +23,7 @@ import {
 } from './practice.js';
 import { generateGroove } from './generator.js';
 import { patchSession, serializeSession } from './session.js';
+import { createEarGames } from './ear-games.js';
 
 // ---------------------------------------------------------------------------
 // Estado persistido (chave própria e versionada)
@@ -633,6 +634,9 @@ export function mountPlayground(container, host, options = {}) {
   let fertile = { selectedId: null, quantize: 'strict', conversion: null };
   let activity = 'duet';
   let passageActivity = 'silence';
+  // Jogos de ouvido: realocados do antigo bloco "Prática guiada"; usam o mesmo
+  // motor e o estado legado compartilhado (leitura+mutação na mesma passada).
+  const earGames = createEarGames(host, { storage });
   const activities = [
     { id: 'duet', name: 'Dueto', render: renderGoblinSection },
     { id: 'dungeon', name: 'Masmorra', render: renderDungeonSection },
@@ -641,6 +645,7 @@ export function mountPlayground(container, host, options = {}) {
     { id: 'alchemy', name: 'Alquimia', render: renderAlchemySection },
     { id: 'passages', name: 'Passagens', render: renderPassagesSection },
     { id: 'choir', name: 'Coral dos objetos', render: renderChoirSection },
+    { id: 'ears', name: 'Jogos de ouvido', render: () => earGames.render(rerender) },
   ];
   const timers = new Set();
 

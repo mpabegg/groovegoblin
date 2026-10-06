@@ -2,7 +2,8 @@ import { GrooveAudio, renderSession } from './audio.js';
 import { loadSession, validateSession, serializeSession, parseSession, encodeSessionLink, decodeSessionLink, drumEditStructureError, ticksPerBar as barTicks, METRONOME_PATTERNS, ARTICULATIONS } from './session.js';
 import { evaluateSession, summarizeFeedback } from './feedback.js';
 import { getDiatonicChords, invertChord } from './progression.js';
-import { mountPractice } from './practice.js';
+import { mountPractice } from './practice-trainer.js';
+import { createPracticeActivity } from './practice-activity.js';
 import { mountPlayground } from './playground.js';
 import { mountJourney } from './practice-view.js';
 import { mountRepertoire } from './repertoire-view.js';
@@ -10,7 +11,6 @@ import { setupOffline } from './offline.js';
 import { mountTour } from './tour.js';
 import { mergeSession } from './studio-state.js';
 import { captureLegacyBackup, createExerciseLibrary } from './exercise-library.js';
-import { createPracticeActivity } from './practice-activity.js';
 import { mountLibrary } from './library-view.js';
 import { History } from './history.js';
 import { playbackEditPolicy } from './studio-editing.js';
@@ -29,11 +29,17 @@ import { mountStudioInstrument } from './studio-instrument.js';
 import { mountPracticeTracks } from './practice-tracks.js';
 import { mountTrainingResult } from './training-result.js';
 import { quietTakeNotices } from './take-notices.js';
-import { createTodayStore } from './today-store.js';
-import { createTodaySession } from './today-session.js';
-import { mountTodayPanel, mountTodayTrainer } from './today-view.js';
+import { mountToday } from './today-view.js';
 
 const $ = id => document.getElementById(id);
+// Origem declarada do material da execução. O controlador real (treinador)
+// marca extensions.practice.source: uma frase do estúdio é autoral; o material
+// gerado e aplicado à sessão continua sendo gerado. Sem marca, a biblioteca
+// decide pela impressão digital do material.
+function declaredRunSource(session) {
+  const value = session?.extensions?.practice?.source;
+  return value === 'generated' ? 'generated' : value === 'session' ? 'authored' : null;
+}
 // Estado legado cru é preservado ANTES de qualquer leitura/migração.
 captureLegacyBackup();
 const restored = loadSession();
@@ -41,6 +47,8 @@ let session = withStudioChoices(initialStudioSession(restored));
 let recoveryRaw = restored.recoveryRaw;
 let sessionSaved = false;
 let selected = null;
+// Material transitório mostrado pela partitura do Treinar (fonte gerada).
+let sourceSnapshot = null;
 // One editor selection, with a primary item and an optional same-lane group.
 function noteSelection() { return selected?.kind === 'note' ? selected.id : null; }
 function chordSelection() { return selected?.kind === 'chord' ? selected.index : null; }
@@ -170,12 +178,12 @@ async function begin(mode = 'loop', practiceSession = null, { listen = false } =
   const inputReady = mode !== 'train' || await performanceInput.prepareTraining();
   if (request !== generation) return false;
   if (!inputReady) { stop(); return false; }
-  const source = structuredClone(listen ? phrasePreviewSession(session) : practiceSession ?? session);
+  const source = structuredClone(listen ? phrasePreviewSession(sourceSnapshot ?? session) : practiceSession ?? session);
   const snapshot = !listen && mode === 'train' ? performanceInput.session(source) : source;
   playback.setListening(listen);
   executionSession = snapshot;
   exercisePlayback = practiceSession !== null || listen;
-  runContext = mode === 'train' ? library.captureRunContext(executionSession, { objective: executionSession.extensions?.practice?.objective ?? null }) : null;
+  runContext = mode === 'train' ? library.captureRunContext(executionSession, { source: declaredRunSource(executionSession), objective: executionSession.extensions?.practice?.objective ?? null }) : null;
   try {
     await audio.playSession(snapshot, {
       mode, startTick: mode === 'train' || practiceSession || listen ? null : playback.getStartTick(),
@@ -211,7 +219,17 @@ async function preview(notes, options = {}) {
 async function saveTake(attempts, detail) { return takeNotices.capture(() => repertoire.captureTake(attempts, detail)); }
 const host = {
   getSession: () => structuredClone(session), updateSession, replaceSession, play: begin, stop, notify: message, preview, saveTake, renderSession,
-  isBusy: busy, isInstrumentInput: () => !!performanceInput?.instrument, openExerciseHistory, activity,
+  isBusy: busy, isInstrumentInput: () => !!performanceInput?.instrument, openExerciseHistory,
+  activity, activeExerciseId: () => library.active(),
+  clearResult: () => trainingResult?.clear(),
+  // A referência transitória muda a partitura do treinador, não o exercício.
+  getSourceSession: () => sourceSnapshot,
+  setSourceSnapshot(value) {
+    const next = value && typeof value === 'object' ? structuredClone(value) : null;
+    if (next === sourceSnapshot) return;
+    sourceSnapshot = next;
+    renderAll();
+  },
 };
 
 const studio = mountStudio({ onActivate: id => {
@@ -234,7 +252,7 @@ const transport = mountStudioTransport({
 });
 const inspector = mountStudioInspector({ getSession: () => session, getSelection: () => selected, isBusy: () => false, commitNote, notify: message });
 const studioTimeline = mountStudioTimeline($('studio-editor'), {
-  getSession: () => session, getExecutionSession: () => executionSession, isBusy: () => false, updateSession,
+  getSession: () => session, getExecutionSession: () => executionSession, getSourceSession: () => sourceSnapshot, isBusy: () => false, updateSession,
   seek: tick => playback.seek(tick), getStartTick: playback.getStartTick,
   isSolo: playback.isSolo, toggleSolo: playback.toggleSolo,
   getSelection: noteSelection, setSelection: setNoteSelection,
@@ -313,13 +331,14 @@ function renderControls() {
   $('input-pitch').value = session.extensions.studio.inputPitch;
   $('minimal').checked = !!session.extensions.studio.performanceFocus;
   document.body.classList.toggle('performance-focus', $('minimal').checked);
+  const reference = sourceSnapshot ?? session;
   const listening = playback.isListening() && locked;
   $('listen-phrase').setAttribute('aria-pressed', String(listening));
-  $('listen-phrase').disabled = listening || pending !== null || !session.notes.some(note => note.start < session.loop.endBar * barTicks(session) && note.start + note.duration > session.loop.startBar * barTicks(session));
+  $('listen-phrase').disabled = listening || pending !== null || !reference.notes.some(note => note.start < reference.loop.endBar * barTicks(reference) && note.start + note.duration > reference.loop.startBar * barTicks(reference));
   $('practice-session-title').textContent = session.name;
   $('session-badge').textContent = `${session.meter.beats}/${session.meter.unit} · ${session.bars} comp. · loop ${session.loop.startBar + 1}–${session.loop.endBar}`;
   transport.render();
-  $('train').disabled = pending !== null || (session.training.evaluation !== 'free' && !session.notes.some(note => note.start >= session.loop.startBar * barTicks(session) && note.start < session.loop.endBar * barTicks(session)));
+  $('train').disabled = pending !== null || ($('train').dataset.reference !== 'true' && reference.training.evaluation !== 'free' && !reference.notes.some(note => note.start >= reference.loop.startBar * barTicks(reference) && note.start < reference.loop.endBar * barTicks(reference)));
   $('train-pad').disabled = !audio.position.training;
   $('clear').disabled = session.notes.length === 0;
   for (const id of ['generate', 'variation', 'load-groove', 'generate-drums', 'generate-progression', 'new-session', 'duplicate-session', 'apply-share']) $(id).disabled = false;
@@ -386,7 +405,7 @@ performanceInput = mountPerformanceInput({
 });
 trainingResult = mountTrainingResult({
   getSession: () => session, updateSession, isBusy: () => pending !== null || !!performanceInput.calibrating,
-  retry: () => practice.useSession({ train: true }), train: snapshot => void begin('train', snapshot).catch(() => {}),
+  retry: () => practice.useSession({ train: true }), train: snapshot => practice.startSnapshot(snapshot),
   resultNote: value => performanceInput.resultNote(value),
 });
 practiceTracks = mountPracticeTracks($('practice-audible-mount'), {
@@ -441,9 +460,10 @@ function syncActive() {
   return entry;
 }
 function openExercise(id, { train = false } = {}) {
-  if (!library.select(id)) return; syncActive();
+  if (!library.select(id)) return false; syncActive();
   if (train) { studio.activate($('tab-practice')); practice.useSession({ train: true }); }
   else studio.activate($('tab-studio'));
+  return true;
 }
 // Caminho único do histórico por exercício (biblioteca e treinador). Sem
 // argumento usa o exercício ativo; nunca cria vínculo com outro exercício.
@@ -462,29 +482,11 @@ const libraryView = mountLibrary($('library-mount'), {
   undoDeleteExercise: () => { const restored = library.undoDelete(); syncActive(); return restored; },
   updateExerciseMetadata: (id, patch) => { const entry = library.updateMetadata(id, patch); syncActive(); return entry; },
 });
-// Sessão de hoje (rodada 4, item 4): fila/rotinas em chave própria e a tira de
-// tempo na aba Treinar. `openItem` abre o exercício no Treinar; `start` inicia o
-// take avaliado só quando o usuário pede "Começar".
-const todayStore = createTodayStore();
-const todaySession = createTodaySession({
-  store: todayStore,
-  library,
-  getActivity: () => host.activity ?? null,
-  notify: message,
-  openItem: (exerciseId, { start = false } = {}) => {
-    if (!library.get(exerciseId) || !library.select(exerciseId)) return false;
-    syncActive();
-    studio.activate($('tab-practice'));
-    if (start) practice.useSession({ train: true });
-    return true;
-  },
-  getOwner: () => library.active(),
-  isExecuting: () => executionMode === 'train' && (pending === 'play' || audio.position.mode === 'countin' || audio.position.mode === 'train'),
+mountToday($('today-mount'), $('today-trainer-mount'), {
+  ...host, library, download, openExercise,
+  activateTab: id => studio.activate($(id)),
   stopExecution: reason => { practice?.cancel(); stop(reason); },
-  onEvent: () => { todayPanel?.render(); todayTrainer?.render(); },
 });
-const todayPanel = mountTodayPanel($('today-mount'), { store: todayStore, session: todaySession, library, notify: message, download, activateTab: id => studio.activate($(id)) });
-const todayTrainer = mountTodayTrainer($('today-trainer-mount'), { session: todaySession, library, notify: message });
 $('new-session').addEventListener('click', () => openExercise(library.new({ session: createStudioSession() }).id));
 $('duplicate-session').addEventListener('click', () => { const active = library.active(); if (active) openExercise(library.duplicate(active).id); else message('Não há exercício para duplicar.'); });
 for (const [id, raw, name] of [['download-library-backup', library.backupRaw, 'groovegoblin-backup-legado.json'], ['download-library-recovery', library.recoveryRaw, 'groovegoblin-biblioteca-corrompida.json']]) { $(id).hidden = raw === null; $(id).addEventListener('click', () => download(raw, name)); }
@@ -505,7 +507,7 @@ function frame() {
   requestAnimationFrame(frame);
 }
 repertoire = mountRepertoire($('repertoire-mount'), { ...host, notify: takeNotices.notify });
-practice = mountPractice($('practice-mount'), host);
+practice = mountPractice($('practice-mount'), host, { activity });
 playground = mountPlayground($('playground-mount'), { ...host, notify: takeNotices.notify });
 journey = mountJourney($('journey-mount'), { ...host, library });
 setupOffline({ isBusy: () => busy() || repertoire.isBusy(), canReload: () => sessionSaved, notify: message });

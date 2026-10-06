@@ -21,9 +21,9 @@ function editing(target) {
 export function mountTrainingResult(host, { comparisons } = {}) {
   const $ = id => document.getElementById(id);
   // A área de treino (toque, opções de toque, partitura da frase, ajustes do
-  // treino) sai de cena enquanto o resultado ocupa o lugar dela; a Prática
-  // guiada também fica oculta só enquanto o resultado está aberto.
-  const covered = ['practice-rhythm-score', 'train-pad', 'input-options', 'training-options', 'practice-studio'].map($);
+  // treino) sai de cena enquanto o resultado ocupa o lugar dela; o painel do
+  // treinador também fica oculto só enquanto o resultado está aberto.
+  const covered = ['practice-rhythm-score', 'train-pad', 'input-options', 'training-options', 'practice-mount'].map($);
   let owner = null;
   let context = null;
   const view = mountResult($('training-result'), {

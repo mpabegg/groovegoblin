@@ -7,7 +7,7 @@
 // owner (capturado no início do treino): { kind: 'session', key } ou
 //   { kind: 'exercise', snapshot }; a comparação usa owner + chave estável.
 import { resultSummary, noteResults, barAccuracy, worstBar, attackMarks,
-  comparisonKey, comparisonEntry, createComparisonMemory, exerciseFingerprint } from './result-summary.js';
+  comparisonKey, comparisonEntry, createComparisonMemory, exerciseFingerprint, tempoSuggestion } from './result-summary.js';
 import { buildRhythmNotation, notationTickX } from './notation.js';
 import { renderPracticeScore } from './studio-score.js';
 import { mergeSession } from './studio-state.js';
@@ -71,7 +71,7 @@ export function mountResult(container, host, { comparisons = createComparisonMem
     const identity = key ?? comparisonKey(session, results, owner.kind === 'exercise' ? 'exercise' : 'session');
     const previous = host.previousResult?.(identity) ?? comparisons.previous(identity);
     comparisons.record(identity, comparisonEntry(summary));
-    model = { session, results, summary, owner, note, key: identity, previous, repetition: 'all' };
+    model = { session, results, summary, owner, note, key: identity, previous, repetition: 'all', suggestion: tempoSuggestion(summary, results.bpm) };
     host.resultShown?.(model);
     render();
     return model;
@@ -98,6 +98,10 @@ export function mountResult(container, host, { comparisons = createComparisonMem
     if (kind === 'slower' || kind === 'faster') {
       const bpm = tempo[kind]; if (bpm === null) return false;
       patch = { bpm }; notice = `Andamento ${results.bpm} → ${bpm} BPM para o próximo treino.`;
+    } else if (kind === 'suggest') {
+      const suggestion = model.suggestion; if (!suggestion) return false;
+      patch = { bpm: suggestion.bpm };
+      notice = `Andamento ${results.bpm} → ${suggestion.bpm} BPM pela sugestão do resultado.`;
     } else if (kind === 'loop') {
       const weak = tempo.loop; if (!weak) return false;
       patch = { loop: { startBar: weak.startBar, endBar: weak.endBar } };
@@ -284,6 +288,19 @@ export function mountResult(container, host, { comparisons = createComparisonMem
     if (tempo.slower !== null) action('slower', '10 BPM mais lento', { label: '−', aria: '-' });
     if (tempo.faster !== null) action('faster', '4 BPM mais rápido', { label: '+', aria: '+' });
     container.append(next);
+    if (model.suggestion) {
+      const suggestion = model.suggestion;
+      const line = el(document, 'p', { className: 'result-suggestion', role: 'status', dataset: { suggestion: suggestion.direction } });
+      line.append(suggestion.direction === 'up'
+        ? `Sugestão: ${percent(suggestion.ratio)} dos ataques no tempo · experimente +${suggestion.delta} BPM (${suggestion.bpm} BPM) no próximo treino. Nada mudou automaticamente.`
+        : `Sugestão: ${percent(suggestion.ratio)} dos ataques no tempo · consolide ${suggestion.delta} BPM (${suggestion.bpm} BPM) antes de subir. Nada mudou automaticamente.`);
+      if (suggestion.direction === 'down') {
+        const apply = el(document, 'button', { type: 'button', dataset: { resultAction: 'suggest' }, disabled: busy, text: `Aplicar sugestão · ${suggestion.bpm} BPM` });
+        apply.addEventListener('click', () => act('suggest'));
+        line.append(' ', apply);
+      }
+      container.append(line);
+    }
     const details = detailTable(); details.open = disclosure; container.append(details);
     setVisible(true);
     if (focusedAction) container.querySelector(`[data-result-action="${focusedAction}"]`)?.focus({ preventScroll: true });
