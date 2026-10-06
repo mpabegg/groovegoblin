@@ -1,0 +1,444 @@
+// Regressões de tela da aula (rodada 5, etapa 6) — consumidor.
+//
+// Cobrem os defeitos encontrados na revisão da etapa: rascunho de anotações que
+// sumia quando a gravação falhava (ou quando o host chamava show na mesma aula),
+// show antigo que reabria contagem/marcação depois de hide(), anotações não
+// gravadas ao esconder a página, texto igual em outra aula limpo por gravação
+// antiga, contagem de tempo obrigatória (agora opt-in) e aula removida expondo
+// um Desvincular que a loja recusa. Também cobrem as etiquetas de origem
+// compactas.
+//
+// Tudo fictício: “Curso de Exemplo”, “Aula 3”, example.invalid.
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createCourseStore } from '../src/course-store.js';
+import { createAttachmentStore } from '../src/course-attachments.js';
+import { mountCourseLesson } from '../src/course-lesson.js';
+import { exerciseOriginBadges, mountExerciseOrigins } from '../src/course-lesson-origins.js';
+import { makeRoot, installDom, dispatchWindow, document as fakeDocument, makeEvent } from './course-lesson-dom.js';
+import { courseDocument, lesson, memoryBackend } from './course-lesson-fixtures.js';
+
+const NOW = () => '2026-01-02T03:04:05.000Z';
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+// IndexedDB indisponível: a aula só usa a loja de anexos para METADADOS aqui.
+function idleAttachments() {
+  return {
+    persistent: true,
+    error: null,
+    ready: () => Promise.resolve(),
+    subscribe: () => () => {},
+    list: () => [],
+    listByCourse: () => [],
+    get: () => null,
+    has: () => false,
+    totals: () => ({ files: 0, refs: 0, bytes: 0 }),
+  };
+}
+
+async function setup({ backend = null, attachments = null } = {}) {
+  const release = installDom();
+  const store = createCourseStore({ backend: backend ?? memoryBackend(), now: NOW, uuid: (() => { let n = 0; return () => `estado-${(n += 1)}`; })() });
+  await store.ready();
+  const imported = await store.importText(JSON.stringify(courseDocument()), { source: 'teste' });
+  assert.equal(imported.ok, true, imported.error);
+  const notifications = [];
+  const container = makeRoot();
+  fakeDocument.body = container;
+  const lessonView = mountCourseLesson(container, {
+    store,
+    attachments: attachments ?? idleAttachments(),
+    library: null,
+    notify: (text, error = false) => notifications.push({ text, error: !!error }),
+    openExercise: () => {},
+    onOpenLesson: (courseId, lessonId) => { void lessonView.show(courseId, lessonId); },
+  });
+  return {
+    store,
+    courseId: imported.courseId,
+    container,
+    lesson: lessonView,
+    notifications,
+    cleanup() { lessonView.destroy(); release(); },
+  };
+}
+
+const textarea = container => container.querySelector('#lesson-notes');
+const type = (container, value) => {
+  const node = textarea(container);
+  node.value = value;
+  node.dispatchEvent(makeEvent('input'));
+  return node.value;
+};
+
+test('aula: falha na gravação preserva o texto e ele volta ao reabrir a aula', async t => {
+  const backend = memoryBackend();
+  const context = await setup({ backend });
+  t.after(() => context.cleanup());
+  const { store, courseId, container, lesson, notifications } = context;
+
+  await lesson.show(courseId, 'aula-1');
+  type(container, 'texto que precisa sobreviver');
+  const failure = new Error('quota cheia'); failure.name = 'QuotaExceededError';
+  backend.failNext(failure);
+  await lesson.show(courseId, 'aula-3');
+  await sleep(30);
+  assert.equal(store.lessonState(courseId, 'aula-1').notes, '', 'a gravação falhou');
+  assert.ok(notifications.some(item => item.error && /anotações/i.test(item.text)), 'avisou o erro');
+
+  await lesson.show(courseId, 'aula-1');
+  assert.equal(textarea(container).value, 'texto que precisa sobreviver', 'o rascunho voltou acessível');
+  // Agora a gravação funciona: o texto é confirmado na loja.
+  type(container, 'texto que precisa sobreviver');
+  await sleep(900);
+  assert.equal(store.lessonState(courseId, 'aula-1').notes, 'texto que precisa sobreviver');
+});
+
+test('aula: show na MESMA aula não descarta o rascunho pendente', async t => {
+  const context = await setup();
+  t.after(() => context.cleanup());
+  const { store, courseId, container, lesson } = context;
+  await lesson.show(courseId, 'aula-1');
+  type(container, 'digitado agora');
+  await lesson.show(courseId, 'aula-1');
+  assert.equal(textarea(container).value, 'digitado agora');
+  await sleep(900);
+  assert.equal(store.lessonState(courseId, 'aula-1').notes, 'digitado agora');
+  assert.equal(textarea(container).value, 'digitado agora');
+});
+
+test('aula: esconder a página grava o rascunho pendente na hora', async t => {
+  const context = await setup();
+  t.after(() => context.cleanup());
+  const { store, courseId, container, lesson } = context;
+  await lesson.show(courseId, 'aula-1');
+  type(container, 'salvar ao esconder');
+  fakeDocument.triggerVisibility(true);
+  await sleep(60);
+  assert.equal(store.lessonState(courseId, 'aula-1').notes, 'salvar ao esconder', 'a visibilidade não perde o texto');
+  fakeDocument.triggerVisibility(false);
+  await lesson.show(courseId, 'aula-2');
+  type(container, 'salvar ao fechar');
+  dispatchWindow('pagehide');
+  await sleep(60);
+  assert.equal(store.lessonState(courseId, 'aula-2').notes, 'salvar ao fechar', 'pagehide não perde o texto');
+});
+
+test('aula: gravação antiga não limpa o texto igual digitado em outra aula', async t => {
+  const inner = memoryBackend();
+  let hold = false;
+  let releaseHold = null;
+  const backend = {
+    getAll: name => inner.getAll(name),
+    get: (name, id) => inner.get(name, id),
+    delete: (name, id) => inner.delete(name, id),
+    writeBatch: entries => inner.writeBatch(entries),
+    holdNextStatePut() { hold = true; },
+    release() { releaseHold?.(); releaseHold = null; },
+    async put(name, value) {
+      if (hold && name === 'states') { hold = false; await new Promise(resolve => { releaseHold = resolve; }); }
+      return inner.put(name, value);
+    },
+  };
+  const context = await setup({ backend });
+  t.after(() => context.cleanup());
+  const { store, courseId, container, lesson } = context;
+
+  await lesson.show(courseId, 'aula-1');
+  type(container, 'mesmo texto');
+  backend.holdNextStatePut();
+  const switching = lesson.show(courseId, 'aula-3');
+  await sleep(20);
+  assert.equal(lesson.lessonId, 'aula-3', 'a visão já mudou de aula');
+  type(container, 'mesmo texto');            // ainda na tela antiga, mas na aula nova
+  backend.release();
+  await switching;
+  await sleep(900);
+  assert.equal(store.lessonState(courseId, 'aula-3').notes, 'mesmo texto', 'a aula nova guardou o texto');
+  assert.equal(textarea(container).value, 'mesmo texto', 'e ele continua na tela');
+});
+
+test('aula: contagem de tempo é opt-in (desligada por padrão) e fecha ao esconder', async t => {
+  const context = await setup();
+  t.after(() => context.cleanup());
+  const { store, courseId, container, lesson } = context;
+  await lesson.show(courseId, 'aula-1');
+  const toggle = container.querySelector('#lesson-time');
+  assert.equal(toggle.checked, false, 'desligada por padrão');
+  assert.match(container.querySelector('#lesson-status').textContent, /contagem de tempo desligada/);
+  await sleep(1100);
+  lesson.hide();
+  await sleep(30);
+  assert.deepEqual(store.watchIntervals(courseId), [], 'nada é contado sem opt-in');
+
+  await lesson.show(courseId, 'aula-1');
+  container.querySelector('#lesson-time').checked = true;
+  container.querySelector('#lesson-time').dispatchEvent(makeEvent('change'));
+  assert.equal(container.querySelector('#lesson-time').checked, true);
+  await sleep(1100);
+  fakeDocument.triggerVisibility(true);
+  await sleep(60);
+  const intervals = store.watchIntervals(courseId);
+  assert.equal(intervals.length, 1, 'o intervalo opt-in foi fechado ao esconder');
+  assert.equal(intervals[0].lessonId, 'aula-1');
+  assert.ok(intervals[0].ms >= 1000);
+});
+
+test('aula: hide durante show pendente não marca aula ativa nem reabre contagem', async t => {
+  let resolveReady = null;
+  const attachments = {
+    ...idleAttachments(),
+    ready: () => new Promise(resolve => { resolveReady = resolve; }),
+  };
+  const context = await setup({ attachments });
+  t.after(() => context.cleanup());
+  const { store, courseId, lesson } = context;
+
+  const pendingShow = lesson.show(courseId, 'aula-1');
+  lesson.hide();
+  resolveReady();
+  await pendingShow;
+  assert.equal(store.get(courseId).state.activeLessonId, null, 'nenhuma aula ativa depois de hide');
+  await sleep(1100);
+  lesson.destroy();
+  await sleep(30);
+  assert.deepEqual(store.watchIntervals(courseId), [], 'nenhum intervalo criado após hide');
+});
+
+test('aula: aula removida não oferece Desvincular (ação que a loja recusaria)', async t => {
+  const context = await setup();
+  t.after(() => context.cleanup());
+  const { store, courseId, container, lesson: lessonView } = context;
+
+  await store.linkExercise(courseId, 'aula-2', 'exercicio-ficticio');
+  await lessonView.show(courseId, 'aula-2');
+  assert.equal(container.querySelectorAll('[data-action="unlink"]').length, 1, 'aula viva tem desvincular');
+
+  const trimmed = courseDocument();
+  trimmed.course.sections[0].lessons = [lesson('aula-1'), lesson('aula-3')];
+  const reimported = await store.importText(JSON.stringify(trimmed), { source: 'teste' });
+  assert.equal(reimported.ok, true, reimported.error);
+  await lessonView.show(courseId, 'aula-2');
+  assert.equal(container.querySelector('.lesson-head').dataset.mode, 'removed');
+  assert.equal(container.querySelectorAll('[data-action="unlink"]').length, 0, 'aula removida não tem desvincular');
+  assert.equal(container.querySelectorAll('[data-action="open-exercise"]').length, 1, 'abrir no Estúdio continua');
+  assert.match(container.querySelector('.lesson-link-meta').textContent, /aula removida/);
+});
+
+test('origem: sem origem nada é montado; uma vira um botão; várias ficam em um details', async t => {
+  const release = installDom();
+  const store = createCourseStore({ backend: memoryBackend(), now: NOW, uuid: () => 'estado' });
+  await store.ready();
+  const imported = await store.importText(JSON.stringify(courseDocument()), { source: 'teste' });
+  const courseId = imported.courseId;
+  const opened = [];
+  const container = makeRoot();
+  const origins = mountExerciseOrigins(container, { store, exerciseId: null, onOpenLesson: (c, l) => opened.push({ c, l }) });
+  t.after(() => { origins.destroy(); release(); });
+  const controls = root => [...root.descendants()].filter(node => ['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'SUMMARY'].includes(node.tagName) && !node.hidden).length;
+
+  assert.equal(container.querySelectorAll('.course-origin').length, 0, 'sem origem, sem linha extra');
+  assert.equal(container.querySelector('.course-origin-root').hidden, true);
+  assert.equal(controls(container), 0);
+
+  await store.linkExercise(courseId, 'aula-1', 'exercicio-ficticio');
+  origins.setExercise('exercicio-ficticio');
+  assert.equal(container.querySelectorAll('.course-origin').length, 1, 'uma origem = um botão');
+  assert.equal(container.querySelector('.course-origin-more'), null);
+  assert.equal(controls(container), 1);
+  assert.match(container.querySelector('.course-origin').textContent, /Curso de Exemplo/);
+  assert.match(container.querySelector('.course-origin').textContent, /Aula aula-1/);
+  container.querySelector('.course-origin').click();
+  assert.deepEqual(opened, [{ c: courseId, l: 'aula-1' }], 'o botão abre a aula');
+
+  await store.linkExercise(courseId, 'aula-2', 'exercicio-ficticio');
+  origins.render();
+  const details = container.querySelector('.course-origin-more');
+  assert.ok(details, 'duas origens ficam em um details');
+  assert.match(details.querySelector('summary').textContent, /Origem \(2 aulas\)/);
+  assert.equal(details.open, false);
+  assert.equal(controls(container), 1, 'em repouso, dois ou mais continuam sendo UM controle');
+  // As etiquetas (com rótulo completo) só são montadas quando o details abre.
+  details.open = true;
+  details.dispatchEvent(makeEvent('toggle'));
+  assert.equal(details.querySelectorAll('.course-origin').length, 2);
+  assert.equal(details.querySelectorAll('.course-origin-item').length, 2);
+  assert.match(details.querySelector('.course-origin').textContent, /Curso de Exemplo · Módulo modulo-1 · Aula aula-1/);
+  assert.equal(container.querySelectorAll('[role="listitem"]').length, 0, 'sem role listitem em botões');
+  details.querySelector('.course-origin').click();
+  assert.deepEqual(opened.slice(-1), [{ c: courseId, l: 'aula-1' }]);
+});
+
+test('origem: a factory direto (Biblioteca) também devolve UM controle no repouso', async t => {
+  const release = installDom();
+  const store = createCourseStore({ backend: memoryBackend(), now: NOW, uuid: () => 'estado' });
+  await store.ready();
+  await store.importText(JSON.stringify(courseDocument()), { source: 'teste' });
+  await store.linkExercise('curso-exemplo', 'aula-1', 'exercicio-ficticio');
+  await store.linkExercise('curso-exemplo', 'aula-2', 'exercicio-ficticio');
+  t.after(() => release());
+
+  const container = makeRoot();
+  const opened = [];
+  const nodes = exerciseOriginBadges(store.originsOf('exercicio-ficticio'), { onOpenLesson: (c, l) => opened.push({ c, l }) });
+  assert.equal(nodes.length, 1, 'a factory devolve UM nó para duas origens');
+  assert.equal(nodes[0].tagName, 'DETAILS');
+  for (const node of nodes) container.append(node);
+  const controls = [...container.descendants()].filter(node => ['BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'SUMMARY'].includes(node.tagName));
+  assert.equal(controls.length, 1, 'um único controle no repouso, sem controller');
+
+  const single = exerciseOriginBadges(store.originsOf('exercicio-ficticio').slice(0, 1), { onOpenLesson: (c, l) => opened.push({ c, l }) });
+  assert.equal(single.length, 1);
+  assert.equal(single[0].tagName, 'BUTTON');
+  single[0].click();
+  assert.deepEqual(opened, [{ c: 'curso-exemplo', l: 'aula-1' }]);
+
+  assert.deepEqual(exerciseOriginBadges([], { onOpenLesson: () => {} }), [], 'sem origem não devolve nó');
+});
+
+test('origem: aula removida do curso continua abrindo a versão arquivada', async t => {
+  const release = installDom();
+  const store = createCourseStore({ backend: memoryBackend(), now: NOW, uuid: () => 'estado' });
+  await store.ready();
+  await store.importText(JSON.stringify(courseDocument()), { source: 'teste' });
+  await store.linkExercise('curso-exemplo', 'aula-2', 'exercicio-ficticio');
+  const trimmed = courseDocument();
+  trimmed.course.sections[0].lessons = [lesson('aula-1'), lesson('aula-3')];
+  const reimported = await store.importText(JSON.stringify(trimmed), { source: 'teste' });
+  assert.equal(reimported.ok, true, reimported.error);
+
+  const opened = [];
+  const container = makeRoot();
+  const origins = mountExerciseOrigins(container, { store, exerciseId: 'exercicio-ficticio', onOpenLesson: (c, l) => opened.push({ c, l }) });
+  t.after(() => { origins.destroy(); release(); });
+
+  const badge = container.querySelector('.course-origin');
+  assert.ok(badge, 'a origem removida continua visível');
+  assert.equal(badge.disabled, false);
+  assert.match(badge.textContent, /aula removida do curso/);
+  assert.match(badge.title, /aula removida do curso/);
+  badge.click();
+  assert.deepEqual(opened, [{ c: 'curso-exemplo', l: 'aula-2' }]);
+});
+
+test('aula: anexo de PDF real sem extensão no mapa abre em nova aba (magia do conteúdo)', async t => {
+  const backend = memoryBackend({ keyPaths: { files: 'id', refs: 'key' } });
+  const attachments = createAttachmentStore({ backend, now: NOW, uuid: () => 'anexo' });
+  await attachments.ready();
+  const context = await setup({ attachments });
+  t.after(() => context.cleanup());
+  const { store, courseId, container, lesson } = context;
+
+  // Material do curso sem extensão declarada, com PDF de verdade anexado.
+  const documentText = courseDocument();
+  documentText.course.sections[0].lessons[0].resources = [{ id: 'material-1', name: 'Apostila de Exemplo', role: 'apostila' }];
+  const reimported = await store.importText(JSON.stringify(documentText), { source: 'teste' });
+  assert.equal(reimported.ok, true, reimported.error);
+  const refKey = JSON.stringify(['curso-exemplo', 'aula-1', 'material-1']);
+  await attachments.put({
+    courseId, lessonId: 'aula-1', resourceId: 'material-1', name: 'Apostila.pdf',
+    blob: new Blob([new TextEncoder().encode('%PDF-1.7\n%%EOF\n')], { type: 'application/pdf' }),
+  });
+
+  await lesson.show(courseId, 'aula-1');
+  const open = container.querySelector('#lesson-material-open-0');
+  assert.ok(open, 'PDF confirmado mostra a ação de abrir');
+  assert.equal(container.querySelector('#lesson-material-download-0'), null);
+  const calls = [];
+  const previousOpen = globalThis.open;
+  globalThis.open = (url, target, features) => { calls.push({ url, target, features }); return null; };
+  t.after(() => { globalThis.open = previousOpen; });
+  open.click();
+  await sleep(30);
+  assert.equal(calls.length, 1, 'abriu o PDF em nova aba');
+  assert.equal(calls[0].target, '_blank');
+  assert.equal(calls[0].features, 'noopener,noreferrer');
+  assert.equal(attachments.get(refKey).kind, 'pdf');
+});
+
+test('aula: ações secundárias do material e ajustes da sugestão só montam ao abrir', async t => {
+  const backend = memoryBackend({ keyPaths: { files: 'id', refs: 'key' } });
+  const attachments = createAttachmentStore({ backend, now: NOW, uuid: () => 'anexo' });
+  await attachments.ready();
+  const context = await setup({ attachments });
+  t.after(() => context.cleanup());
+  const { courseId, container, lesson } = context;
+
+  await attachments.put({
+    courseId, lessonId: 'aula-1', resourceId: 'material-1', name: 'Apostila.pdf',
+    blob: new Blob([new TextEncoder().encode('%PDF-1.7\n%%EOF\n')], { type: 'application/pdf' }),
+  });
+  await lesson.show(courseId, 'aula-1');
+
+  const materialMore = [...container.querySelectorAll('.lesson-item-more')]
+    .find(node => /Mais ações do material/.test(node.querySelector('summary').textContent));
+  assert.ok(materialMore, 'material com arquivo tem o grupo de ações secundárias');
+  assert.equal(materialMore.querySelectorAll('button').length, 0, 'nada montado no repouso');
+  assert.equal(container.querySelector('#lesson-material-remove-0'), null);
+  materialMore.open = true;
+  materialMore.dispatchEvent(makeEvent('toggle'));
+  assert.ok(materialMore.querySelector('#lesson-material-remove-0'), 'Remover anexo aparece ao abrir');
+  assert.ok(materialMore.querySelector('#lesson-material-upload-0'), 'Trocar arquivo aparece ao abrir');
+
+  const suggestionMore = [...container.querySelectorAll('.lesson-item-more')]
+    .find(node => /Ajustar BPM/.test(node.querySelector('summary').textContent));
+  assert.ok(suggestionMore, 'sugestão agrupa os ajustes');
+  assert.equal(suggestionMore.querySelectorAll('input').length, 0, 'campos não existem no repouso');
+  suggestionMore.open = true;
+  suggestionMore.dispatchEvent(makeEvent('toggle'));
+  assert.equal(suggestionMore.querySelectorAll('input').length, 3);
+  const barsField = suggestionMore.querySelector('#lesson-suggestion-bars-0');
+  assert.equal(barsField.value, '4');
+  barsField.value = '6';
+  barsField.dispatchEvent(makeEvent('input'));
+  assert.equal(lesson.lessonId, 'aula-1');
+});
+
+test('aula: áudio sem assinatura conhecida ainda tenta o player, com aviso honesto', async t => {
+  const backend = memoryBackend({ keyPaths: { files: 'id', refs: 'key' } });
+  const attachments = createAttachmentStore({ backend, now: NOW, uuid: () => 'anexo' });
+  await attachments.ready();
+  const context = await setup({ attachments });
+  t.after(() => context.cleanup());
+  const { courseId, container, lesson } = context;
+
+  const stored = await attachments.put({
+    courseId, lessonId: 'aula-1', resourceId: 'material-1', name: 'Faixa.mp3',
+    extension: 'mp3',
+    blob: new Blob([new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])], { type: 'audio/mpeg' }),
+  });
+  assert.equal(stored.kind, 'audio');
+  assert.equal(stored.verified, false, 'formato não confirmado');
+
+  await lesson.show(courseId, 'aula-1');
+  const audio = container.querySelector('.lesson-audio');
+  assert.ok(audio, 'o player nativo é oferecido mesmo sem assinatura');
+  assert.equal(audio.hasAttribute('loop'), true);
+  assert.equal(audio.hasAttribute('controls'), true);
+  assert.match(container.querySelector('.lesson-audio-note').textContent, /formato não confirmado/);
+  assert.match(container.querySelector('.lesson-material-warning').textContent, /não foi possível confirmar/i);
+  assert.equal(container.querySelector('#lesson-material-download-0'), null);
+});
+
+test('aula: HTML renomeado de áudio não vira player e segue baixável', async t => {
+  const backend = memoryBackend({ keyPaths: { files: 'id', refs: 'key' } });
+  const attachments = createAttachmentStore({ backend, now: NOW, uuid: () => 'anexo' });
+  await attachments.ready();
+  const context = await setup({ attachments });
+  t.after(() => context.cleanup());
+  const { store, courseId, container, lesson } = context;
+
+  const html = new TextEncoder().encode('<!DOCTYPE html><html><body>oi</body></html>');
+  const stored = await attachments.put({
+    courseId, lessonId: 'aula-1', resourceId: 'material-1', name: 'Faixa.mp3',
+    extension: 'mp3', blob: new Blob([html], { type: 'audio/mpeg' }),
+  });
+  assert.equal(stored.kind, 'other');
+  assert.equal(stored.verified, false);
+
+  await lesson.show(courseId, 'aula-1');
+  assert.equal(container.querySelector('.lesson-audio'), null, 'HTML nunca vira player');
+  assert.ok(container.querySelector('#lesson-material-download-0'), 'continua baixável');
+  assert.match(container.querySelector('.lesson-material-warning').textContent, /áudio/);
+});

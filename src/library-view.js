@@ -8,8 +8,10 @@
 import { createEl, renderKeepingFocus } from './practice.js';
 import { SESSION_NAME_MAX } from './session.js';
 import { mountExerciseHistory } from './exercise-history.js';
-import { mountCourses } from './course-view.js';
+import { mountCourseWorkspace } from './course-workspace.js';
 import { sharedCourseStore } from './course-store.js';
+import { sharedAttachmentStore } from './course-attachments.js';
+import { exerciseOriginBadges, mountExerciseOrigins } from './course-lesson-origins.js';
 
 const INSTRUMENTS = Object.freeze([['all', 'Todos'], ['guitar', 'Guitarra'], ['bass', 'Baixo']]);
 const SORTS = Object.freeze([
@@ -58,6 +60,15 @@ export function mountLibrary(container, host) {
   }
 
   const root = createEl('section', { className: 'library-root', 'aria-label': 'Biblioteca de exercícios' });
+  // A loja de cursos (IndexedDB próprio) e o banco de anexos são montados UMA
+  // vez por app e compartilhados: a lista de exercícios mostra a origem mesmo
+  // sem ninguém ter visitado Cursos, e a aula lê a mesma conexão. Sem
+  // IndexedDB a loja nasce `persistent:false` e nada finge ser salvo.
+  let courseStore = null;
+  const courseStorePromise = sharedCourseStore().then(store => { courseStore = store; return store; });
+  const attachmentsPromise = sharedAttachmentStore();
+  const originsOf = exerciseId => (courseStore ? courseStore.originsOf(exerciseId) : []);
+  void courseStorePromise.catch(() => {});
   // Alternador Exercícios/Cursos dentro da MESMA aba da Biblioteca: os quatro
   // destinos principais do app não mudam, e os cursos ficam ao lado dos
   // exercícios sem virar uma aba própria. A escolha é um seletor único — dois
@@ -73,6 +84,7 @@ export function mountLibrary(container, host) {
   ]);
   let mode = 'exercises';
   let coursesView = null;
+  let coursesOpening = null;
   function setMode(next) {
     mode = next;
     modeSelect.value = next;
@@ -81,20 +93,58 @@ export function mountLibrary(container, host) {
     if (next === 'courses') void openCourses();
     else render();
   }
-  // A loja de cursos vive em IndexedDB próprio e é montada na primeira visita à
-  // lista; sem IndexedDB a própria lista avisa e recusa salvar.
-  async function openCourses() {
-    if (coursesView) { coursesView.render(); return; }
+  // Montagem única da loja + anexos + workspace (cursos e aula): uma promessa
+  // só evita abrir duas conexões se o usuário trocar de modo rápido. Sem
+  // IndexedDB o próprio workspace avisa e recusa salvar.
+  function openCourses() {
+    if (coursesOpening) return coursesOpening;
     coursesMount.replaceChildren(createEl('p', { className: 'courses-summary muted', role: 'status', text: 'Carregando cursos…' }));
-    try {
-      const store = await sharedCourseStore();
-      if (coursesView) return;
-      coursesMount.replaceChildren();
-      coursesView = mountCourses(coursesMount, { store, library, notify: host.notify, download: host.download });
-    } catch (error) {
-      coursesMount.replaceChildren(createEl('p', { className: 'courses-error', role: 'alert', text: `Não foi possível abrir a loja de cursos: ${error.message}` }));
-    }
+    coursesOpening = (async () => {
+      try {
+        const store = await courseStorePromise;
+        const attachments = await attachmentsPromise;
+        if (coursesView) return coursesView;
+        coursesMount.replaceChildren();
+        coursesView = mountCourseWorkspace(coursesMount, {
+          store,
+          attachments,
+          library,
+          notify: host.notify,
+          download: host.download,
+          openExercise: (id, options) => openExercise(id, options),
+          instrumentPreference: typeof host.getInstrument === 'function' ? host.getInstrument() : null,
+        });
+        return coursesView;
+      } catch (error) {
+        coursesMount.replaceChildren(createEl('p', { className: 'courses-error', role: 'alert', text: `Não foi possível abrir a loja de cursos: ${error.message}` }));
+        return null;
+      }
+    })();
+    return coursesOpening;
   }
+  // Abrir uma aula (da origem do exercício, do Hoje ou de qualquer outra tela):
+  // vai para Cursos, garante o workspace montado e abre a página da aula.
+  async function openLesson(courseId, lessonId) {
+    setMode('courses');
+    host.activateLibrary?.();
+    const workspace = await openCourses();
+    if (!workspace) return false;
+    return workspace.openLesson(courseId, lessonId);
+  }
+  // Origem do exercício no Estúdio: UM ponto só, na linha do inspetor, sem
+  // assinatura por card. Monta quando a loja compartilhada entrega (o
+  // controller escuta a loja por dentro e troca de exercício com o ativo).
+  let studioOrigins = null;
+  void courseStorePromise.then(store => {
+    if (studioOrigins) return;
+    const slot = document.getElementById('studio-course-origin');
+    if (!slot) return;
+    studioOrigins = mountExerciseOrigins(slot, {
+      store,
+      exerciseId: library.active(),
+      onOpenLesson: (courseId, lessonId) => { void openLesson(courseId, lessonId); },
+    });
+  }).catch(() => { /* sem loja de cursos: sem linha de origem, sem mentira */ });
   container.append(switchBar, root, coursesMount);
 
   // O histórico do exercício abre em um diálogo nativo (Esc e foco vêm do
@@ -315,12 +365,18 @@ export function mountLibrary(container, host) {
       createEl('p', { className: 'library-stats muted', text: stats.join(' · ') }),
       createEl('div', { className: 'library-progress', role: 'img', 'aria-label': hasTarget ? `Progresso em direção ao alvo: ${progress}%` : 'Sem alvo definido' }, [createEl('span', { style: `width: ${hasTarget ? progress : 0}%` })]),
     ]);
+    // Treinar continua direto; Editar (e o resto) vive em Mais ações, e a
+    // origem do exercício no curso entra como UM controle — com origem, o card
+    // gasta os mesmos três controles de antes.
     const actions = createEl('div', { className: 'library-actions' }, [
       actionButton('Treinar', 'train', entry),
-      actionButton('Editar', 'edit', entry),
+      ...exerciseOriginBadges(originsOf(row.id), {
+        onOpenLesson: (courseId, lessonId) => { void openLesson(courseId, lessonId); },
+      }),
       (() => {
         const menu = createEl('details', { className: 'library-menu' });
         menu.append(createEl('summary', { text: 'Mais ações' }), createEl('div', { className: 'library-menu-content' }, [
+          actionButton('Editar', 'edit', entry),
           actionButton('Duplicar', 'duplicate', entry),
           actionButton('Renomear', 'rename', entry),
           actionButton('Etiquetas', 'tags', entry),
@@ -399,6 +455,9 @@ export function mountLibrary(container, host) {
   // Enquanto o painel está oculto não vale reconstruir a lista; o main chama
   // render() ao ativar a aba. No modo Cursos quem redesenha é a lista de cursos.
   function render() {
+    // A linha de origem do Estúdio acompanha o exercício ativo mesmo com a
+    // Biblioteca escondida (é no Estúdio que ela aparece).
+    studioOrigins?.setExercise(library.active());
     if (mode === 'courses') { coursesView?.render(); return; }
     if (root.closest('[hidden]')) return;
     renderKeepingFocus(root, renderAll);
@@ -409,8 +468,10 @@ export function mountLibrary(container, host) {
   return {
     render,
     openHistory,
+    openLesson,
     destroy() {
       unsubscribe?.();
+      studioOrigins?.destroy();
       historyView?.destroy();
       historyDialog.remove();
       coursesView?.destroy();

@@ -179,7 +179,13 @@ export function mountCourses(container, host) {
     ]);
     const actions = createEl('div', { className: 'course-card-actions' });
     const start = createEl('button', { type: 'button', className: 'primary', dataset: { action: 'continue' }, text: 'Continuar' });
-    start.addEventListener('click', () => openCourse(record.id));
+    start.addEventListener('click', () => {
+      // Continuar vai direto à próxima aula pendente do modelo; sem próxima,
+      // abre a página do curso.
+      const next = summary?.next?.lesson ?? null;
+      if (next && host.onOpenLesson) host.onOpenLesson(record.id, next.id);
+      else openCourse(record.id);
+    });
     const menu = createEl('details', { className: 'library-menu' });
     const content = createEl('div', { className: 'library-menu-content' });
     const openButton = createEl('button', { type: 'button', dataset: { action: 'open' }, text: 'Abrir curso' });
@@ -253,25 +259,24 @@ export function mountCourses(container, host) {
       links > 0 ? `${links} vinculado(s)` : null,
     ].filter(Boolean).join(' · ');
     const pending = lessonPendingText(row);
-    const attrs = {
+    const button = createEl('button', {
+      type: 'button',
       className: 'course-lesson',
       dataset: { lessonId: lesson.id, status: row.status, lessonIndex: index },
       tabindex: '-1',
-    };
-    if (row.isNext) attrs.dataset.next = 'true';
-    const children = [
+      'aria-label': `Abrir a aula ${lesson.title}`,
+    }, [
       createEl('span', { className: 'course-lesson-type', text: lesson.type ?? 'aula' }),
       createEl('span', { className: 'course-lesson-title', text: lesson.title }),
       createEl('span', { className: 'course-lesson-summary muted', text: summary }),
       createEl('span', { className: `course-lesson-status course-status-${row.status}`, text: statusLabel }),
-    ];
-    if (pending) children.push(createEl('span', { className: 'course-lesson-pending muted', text: pending }));
-    if (lesson.url) {
-      // Único link externo: nova aba, noopener/noreferrer, sem request do app.
-      children.push(createEl('span', { className: 'sr-only', text: 'abre em nova aba' }));
-      return createEl('a', { ...attrs, href: lesson.url, target: '_blank', rel: 'noopener noreferrer' }, children);
-    }
-    return createEl('div', { ...attrs }, children);
+    ]);
+    if (row.isNext) button.dataset.next = 'true';
+    if (pending) button.append(createEl('span', { className: 'course-lesson-pending muted', text: pending }));
+    // A aula abre a PÁGINA da aula dentro do app: o endereço do site fica lá,
+    // como link externo em nova aba, e o app nunca busca nada sozinho.
+    button.addEventListener('click', () => host.onOpenLesson?.(view.courseId, lesson.id));
+    return button;
   }
 
   function sectionNode(section, rows, isNextSection, forceOpen = false) {
@@ -309,18 +314,26 @@ export function mountCourses(container, host) {
   function removedNode(summary) {
     const details = createEl('details', { className: 'course-removed' });
     details.append(createEl('summary', { text: `Removidas do curso (${summary.removed.length})` }));
-    details.append(createEl('p', { className: 'course-removed-note muted', text: 'Aulas que saíram do mapa em uma reimportação. O estado delas fica guardado, elas não contam no progresso e voltam completas se o mapa trouxer a aula de novo.' }));
+    details.append(createEl('p', { className: 'course-removed-note muted', text: 'Aulas que saíram do mapa em uma reimportação. O estado delas fica guardado, elas não contam no progresso e voltam completas se o mapa trouxer a aula de novo. Toque para abrir a versão guardada, com anotações, vínculos e anexos.' }));
     const list = createEl('ul', { className: 'course-lesson-list' });
     for (const tombstone of summary.removed) {
       const links = tombstone.state.linkedExerciseIds.length;
       const watchNote = tombstone.state.notes ? ' · anotações guardadas' : '';
-      list.append(createEl('li', { className: 'course-lesson-item' }, [
-        createEl('div', { className: 'course-lesson', dataset: { removed: tombstone.id } }, [
-          createEl('span', { className: 'course-lesson-type', text: tombstone.type ?? 'aula' }),
-          createEl('span', { className: 'course-lesson-title', text: tombstone.title }),
-          createEl('span', { className: 'course-lesson-summary muted', text: `${tombstone.sectionTitle ?? 'seção não informada'}${tombstone.state.watched ? ' · assistida' : ''}${links > 0 ? ` · ${links} vínculo(s)` : ''}${watchNote}` }),
-        ]),
-      ]));
+      const button = createEl('button', {
+        type: 'button',
+        className: 'course-lesson',
+        dataset: { lessonId: tombstone.id, status: 'removed', removed: tombstone.id },
+        tabindex: '-1',
+        'aria-label': `Abrir a aula removida ${tombstone.title}`,
+      }, [
+        createEl('span', { className: 'course-lesson-type', text: tombstone.type ?? 'aula' }),
+        createEl('span', { className: 'course-lesson-title', text: tombstone.title }),
+        createEl('span', { className: 'course-lesson-summary muted', text: `${tombstone.sectionTitle ?? 'seção não informada'}${tombstone.state.watched ? ' · assistida' : ''}${links > 0 ? ` · ${links} vínculo(s)` : ''}${watchNote}` }),
+        createEl('span', { className: 'course-lesson-status course-status-not-started', text: 'Removida' }),
+      ]);
+      // Removida também abre: a página mostra a versão arquivada (leitura).
+      button.addEventListener('click', () => host.onOpenLesson?.(view.courseId, tombstone.id));
+      list.append(createEl('li', { className: 'course-lesson-item' }, [button]));
     }
     details.append(list);
     return details;

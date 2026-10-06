@@ -794,11 +794,14 @@ export async function openCourseStore({ indexedDB = globalThis.indexedDB, now = 
   }
 }
 
-// Uma única loja por app: a Biblioteca monta os cursos e as próximas etapas
-// (aula, Hoje, backup) leem a mesma conexão em vez de abrir outra.
+// Uma única loja por app, já carregada quando a promessa resolve: as origens
+// do Estúdio e o Hoje precisam dos dados mesmo antes de abrir a lista de cursos.
 let sharedPromise = null;
 export function sharedCourseStore(options) {
-  if (!sharedPromise) sharedPromise = openCourseStore(options);
+  if (!sharedPromise) sharedPromise = openCourseStore(options).then(async store => {
+    await store.ready();
+    return store;
+  });
   return sharedPromise;
 }
 export function resetSharedCourseStore() {

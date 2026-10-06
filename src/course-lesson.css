@@ -1,0 +1,109 @@
+/* Página da aula (rodada 5, etapa 6): cabeçalho, materiais com anexo,
+   anotações, exercícios sugeridos e vínculos. Desktop 1280–1440; a página cabe
+   na janela (a área interna rola) e nada depende de toque. Também traz as
+   etiquetas de origem do exercício usadas pela Biblioteca e pelo Estúdio. */
+
+.lesson-root { display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 320px); }
+.lesson-root[hidden] { display: none; }
+
+.lesson-head { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #111b20; }
+.lesson-head #lesson-back { align-self: flex-start; margin-bottom: 4px; }
+.lesson-head h2 { margin: 0; font-size: 20px; letter-spacing: -.4px; }
+.lesson-head[data-mode="removed"] { border-style: dashed; }
+.lesson-meta { margin: 0; font-size: 12px; }
+.lesson-site-row { margin: 2px 0 4px; font-size: 13px; }
+.lesson-status { margin: 2px 0; font-size: 13px; font-weight: 600; }
+.lesson-pending { margin: 0 0 4px; font-size: 12px; }
+.lesson-warning { margin: 4px 0 0; padding: 8px 10px; border: 1px solid #7a3b2e; border-radius: 8px; background: #241512; color: #ffba9d; font-size: 12px; }
+.lesson-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 6px; }
+.lesson-actions button { min-height: 34px; }
+.lesson-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; min-height: 34px; }
+
+.lesson-summary, .lesson-instruction { margin: 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: #101a1f; font-size: 13px; }
+.lesson-instruction { border-left: 3px solid var(--blue); }
+
+/* A área interna rola: a página do app continua sem rolagem em 1440x900 e em
+   1280x800 mesmo com muitos materiais, sugestões e vínculos. */
+.lesson-body { flex: 1 1 auto; min-height: 160px; overflow: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 8px; }
+
+.lesson-group { border: 1px solid var(--line); border-radius: 10px; background: #101a1f; padding: 8px 12px; }
+.lesson-group > summary { cursor: pointer; min-height: 28px; display: flex; align-items: center; font-weight: 600; }
+.lesson-group-body { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
+.lesson-hint, .lesson-rule { margin: 0; font-size: 12px; }
+.lesson-rule { padding: 6px 8px; border-left: 3px solid var(--line); }
+.lesson-empty { margin: 0; font-size: 12px; }
+.lesson-space { margin: 0; font-size: 12px; }
+
+.lesson-field { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+.lesson-field input[type=number] { width: 110px; background: #111b20; border: 1px solid #4b5c63; border-radius: 6px; color: var(--text); padding: 6px 8px; font-size: 13px; }
+
+.lesson-material-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lesson-material { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 8px 10px; border: 1px solid #223037; border-radius: 8px; background: #0d1519; }
+.lesson-material-name { font-weight: 600; font-size: 14px; }
+.lesson-material-ext { font-size: 12px; }
+.lesson-material-meta, .lesson-material-missing, .lesson-material-none { grid-column: 1; font-size: 12px; }
+.lesson-material-warning { grid-column: 1; font-size: 12px; color: #ffba9d; }
+.lesson-material-actions { grid-column: 2; grid-row: 1 / span 3; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.lesson-material-actions button { min-height: 30px; }
+.lesson-audio { width: 320px; max-width: 100%; }
+.lesson-audio-note { font-size: 11px; }
+
+.lesson-notes { width: 100%; min-height: 92px; resize: vertical; background: #111b20; border: 1px solid #4b5c63; border-radius: 8px; color: var(--text); padding: 8px 10px; font: inherit; font-size: 13px; }
+.lesson-notes:disabled { opacity: .7; }
+.lesson-notes-status { margin: 0; font-size: 12px; }
+
+.lesson-suggestion-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.lesson-suggestion { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; padding: 8px 10px; border: 1px solid #223037; border-radius: 8px; background: #0d1519; }
+.lesson-suggestion-title { font-weight: 600; font-size: 14px; }
+.lesson-suggestion-desc, .lesson-suggestion-meta { grid-column: 1; font-size: 12px; }
+.lesson-suggestion-fields { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: end; }
+.lesson-suggestion-actions { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.lesson-suggestion > .lesson-hint { grid-column: 2; font-size: 11px; text-align: right; }
+
+/* Ações secundárias de um item ficam agrupadas: menos botões no repouso, sem
+   esconder nada (teclado e leitor de tela seguem o <details> nativo). */
+.lesson-item-more { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.lesson-item-more > summary { cursor: pointer; min-height: 26px; display: flex; align-items: center; font-size: 11px; color: var(--muted); }
+.lesson-item-more > summary:hover { color: var(--text); }
+.lesson-item-more button { min-height: 30px; }
+.lesson-item-more .lesson-field { align-items: flex-end; }
+.lesson-actions .lesson-hint { flex: 1 1 100%; font-size: 11px; }
+
+.lesson-link-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lesson-link { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 6px 8px; border: 1px solid #223037; border-radius: 8px; background: #0d1519; }
+.lesson-link-name { font-weight: 600; font-size: 13px; }
+.lesson-link-meta { font-size: 12px; }
+.lesson-link-actions { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.lesson-link-add { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.lesson-link-add select { min-width: 240px; max-width: 100%; }
+
+.lesson-removed-body { display: flex; flex-direction: column; gap: 8px; }
+.lesson-removed-flags { margin: 0; font-size: 12px; }
+.lesson-removed-notes { margin: 0; padding: 8px 10px; border: 1px solid #223037; border-radius: 8px; background: #0d1519; font: inherit; font-size: 13px; white-space: pre-wrap; }
+.lesson-removed-body h3 { margin: 4px 0 0; font-size: 13px; }
+
+/* Origem na linha existente de opções secundárias: permanece visível mesmo
+   quando a frase vazia esconde o inspetor, sem acrescentar altura ao Estúdio. */
+.studio-course-origin { display: inline-flex; align-items: center; vertical-align: middle; max-height: 24px; max-width: 360px; overflow: hidden; margin-left: 8px; }
+.studio-course-origin .course-origin-root { flex-wrap: nowrap; align-items: center; max-width: 360px; }
+.studio-course-origin .course-origin-label { font-size: 11px; }
+.studio-course-origin .course-origin { max-width: 320px; min-height: 22px; padding: 2px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.studio-course-origin .course-origin-more > summary { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.studio-course-origin .course-origin-list { flex-direction: column; position: absolute; z-index: 5; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: #101a1f; box-shadow: 0 8px 18px #0008; }
+
+/* Etiquetas de origem do exercício (Biblioteca e Estúdio): UMA origem vira um
+   botão; DUAS ou mais ficam em um <details> com a lista dentro. */
+.course-origin-root { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 12px; }
+.course-origin-root[hidden] { display: none; }
+.course-origin-more > summary { cursor: pointer; min-height: 26px; display: inline-flex; align-items: center; font-size: 11px; color: var(--muted); }
+.course-origin-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.course-origin-item { margin: 0; }
+.course-origin { min-height: 26px; padding: 3px 8px; font-size: 11px; font-weight: 600; max-width: 100%; text-align: left; }
+.course-origin:disabled { opacity: 1; cursor: default; border-style: dashed; }
+.course-origin-removed { font-style: italic; }
+
+@media(max-width: 740px) {
+  .lesson-material, .lesson-suggestion, .lesson-link { grid-template-columns: minmax(0, 1fr); }
+  .lesson-material-actions, .lesson-suggestion > button, .lesson-link-actions { grid-column: 1; grid-row: auto; align-items: flex-start; }
+  .lesson-root { max-height: none; }
+}

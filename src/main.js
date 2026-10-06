@@ -477,6 +477,9 @@ function openExerciseHistory(id) {
 }
 const libraryView = mountLibrary($('library-mount'), {
   library, openExercise, notify: message, download, openExerciseHistory,
+  // Composição da etapa 6: aba da Biblioteca, perfil da sessão e origem da aula.
+  activateLibrary: () => studio.activate($('tab-library')),
+  getInstrument: () => session.extensions?.studio?.instrument ?? null,
   clearExerciseRecords: id => library.clearRecords(id),
   newExercise: () => { library.new({ session: createStudioSession() }); return syncActive(); },
   duplicateExercise: id => { const copy = library.duplicate(id); if (copy) openExercise(copy.id); return copy; },
@@ -485,7 +488,7 @@ const libraryView = mountLibrary($('library-mount'), {
   updateExerciseMetadata: (id, patch) => { const entry = library.updateMetadata(id, patch); syncActive(); return entry; },
 });
 mountToday($('today-mount'), $('today-trainer-mount'), {
-  ...host, library, download, openExercise,
+  ...host, library, download, openExercise, openLesson: (courseId, lessonId) => libraryView.openLesson(courseId, lessonId),
   activateTab: id => studio.activate($(id)),
   stopExecution: reason => { practice?.cancel(); stop(reason); },
 });

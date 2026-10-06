@@ -36,6 +36,10 @@
 .library-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: #16232a; font-size: 12px; }
 .library-pager select { min-width: 160px; }
 .library-menu-content { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #16232a; }
+/* O conteúdo do grupo só aparece com o <details> aberto (sem esta regra o
+   display:flex da linha acima vence o padrão do navegador e o menu fica sempre
+   visível, multiplicando controles por card). */
+.library-menu:not([open]) > .library-menu-content { display: none; }
 .library-menu-content button { text-align: left; }
 .library-editor { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; margin-top: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #16232a; }
 .library-editor input, .library-editor textarea { width: 100%; box-sizing: border-box; }

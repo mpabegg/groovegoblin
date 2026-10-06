@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createCourseStore, mergeCourseState, normalizeCourseState, openCourseStore } from '../src/course-store.js';
+import { createCourseStore, mergeCourseState, normalizeCourseState, openCourseStore, sharedCourseStore, resetSharedCourseStore } from '../src/course-store.js';
 import { courseDocument, courseText, lesson, section, memoryBackend, fakeIndexedDB } from './course-fixtures.js';
 
 function clock() {
@@ -248,6 +248,22 @@ test('curso: com IndexedDB disponível, curso e estado sobrevivem a uma nova abe
   assert.equal(second.lessonState(COURSE, 'aula-1').watched, true);
   assert.equal(second.lessonState(COURSE, 'aula-1').notes, 'exemplo');
   assert.equal(second.summary(COURSE, {}).done, 0);
+});
+
+test('curso: origens e progresso já estão disponíveis ao obter a loja compartilhada', async t => {
+  resetSharedCourseStore();
+  t.after(resetSharedCourseStore);
+  const factory = fakeIndexedDB();
+  const first = await openCourseStore({ indexedDB: factory, now: clock(), uuid: nextUuid });
+  await first.importText(courseText());
+  await first.setLessonState(COURSE, 'aula-1', { watched: true, notes: 'Anotação de Exemplo' });
+  await first.linkExercise(COURSE, 'aula-1', 'exercicio-exemplo');
+
+  // O consumidor do Estúdio não abre a página de cursos nem chama ready().
+  const restored = await sharedCourseStore({ indexedDB: factory });
+  assert.deepEqual(restored.originsOf('exercicio-exemplo').map(origin => [origin.courseId, origin.lessonId]), [[COURSE, 'aula-1']]);
+  assert.equal(restored.lessonState(COURSE, 'aula-1').watched, true);
+  assert.equal(restored.lessonState(COURSE, 'aula-1').notes, 'Anotação de Exemplo');
 });
 
 test('curso: remover apaga só a estrutura e reimportar devolve o estado guardado', async () => {
