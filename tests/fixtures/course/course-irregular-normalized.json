@@ -1,6 +1,7 @@
 {
   "format": "groovegoblin-course",
-  "version": 1,
+  "version": 2,
+  "privacy": "private",
   "course": {
     "id": "curso",
     "title": "Curso sem título",
@@ -11,6 +12,7 @@
     "language": "português brasileiro com nome compr",
     "dailyMinutes": 30,
     "summary": "Descrição fictícia e irregular",
+    "catalog": null,
     "sections": [
       {
         "id": "encontros-extras",
@@ -137,7 +139,11 @@
                   "faixa-irregular-4-cordas-80bpm.mp3"
                 ],
                 "pdfPage": 12,
-                "strings": null
+                "strings": null,
+                "recipe": null,
+                "practiceMode": null,
+                "catalogId": null,
+                "variantOf": null
               },
               {
                 "id": "exercicio-irregular-b",
@@ -148,7 +154,11 @@
                 "bars": 90,
                 "trackNames": [],
                 "pdfPage": null,
-                "strings": null
+                "strings": null,
+                "recipe": null,
+                "practiceMode": null,
+                "catalogId": null,
+                "variantOf": null
               },
               {
                 "id": "exercicio-irregular-com-pacote",
@@ -161,7 +171,11 @@
                   "pacote-irregular-faixa-1.mp3"
                 ],
                 "pdfPage": null,
-                "strings": null
+                "strings": null,
+                "recipe": null,
+                "practiceMode": null,
+                "catalogId": null,
+                "variantOf": null
               },
               {
                 "id": "exercicio-irregular-sem-material",
@@ -174,7 +188,11 @@
                   "faixa-inexistente.mp3"
                 ],
                 "pdfPage": null,
-                "strings": null
+                "strings": null,
+                "recipe": null,
+                "practiceMode": null,
+                "catalogId": null,
+                "variantOf": null
               },
               {
                 "id": "exercicio-irregular-com-campo-exotico",
@@ -185,7 +203,11 @@
                 "bars": null,
                 "trackNames": [],
                 "pdfPage": null,
-                "strings": null
+                "strings": null,
+                "recipe": null,
+                "practiceMode": null,
+                "catalogId": null,
+                "variantOf": null
               }
             ]
           }

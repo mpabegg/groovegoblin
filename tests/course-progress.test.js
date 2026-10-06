@@ -4,6 +4,7 @@ import { referenceFingerprint, materialKey } from '../src/exercise-library.js';
 import {
   LESSON_STATUS, courseLessons, lessonStateOf, authoredReachedTarget, lessonStatus, lessonCompletion,
   lessonPending, linkStatus, nextLesson, courseSummary, unionWatchMs, weekRange, videoMinutes, normalizeLessonState,
+  assistLessons, lessonSuggestions, pendingSuggestions, practiceLessons,
 } from '../src/course-progress.js';
 import { courseDocument, lesson, section } from './course-fixtures.js';
 
@@ -74,7 +75,7 @@ test('progresso: alvo exige execução autoral, BPM no alvo e 90% de acertos', (
 
 test('progresso: estado de aula normalizado e vínculo classificado', () => {
   const normalized = normalizeLessonState({ watched: 'sim', completionOverride: 'qualquer', linkedExerciseIds: ['a', 'a', '', 5] });
-  assert.deepEqual(normalized, { watched: false, skipped: false, completionOverride: null, notes: '', linkedExerciseIds: ['a'], updatedAt: null });
+  assert.deepEqual(normalized, { watched: false, skipped: false, completionOverride: null, notes: '', linkedExerciseIds: ['a'], generatedSuggestionIds: [], updatedAt: null });
   assert.equal(lessonStateOf({}, 'aula-1').watched, false);
   assert.equal(lessonStateOf({ lessons: { 'aula-1': { watched: true } } }, 'aula-1').watched, true);
 
@@ -260,4 +261,69 @@ test('progresso: id de aula reservado não herda o protótipo e entra como entra
   // Só o vínculo PRÓPRIO conta: o estado do id reservado vem do dicionário.
   assert.equal(lessonStateOf({ lessons }, 'constructor').watched, true);
   assert.equal(lessonStateOf({ lessons }, '__proto__').watched, true);
+});
+
+// ---------------------------------------- prática e assistir (etapa 5, A6)
+
+// Curso fictício: três aulas (uma opcional no meio) e duas assistidas.
+function practiceCourse() {
+  return {
+    id: 'curso-exemplo',
+    title: 'Curso de Exemplo',
+    sections: [
+      section('modulo-1', [
+        lesson('aula-1', { suggestedExercises: [{ id: 'sug-1', title: 'Sugestão 1', recipe: { family: 'movimento_continuo_linha_4_notas' } }] }),
+        lesson('aula-2'),
+      ]),
+      section('seminario', [
+        lesson('aula-3', { suggestedExercises: [{ id: 'sug-3', title: 'Sugestão 3' }] }),
+      ], { title: 'Seminário', type: 'seminário' }),
+    ],
+  };
+}
+
+function practiceState(lessons = {}, extra = {}) {
+  return { courseId: 'curso-exemplo', activeLessonId: null, lessons, removed: [], watch: [], ...extra };
+}
+
+test('progresso: sugestão gerada é lembrada pelo id e sai da lista de pendentes', () => {
+  const doc = practiceCourse();
+  const first = doc.sections[0].lessons[0];
+  assert.deepEqual(normalizeLessonState({ generatedSuggestionIds: ['sug-1', 'sug-1', '', 3] }).generatedSuggestionIds, ['sug-1']);
+  assert.deepEqual(lessonSuggestions(first, {}).map(item => [item.suggestion.id, item.generatable, item.generated]), [['sug-1', true, false]]);
+  assert.deepEqual(pendingSuggestions(first, {}).map(item => item.suggestion.id), ['sug-1']);
+  // A sugestão SEM receita nunca entra como gerável (ela é criada no Estúdio).
+  const third = doc.sections[1].lessons[0];
+  assert.equal(pendingSuggestions(third, {}).length, 0);
+  assert.deepEqual(pendingSuggestions(first, { generatedSuggestionIds: ['sug-1'] }), []);
+});
+
+test('progresso: a prática usa as aulas ASSISTIDAS, da mais antiga para a mais nova', () => {
+  const doc = practiceCourse();
+  const resolve = id => (id === 'ex-2' ? { metadata: { targetBPM: 120, records: [] }, session: {} } : null);
+  const state = practiceState({
+    'aula-1': { watched: true, linkedExerciseIds: ['ex-1'] },
+    'aula-2': { watched: false, linkedExerciseIds: ['ex-2'] },
+    'aula-3': { watched: true, completionOverride: 'complete' },
+  }, {});
+  const rows = practiceLessons(doc, state, { resolveExercise: resolve });
+  assert.deepEqual(rows.map(row => row.lesson.id), ['aula-1']);
+  assert.deepEqual(rows[0].links.map(link => link.id), ['ex-1']);
+  assert.deepEqual(rows[0].suggestions.map(item => item.suggestion.id), ['sug-1']);
+  // Aula assistida mas concluída por override sai da prática.
+  assert.equal(rows.some(row => row.lesson.id === 'aula-3'), false);
+  // Aula não assistida não entra, mesmo com vínculo pendente.
+  assert.equal(rows.some(row => row.lesson.id === 'aula-2'), false);
+});
+
+test('progresso: as próximas aulas para assistir põem as obrigatórias à frente das opcionais', () => {
+  const doc = practiceCourse();
+  const state = practiceState({
+    'aula-1': { watched: true },
+    'aula-3': { skipped: true },
+  });
+  assert.deepEqual(assistLessons(doc, state).map(row => row.lesson.id), ['aula-2']);
+  const fresh = practiceState({});
+  assert.deepEqual(assistLessons(doc, fresh).map(row => row.lesson.id), ['aula-1', 'aula-2', 'aula-3']);
+  assert.deepEqual(assistLessons(doc, fresh).map(row => row.position), [0, 1, 2]);
 });

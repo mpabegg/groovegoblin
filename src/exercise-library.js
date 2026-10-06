@@ -150,7 +150,7 @@ function instrumentOf(session) {
 // implícito herdado do andamento. Migrações legadas ainda passam o BPM da
 // sessão explicitamente para preservar o alvo que existia antes.
 function defaultMetadata(name, bpm) {
-  return { name, tags: [], targetBPM: bpm, notes: '', study: null, records: [] };
+  return { name, tags: [], targetBPM: bpm, notes: '', study: null, courseContent: false, records: [] };
 }
 
 function intOr(value, fallback = 0) {
@@ -244,6 +244,11 @@ function normalizeMetadata(value, session) {
     targetBPM: value.targetBPM === null ? null : finiteOr(value.targetBPM, base.targetBPM),
     notes: isString(value.notes) ? value.notes : '',
     study: normalizeStudy(value.study),
+    // Marca de conteúdo de curso (B6): o exercício nasceu de material de curso
+    // (sugestão gerada ou vínculo manual) e a exportação padrão/compartilhamento
+    // NÃO pode levar o que é de terceiros. Só `true` explícito marca; qualquer
+    // outro valor vira `false` (nunca "quase privado").
+    courseContent: value.courseContent === true,
     records,
   };
 }
@@ -521,6 +526,10 @@ export function createExerciseLibrary({
       tags: Array.isArray(meta.tags) ? meta.tags : [],
       targetBPM: meta.targetBPM === undefined ? null : meta.targetBPM,
       notes: isString(meta.notes) ? meta.notes : '',
+      // A marca de conteúdo de curso entra na chave: um exercício marcado e um
+      // sem marca não são o MESMO documento (a marca decide o que pode sair em
+      // exportação/compartilhamento) — a importação não funde os dois.
+      courseContent: meta.courseContent === true,
       // A receita do estudo define o exercício: duas sessões iguais com
       // receitas diferentes são exercícios diferentes. O VÍNCULO com o
       // original entra só como presença (`linked`), nunca pelo id: o id é

@@ -404,3 +404,26 @@ test('sessão e resumo com aula não guardam BPM nem intervalo vivo', () => {
   assert.deepEqual(summary.items[0].bpm, { from: null, to: null });
   assert.equal(summary.items[0].name, 'Aula 3');
 });
+
+// ------------------------- tempo para assistir (etapa 5/A6)
+
+test('hoje: o tempo indicado para assistir é guardado e limitado à faixa útil', () => {
+  const storage = memoryStorage();
+  const store = open(storage);
+  assert.equal(store.assistMinutes(), null, 'ausente significa "usa o padrão"');
+  assert.equal(store.setAssistMinutes(30), 30);
+  assert.equal(store.assistMinutes(), 30);
+  // Sobrevive a uma reabertura (fica no diário da fila, fora da sessão).
+  const reopened = open(storage);
+  assert.equal(reopened.assistMinutes(), 30);
+  assert.equal(reopened.items().length, 0, 'guardar o tempo não cria fila');
+  // Faixa: o valor fora dela é trazido para dentro, nunca guardado impossível.
+  assert.equal(store.setAssistMinutes(0), 1);
+  assert.equal(store.setAssistMinutes(99999), 1440);
+  assert.equal(store.setAssistMinutes('20'), 20);
+  assert.equal(store.setAssistMinutes(null), null);
+  assert.equal(store.setAssistMinutes('muito'), null);
+  const parsed = JSON.parse(storage.getItem(TODAY_KEY));
+  assert.equal(parsed.version, 2);
+  assert.equal(parsed.assistMinutes, null);
+});

@@ -121,11 +121,34 @@ export function mountCourses(container, host) {
     }
     loadError = null;
     const counts = result.counts;
+    // A reimportação pode reconhecer a MESMA aula por URL mesmo com id novo
+    // (o conversor passou a usar o id numérico do mapa): as referências de
+    // anexo seguem a aula, para nenhum arquivo ficar órfão de página.
+    const remap = await remapAttachments(result);
     const detail = result.created
       ? `${counts.sections} seção(ões), ${counts.lessons} aula(s), ${counts.exercises} exercício(s) sugerido(s).`
       : `estrutura atualizada: ${result.preserved} aula(s) com estado preservado, ${result.restored} restaurada(s), ${result.removed} removida(s) para o grupo próprio.`;
+    const moved = result.moved > 0
+      ? ` ${result.moved} aula(s) reconhecida(s) pela URL com id novo${remap > 0 ? ` (${remap} anexo(s) realinhado(s))` : ''}.`
+      : '';
     render();
-    notify(`Curso importado — ${detail}`);
+    notify(`Curso importado — ${detail}${moved}`);
+  }
+
+  // Alinha as referências de anexo (curso, aula, material) com os ids NOVOS das
+  // aulas reconhecidas pela URL. Sem loja de anexos ou sem mudança de id, nada
+  // acontece; se a gravação falhar, o motivo aparece e o curso importado fica.
+  async function remapAttachments(result) {
+    const attachments = host?.attachments ?? null;
+    const aliases = Array.isArray(result.aliases) ? result.aliases : [];
+    if (aliases.length === 0 || !attachments || typeof attachments.remapLessonRefs !== 'function') return 0;
+    try {
+      const remapped = await attachments.remapLessonRefs(result.courseId, aliases);
+      return remapped?.moved ?? 0;
+    } catch (error) {
+      notify(`O curso foi importado, mas não foi possível realinhar os anexos das aulas renomeadas: ${error.message}`, true);
+      return 0;
+    }
   }
 
   function importControls() {

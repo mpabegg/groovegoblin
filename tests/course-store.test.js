@@ -36,7 +36,7 @@ test('curso: importação válida grava registro e estado separado', async () =>
   assert.deepEqual(found.state.lessons, {});
   // Estado esparso: aula sem estado gravado devolve o padrão, não um registro.
   assert.deepEqual(store.lessonState(COURSE, 'aula-1'), {
-    watched: false, skipped: false, completionOverride: null, notes: '', linkedExerciseIds: [], updatedAt: null,
+    watched: false, skipped: false, completionOverride: null, notes: '', linkedExerciseIds: [], generatedSuggestionIds: [], updatedAt: null,
   });
   assert.equal(store.lessonState(COURSE, 'aula-inexistente').watched, false);
 });
@@ -700,4 +700,118 @@ test('curso: lote assistida e undo funcionam com id reservado e tombstone', asyn
   const tombstone = store.get(COURSE).state.removed.find(entry => entry.id === '__proto__');
   assert.equal(tombstone.state.watched, false);
   assert.equal(backend.raw('states')[0].removed.find(entry => entry.id === '__proto__').state.watched, false);
+});
+
+// ------------------------------- reconhecimento por URL (rodada 6, etapa 5)
+
+// Mapas fictícios: o MESMO endereço de aula com ids diferentes, como acontece
+// quando o conversor passa a usar o id numérico do mapa.
+function docWith(lessons, overrides = {}) {
+  return courseDocument({ sections: [section('modulo-1', lessons)], ...overrides });
+}
+
+test('reimportação reconhece a aula pela URL e leva TODO o estado para o id novo', async () => {
+  const { store } = await open();
+  const first = docWith([
+    lesson('aula-1', { url: 'https://example.invalid/aula-1' }),
+    lesson('aula-2', { url: 'https://example.invalid/aula-2' }),
+  ]);
+  assert.equal((await store.importText(courseText(first))).ok, true);
+  await store.setLessonState(COURSE, 'aula-1', {
+    watched: true, notes: 'anotação da aula', linkedExerciseIds: ['ex-1'], generatedSuggestionIds: ['sug-1'],
+  });
+  await store.setActiveLesson(COURSE, 'aula-1');
+  await store.recordWatch(COURSE, 'aula-1', { startedAt: '2026-01-01T10:00:00.000Z', endedAt: '2026-01-01T10:05:00.000Z' });
+
+  const second = docWith([
+    lesson('7', { url: 'https://example.invalid/aula-1' }),
+    lesson('8', { url: 'https://example.invalid/aula-2' }),
+  ]);
+  const result = await store.importText(courseText(second));
+  assert.equal(result.ok, true);
+  assert.equal(result.created, false);
+  // `moved`/`preserved` contam ESTADOS de aula, e só a aula-1 tinha estado: as
+  // duas aulas seguem para os ids novos (os aliases abaixo), mas o estado é
+  // esparso (a aula-2 sem estado não vira registro).
+  assert.equal(result.moved, 1);
+  assert.equal(result.preserved, 1);
+  assert.deepEqual(result.aliases, [{ from: 'aula-1', to: '7' }, { from: 'aula-2', to: '8' }]);
+  assert.deepEqual(result.counts, { sections: 1, lessons: 2, resources: 0, exercises: 0 });
+  const state = store.get(COURSE).state;
+  assert.deepEqual(Object.keys(state.lessons).sort(), ['7']);
+  assert.equal(state.lessons['7'].watched, true);
+  assert.equal(state.lessons['7'].notes, 'anotação da aula');
+  assert.deepEqual(state.lessons['7'].linkedExerciseIds, ['ex-1']);
+  assert.deepEqual(state.lessons['7'].generatedSuggestionIds, ['sug-1']);
+  assert.equal(state.activeLessonId, '7');
+  assert.equal(store.watchIntervals(COURSE)[0].lessonId, '7');
+  assert.deepEqual(state.removed, [], 'nenhum tombstone para aula que só mudou de id');
+  assert.deepEqual(store.originsOf('ex-1').map(origin => origin.lessonId), ['7']);
+});
+
+test('aula que sumiu vira tombstone e volta com o estado quando reaparece com id novo', async () => {
+  const { store } = await open();
+  const first = docWith([
+    lesson('aula-1', { url: 'https://example.invalid/aula-1' }),
+    lesson('aula-2', { url: 'https://example.invalid/aula-2' }),
+  ]);
+  await store.importText(courseText(first));
+  await store.setLessonState(COURSE, 'aula-2', { watched: true, notes: 'volta depois' });
+
+  const withoutIt = docWith([lesson('aula-1', { url: 'https://example.invalid/aula-1' })]);
+  await store.importText(courseText(withoutIt));
+  const removed = store.get(COURSE).state.removed;
+  assert.deepEqual(removed.map(entry => entry.id), ['aula-2']);
+  assert.equal(removed[0].state.notes, 'volta depois');
+
+  const back = docWith([
+    lesson('7', { url: 'https://example.invalid/aula-1' }),
+    lesson('9', { url: 'https://example.invalid/aula-2' }),
+  ]);
+  const result = await store.importText(courseText(back));
+  assert.equal(result.restored, 1);
+  assert.deepEqual(store.get(COURSE).state.removed, [], 'o tombstone volta como aula viva no id novo');
+  assert.equal(store.get(COURSE).state.lessons['9'].notes, 'volta depois');
+  assert.equal(store.get(COURSE).state.lessons['9'].watched, true);
+});
+
+test('sem URL, o reconhecimento cai em módulo + título e nunca inventa identidade', async () => {
+  const { store } = await open();
+  const first = docWith([
+    lesson('aula-1', { url: null, title: 'Aula de exemplo' }),
+    lesson('aula-2', { url: null, title: 'Outra aula de exemplo' }),
+    lesson('aula-3', { url: null, title: 'Aula de exemplo' }),
+  ]);
+  await store.importText(courseText(first));
+  await store.setLessonState(COURSE, 'aula-2', { watched: true });
+  // Ids novos, mesmos títulos no mesmo módulo: só o primeiro casa por título.
+  const second = docWith([
+    lesson('7', { url: null, title: 'Aula de exemplo' }),
+    lesson('8', { url: null, title: 'Outra aula de exemplo' }),
+  ]);
+  const result = await store.importText(courseText(second));
+  assert.deepEqual(result.aliases, [{ from: 'aula-2', to: '8' }]);
+  assert.equal(store.get(COURSE).state.lessons['8'].watched, true);
+  // Título repetido e sem URL não é identidade: as DUAS aulas com o mesmo
+  // título (aula-1 e aula-3) ficam como tombstone — o app não adivinha qual
+  // delas seria a aula 7 e nada é perdido.
+  assert.deepEqual(store.get(COURSE).state.removed.map(entry => entry.id), ['aula-1', 'aula-3']);
+});
+
+test('a sugestão gerada é lembrada uma vez só e a exportação sai em v2 privada', async () => {
+  const { store } = await open();
+  await store.importText(courseText());
+  assert.equal(await store.markSuggestionGenerated(COURSE, 'aula-inexistente', 'sug-1'), null);
+  const first = await store.markSuggestionGenerated(COURSE, 'aula-1', 'sug-1');
+  assert.deepEqual(first.generatedSuggestionIds, ['sug-1']);
+  const second = await store.markSuggestionGenerated(COURSE, 'aula-1', 'sug-1');
+  assert.deepEqual(second.generatedSuggestionIds, ['sug-1'], 'idempotente');
+  assert.equal(store.warning, null);
+  await store.setLessonState(COURSE, 'aula-1', { watched: true });
+  const exported = store.exportText(COURSE);
+  assert.equal(exported.ok, true);
+  const parsed = JSON.parse(exported.text);
+  assert.equal(parsed.version, 2);
+  assert.equal(parsed.privacy, 'private');
+  assert.deepEqual(parsed.progress, { watchedLessonIds: ['aula-1'] });
 });

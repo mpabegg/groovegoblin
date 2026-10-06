@@ -31,12 +31,15 @@ import { createSession, BPM_MIN, BPM_MAX, MAX_BARS, MIN_BARS, SESSION_NAME_MAX }
 import { withStudioChoices } from './studio-session.js';
 import { standardInstrumentProfile, instrumentInputPitch } from './instrument-profile.js';
 import {
-  LESSON_STATUS, courseLessons, lessonCompletion, lessonLinks, lessonPending, normalizeLessonState, videoMinutes,
+  LESSON_STATUS, courseLessons, lessonCompletion, lessonLinks, lessonPending, normalizeLessonState, pendingSuggestions, videoMinutes,
 } from './course-progress.js';
 import {
   ATTACHMENT_KINDS, attachmentRefKey, attachmentKindLabel, extensionOfName, formatAttachmentSize,
   sniffAttachmentKind,
 } from './course-attachments.js';
+import { resolveCatalogRecipe, shapeChoicesForLabel, sharedShapeBindingStore } from './course-shape-binding.js';
+import { mountShapeChooser } from './course-shape-chooser.js';
+import { CATALOG_CONTINUOUS_FAMILIES } from './course-catalog.js';
 
 export const BASS_STRINGS = Object.freeze([4, 5]);
 
@@ -59,6 +62,100 @@ export const PENDING_LABELS = Object.freeze({
 export const INSTRUMENT_LABELS = Object.freeze({ guitar: 'Guitarra', bass: 'Baixo' });
 export const NOTES_SAVE_DELAY_MS = 600;
 export const WATCH_MIN_MS = 1000;
+
+// Rótulos das receitas do catálogo (as seis famílias geráveis) e do que a
+// receita descreve. Ficam aqui, e não no motor, para a página da aula poder
+// mostrar a receita mesmo sem o Estúdio de estudo carregado.
+export const RECIPE_FAMILY_LABELS = Object.freeze({
+  arpejo_triade_forma_unica: 'Arpejo de tríade, forma única',
+  arpejo_triade_formas_combinadas: 'Arpejo de tríade, formas combinadas',
+  movimento_continuo_linha_4_notas: 'Linha contínua de 4 notas',
+  movimento_continuo_grave_agudo_grave: 'Sobe e desce',
+  movimento_continuo_agudo_grave_agudo: 'Desce e sobe',
+  arpejo_tres_inversoes_por_acorde: 'Três inversões por acorde',
+});
+export const RECIPE_RHYTHM_LABELS = Object.freeze({
+  quarters: 'semínimas',
+  eighths: 'colcheias',
+  arpejo: 'semínima, semínima, mínima',
+});
+export const RECIPE_FINAL_LABELS = Object.freeze({
+  nenhum: 'sem compasso final',
+  acorde: 'nota longa no acorde final',
+  tonica: 'repete a tônica do primeiro acorde',
+});
+
+// Resumo em uma linha da receita de um exercício sugerido: o que o catálogo
+// indica e o que o gerador vai produzir. Nada de conteúdo do curso aqui.
+export function suggestionRecipeSummary(recipe) {
+  if (recipe === null || typeof recipe !== 'object') return [];
+  const bits = [];
+  const family = RECIPE_FAMILY_LABELS[recipe.family] ?? recipe.family ?? null;
+  if (family !== null) bits.push(family);
+  const progression = recipe.progression ?? {};
+  const progressions = { quartas: 'ciclo de quartas', quintas: 'ciclo de quintas', cromatica: 'ciclo cromático', lista: 'lista de acordes', sessao: 'acordes da sessão' };
+  const progressionLabel = progressions[progression.kind] ?? null;
+  if (progressionLabel !== null) {
+    bits.push(progression.kind === 'lista'
+      ? `${progressionLabel} (${(progression.chords ?? []).length})`
+      : `${progressionLabel} desde ${progression.start ?? 'C'}`);
+  }
+  const region = recipe.region;
+  if (region !== null && region !== undefined) bits.push(`casas ${region.from}–${region.to}`);
+  const bars = recipe.figure?.bars ?? null;
+  if (bars !== null) bits.push(`${bars} compasso(s) por acorde`);
+  const rhythm = RECIPE_RHYTHM_LABELS[recipe.rhythm] ?? null;
+  if (rhythm !== null) bits.push(rhythm);
+  const notes = recipe.figure?.notes ?? null;
+  if (notes !== null && CATALOG_CONTINUOUS_FAMILIES.includes(recipe.family)) bits.push(`${notes} notas por acorde`);
+  const degrees = recipe.figure?.degrees ?? null;
+  if (Array.isArray(degrees) && degrees.length > 0) bits.push(`graus ${degrees.join('-')}`);
+  if (recipe.voltas === 'periodo') bits.push('até fechar o período');
+  else if (Number.isInteger(recipe.voltas) && recipe.voltas > 1) bits.push(`${recipe.voltas} voltas`);
+  const finalLabel = RECIPE_FINAL_LABELS[recipe.final] ?? null;
+  if (finalLabel !== null) bits.push(finalLabel);
+  const label = recipe.shapeLabel ?? null;
+  if (label !== null) bits.push(`forma “${label.label}”${label.inversion ? ` (${label.inversion})` : ''}`);
+  return bits;
+}
+
+// Onde o exercício gerado abre a apostila: o material da PRÓPRIA aula (ou a
+// referência a material de outra aula) que é apostila em PDF, com a página que
+// o catálogo indicou. Publicado também para a página do exercício (etapa 8) usar
+// o mesmo alvo — o app nunca inventa o arquivo nem a página.
+export function suggestionMaterialTarget(course, lesson, suggestion) {
+  if (!course || !lesson || !suggestion) return null;
+  const page = Number.isInteger(suggestion.pdfPage) ? suggestion.pdfPage : null;
+  const lessons = new Map(courseLessons(course).map(item => [item.id, item]));
+  const candidates = [];
+  const own = (lesson.resources ?? [])
+    .filter(resource => resource.role === 'apostila' || resource.extension === 'pdf')
+    .map(resource => ({ ownerLessonId: lesson.id, resource }));
+  candidates.push(...own);
+  for (const ref of lesson.resourceRefs ?? []) {
+    const owner = lessons.get(ref.lessonId);
+    const resource = (owner?.resources ?? []).find(item => item.id === ref.resourceId);
+    if (!resource) continue;
+    if (resource.role !== 'apostila' && resource.extension !== 'pdf') continue;
+    if (ref.lessonId === lesson.id && own.some(entry => entry.resource.id === resource.id)) continue;
+    candidates.push({ ownerLessonId: ref.lessonId, resource });
+  }
+  if (candidates.length === 0) return null;
+  const chosen = candidates[0];
+  const refKey = attachmentRefKey(course.id, chosen.ownerLessonId, chosen.resource.id);
+  return {
+    courseId: course.id,
+    lessonId: chosen.ownerLessonId,
+    resourceId: chosen.resource.id,
+    refKey,
+    page,
+    name: chosen.resource.name,
+    extension: chosen.resource.extension ?? '',
+    fromOtherLesson: chosen.ownerLessonId !== lesson.id,
+    ownerLessonTitle: lessons.get(chosen.ownerLessonId)?.title ?? null,
+  };
+}
+
 export const NOTES_STATUS_LABELS = Object.freeze({
   pendente: 'alterações não salvas',
   salvando: 'salvando…',
@@ -135,7 +232,10 @@ export function buildSuggestedExercise({
   }));
   return {
     session,
-    metadata: { name: chosenName, targetBPM: target, tags: [] },
+    // `courseContent`: o exercício nasceu de material de curso — a marca segue
+    // o exercício (link, exportação e compartilhamento) e faz a exportação
+    // padrão deixar de fora o que é conteúdo de terceiros.
+    metadata: { name: chosenName, targetBPM: target, tags: [], courseContent: true },
     strings,
     bars: chosenBars,
     bpm: chosenBpm,
@@ -296,10 +396,24 @@ export function mountCourseLesson(container, host) {
   const onOpenLesson = typeof host.onOpenLesson === 'function' ? host.onOpenLesson : null;
   const preference = host?.instrumentPreference ?? null;
   const resolveExercise = id => (library && typeof library.get === 'function' ? library.get(id) : null);
+  // Estúdio de estudo (A4) e formas (A3): o pai injeta os dois. Sem eles a
+  // página continua funcionando — só o "Gerar" avisa que não está ligado, em
+  // vez de fingir que gerou.
+  const studies = host?.studies ?? null;
+  const shapeAccess = host?.shapes ?? null;
+  const bindings = host?.bindings ?? sharedShapeBindingStore();
+  const openMaterialHook = typeof host?.openMaterial === 'function' ? host.openMaterial : null;
+  const profileForStrings = strings => standardInstrumentProfile('bass', strings === 5 ? 5 : 4);
 
   const root = createEl('section', { id: 'course-lesson-page', className: 'lesson-root', 'aria-label': 'Aula do curso' });
   root.hidden = true;
   container.appendChild(root);
+  // O diálogo da forma vive dentro da própria seção da aula: `showModal` exige
+  // um diálogo conectado ao documento e a seção fica visível quando a aula abre.
+  const shapeChooser = mountShapeChooser(root, {
+    notify: (text, error) => notify(text, error),
+    onCreate: typeof host?.openFretboard === 'function' ? () => host.openFretboard() : null,
+  });
 
   const view = {
     courseId: null,
@@ -576,6 +690,9 @@ export function mountCourseLesson(container, host) {
       const next = await store.linkExercise(view.courseId, view.lessonId, exerciseId);
       if (!next) { notify('Esta aula não está mais no curso.', true); return; }
       view.linkExisting = '';
+      // Vínculo MANUAL: o exercício passou a ser conteúdo de curso, e a marca
+      // segue com ele (nome da aula e vínculo ficam fora de link/exportação).
+      taintCourseContent(exerciseId);
       const name = library?.get?.(exerciseId)?.metadata?.name ?? 'exercício';
       notify(`“${name}” vinculado a esta aula. A conclusão passa a exigir o alvo dele.`);
     } catch (error) {
@@ -594,6 +711,162 @@ export function mountCourseLesson(container, host) {
       notify(`Não foi possível desvincular: ${error.message}`, true);
     }
     render();
+  }
+
+  // -------------------------------------------- gerar a partir da receita (A6)
+  //
+  // "Gerar" cria o exercício JÁ COM NOTAS a partir da receita que o catálogo
+  // trouxe, vinculado à aula, e lembra qual sugestão virou exercício (é o que
+  // tira a aula da fila de "gerar os sugeridos" na sessão de hoje). "Gerar
+  // todos" faz isso para todas as sugestões de receita ainda não geradas.
+  //
+  // A forma do rótulo ("Shape 1" da qualidade e inversão tais) é PERGUNTADA
+  // quando ainda não há escolha lembrada: o app nunca inventa a digitação.
+  function profileOf(recipe) {
+    const strings = recipe?.profile?.strings === 5 ? 5 : 4;
+    return { strings, profile: profileForStrings(strings) };
+  }
+
+  async function askShapeFor(recipe, profile) {
+    const label = recipe.shapeLabel;
+    const instrument = profile?.strings === 5 ? 'baixo de 5 cordas' : 'baixo de 4 cordas';
+    const choices = shapeChoicesForLabel(recipe, { shapes: shapeAccess, profile });
+    const answer = await shapeChooser.ask({
+      label: label.label,
+      quality: label.quality,
+      inversion: label.inversion,
+      choices,
+      instrument,
+    });
+    if (answer === null) return null;
+    if (answer.remember) {
+      const saved = bindings.remember(label, answer.shapeId, { instrument: profile?.strings === 5 ? 'bass5' : 'bass4' });
+      if (saved && saved.saved === false) {
+        notify('A forma escolhida vale agora, mas este navegador não guardou o vínculo para as próximas aulas.', true);
+      } else if (saved) {
+        notify(`Forma “${label.label}” lembrada: as próximas aulas com este rótulo já vêm com ela.`);
+      }
+    }
+    return answer.shapeId;
+  }
+
+  async function resolveSuggestion(suggestion) {
+    const { profile } = profileOf(suggestion.recipe);
+    let resolved = resolveCatalogRecipe(suggestion.recipe, { bindings, shapes: shapeAccess, profile });
+    if (resolved.ok) return resolved.recipe;
+    if (resolved.reason === 'forma-ausente' || resolved.reason === 'forma-sem-posicao' || resolved.reason === 'forma-incompativel') {
+      const shapeId = await askShapeFor(suggestion.recipe, profile);
+      if (shapeId === null) return null;
+      resolved = resolveCatalogRecipe(suggestion.recipe, { bindings, shapes: shapeAccess, profile });
+      if (resolved.ok) return resolved.recipe;
+    }
+    notify(resolved.error ?? 'Não foi possível montar a receita deste exercício sugerido.', true);
+    return null;
+  }
+
+  function taintCourseContent(exerciseId) {
+    if (!exerciseId || !library || typeof library.updateMetadata !== 'function') return false;
+    try {
+      library.updateMetadata(exerciseId, { courseContent: true });
+      return true;
+    } catch (error) {
+      notify(`O exercício foi criado, mas não foi possível marcar que ele veio de um curso: ${error.message}`, true);
+      return false;
+    }
+  }
+
+  // `render` falso no lote: "Gerar todos" NÃO redesenha a página a cada
+  // exercício (o lote é o mesmo lugar da aula; só o fim redesenha uma vez).
+  async function generateSuggestion(suggestion, { render: repaint = true } = {}) {
+    if (!library || typeof library.new !== 'function') { notify('A biblioteca de exercícios está indisponível nesta página.', true); return null; }
+    if (!studies || typeof studies.create !== 'function') { notify('Gerar precisa do Estúdio de estudo ligado nesta página; use “Criar no Estúdio”.', true); return null; }
+    if (!writable()) { notify(store.error ?? 'Armazenamento de cursos indisponível: nada será salvo.', true); return null; }
+    const found = store.get(view.courseId);
+    const lesson = found ? courseLessons(found.course).find(item => item.id === view.lessonId) ?? null : null;
+    if (!lesson) { notify('Esta aula não está mais no curso.', true); return null; }
+    const recipe = await resolveSuggestion(suggestion);
+    if (recipe === null) return null;
+    let entry = null;
+    try {
+      entry = studies.create(recipe, {
+        origin: { id: view.lessonId, name: lesson.title, kind: 'course', private: true },
+        bpm: Number.isFinite(suggestion.initialBpm) ? suggestion.initialBpm : undefined,
+        open: false,
+      });
+    } catch (error) {
+      notify(`Não foi possível gerar o exercício: ${error.message}`, true);
+      return null;
+    }
+    if (!entry) return null;
+    taintCourseContent(entry.id);
+    try {
+      const linked = await store.linkExercise(view.courseId, view.lessonId, entry.id);
+      // Sem vínculo NADA é lembrado como gerado: a sugestão continua pendente
+      // (a fila de hoje volta a oferecê-la) e a página diz o que aconteceu.
+      if (!linked) {
+        notify(`O exercício “${entry.metadata?.name ?? entry.id}” está na biblioteca, mas esta aula não está mais no curso: ele não foi vinculado nem marcado como gerado.`, true);
+        if (repaint) render();
+        return null;
+      }
+      await store.markSuggestionGenerated(view.courseId, view.lessonId, suggestion.id);
+    } catch (error) {
+      notify(`O exercício “${entry.metadata?.name ?? entry.id}” existe na biblioteca, mas não foi possível vinculá-lo à aula: ${error.message}`, true);
+      if (repaint) render();
+      return null;
+    }
+    notify(`Exercício “${entry.metadata?.name ?? entry.id}” gerado com notas e vinculado à aula. A conclusão da aula passa a exigir o alvo dele.`);
+    if (repaint) render();
+    return entry;
+  }
+
+  async function generateAll() {
+    const found = store.get(view.courseId);
+    const lesson = found ? courseLessons(found.course).find(item => item.id === view.lessonId) ?? null : null;
+    if (!lesson) { notify('Esta aula não está mais no curso.', true); return null; }
+    const pending = pendingSuggestions(lesson, store.lessonState(view.courseId, view.lessonId));
+    if (pending.length === 0) { notify('Esta aula não tem exercício sugerido de receita para gerar.'); return { created: 0, failed: 0 }; }
+    let created = 0;
+    let failed = 0;
+    for (const item of pending) {
+      const entry = await generateSuggestion(item.suggestion, { render: false });
+      if (entry === null) failed += 1; else created += 1;
+    }
+    notify(created > 0
+      ? `${created} exercício(s) gerado(s) com notas e vinculado(s) à aula${failed > 0 ? `; ${failed} não saiu(ram) desta vez` : ''}.`
+      : 'Nenhum exercício novo foi gerado desta vez.', created === 0);
+    render();
+    return { created, failed };
+  }
+
+  async function openMaterialPage(target) {
+    if (target === null) { notify('O catálogo não indica página da apostila para este exercício.', true); return false; }
+    if (openMaterialHook) {
+      try {
+        const handled = openMaterialHook({ ...target });
+        if (handled !== false) return true;
+      } catch (error) {
+        notify(`Não foi possível abrir a apostila: ${error.message}`, true);
+        return false;
+      }
+    }
+    if (!attachmentsReady()) { notify('O armazenamento de anexos não está disponível nesta página.', true); return false; }
+    try {
+      const blob = await attachments.getBlob(target.refKey);
+      if (!blob) { notify('O arquivo da apostila não está guardado neste navegador.', true); return false; }
+      const sniffed = await sniffAttachmentKind(blob, target.extension);
+      if (sniffed.kind !== ATTACHMENT_KINDS.pdf) { notify(sniffed.warning ?? 'O material indicado não é um PDF.', true); return false; }
+      const safe = new Blob([blob], { type: 'application/pdf' });
+      const url = urlFor(target.refKey, 'pdf', safe);
+      if (!url || typeof globalThis.open !== 'function') { notify('Este navegador não permite abrir o PDF.', true); return false; }
+      globalThis.open(target.page === null ? url : `${url}#page=${target.page}`, '_blank', 'noopener,noreferrer');
+      notify(target.page === null
+        ? 'Apostila aberta a partir da cópia salva neste navegador (funciona offline).'
+        : `Apostila aberta na página ${target.page} a partir da cópia salva neste navegador.`);
+      return true;
+    } catch (error) {
+      notify(`Não foi possível abrir a apostila: ${error.message}`, true);
+      return false;
+    }
   }
 
   async function createFromSuggestion(suggestion, form) {
@@ -625,11 +898,19 @@ export function mountCourseLesson(container, host) {
       });
       const entry = library.new({ session: draft.session, metadata: draft.metadata });
       if (!entry) { notify('A biblioteca não aceitou o novo exercício.', true); return; }
+      taintCourseContent(entry.id);
       let linked = false;
       try {
         linked = (await store.linkExercise(view.courseId, view.lessonId, entry.id)) !== null;
       } catch (error) {
         notify(`O exercício foi criado, mas não foi possível vinculá-lo à aula: ${error.message}`, true);
+      }
+      // A sugestão atendida é lembrada mesmo quando o exercício nasceu vazio no
+      // Estúdio: a aula não volta a oferecê-la.
+      try {
+        await store.markSuggestionGenerated(view.courseId, view.lessonId, suggestion.id);
+      } catch (error) {
+        notify(`O vínculo foi criado, mas a aula não pôde lembrar esta sugestão: ${error.message}`, true);
       }
       if (library.saved === false) {
         notify('O exercício foi criado, mas este navegador não conseguiu salvar a biblioteca. O trabalho continua na memória — exporte-o em Ajuda antes de recarregar.', true);
@@ -931,19 +1212,87 @@ export function mountCourseLesson(container, host) {
     return details;
   }
 
-  function suggestionNode(suggestion, index) {
-    const item = createEl('li', { id: `lesson-suggestion-${index}`, className: 'lesson-suggestion', dataset: { suggestionId: suggestion.id } });
+  function suggestionNode(suggestion, index, { generated = false } = {}) {
+    const hasRecipe = suggestion.recipe !== null && suggestion.recipe !== undefined;
+    const item = createEl('li', { id: `lesson-suggestion-${index}`, className: 'lesson-suggestion', dataset: { suggestionId: suggestion.id, recipe: String(hasRecipe), generated: String(generated) } });
     item.append(createEl('span', { className: 'lesson-suggestion-title', text: suggestion.title }));
+    if (suggestion.variantOf) {
+      item.append(createEl('span', { className: 'lesson-suggestion-variant muted', text: `variação em ${suggestion.strings ?? 5} cordas do exercício de 4 cordas` }));
+    }
     if (suggestion.description) item.append(createEl('span', { className: 'lesson-suggestion-desc muted', text: suggestion.description }));
+    if (hasRecipe) {
+      const summary = suggestionRecipeSummary(suggestion.recipe);
+      if (summary.length > 0) item.append(createEl('span', { className: 'lesson-suggestion-recipe muted', text: summary.join(' · ') }));
+    }
     const bits = [];
-    if (suggestion.initialBpm) bits.push(`${suggestion.initialBpm} BPM inicial`);
-    if (suggestion.targetBpm) bits.push(`alvo ${suggestion.targetBpm} BPM`);
+    if (suggestion.initialBpm) bits.push(`≈ ${suggestion.initialBpm} BPM`);
+    if (hasRecipe) bits.push('sem alvo: defina o alvo no exercício gerado');
+    else if (suggestion.targetBpm) bits.push(`alvo ${suggestion.targetBpm} BPM`);
     else bits.push('sem alvo sugerido');
     if (suggestion.bars) bits.push(`${suggestion.bars} compassos`);
     if (suggestion.strings) bits.push(`${suggestion.strings} cordas`);
+    if (suggestion.practiceMode) bits.push(`prática: ${suggestion.practiceMode}`);
     if (suggestion.pdfPage) bits.push(`página ${suggestion.pdfPage} do material`);
     if ((suggestion.trackNames ?? []).length > 0) bits.push(`faixas: ${suggestion.trackNames.join(', ')}`);
     item.append(createEl('span', { className: 'lesson-suggestion-meta muted', text: bits.join(' · ') }));
+    if (generated) item.append(createEl('span', { className: 'lesson-suggestion-done', text: 'já gerado — gerar de novo cria outro exercício' }));
+
+    const actions = createEl('span', { className: 'lesson-suggestion-actions' });
+    if (hasRecipe) {
+      const generate = createEl('button', {
+        id: `lesson-suggestion-generate-${index}`, type: 'button', className: 'primary',
+        dataset: { action: 'generate', suggestionId: suggestion.id },
+        text: generated ? 'Gerar de novo' : 'Gerar',
+      });
+      generate.disabled = !writable() || !studies || typeof studies.create !== 'function';
+      generate.title = generate.disabled
+        ? 'Gerar precisa do Estúdio de estudo ligado nesta página.'
+        : 'Cria o exercício já com notas, vinculado a esta aula.';
+      generate.addEventListener('click', () => void generateSuggestion(suggestion));
+      actions.append(generate);
+      const target = lessonMaterialTarget(suggestion);
+      if (target !== null) {
+        const material = createEl('button', {
+          id: `lesson-suggestion-material-${index}`, type: 'button',
+          dataset: { action: 'open-material', suggestionId: suggestion.id },
+          text: target.page === null ? 'Ver na apostila' : `Ver na apostila (página ${target.page})`,
+        });
+        material.title = target.fromOtherLesson
+          ? `Abre o material de “${target.ownerLessonTitle ?? 'outra aula'}” na página do exercício.`
+          : 'Abre a apostila da aula na página deste exercício.';
+        material.addEventListener('click', () => void openMaterialPage(target));
+        actions.append(material);
+      }
+      if (studies && typeof studies.open === 'function') {
+        const adjust = createEl('button', {
+          id: `lesson-suggestion-adjust-recipe-${index}`, type: 'button',
+          dataset: { action: 'open-study', suggestionId: suggestion.id },
+          text: 'Ajustar no Estúdio de estudo',
+        });
+        adjust.title = 'Abre o diálogo do estudo preenchido com esta receita (tom, região, forma, compassos e cordas).';
+        adjust.addEventListener('click', () => {
+          const found = store.get(view.courseId);
+          const lesson = found ? courseLessons(found.course).find(entry => entry.id === view.lessonId) ?? null : null;
+          try {
+            studies.open({
+              recipe: suggestion.recipe,
+              origin: { id: view.lessonId, name: lesson?.title ?? view.lessonId, kind: 'course', private: true },
+              title: `Exercício sugerido de “${lesson?.title ?? 'aula'}”`,
+            });
+          } catch (error) {
+            notify(`Não foi possível abrir o diálogo do estudo: ${error.message}`, true);
+          }
+        });
+        actions.append(adjust);
+      }
+      item.append(actions);
+      item.append(createEl('span', {
+        className: 'lesson-hint muted',
+        text: 'Gerar cria um exercício NOVO com notas a partir da receita do catálogo, vinculado a esta aula; o material do curso não é copiado para dentro dele.',
+      }));
+      return item;
+    }
+
     const form = view.forms.get(suggestion.id) ?? {
       bpm: suggestion.initialBpm ? String(suggestion.initialBpm) : '',
       target: suggestion.targetBpm ? String(suggestion.targetBpm) : '',
@@ -974,16 +1323,24 @@ export function mountCourseLesson(container, host) {
     create.addEventListener('click', () => void createFromSuggestion(suggestion, view.forms.get(suggestion.id) ?? form));
     // Os ajustes ficam agrupados: a sugestão mostra a ação principal e quem
     // quiser mexe em BPM/alvo/compassos sem virar parede de campos.
-    item.append(createEl('span', { className: 'lesson-suggestion-actions' }, [
-      create,
-      itemMore('Ajustar BPM, alvo e compassos', () => [fields], `lesson-suggestion-adjust-${index}`),
-    ]));
+    actions.append(create, itemMore('Ajustar BPM, alvo e compassos', () => [fields], `lesson-suggestion-adjust-${index}`));
+    item.append(actions);
     item.append(createEl('span', { className: 'lesson-hint muted', text: 'Gera um exercício novo, com notas vazias, já vinculado a esta aula.' }));
     return item;
   }
 
+  function lessonMaterialTarget(suggestion) {
+    const found = store.get(view.courseId);
+    const lesson = found ? courseLessons(found.course).find(entry => entry.id === view.lessonId) ?? null : null;
+    if (!found || !lesson) return null;
+    return suggestionMaterialTarget(found.course, lesson, suggestion);
+  }
+
   function suggestionGroup(outcome) {
     const suggestions = outcome.lesson?.suggestedExercises ?? [];
+    const lessonState = store.lessonState(view.courseId, view.lessonId);
+    const generated = new Set(normalizeLessonState(lessonState).generatedSuggestionIds);
+    const pendingGeneratable = suggestions.filter(suggestion => (suggestion.recipe ?? null) !== null && !generated.has(suggestion.id));
     const details = createEl('details', { id: 'lesson-suggestions-group', className: 'lesson-group', dataset: { disclosure: 'lesson-suggestions' } });
     details.append(createEl('summary', { text: `Exercícios sugeridos (${suggestions.length})` }));
     const body = createEl('div', { className: 'lesson-group-body' });
@@ -992,9 +1349,22 @@ export function mountCourseLesson(container, host) {
       details.append(body);
       return details;
     }
-    body.append(createEl('p', { className: 'lesson-hint muted', text: 'Criar aqui NÃO copia nada do curso: monta um exercício novo, vazio, com o perfil e o andamento sugeridos. Ajuste BPM, alvo e compassos antes de criar.' }));
+    body.append(createEl('p', { className: 'lesson-hint muted', text: 'Criar e gerar aqui NÃO copiam nada do curso: o exercício é novo, com o perfil e a receita indicados, e já fica vinculado à aula.' }));
+    if (pendingGeneratable.length > 0) {
+      const all = createEl('button', {
+        id: 'lesson-suggestions-generate-all', type: 'button', className: 'primary',
+        dataset: { action: 'generate-all' },
+        text: `Gerar todos (${pendingGeneratable.length})`,
+      });
+      all.disabled = !writable() || !studies || typeof studies.create !== 'function';
+      all.title = all.disabled
+        ? 'Gerar precisa do Estúdio de estudo ligado nesta página.'
+        : 'Cria, de uma vez, os exercícios das sugestões de receita ainda não geradas.';
+      all.addEventListener('click', () => void generateAll());
+      body.append(createEl('div', { className: 'lesson-suggestions-actions' }, [all]));
+    }
     const list = createEl('ul', { className: 'lesson-suggestion-list' });
-    suggestions.forEach((suggestion, index) => list.append(suggestionNode(suggestion, index)));
+    suggestions.forEach((suggestion, index) => list.append(suggestionNode(suggestion, index, { generated: generated.has(suggestion.id) })));
     body.append(list);
     details.append(body);
     return details;
@@ -1344,6 +1714,7 @@ export function mountCourseLesson(container, host) {
     clearListeners();
     unsubscribe?.();
     unsubscribeLibrary?.();
+    shapeChooser.destroy();
     root.remove();
   }
 

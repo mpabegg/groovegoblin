@@ -103,3 +103,73 @@ do app e as ações dos cartões), sem rolagem vertical em 1440×900.
 Auditoria dos 14 arquivos preparados para o commit desta etapa contra a lista privada (mapa e
 catálogo reais + termos explícitos): **0** ocorrências. A varredura cobre o texto preparado
 (arquivo:linha), pulando imagens e áudio.
+
+## Etapa 5 — catálogo no curso, aula e sessão de hoje (A5/A6)
+
+Módulos novos: `src/course-catalog.js` (receita do catálogo pela tradução do MOTOR), 
+`src/course-shape-binding.js` (vínculo rótulo → forma escolhida, lembrado entre aulas) e
+`src/course-shape-chooser.js` (diálogo). Endurecidos: `course-format.js` (documento v2 com
+`catalog`, leitura do v1), `course-store.js` (reconciliação por URL, lápides),
+`course-attachments.js`, `course-progress.js`, `course-lesson.js`, `course-view.js`,
+`today-courses.js`, `today-store.js`, `today-view.js`, `scripts/convert-course-map.js`.
+A ligação compartilhada ficou em `src/library-view.js` (workspace de cursos recebe o MESMO
+controlador de estudo, as formas/vínculos e os ganchos opcionais).
+
+### Critério 10 — conversor num mapa fictício
+
+`node scripts/convert-course-map.js tests/fixtures/course/map-repairs.json --com-progresso
+--catalogo tests/fixtures/course/catalog-example.json --output …` (fixtures fictícios, curso
+"Curso de Reparos"):
+
+- saída: `Seções 1 · aulas 3 · materiais 4 (2 mesclado(s)) · exercícios 2 · vínculos 2 · descartados 2`;
+- **ids numéricos preservados** como texto: aulas `0`, `25`, `26` (o zero inclusive);
+- progresso em objeto lido: `progress.watchedLessonIds = ["0","25"]` (2 aulas assistidas);
+- o material que aparece em `anexos` e em `backing_tracks` vira **um** item (2 mesclados) e o
+  pacote de 6 cordas é descartado sem derrubar o exercício que o cita como alternativa;
+- avisos **agrupados** por código e caminho genérico (8 tipos, 16 ocorrências), sem título nem
+  nome de arquivo.
+
+### Critério 12 — catálogo na aula e "Gerar" (navegador próprio, 1440×900)
+
+Curso fictício importado pela própria vista Cursos; a aula `0` mostrou 3 sugestões com receita
+(uma delas a variação de 5 cordas) e a aula `26` mostrou a sugestão sem receita (mantendo
+"Criar no Estúdio"). Em "Gerar":
+
+1. o diálogo do catálogo aparece pedindo a forma do rótulo ("O curso indica a forma major ·
+   fundamental · baixo de 4 cordas") com as formas genéricas de exemplo e a caixa
+   "Lembrar esta forma para as próximas aulas";
+2. escolhida a forma, o exercício nasce com **notas** (`25 compassos`, `37 notas`), vinculado à
+   aula (`study.origin = { id: "0", name: "Aula com identificador zero", kind: "course",
+   private: true }`) e **marcado** como conteúdo de curso (`metadata.courseContent === true`);
+3. o vínculo lembrado dispensou o diálogo na segunda vez (mesmo rótulo) — a escolha é reaproveitada.
+
+### Critério 14 — Praticar e Assistir independentes
+
+Coberto pelos testes dos módulos (`tests/today-courses.test.js`, `tests/today-store.test.js`,
+`tests/today-view.test.js`): a fila de prática sai das aulas **assistidas** (mais antigas primeiro)
+e a lista de "Assistir" é calculada pelo tempo indicado, recolhida por padrão; assistir três aulas
+hoje só aumenta a fila de prática dos dias seguintes. A verificação no navegador desta etapa ficou
+para a etapa 10 (prova final de todos os critérios).
+
+### Critério 11 — reimportação com ids novos
+
+Coberto pelos testes de `course-store` (reconciliação por URL, senão seção+título; lápides que
+ressuscitam com id novo) e pela prova de estado no navegador: antes da reimportação, a aula `0`
+tinha `watched: true`, a anotação fictícia e os vínculos (`linkedExerciseIds`, 
+`generatedSuggestionIds`). A reimportação do MESMO curso com ids derivados do título (variante
+`mapa → ids string`, mesmos URLs) ficou pendente de confirmação no navegador nesta etapa — os
+testes de módulo provam a reconciliação; a prova de UI entra na etapa 10.
+
+### Consertos de integração desta etapa
+
+1. `src/library-view.js`: o workspace de cursos recebe o MESMO `createStudyController`, as
+   formas (`choicesFor`/`shape`), a loja compartilhada de vínculos e os ganchos opcionais
+   (`openFretboard`, `openMaterial`, `serverImport`) — sem isso "Gerar" ficaria desabilitado.
+   `openFretboard` depende de uma linha em `main.js` (que está no teto de 530 linhas): fica
+   desligado até a etapa 8 liberar espaço, e o diálogo da forma simplesmente não mostra o atalho.
+2. `src/exercise-library.js`: a metadata passou a guardar `courseContent` (só `true` marca) e a
+   marca entra na chave de conteúdo. Sem isso o `taintCourseContent` do vínculo manual era
+   descartado na gravação e a barreira B6 perderia a marca no navegador.
+3. `src/study-recipe.js` (etapa 4) aceita a receita do documento do curso (cifras em texto,
+   `shapeLabel` descartado) — ver a etapa 4.
+

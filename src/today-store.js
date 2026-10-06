@@ -50,6 +50,11 @@ export const MAX_ITEM_MINUTES = 180;
 // Teto da ESTIMATIVA de uma aula (duração de vídeo); o orçamento diário do
 // curso é que limita o plano, nunca um corte silencioso da estimativa.
 export const MAX_LESSON_MINUTES = 1440;
+// Tempo que o usuário indica para ASSISTIR hoje (parte independente da sessão
+// de hoje). Guardado no diário da fila como campo adicional do v2 — ausente
+// significa "usa o padrão" (a loja não inventa um valor gravado).
+export const ASSIST_MINUTES_MIN = 1;
+export const ASSIST_MINUTES_MAX = 1440;
 // Sugestão padrão de uma sessão diária; a ordenação completa continua exposta
 // por suggestQueue() para quem quiser a lista inteira.
 export const SUGGESTION_LIMIT = 6;
@@ -274,6 +279,17 @@ export function normalizeSummary(value) {
   };
 }
 
+// Tempo indicado para assistir: inteiro dentro da faixa, ou nulo (= padrão).
+function normalizeAssistMinutes(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  const minutes = Math.round(number);
+  if (minutes < ASSIST_MINUTES_MIN) return ASSIST_MINUTES_MIN;
+  if (minutes > ASSIST_MINUTES_MAX) return ASSIST_MINUTES_MAX;
+  return minutes;
+}
+
 // Aceita v2 e v1: o v1 é o MESMO normalizador (item sem `kind` é exercício sem
 // curso/aula) — assim a migração não tem regra paralela para divergir.
 function validateJournal(value, uuid) {
@@ -291,6 +307,7 @@ function validateJournal(value, uuid) {
     queue,
     session: value.session === null || value.session === undefined ? null : normalizeSessionState(value.session, uuid),
     summary: value.summary === null || value.summary === undefined ? null : normalizeSummary(value.summary),
+    assistMinutes: normalizeAssistMinutes(value.assistMinutes),
     updatedAt: isNonEmptyString(value.updatedAt) ? value.updatedAt : new Date().toISOString(),
   };
 }
@@ -316,7 +333,7 @@ export function createTodayStore({ storage = globalThis.localStorage, now = Date
   const target = storage ?? globalThis.localStorage;
   const listeners = new Set();
   const iso = () => new Date(now()).toISOString();
-  let journal = { version: TODAY_VERSION, queue: null, session: null, summary: null, updatedAt: iso() };
+  let journal = { version: TODAY_VERSION, queue: null, session: null, summary: null, assistMinutes: null, updatedAt: iso() };
   let routines = { version: TODAY_VERSION, routines: [] };
   let status = 'ready';
   let loadWarning = null;
@@ -492,6 +509,17 @@ export function createTodayStore({ storage = globalThis.localStorage, now = Date
       queue() { return journal.queue ? clone(journal.queue) : null; },
       items() { return journal.queue ? clone(journal.queue.items) : []; },
       totalMs() { return queueTotalMs(journal.queue?.items ?? []); },
+      // Tempo indicado para ASSISTIR (parte independente da sessão de hoje):
+      // null = "usa o padrão da interface".
+      assistMinutes() { return journal.assistMinutes ?? null; },
+      setAssistMinutes(value) {
+        requireWritable();
+        journal.assistMinutes = normalizeAssistMinutes(value);
+        journal.updatedAt = iso();
+        persistJournal();
+        emit();
+        return journal.assistMinutes;
+      },
       // Substitui a fila inteira; itens repetidos do mesmo exercício/aula são
       // permitidos e a ordem é a do usuário.
       setItems(items) {

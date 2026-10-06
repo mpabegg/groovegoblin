@@ -708,6 +708,21 @@ test('bloco de estudo inválido ou sem receita não vira estudo pela metade', ()
   assert.equal(library.get(library.new({ session: createSession({ name: 'Só link' }), metadata: { name: 'Só link', study: { origin: { id: 'x' } } } }).id).metadata.study, null);
 });
 
+test('marca de conteúdo de curso sobrevive a criar, marcar, exportar e importar', () => {
+  const library = open(memoryStorage(), createSession({ name: 'Base' }));
+  const entry = library.new({ session: createSession({ name: 'Da aula' }) });
+  assert.equal(library.get(entry.id).metadata.courseContent, false, 'exercício comum não nasce marcado');
+  library.updateMetadata(entry.id, { courseContent: true });
+  assert.equal(library.get(entry.id).metadata.courseContent, true, 'a marca persiste na loja');
+  library.updateMetadata(entry.id, { courseContent: 'sim' });
+  assert.equal(library.get(entry.id).metadata.courseContent, false, 'só `true` marca: nada de quase privado');
+  library.updateMetadata(entry.id, { courseContent: true });
+  const other = open(memoryStorage(), createSession({ name: 'Outra' }));
+  other.importExercise(library.exportExercise(entry.id));
+  const row = other.list().find(candidate => candidate.name === 'Da aula');
+  assert.equal(other.get(row.id).metadata.courseContent, true, 'a marca viaja na exportação/importação');
+});
+
 test('receitas diferentes com a mesma sessão são exercícios diferentes; a mesma receita deduplica', () => {
   const session = createSession({ name: 'Igual', bpm: 100 });
   const source = open(memoryStorage(), session);

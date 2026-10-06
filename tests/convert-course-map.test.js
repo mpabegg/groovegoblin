@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -33,7 +33,7 @@ function fixturePath(name) {
   return fileURLToPath(new URL(`./fixtures/course/${name}`, import.meta.url));
 }
 
-const ZERO_COUNTS = { sections: 0, lessons: 0, resources: 0, resourceRefs: 0, exercises: 0, discarded: 0, merged: 0 };
+const ZERO_COUNTS = { sections: 0, lessons: 0, resources: 0, resourceRefs: 0, exercises: 0, discarded: 0, merged: 0, catalog: null };
 
 function lessonsOf(document) {
   return document.course.sections.flatMap((section) => section.lessons);
@@ -54,7 +54,7 @@ test('converte o mapa fictício completo com as contagens medidas', () => {
   const result = convertCourseMap(readFixture('map-example.json'));
   assert.equal(result.valid, true);
   assert.deepEqual(result.problems, []);
-  assert.deepEqual(result.counts, { sections: 3, lessons: 5, resources: 3, resourceRefs: 1, exercises: 2, discarded: 4, merged: 0 });
+  assert.deepEqual(result.counts, { sections: 3, lessons: 5, resources: 3, resourceRefs: 1, exercises: 2, discarded: 4, merged: 0, catalog: null });
   assert.deepEqual(result.document, readFixture('course-example-normalized.json'));
 });
 
@@ -322,7 +322,7 @@ test('material e exercício que citam as duas versões ficam', () => {
     }] }],
   });
   assert.equal(result.valid, true);
-  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 3, resourceRefs: 1, exercises: 1, discarded: 1, merged: 0 });
+  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 3, resourceRefs: 1, exercises: 1, discarded: 1, merged: 0, catalog: null });
   const lesson = lessonsOf(result.document)[0];
   assert.deepEqual(lesson.resources.map((resource) => [resource.name, resource.strings]), [
     ['apostila-exemplo-4-cordas.pdf', 4],
@@ -484,7 +484,7 @@ test('o mapa irregular converte igual e determinístico', () => {
   const second = convertCourseMap(readFixture('map-example-irregular.json'));
   assert.equal(first.valid, true);
   assert.deepEqual(first.problems, []);
-  assert.deepEqual(first.counts, { sections: 2, lessons: 2, resources: 4, resourceRefs: 2, exercises: 5, discarded: 6, merged: 0 });
+  assert.deepEqual(first.counts, { sections: 2, lessons: 2, resources: 4, resourceRefs: 2, exercises: 5, discarded: 6, merged: 0, catalog: null });
   assert.deepEqual(first.document, readFixture('course-irregular-normalized.json'));
   assert.equal(JSON.stringify(first.document), JSON.stringify(second.document));
   const lessons = lessonsOf(first.document);
@@ -499,7 +499,7 @@ test('curso que declara 6 cordas é incompatível: falha estrita e não é recla
   assert.equal(result.valid, false);
   assert.deepEqual(result.problems.map((problem) => [problem.path, problem.code]), [['course.strings', 'cordas']]);
   assert.equal(result.document.course.strings, 6);
-  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 0, resourceRefs: 0, exercises: 0, discarded: 0, merged: 0 });
+  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 0, resourceRefs: 0, exercises: 0, discarded: 0, merged: 0, catalog: null });
   const warning = result.warnings.find((item) => item.path === 'curso.cordas' && item.code === 'cordas-6');
   assert.ok(warning, 'o aviso explica que o curso é incompatível');
   assert.equal(warning.message.includes('convertido para 4'), false);
@@ -548,7 +548,7 @@ test('listas embrulhadas em { valor, inferido } não perdem itens', () => {
     }], inferido: false },
   });
   assert.equal(result.valid, true);
-  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 2, resourceRefs: 1, exercises: 1, discarded: 0, merged: 0 });
+  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 2, resourceRefs: 1, exercises: 1, discarded: 0, merged: 0, catalog: null });
   const lesson = lessonsOf(result.document)[0];
   assert.equal(lesson.id, 'modulo-1-aula-1');
   assert.deepEqual(lesson.resources.map((resource) => resource.id), ['apostila-exemplo-pdf', 'faixa-exemplo-4-cordas-80bpm-mp3']);
@@ -584,7 +584,7 @@ test('ordem_global do módulo é reconhecida e não vira campo ignorado', () => 
 test('módulos são convertidos mesmo sem o curso', () => {
   const result = convertCourseMap({ modulos: [{ titulo: 'Módulo 1', aulas: [{ titulo: 'Aula 1' }] }] });
   assert.equal(result.valid, true);
-  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 0, resourceRefs: 0, exercises: 0, discarded: 0, merged: 0 });
+  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 0, resourceRefs: 0, exercises: 0, discarded: 0, merged: 0, catalog: null });
   assert.deepEqual(result.document.course.sections.map((section) => section.title), ['Módulo 1']);
   assert.equal(result.document.course.title, 'Curso sem título');
   assert.ok(result.warnings.some((warning) => warning.code === 'curso-ausente'));
@@ -611,7 +611,7 @@ test('embrulhos em containers e aninhados preservam conteúdo', () => {
   assert.equal(lesson.hasVideo, true);
   assert.equal(lesson.initialBpm, 80);
   assert.equal(lesson.targetBpm, 100);
-  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 1, resourceRefs: 0, exercises: 1, discarded: 0, merged: 0 });
+  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 1, resourceRefs: 0, exercises: 1, discarded: 0, merged: 0, catalog: null });
   assert.deepEqual(result.document.progress.watchedLessonIds, [lesson.id]);
   assert.equal(result.warnings.some((warning) => warning.code === 'campo-ignorado'), false);
 });
@@ -702,4 +702,132 @@ test('a linha de comando grava no caminho indicado, agrupa avisos e aceita --ver
 
 test('o caminho de saída padrão fica em local/', () => {
   assert.equal(DEFAULT_OUTPUT, 'local/curso-convertido.json');
+});
+
+// --------------------------------------- catálogo de exercícios (etapa 5)
+
+test('catálogo: liga por aula, substitui as sugestões e traz a receita de cada exercício', () => {
+  const catalog = readFixture('catalog-example.json');
+  const result = convertCourseMap(readFixture('map-repairs.json'), { includeProgress: true, catalog });
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.problems, []);
+  assert.deepEqual(result.counts.catalog, {
+    // `replaced` conta as sugestões do MAPA que o catálogo substitui (a aula 0
+    // do mapa fictício sugere 2 exercícios depois do descarte de 6 cordas).
+    entries: 6, bound: 5, replaced: 2, variations: 1, unknownLesson: 1, withoutRecipe: 1, refs: 2, ignoredFields: 3,
+  });
+  assert.deepEqual(result.document.course.catalog.entries, 5);
+  assert.match(result.document.course.catalog.id, /^cat-[0-9a-f]{16}$/);
+  const lessons = new Map(lessonsOf(result.document).map((lesson) => [lesson.id, lesson]));
+
+  // Aula 0: a sugestão do mapa foi substituída pelos exercícios do catálogo.
+  const aulaZero = lessons.get('0');
+  assert.deepEqual(aulaZero.suggestedExercises.map((exercise) => exercise.id), ['cat-exemplo-1', 'cat-exemplo-1-cinco', 'cat-exemplo-5']);
+  const base = aulaZero.suggestedExercises[0];
+  assert.equal(base.title, 'Exercício fictício de arpejo');
+  assert.equal(base.pdfPage, 12);
+  assert.equal(base.initialBpm, 110);
+  assert.equal(base.bars, 25);
+  assert.equal(base.practiceMode, 'com metrônomo');
+  assert.deepEqual(base.trackNames, ['faixa-reparos-4-cordas-80bpm.mp3']);
+  assert.equal(base.catalogId, 'cat-exemplo-1');
+  assert.equal(base.recipe.family, 'arpejo_triade_forma_unica');
+  // O ciclo escrito nas cifras é a progressão que o motor toca (a receita é a
+  // do motor, não uma segunda tradução do catálogo).
+  assert.equal(base.recipe.progression.kind, 'lista');
+  assert.equal(base.recipe.progression.start, 'C');
+  assert.deepEqual(base.recipe.progression.chords, ['C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'B', 'E', 'A', 'D', 'G']);
+  assert.deepEqual(base.recipe.figure.degrees, [1, 3, 5]);
+  assert.equal(base.recipe.figure.bars, 2);
+  assert.equal(base.recipe.final, 'tonica');
+  assert.deepEqual(base.recipe.shapeLabel, { label: 'Shape 1', quality: 'major', inversion: 'fundamental' });
+  // A faixa indicada virou vínculo com o material da própria aula.
+  assert.ok(aulaZero.resourceRefs.some((ref) => ref.lessonId === '0' && ref.resourceId === 'faixa-reparos-4-cordas-80bpm-mp3'));
+
+  // A variação de 5 cordas aponta para o exercício de 4 cordas da mesma aula.
+  const variant = aulaZero.suggestedExercises[1];
+  assert.equal(variant.variantOf, 'cat-exemplo-1');
+  assert.equal(variant.strings, 5);
+  assert.equal(variant.recipe.voltas, 'periodo');
+  assert.equal(variant.recipe.rhythm, 'quarters');
+  assert.deepEqual(variant.recipe.profile, { type: 'bass', strings: 5 });
+
+  // O exercício do catálogo sem `qualidade` (campo OPCIONAL) não perde a
+  // receita: a base é maior e o resumo mostra isso.
+  const semQualidade = aulaZero.suggestedExercises[2];
+  assert.equal(semQualidade.id, 'cat-exemplo-5');
+  assert.equal(semQualidade.recipe.progression.quality, 'major');
+
+  // Aula 25: recebe o exercício do percurso (o exercício sem família gerável
+  // vai para a aula 26, que é a dele).
+  const aulaVinteCinco = lessons.get('25');
+  assert.deepEqual(aulaVinteCinco.suggestedExercises.map((exercise) => exercise.id), ['cat-exemplo-2']);
+  assert.equal(aulaVinteCinco.suggestedExercises[0].recipe.family, 'movimento_continuo_grave_agudo_grave');
+  assert.equal(aulaVinteCinco.suggestedExercises[0].recipe.progression.kind, 'lista');
+  assert.deepEqual(aulaVinteCinco.suggestedExercises[0].recipe.progression.chords, ['C', 'Am', 'Dm', 'G']);
+  assert.equal(aulaVinteCinco.suggestedExercises[0].recipe.rhythm, 'quarters');
+  assert.equal(aulaVinteCinco.suggestedExercises[0].initialBpm, null, 'dois andamentos no texto não viram um número');
+  assert.ok(aulaVinteCinco.resourceRefs.some((ref) => ref.lessonId === '0' && ref.resourceId === 'faixa-compartilhada-reparos-mp3'));
+
+  // Aula 26: só o exercício sem família gerável (entra sem receita, com os
+  // dados do catálogo) — o mapa não tinha exercício nenhum nesta aula.
+  const aulaVinteSeis = lessons.get('26');
+  assert.deepEqual(aulaVinteSeis.suggestedExercises.map((exercise) => exercise.id), ['cat-exemplo-3']);
+  assert.equal(aulaVinteSeis.suggestedExercises[0].recipe, null);
+  assert.equal(aulaVinteSeis.suggestedExercises[0].catalogId, 'cat-exemplo-3');
+
+  // O resultado continua um documento válido do formato (v2, com o marcador).
+  const normalized = normalizeCourse(result.document);
+  assert.equal(normalized.ok, true);
+  assert.equal(normalized.document.version, COURSE_VERSION);
+  assert.equal(normalized.document.privacy, 'private');
+});
+
+test('catálogo: avisos são agrupados por código e caminho genérico, sem título nem cifra', () => {
+  const result = convertCourseMap(readFixture('map-repairs.json'), { catalog: readFixture('catalog-example.json') });
+  const codes = result.grouped.map((group) => [group.path, group.code, group.count]);
+  assert.ok(codes.some(([path, code]) => code === 'catalogo-aula-ausente' && path === 'catalogo[].aula_id'));
+  assert.ok(codes.some(([path, code, count]) => code === 'catalogo-sem-receita' && path === 'catalogo[].familia' && count === 1));
+  assert.ok(codes.some(([path, code, count]) => code === 'catalogo-campo-ignorado' && path === 'catalogo[].campo_estranho' && count === 1));
+  assert.ok(codes.some(([path, code, count]) => code === 'catalogo-campo-ignorado' && path === 'catalogo[].forma.extra' && count === 1));
+  const text = JSON.stringify(result.warnings);
+  assert.equal(text.includes('Exercício fictício'), false, 'aviso nunca repete o texto do catálogo');
+  assert.equal(text.includes('Am'), false, 'aviso nunca repete cifra do catálogo');
+});
+
+test('a linha de comando converte com --catalogo e informa o que ligou', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'groovegoblin-catalogo-'));
+  const script = fileURLToPath(new URL('../scripts/convert-course-map.js', import.meta.url));
+  try {
+    const output = join(directory, 'curso-com-catalogo.json');
+    const cli = spawnSync(process.execPath, [
+      script, fixturePath('map-repairs.json'), '--output', output, '--catalogo', fixturePath('catalog-example.json'),
+    ], { encoding: 'utf8' });
+    assert.equal(cli.status, 0, cli.stderr);
+    assert.match(cli.stdout, /Catálogo lido: 6 exercício\(s\)/);
+    assert.match(cli.stdout, /Catálogo: 5 exercício\(s\) ligado\(s\) à aula \(1 variação\(ões\) de 5 cordas\)/);
+    const written = JSON.parse(await readFile(output, 'utf8'));
+    assert.equal(written.version, COURSE_VERSION);
+    assert.equal(written.privacy, 'private');
+    assert.equal(normalizeCourse(written).ok, true);
+    assert.equal(written.course.catalog.entries, 5);
+    const first = written.course.sections[0].lessons.find((lesson) => lesson.id === '0');
+    assert.equal(first.suggestedExercises[0].recipe.family, 'arpejo_triade_forma_unica');
+    // Sem --catalogo, o curso volta a ser o do mapa (nada de receita).
+    const plain = join(directory, 'curso-sem-catalogo.json');
+    const without = spawnSync(process.execPath, [script, fixturePath('map-repairs.json'), '--output', plain], { encoding: 'utf8' });
+    assert.equal(without.status, 0, without.stderr);
+    assert.equal(JSON.parse(await readFile(plain, 'utf8')).course.catalog, null);
+
+    const missing = spawnSync(process.execPath, [script, fixturePath('map-repairs.json'), '--catalogo', join(directory, 'ausente.json')], { encoding: 'utf8' });
+    assert.equal(missing.status, 2);
+    assert.match(missing.stderr, /arquivo não encontrado/);
+    const notList = join(directory, 'catalogo-objeto.json');
+    await writeFile(notList, JSON.stringify({ exercicios: [] }), 'utf8');
+    const wrong = spawnSync(process.execPath, [script, fixturePath('map-repairs.json'), '--catalogo', notList], { encoding: 'utf8' });
+    assert.equal(wrong.status, 2);
+    assert.match(wrong.stderr, /lista de exercícios/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

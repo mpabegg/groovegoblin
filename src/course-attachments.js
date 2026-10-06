@@ -596,6 +596,67 @@ export function createAttachmentStore({
     return { refs: list.length, files: filesDeleted, freedBytes };
   }
 
+  // Corpo do remapeamento de referências (chamado serializado por
+  // remapLessonRefs). A chave nova é a mesma referência com a aula de destino;
+  // se o destino JÁ tem referência (a mesma aula com dois ids no mapa antigo),
+  // a referência existente é preservada e a antiga sai, para o material não
+  // aparecer duas vezes na mesma aula.
+  async function remapNow(courseId, alias) {
+    await prepare();
+    const entries = alias instanceof Map ? [...alias.entries()]
+      : Array.isArray(alias) ? alias.map(entry => (Array.isArray(entry) ? entry : [entry?.from, entry?.to]))
+        : alias !== null && typeof alias === 'object' ? Object.entries(alias) : [];
+    const table = new Map(entries.filter(([from, to]) => isText(from) && isText(to) && from !== to));
+    const moves = [];
+    let collisions = 0;
+    let missing = 0;
+    for (const ref of refsOf(courseId)) {
+      const target = table.get(ref.lessonId);
+      if (target === undefined) continue;
+      if (!resourceIdOf(ref)) { missing += 1; continue; }
+      const key = attachmentRefKey(courseId, target, ref.resourceId);
+      const existing = refs.get(key);
+      if (existing !== undefined) {
+        collisions += 1;
+        moves.push({ from: ref.key, to: key, action: 'drop-duplicate', fileId: ref.fileId, existingFileId: existing.fileId });
+        continue;
+      }
+      moves.push({ from: ref.key, to: key, action: 'move', fileId: ref.fileId });
+    }
+    if (moves.length === 0) return { moved: 0, collisions, missing, refs: [] };
+    const batch = [];
+    const updated = new Map();
+    for (const move of moves) {
+      batch.push({ store: 'refs', id: move.from, remove: true });
+      if (move.action === 'drop-duplicate') continue;
+      const ref = refs.get(move.from);
+      const record = { ...ref, key: move.to, lessonId: parseAttachmentRefKey(move.to).lessonId };
+      batch.push({ store: 'refs', value: record });
+      updated.set(move.from, record);
+    }
+    try {
+      await backend.writeBatch(batch);
+    } catch (cause) {
+      throw describeAttachmentStorageError(cause);
+    }
+    for (const move of moves) {
+      refs.delete(move.from);
+      const record = updated.get(move.from);
+      if (record) refs.set(record.key, record);
+    }
+    emit();
+    return {
+      moved: moves.filter(move => move.action === 'move').length,
+      collisions,
+      missing,
+      refs: moves.map(move => ({ from: move.from, to: move.to, action: move.action })),
+    };
+  }
+
+  function resourceIdOf(ref) {
+    return isText(ref?.resourceId) ? ref.resourceId : parseAttachmentRefKey(ref?.key)?.resourceId ?? null;
+  }
+
   function api() {
     return {
       get persistent() { return persistent && !!backend; },
@@ -654,6 +715,15 @@ export function createAttachmentStore({
       // ou reimportar um curso nunca apaga anexos).
       clearCourse(courseId) {
         return serialize(() => clearNow(courseId));
+      },
+
+      // Reimportação com ids NOVOS: a referência do anexo é
+      // [courseId, lessonId, resourceId] e precisa seguir a AULA. O alias vem
+      // da loja de cursos (`importText` devolve `aliases`), que o reconhece
+      // pela URL. O arquivo nunca é tocado: só a chave de referência muda (o
+      // mesmo arquivo em duas aulas continua contando bytes uma vez).
+      remapLessonRefs(courseId, alias) {
+        return serialize(() => remapNow(courseId, alias));
       },
 
       // Espaço ocupado pelos anexos (bytes de arquivos únicos).

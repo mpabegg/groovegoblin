@@ -1,4 +1,4 @@
-// Formato de curso "groovegoblin-course" v1.
+// Formato de curso "groovegoblin-course" v2.
 //
 // Curso, progresso e vínculos ficam fora da sessão de estudo: aqui mora somente
 // o catálogo (seções, aulas, materiais e sugestões de exercício). O conversor de
@@ -6,15 +6,29 @@
 // deste formato; este módulo é a porta estrita usada pelo app para aceitar ou
 // recusar um documento, apontando o caminho de cada campo reprovado.
 //
+// Versão 2: além do formato v1 (que continua sendo LIDO e canonizado para v2),
+// a aula pode trazer a receita de estudo do exercício sugerido — o que o
+// gerador precisa para criar o exercício com notas —, o modo de prática, a
+// página da apostila e o vínculo de variação de 5 cordas; e o documento tem um
+// MARCADOR explícito de privacidade (`privacy: 'private'`), porque curso é
+// material de terceiros: nada dele sai em link de compartilhamento, exportação
+// de exercício ou build publicado.
+//
 // Regras do app respeitadas aqui: somente baixo de 4 ou 5 cordas, nenhum
 // material de 6 cordas, nenhuma busca de rede e nenhum conteúdo de terceiros
 // embutido. Avisos e erros citam apenas o caminho do campo, nunca valores do
 // documento original (títulos, nomes de arquivo ou endereços).
 
 import { MAX_BARS, MIN_BARS } from './model.js';
+import { normalizeCatalogRecipe } from './course-catalog.js';
 
 export const COURSE_FORMAT = 'groovegoblin-course';
-export const COURSE_VERSION = 1;
+export const COURSE_VERSION = 2;
+// Versões que a LEITURA aceita: um curso importado na rodada 5 (v1) continua
+// abrindo e é canonizado para v2 na memória, sem perder nada.
+export const COURSE_VERSIONS_READ = Object.freeze([1, COURSE_VERSION]);
+// Marcador explícito de conteúdo de curso (privado por natureza).
+export const DOCUMENT_PRIVACY = Object.freeze(['private']);
 
 export const SECTION_TYPES = Object.freeze(['módulo', 'seminário', 'boas-vindas', 'outro']);
 export const RESOURCE_ROLES = Object.freeze(['apostila', 'faixa', 'pacote de exercícios', 'outro']);
@@ -79,8 +93,9 @@ const VIDEO_RANGE = Object.freeze({ min: 0, max: COURSE_LIMITS.videoSecondsMax }
 const DAILY_MINUTES_RANGE = Object.freeze({ min: COURSE_LIMITS.dailyMinutesMin, max: COURSE_LIMITS.dailyMinutesMax });
 const PDF_PAGE_RANGE = Object.freeze({ min: COURSE_LIMITS.pdfPageMin, max: COURSE_LIMITS.pdfPageMax });
 
-const DOCUMENT_KEYS = ['format', 'version', 'course', 'progress'];
-const COURSE_KEYS = ['id', 'title', 'author', 'url', 'instrument', 'strings', 'language', 'dailyMinutes', 'summary', 'sections'];
+const DOCUMENT_KEYS = ['format', 'version', 'privacy', 'course', 'progress'];
+const COURSE_KEYS = ['id', 'title', 'author', 'url', 'instrument', 'strings', 'language', 'dailyMinutes', 'summary', 'catalog', 'sections'];
+const CATALOG_KEYS = ['id', 'entries'];
 const SECTION_KEYS = ['id', 'title', 'type', 'week', 'summary', 'objective', 'prerequisites', 'lessons'];
 const LESSON_KEYS = [
   'id', 'title', 'url', 'type', 'videoSeconds', 'hasVideo', 'summary', 'practiceInstruction',
@@ -89,7 +104,10 @@ const LESSON_KEYS = [
 ];
 const RESOURCE_KEYS = ['id', 'name', 'extension', 'role', 'bpm', 'barsPerChord', 'style', 'extended', 'strings'];
 const REF_KEYS = ['lessonId', 'resourceId'];
-const EXERCISE_KEYS = ['id', 'title', 'description', 'initialBpm', 'targetBpm', 'bars', 'trackNames', 'pdfPage', 'strings'];
+const EXERCISE_KEYS = [
+  'id', 'title', 'description', 'initialBpm', 'targetBpm', 'bars', 'trackNames', 'pdfPage', 'strings',
+  'recipe', 'practiceMode', 'catalogId', 'variantOf',
+];
 const PROGRESS_KEYS = ['watchedLessonIds'];
 
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
@@ -276,6 +294,18 @@ function readTextList(source, key, path, { limit, max }, issues) {
   });
 }
 
+function normalizeCourseCatalog(value, path, issues) {
+  if (value === undefined || value === null) return null;
+  if (!isObject(value)) {
+    note(issues, path, 'objeto', 'A procedência do catálogo deve ser um objeto.');
+    return null;
+  }
+  readKeys(value, CATALOG_KEYS, path, issues);
+  const id = optText(value, 'id', path, COURSE_LIMITS.shortText, issues);
+  const entries = optInteger(value, 'entries', path, { min: 0, max: 100000 }, issues, 'numero');
+  return { id, entries };
+}
+
 function normalizeCourseBody(value, issues) {
   const path = 'course';
   const course = {
@@ -288,6 +318,7 @@ function normalizeCourseBody(value, issues) {
     language: null,
     dailyMinutes: null,
     summary: null,
+    catalog: null,
     sections: [],
   };
   if (!isObject(value)) {
@@ -311,6 +342,7 @@ function normalizeCourseBody(value, issues) {
   if (course.strings === null && (value.strings === undefined || value.strings === null)) {
     note(issues, `${path}.strings`, 'campo-obrigatorio', 'Campo obrigatório ausente.');
   }
+  course.catalog = normalizeCourseCatalog(value.catalog, `${path}.catalog`, issues);
   course.sections = reqList(value, 'sections', path, COURSE_LIMITS.sections, issues)
     .map((section, index) => normalizeSection(section, `${path}.sections[${index}]`, issues));
   return course;
@@ -447,6 +479,10 @@ function normalizeExercise(value, path, issues) {
     trackNames: [],
     pdfPage: null,
     strings: null,
+    recipe: null,
+    practiceMode: null,
+    catalogId: null,
+    variantOf: null,
   };
   if (!isObject(value)) {
     note(issues, path, 'objeto', 'A sugestão de exercício deve ser um objeto.');
@@ -462,6 +498,21 @@ function normalizeExercise(value, path, issues) {
   exercise.trackNames = readTextList(value, 'trackNames', path, { limit: COURSE_LIMITS.trackNames, max: COURSE_LIMITS.name }, issues);
   exercise.pdfPage = optInteger(value, 'pdfPage', path, PDF_PAGE_RANGE, issues);
   exercise.strings = optStrings(value, 'strings', path, issues);
+  exercise.practiceMode = optText(value, 'practiceMode', path, COURSE_LIMITS.mediumText, issues);
+  exercise.catalogId = optText(value, 'catalogId', path, COURSE_LIMITS.id, issues);
+  exercise.variantOf = optText(value, 'variantOf', path, COURSE_LIMITS.id, issues);
+  // A receita de estudo é validada pelo schema do catálogo (course-catalog.js):
+  // uma receita que o gerador recusaria não entra no documento.
+  if (value.recipe !== undefined && value.recipe !== null) {
+    const normalized = normalizeCatalogRecipe(value.recipe);
+    if (normalized.ok) exercise.recipe = normalized.recipe;
+    else {
+      for (const issue of normalized.errors) {
+        const key = issue.path === '' ? `${path}.recipe` : `${path}.recipe.${issue.path}`;
+        note(issues, key, issue.code, issue.message);
+      }
+    }
+  }
   return exercise;
 }
 
@@ -531,6 +582,23 @@ function checkReferences(document, progress, issues) {
         if (exerciseIds.has(exercise.id)) note(issues, `${lessonPath}.suggestedExercises[${exerciseIndex}].id`, 'id-repetido', 'Identificador de exercício repetido na aula.');
         else exerciseIds.add(exercise.id);
       }
+      // A receita de estudo descreve o MESMO instrumento da sugestão: cordas
+      // divergentes seriam um exercício gerado com outro instrumento.
+      for (const [exerciseIndex, exercise] of lesson.suggestedExercises.entries()) {
+        const exercisePath = `${lessonPath}.suggestedExercises[${exerciseIndex}]`;
+        if (exercise.recipe !== null && exercise.strings !== null && exercise.recipe.profile.strings !== exercise.strings) {
+          note(issues, `${exercisePath}.recipe.profile.strings`, 'cordas', 'A receita de estudo precisa usar as mesmas cordas da sugestão.');
+        }
+        // A variação de 5 cordas aponta para o exercício de 4 cordas da MESMA
+        // aula: uma referência que não existe deixa a variação solta.
+        if (exercise.variantOf !== null) {
+          if (exercise.variantOf === exercise.id) {
+            note(issues, `${exercisePath}.variantOf`, 'referencia-quebrada', 'Uma variação não pode apontar para ela mesma.');
+          } else if (!lesson.suggestedExercises.some(other => other !== exercise && other.id === exercise.variantOf)) {
+            note(issues, `${exercisePath}.variantOf`, 'referencia-quebrada', 'A variação aponta para um exercício que não existe nesta aula.');
+          }
+        }
+      }
       const seenRefs = new Set();
       for (const [refIndex, ref] of lesson.resourceRefs.entries()) {
         const refPath = `${lessonPath}.resourceRefs[${refIndex}]`;
@@ -568,10 +636,20 @@ export function normalizeCourse(value) {
   }
   readKeys(value, DOCUMENT_KEYS, '', issues);
   if (value.format !== COURSE_FORMAT) note(issues, 'format', 'formato', 'O documento não está no formato de curso do GrooveGoblin.');
-  if (value.version !== COURSE_VERSION) note(issues, 'version', 'versao', 'A versão do documento de curso não é compatível.');
+  if (!COURSE_VERSIONS_READ.includes(value.version)) {
+    note(issues, 'version', 'versao', `A versão do documento de curso não é compatível (este app lê ${COURSE_VERSIONS_READ.join(' e ')}).`);
+  }
+  if (value.privacy !== undefined && value.privacy !== null && !DOCUMENT_PRIVACY.includes(value.privacy)) {
+    note(issues, 'privacy', 'privacidade', 'O marcador de privacidade do documento não foi reconhecido.');
+  }
   const course = normalizeCourseBody(value.course, issues);
   const progress = normalizeProgress(value.progress, issues);
-  const document = { format: COURSE_FORMAT, version: COURSE_VERSION, course };
+  const document = {
+    format: COURSE_FORMAT,
+    version: COURSE_VERSION,
+    privacy: DOCUMENT_PRIVACY.includes(value.privacy) ? value.privacy : null,
+    course,
+  };
   // O progresso é opcional no formato: só entra no documento canônico quando o
   // documento de origem o traz. É o que mantém "sem progresso" significando
   // "nenhuma aula assistida" em vez de "progresso desconhecido".

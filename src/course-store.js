@@ -152,6 +152,9 @@ function normalizeTombstone(value) {
   if (!isObject(value) || !isText(value.id)) return null;
   return {
     id: value.id,
+    // A URL guarda a IDENTIDADE da aula que saiu do mapa: sem ela, a aula que
+    // volta com id novo não teria como recuperar o estado dela.
+    url: isText(value.url) ? value.url : null,
     title: isText(value.title) ? value.title : value.id,
     type: isText(value.type) ? value.type : null,
     sectionId: isText(value.sectionId) ? value.sectionId : null,
@@ -211,29 +214,200 @@ export function normalizeCourseRecord(value) {
   };
 }
 
+// ------------------------------------------------- reconhecimento por URL
+//
+// Reimportar um curso com ids NOVOS (o conversor passou a usar o id numérico do
+// mapa, a ordem mudou, o título mudou) não pode perder nada: a identidade da
+// aula é a URL dela, com (seção + título) como reserva e o próprio id por
+// último. `buildLessonAlias` devolve o mapa idAntigo -> idNovo que a fusão, o
+// remapeamento dos anexos e o "aula ativa" usam. Nada é adivinhado: só casa
+// identidade EXATA (URL igual, ou seção+título iguais).
+export const LESSON_ALIAS_KINDS = Object.freeze(['url', 'secao+titulo', 'id']);
+
+function identityText(value) {
+  if (!isText(value)) return null;
+  const text = value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+  return text === '' ? null : text;
+}
+
+export function lessonIdentity(lesson) {
+  if (isText(lesson?.url)) return { kind: 'url', value: lesson.url.trim() };
+  const title = identityText(lesson?.title);
+  const section = identityText(lesson?.sectionTitle ?? lesson?.sectionId);
+  if (title !== null && section !== null) return { kind: 'secao+titulo', value: `${section}\u0000${title}` };
+  if (isText(lesson?.id)) return { kind: 'id', value: lesson.id };
+  return null;
+}
+
+// Mapa idAntigo -> idNovo. Só entram aulas cujo ID mudou e cuja identidade
+// existe no curso novo; aulas com o mesmo id não precisam de alias.
+export function buildLessonAlias(previousCourse, nextCourse) {
+  const alias = new Map();
+  if (!previousCourse || !nextCourse) return alias;
+  const nextLessons = courseLessons(nextCourse);
+  const previousLessons = courseLessons(previousCourse);
+  const nextIds = new Set(nextLessons.map(lesson => lesson.id));
+  // A identidade só vale quando é ÚNICA nos dois lados: dois títulos iguais
+  // (sem URL) não dizem qual aula é qual, e casar por engano perderia estado.
+  const count = lessons => {
+    const counts = new Map();
+    for (const lesson of lessons) {
+      const identity = lessonIdentity(lesson);
+      if (identity === null) continue;
+      const key = `${identity.kind}\u0000${identity.value}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  };
+  const nextCounts = count(nextLessons);
+  const previousCounts = count(previousLessons);
+  const byIdentity = new Map();
+  for (const lesson of nextLessons) {
+    const identity = lessonIdentity(lesson);
+    if (identity === null) continue;
+    const key = `${identity.kind}\u0000${identity.value}`;
+    if (nextCounts.get(key) !== 1) continue;
+    byIdentity.set(key, lesson.id);
+  }
+  for (const lesson of previousLessons) {
+    if (nextIds.has(lesson.id) || lessonIdentity(lesson)?.kind === 'id') continue;
+    const identity = lessonIdentity(lesson);
+    if (identity === null) continue;
+    const key = `${identity.kind}\u0000${identity.value}`;
+    if (previousCounts.get(key) !== 1) continue;
+    const target = byIdentity.get(key);
+    if (isText(target) && target !== lesson.id) alias.set(lesson.id, target);
+  }
+  return alias;
+}
+
+// Identidade -> quantas vezes ela aparece (só identidades que dizem alguma
+// coisa: URL ou seção+título).
+function identityCounts(entries) {
+  const counts = new Map();
+  for (const entry of entries) {
+    const identity = lessonIdentity(entry);
+    if (identity === null || identity.kind === 'id') continue;
+    const key = `${identity.kind}\u0000${identity.value}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
+// Mapa idAntigo -> idNovo para os TOMBSTONES: uma aula que saiu do mapa e volta
+// com id NOVO recupera o estado (anotações, assistida, vínculos, tempo). O
+// tombstone guarda a própria identidade, então a unicidade é conferida entre os
+// tombstones e o curso novo — identidade repetida de qualquer lado não casa (o
+// app nunca adivinha qual aula é qual).
+function tombstoneAlias(tombstones, nextLessons, courseAlias = id => id) {
+  const alias = new Map();
+  if (!Array.isArray(tombstones) || tombstones.length === 0) return alias;
+  const nextCounts = identityCounts(nextLessons);
+  const byIdentity = new Map();
+  for (const lesson of nextLessons) {
+    const identity = lessonIdentity(lesson);
+    if (identity === null || identity.kind === 'id') continue;
+    const key = `${identity.kind}\u0000${identity.value}`;
+    if (nextCounts.get(key) !== 1) continue;
+    byIdentity.set(key, lesson.id);
+  }
+  const tombstoneCounts = identityCounts(tombstones);
+  for (const tombstone of tombstones) {
+    const identity = lessonIdentity(tombstone);
+    if (identity === null || identity.kind === 'id') continue;
+    const key = `${identity.kind}\u0000${identity.value}`;
+    if (tombstoneCounts.get(key) !== 1) continue;
+    const target = byIdentity.get(key);
+    if (!isText(target) || target === tombstone.id) continue;
+    // O alias do CURSO (aula viva) tem precedência: lá a aula nunca saiu.
+    if (courseAlias(tombstone.id) !== tombstone.id) continue;
+    alias.set(tombstone.id, target);
+  }
+  return alias;
+}
+
+export function aliasPairs(alias) {
+  return [...alias.entries()].map(([from, to]) => ({ from, to }));
+}
+
+export function aliasLookup(alias) {
+  if (alias === null || alias === undefined) return id => id;
+  // `Map#entries()` devolve um ITERADOR: sem espalhar, `.filter` não existe e a
+  // fusão da reimportação inteira quebra.
+  const entries = alias instanceof Map ? [...alias.entries()]
+    : Array.isArray(alias) ? alias.map(entry => (Array.isArray(entry) ? entry : [entry?.from, entry?.to]))
+      : Object.entries(alias);
+  const table = new Map(entries.filter(([from, to]) => isText(from) && isText(to)));
+  return id => table.get(id) ?? id;
+}
+
+function mergeLessonStateUnion(base, extra, remap = id => id) {
+  const left = normalizeLessonState(base);
+  const right = normalizeLessonState(extra);
+  const linked = [...left.linkedExerciseIds];
+  for (const id of right.linkedExerciseIds.map(remap)) if (!linked.includes(id)) linked.push(id);
+  const generated = [...left.generatedSuggestionIds];
+  for (const id of right.generatedSuggestionIds) if (!generated.includes(id)) generated.push(id);
+  return normalizeLessonState({
+    watched: left.watched || right.watched,
+    skipped: left.skipped || right.skipped,
+    completionOverride: left.completionOverride ?? right.completionOverride,
+    notes: left.notes && right.notes && left.notes !== right.notes ? `${left.notes}${IMPORTED_NOTES_SEPARATOR}${right.notes}` : left.notes || right.notes,
+    linkedExerciseIds: linked,
+    generatedSuggestionIds: generated,
+    updatedAt: left.updatedAt ?? right.updatedAt,
+  });
+}
+
 // Reimportação: a estrutura nova entra inteira e o estado antigo é
-// redistribuído — aulas que continuam PRESERVAM tudo; aulas que sumiram viram
+// redistribuído pela IDENTIDADE das aulas — aulas que continuam PRESERVAM tudo
+// (inclusive quando o id mudou: o estado segue a URL); aulas que sumiram viram
 // tombstones; tombstones que reaparecem VOLTAM com o estado que tinham.
-export function mergeCourseState(previousState, previousCourse, nextCourse, { now = isoNow() } = {}) {
+export function mergeCourseState(previousState, previousCourse, nextCourse, { now = isoNow(), alias = null } = {}) {
   const previous = normalizeCourseState(previousState, nextCourse?.id ?? null)
-    ?? { courseId: nextCourse?.id ?? null, createdAt: null, updatedAt: null, activeLessonId: null, lessons: lessonDict(), removed: [], watch: [] };
+    ?? { courseId: nextCourse?.id ?? null, createdAt: null, updatedAt: null, activeLessonId: null, lessons: lessonDict(), removed: [], watch: [], preferences: coursePreferences(null) };
+  const courseAlias = alias instanceof Map ? alias : buildLessonAlias(previousCourse, nextCourse);
+  const map = aliasLookup(courseAlias);
   const nextLessons = courseLessons(nextCourse);
   const nextIds = new Set(nextLessons.map(lesson => lesson.id));
+  // A aula que saiu do mapa e volta com id novo traz o estado dela: o alias do
+  // tombstone entra no MESMO mapa (a interface reusa a lista para remapear os
+  // anexos) e vale para o estado, o tempo de estudo e a aula ativa.
+  const restoredAlias = tombstoneAlias(previous.removed, nextLessons, map);
+  const resolve = id => restoredAlias.get(id) ?? map(id);
   const lessons = lessonDict();
   let preserved = 0;
+  let moved = 0;
   for (const [id, lessonState] of Object.entries(previous.lessons)) {
-    if (!nextIds.has(id)) continue;
-    setEntry(lessons, id, { ...lessonState });
+    const target = map(id);
+    if (!nextIds.has(target)) continue;
+    const existing = entryOf(lessons, target);
+    setEntry(lessons, target, existing === undefined ? { ...lessonState } : mergeLessonStateUnion(existing, lessonState));
     preserved += 1;
+    if (target !== id) moved += 1;
   }
   const removed = [];
   const tombstones = new Map(previous.removed.map(entry => [entry.id, entry]));
   let restored = 0;
   for (const tombstone of previous.removed) {
-    if (!nextIds.has(tombstone.id)) { removed.push(tombstone); continue; }
-    setEntry(lessons, tombstone.id, { ...tombstone.state });
+    const target = resolve(tombstone.id);
+    if (nextIds.has(target)) {
+      const existing = entryOf(lessons, target);
+      setEntry(lessons, target, existing === undefined ? { ...tombstone.state } : mergeLessonStateUnion(existing, tombstone.state));
+      tombstones.delete(tombstone.id);
+      restored += 1;
+      continue;
+    }
+    if (target !== tombstone.id) {
+      // O tombstone também segue a identidade: a aula removida continua
+      // guardada sob o id NOVO quando ele existe (nada fica órfão de nome).
+      const movedTombstone = { ...tombstone, id: target, state: normalizeLessonState(tombstone.state) };
+      const existing = tombstones.get(target);
+      tombstones.set(target, existing === undefined ? movedTombstone : { ...existing, state: mergeLessonStateUnion(existing.state, movedTombstone.state) });
+      continue;
+    }
     tombstones.delete(tombstone.id);
-    restored += 1;
+    removed.push(tombstone);
   }
   // Aulas do curso ANTERIOR que não existem mais: tombstone com snapshot da
   // estrutura em que viviam (mesmo sem nenhum estado gravado, para continuarem
@@ -241,10 +415,14 @@ export function mergeCourseState(previousState, previousCourse, nextCourse, { no
   const previousLessons = new Map(courseLessons(previousCourse).map(lesson => [lesson.id, lesson]));
   let removedOut = 0;
   for (const [id, lesson] of previousLessons) {
-    if (nextIds.has(id) || tombstones.has(id)) continue;
+    const target = map(id);
+    if (nextIds.has(target) || tombstones.has(target)) continue;
+    const tombstone = removed.find(entry => entry.id === target);
+    if (tombstone !== undefined) continue;
     removed.push({
-      id,
-      title: lesson.title ?? id,
+      id: target,
+      url: lesson.url ?? null,
+      title: lesson.title ?? target,
       type: lesson.type ?? null,
       sectionId: lesson.sectionId ?? null,
       sectionTitle: lesson.sectionTitle ?? null,
@@ -253,20 +431,34 @@ export function mergeCourseState(previousState, previousCourse, nextCourse, { no
     });
     removedOut += 1;
   }
+  for (const tombstone of tombstones.values()) removed.push(tombstone);
+  const order = [];
+  const seenWatch = new Set();
+  for (const interval of previous.watch) {
+    const lessonId = resolve(interval.lessonId);
+    const key = `${lessonId}\u0000${interval.startedAt}\u0000${interval.endedAt}`;
+    if (seenWatch.has(key)) continue;
+    seenWatch.add(key);
+    order.push(lessonId === interval.lessonId ? interval : { ...interval, lessonId });
+  }
+  const activeLessonId = resolve(previous.activeLessonId);
   return {
     state: {
       courseId: nextCourse?.id ?? null,
       createdAt: previous.createdAt ?? now,
       updatedAt: now,
-      activeLessonId: nextIds.has(previous.activeLessonId) ? previous.activeLessonId : null,
+      activeLessonId: nextIds.has(activeLessonId) ? activeLessonId : null,
       preferences: coursePreferences(previous.preferences),
       lessons,
       // TODOS os tombstones ficam guardados: o limite de aulas vale para o
       // documento importado, nunca para o estado que o usuário já construiu.
       removed,
-      watch: previous.watch,
+      watch: order,
     },
-    counts: { preserved, restored, removed: removedOut },
+    // O mapa devolvido inclui os tombstones ressuscitados: quem orquestra a
+    // importação remapeia os anexos com esta lista.
+    alias: new Map([...courseAlias, ...restoredAlias]),
+    counts: { preserved, restored, removed: removedOut, moved },
   };
 }
 
@@ -299,9 +491,9 @@ export function mergeCourseState(previousState, previousCourse, nextCourse, { no
 // anexar.
 export const IMPORTED_NOTES_SEPARATOR = '\n\n— importado de backup —\n';
 
-const LESSON_STATE_KEYS = Object.freeze(['watched', 'skipped', 'completionOverride', 'notes', 'linkedExerciseIds', 'updatedAt']);
+const LESSON_STATE_KEYS = Object.freeze(['watched', 'skipped', 'completionOverride', 'notes', 'linkedExerciseIds', 'generatedSuggestionIds', 'updatedAt']);
 const STATE_KEYS = Object.freeze(['courseId', 'createdAt', 'updatedAt', 'activeLessonId', 'preferences', 'lessons', 'removed', 'watch']);
-const TOMBSTONE_KEYS = Object.freeze(['id', 'title', 'type', 'sectionId', 'sectionTitle', 'removedAt', 'state']);
+const TOMBSTONE_KEYS = Object.freeze(['id', 'url', 'title', 'type', 'sectionId', 'sectionTitle', 'removedAt', 'state']);
 const WATCH_KEYS = Object.freeze(['id', 'lessonId', 'startedAt', 'endedAt', 'ms']);
 const PREFERENCE_KEYS = Object.freeze(['active', 'dailyMinutes']);
 const SNAPSHOT_RECORD_KEYS = Object.freeze(['id', 'importedAt', 'updatedAt', 'source', 'counts', 'course']);
@@ -340,6 +532,10 @@ function validateLessonStateShape(value, path, errors) {
   if (Object.hasOwn(value, 'linkedExerciseIds') && (!Array.isArray(value.linkedExerciseIds) || value.linkedExerciseIds.some(id => !isText(id)))) {
     snapshotIssue(errors, `${path}.linkedExerciseIds`, 'vinculos', 'linkedExerciseIds deve ser uma lista de identificadores.');
   }
+  if (Object.hasOwn(value, 'generatedSuggestionIds')
+    && (!Array.isArray(value.generatedSuggestionIds) || value.generatedSuggestionIds.some(id => !isText(id)))) {
+    snapshotIssue(errors, `${path}.generatedSuggestionIds`, 'sugestoes', 'generatedSuggestionIds deve ser uma lista de identificadores.');
+  }
   validateOptionalText(value, path, 'updatedAt', errors);
 }
 
@@ -373,7 +569,7 @@ function validateTombstoneShape(raw, path, errors) {
   }
   rejectUnknownKeys(raw, TOMBSTONE_KEYS, path, errors);
   if (!isText(raw.id)) snapshotIssue(errors, `${path}.id`, 'aula', 'A aula removida precisa de id.');
-  for (const key of ['title', 'type', 'sectionId', 'sectionTitle', 'removedAt']) validateOptionalText(raw, path, key, errors);
+  for (const key of ['url', 'title', 'type', 'sectionId', 'sectionTitle', 'removedAt']) validateOptionalText(raw, path, key, errors);
   if (Object.hasOwn(raw, 'state')) validateLessonStateShape(raw.state, `${path}.state`, errors);
 }
 
@@ -540,6 +736,7 @@ function mergeLessonStateValues(current, incoming, remap) {
     completionOverride: base.completionOverride ?? next.completionOverride,
     notes: mergeNotesText(base.notes, next.notes),
     linkedExerciseIds: mergeLessonLinks(base.linkedExerciseIds, next.linkedExerciseIds, remap),
+    generatedSuggestionIds: [...new Set([...base.generatedSuggestionIds, ...next.generatedSuggestionIds])],
     updatedAt: base.updatedAt ?? next.updatedAt,
   });
 }
@@ -691,7 +888,7 @@ function remapState(state, remap) {
 
 // O patch de estado é estrito: campo desconhecido ou tipo errado é erro de
 // programação, não é silenciado.
-const LESSON_PATCH_KEYS = Object.freeze(['watched', 'skipped', 'completionOverride', 'notes', 'linkedExerciseIds']);
+const LESSON_PATCH_KEYS = Object.freeze(['watched', 'skipped', 'completionOverride', 'notes', 'linkedExerciseIds', 'generatedSuggestionIds']);
 
 function validateLessonPatch(patch) {
   if (!isObject(patch)) throw new TypeError('Informe um objeto com o estado da aula.');
@@ -700,8 +897,8 @@ function validateLessonPatch(patch) {
     if ((key === 'watched' || key === 'skipped') && typeof value !== 'boolean') throw new TypeError(`${key} deve ser booleano.`);
     if (key === 'notes' && typeof value !== 'string') throw new TypeError('notes deve ser texto.');
     if (key === 'completionOverride' && !COMPLETION_OVERRIDES.includes(value)) throw new RangeError('Override de conclusão inválido.');
-    if (key === 'linkedExerciseIds' && (!Array.isArray(value) || value.some(item => !isText(item)))) {
-      throw new TypeError('linkedExerciseIds deve ser uma lista de identificadores.');
+    if ((key === 'linkedExerciseIds' || key === 'generatedSuggestionIds') && (!Array.isArray(value) || value.some(item => !isText(item)))) {
+      throw new TypeError(`${key} deve ser uma lista de identificadores.`);
     }
   }
 }
@@ -973,19 +1170,27 @@ export function createCourseStore({ backend, now = isoNow, uuid = defaultUuid, p
           const previousRecord = courses.get(course.id) ?? null;
           const previousState = states.get(course.id) ?? null;
           const timestamp = now();
-          const merged = mergeCourseState(previousState, previousRecord?.course ?? null, course, { now: timestamp });
+          // Reimportação reconhecida pela URL: o estado (progresso, anotações,
+          // vínculos, tombstones e tempo de estudo) segue a AULA, mesmo que o
+          // id dela tenha mudado no mapa novo.
+          const alias = buildLessonAlias(previousRecord?.course ?? null, course);
+          const map = aliasLookup(alias);
+          const merged = mergeCourseState(previousState, previousRecord?.course ?? null, course, { now: timestamp, alias });
           const state = merged.state;
           const nextLessonIds = new Set(courseLessons(course).map(lesson => lesson.id));
           // O progresso do arquivo só ACRESCENTA "assistida": reimportar nunca
-          // desmarca o que o usuário marcou na interface.
+          // desmarca o que o usuário marcou na interface. Um id antigo do
+          // arquivo é resolvido pelo alias antes de ser aplicado.
           let watched = 0;
-          for (const lessonId of parsed.document.progress?.watchedLessonIds ?? []) {
+          for (const rawId of parsed.document.progress?.watchedLessonIds ?? []) {
+            const lessonId = map(rawId);
             if (!nextLessonIds.has(lessonId)) continue;
             const current = normalizeLessonState(entryOf(state.lessons, lessonId));
             if (current.watched) continue;
             setEntry(state.lessons, lessonId, { ...current, watched: true, updatedAt: timestamp });
             watched += 1;
           }
+          state.updatedAt = timestamp;
           const counts = {
             sections: course.sections.length,
             lessons: nextLessonIds.size,
@@ -1022,6 +1227,11 @@ export function createCourseStore({ backend, now = isoNow, uuid = defaultUuid, p
             preserved: merged.counts.preserved,
             restored: merged.counts.restored,
             removed: merged.counts.removed,
+            // Aulas reconhecidas pela URL com id NOVO: quem orquestra a
+            // importação (curso + anexos) remapeia as referências de anexo com
+            // esta lista, para nenhum arquivo ficar órfão de aula.
+            aliases: aliasPairs(alias),
+            moved: merged.counts.moved,
             watched,
           };
         });
@@ -1064,6 +1274,24 @@ export function createCourseStore({ backend, now = isoNow, uuid = defaultUuid, p
           setEntry(next.lessons, lessonId, normalizeLessonState({
             ...base,
             linkedExerciseIds: [...base.linkedExerciseIds, exerciseId],
+            updatedAt: now(),
+          }));
+          return { value: clone(entryOf(next.lessons, lessonId)), state: next };
+        });
+      },
+      // Exercício sugerido do catálogo que já virou exercício da biblioteca: a
+      // aula lembra o id da sugestão gerada (união, idempotente) e a fila de
+      // hoje deixa de oferecer "Gerar" para ela.
+      async markSuggestionGenerated(courseId, lessonId, suggestionId) {
+        if (!isText(suggestionId)) throw new TypeError('Informe a sugestão gerada.');
+        await prepare();
+        return mutateState(courseId, next => {
+          if (!lessonExists(courseId, lessonId)) return null;
+          const base = entryOf(next.lessons, lessonId) ?? normalizeLessonState(null);
+          if (base.generatedSuggestionIds.includes(suggestionId)) return { value: clone(base), state: null };
+          setEntry(next.lessons, lessonId, normalizeLessonState({
+            ...base,
+            generatedSuggestionIds: [...base.generatedSuggestionIds, suggestionId],
             updatedAt: now(),
           }));
           return { value: clone(entryOf(next.lessons, lessonId)), state: next };
@@ -1206,7 +1434,8 @@ export function createCourseStore({ backend, now = isoNow, uuid = defaultUuid, p
         });
       },
       // Exportação canônica para reimportar em outro navegador: estrutura +
-      // progresso assistido das aulas que ainda existem.
+      // progresso assistido das aulas que ainda existem, no formato v2 (com o
+      // marcador de privacidade: curso é material de terceiros).
       exportText(courseId) {
         const record = courses.get(courseId);
         if (!record) return { ok: false, error: 'Curso não encontrado.' };
@@ -1214,7 +1443,7 @@ export function createCourseStore({ backend, now = isoNow, uuid = defaultUuid, p
         const watchedLessonIds = courseLessons(record.course)
           .map(lesson => lesson.id)
           .filter(id => entryOf(state?.lessons, id)?.watched === true);
-        const document = { format: 'groovegoblin-course', version: 1, course: clone(record.course) };
+        const document = { format: COURSE_FORMAT, version: COURSE_VERSION, privacy: 'private', course: clone(record.course) };
         if (watchedLessonIds.length > 0) document.progress = { watchedLessonIds };
         const serialized = serializeCourse(document);
         return serialized.ok ? { ok: true, text: serialized.text } : { ok: false, error: serialized.error };

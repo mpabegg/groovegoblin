@@ -14,7 +14,8 @@ import { sharedAttachmentStore } from './course-attachments.js';
 import { mountLibraryBackup } from './library-backup-view.js';
 // As formas de dedilhado (A3) vivem fora da sessão e entram na cópia de
 // segurança: a MESMA instância usada pelo painel Braço.
-import { fingeringShapeStore } from './fingering-shapes-controller.js';
+import { fingeringShapeStore, shapeChoicesForRecipe, shapeForRecipe } from './fingering-shapes-controller.js';
+import { sharedShapeBindingStore } from './course-shape-binding.js';
 import { exerciseOriginBadges, mountExerciseOrigins } from './course-lesson-origins.js';
 import { createStudyController } from './study-controller.js';
 
@@ -118,6 +119,20 @@ export function mountLibrary(container, host) {
           download: host.download,
           openExercise: (id, options) => openExercise(id, options),
           instrumentPreference: typeof host.getInstrument === 'function' ? host.getInstrument() : null,
+          // Aula e sugestão (etapa 5): o MESMO controlador de estudo da
+          // Biblioteca cria o exercício da aula já com notas, e as formas/
+          // vínculos são as lojas compartilhadas do painel Braço. Os ganchos de
+          // abertura (Braço, material, conversão no servidor) vêm do main
+          // quando existem — sem eles a página avisa em vez de fingir.
+          studies,
+          shapes: {
+            choicesFor: (profile) => shapeChoicesForRecipe(profile),
+            shape: (id, profile) => shapeForRecipe(id, profile),
+          },
+          bindings: sharedShapeBindingStore(),
+          openFretboard: typeof host.openFretboard === 'function' ? host.openFretboard : undefined,
+          openMaterial: typeof host.openMaterial === 'function' ? host.openMaterial : undefined,
+          serverImport: typeof host.serverImport === 'function' ? host.serverImport : undefined,
         });
         return coursesView;
       } catch (error) {

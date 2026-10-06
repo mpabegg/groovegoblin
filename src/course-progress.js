@@ -54,12 +54,18 @@ export function normalizeLessonState(value) {
     if (!isText(id) || linked.includes(id)) continue;
     linked.push(id);
   }
+  const generated = [];
+  for (const id of Array.isArray(source.generatedSuggestionIds) ? source.generatedSuggestionIds : []) {
+    if (!isText(id) || generated.includes(id)) continue;
+    generated.push(id);
+  }
   return {
     watched: source.watched === true,
     skipped: source.skipped === true,
     completionOverride: override,
     notes: typeof source.notes === 'string' ? source.notes : '',
     linkedExerciseIds: linked,
+    generatedSuggestionIds: generated,
     updatedAt: isText(source.updatedAt) ? source.updatedAt : null,
   };
 }
@@ -278,4 +284,72 @@ export function courseSummary(course, state, { resolveExercise = null, now = Dat
     next: nextLesson(course, state, { resolveExercise }),
     removed: Array.isArray(state?.removed) ? state.removed.map(entry => ({ ...entry })) : [],
   };
+}
+
+// ---------------------------------------------- prática e assistir (A6)
+//
+// A sessão de hoje é feita de duas partes INDEPENDENTES:
+//
+//  - PRATICAR: exercícios das aulas JÁ ASSISTIDAS que ainda não chegaram ao
+//    alvo, do mais antigo (antes no curso) para o mais novo, mais os exercícios
+//    avulsos na folga. Uma aula assistida com exercícios sugeridos de receita
+//    ainda não gerados oferece gerá-los (é o que alimenta a prática de hoje e
+//    dos próximos dias).
+//  - ASSISTIR: as próximas aulas do curso, quantas couberem no tempo que o
+//    usuário indicar. Assistir várias de uma vez só aumenta a fila de prática
+//    dos dias seguintes; nada é marcado como assistido automaticamente.
+//
+// `generatedSuggestionIds` é estado GRAVADO por aula: a sugestão gerada é
+// lembrada pelo id, nunca por heurística sobre nomes.
+
+// Sugestões de exercício de uma aula, com o que já foi gerado.
+export function lessonSuggestions(lesson, lessonState) {
+  const generated = new Set(normalizeLessonState(lessonState).generatedSuggestionIds);
+  return (Array.isArray(lesson?.suggestedExercises) ? lesson.suggestedExercises : []).map(suggestion => ({
+    suggestion,
+    generatable: suggestion.recipe !== null && suggestion.recipe !== undefined,
+    generated: generated.has(suggestion.id),
+  }));
+}
+
+// Sugestões GERÁVEIS (com receita) que ainda não viraram exercício.
+export function pendingSuggestions(lesson, lessonState) {
+  return lessonSuggestions(lesson, lessonState).filter(item => item.generatable && !item.generated);
+}
+
+// Aulas ASSISTIDAS cuja prática ainda está em aberto, na ordem do curso (a mais
+// antiga primeiro). Aula concluída sai da lista: a conclusão já exige todos os
+// vínculos no alvo.
+export function practiceLessons(course, state, { resolveExercise = null } = {}) {
+  const result = [];
+  courseLessons(course).forEach((lesson, position) => {
+    const lessonState = lessonStateOf(state, lesson.id);
+    if (lessonState.watched !== true) return;
+    const links = lessonLinks(lessonState, resolveExercise);
+    const hasSuggestions = (lesson.suggestedExercises?.length ?? 0) > 0;
+    if (lessonCompletion(lessonState, links, { hasSuggestions }).completed) return;
+    result.push({
+      lesson,
+      position,
+      lessonState,
+      links,
+      pending: links.filter(link => !link.reached),
+      suggestions: pendingSuggestions(lesson, lessonState),
+    });
+  });
+  return result;
+}
+
+// Próximas aulas para ASSISTIR: primeiro as obrigatórias na ordem do curso,
+// depois as opcionais (seminário e boas-vindas não bloqueiam), pulando as
+// marcadas como puladas e as já assistidas.
+export function assistLessons(course, state) {
+  const rows = courseLessons(course).map((lesson, position) => ({ lesson, position, lessonState: lessonStateOf(state, lesson.id) }));
+  const pending = rows.filter(row => row.lessonState.watched !== true && row.lessonState.skipped !== true);
+  return [...pending.filter(row => !row.lesson.optional), ...pending.filter(row => row.lesson.optional)];
+}
+
+// Tempo de estudo por aula (união de intervalos sobrepostos).
+export function lessonWatchByLesson(intervals) {
+  return groupWatchMs(intervals);
 }

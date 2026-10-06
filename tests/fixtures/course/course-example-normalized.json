@@ -1,6 +1,7 @@
 {
   "format": "groovegoblin-course",
-  "version": 1,
+  "version": 2,
+  "privacy": "private",
   "course": {
     "id": "curso-de-exemplo",
     "title": "Curso de Exemplo",
@@ -11,6 +12,7 @@
     "language": "pt-BR",
     "dailyMinutes": null,
     "summary": "Trilha fictícia de estudo",
+    "catalog": null,
     "sections": [
       {
         "id": "boas-vindas-de-exemplo",
@@ -85,7 +87,11 @@
                   "faixa-exemplo-4-cordas-80bpm.mp3"
                 ],
                 "pdfPage": null,
-                "strings": null
+                "strings": null,
+                "recipe": null,
+                "practiceMode": null,
+                "catalogId": null,
+                "variantOf": null
               },
               {
                 "id": "exercicio-de-exemplo-b",
@@ -96,7 +102,11 @@
                 "bars": 13,
                 "trackNames": [],
                 "pdfPage": null,
-                "strings": null
+                "strings": null,
+                "recipe": null,
+                "practiceMode": null,
+                "catalogId": null,
+                "variantOf": null
               }
             ]
           },

@@ -21,7 +21,7 @@ import {
 import { createTodaySession } from './today-session.js';
 import { courseLessons, courseSummary, videoMinutes } from './course-progress.js';
 import { sharedCourseStore } from './course-store.js';
-import { suggestCourseQueue, DEFAULT_COURSE_MINUTES } from './today-courses.js';
+import { assistCoursePlan, practiceCoursePlan, DEFAULT_COURSE_MINUTES, DEFAULT_ASSIST_MINUTES } from './today-courses.js';
 import { COURSE_LIMITS } from './course-format.js';
 
 const INSTRUMENT_LABELS = Object.freeze({ guitar: 'Guitarra', bass: 'Baixo' });
@@ -179,7 +179,7 @@ export function mountTodayPanel(container, host) {
   // redesenha só ela, sem reconstruir o construtor (que tem campos de texto).
   const stripHost = createEl('div', { className: 'today-lesson-run' });
   container.appendChild(root);
-  const view = { open: false, routineName: '', plan: null };
+  const view = { open: false, routineName: '' };
 
   function notify(text, error = false) { host.notify(text, error); }
 
@@ -325,40 +325,151 @@ export function mountTodayPanel(container, host) {
       ]));
     });
     block.append(list);
-    const plan = view.plan;
-    if (plan) {
-      const detail = plan.source === 'loose'
-        ? `Sem curso ativo: plano antigo de ${plan.items.length} exercício(s) avulso(s).`
-        : `Plano: ${plan.courses.reduce((sum, course) => sum + course.count, 0)} item(ns) de curso em ${formatMinutes(plan.usedMin * 60000)} de ${formatMinutes(plan.budgetMin * 60000)} orçados${plan.loose ? ` · ${plan.loose} avulso(s) na folga` : ''}.`;
-      block.append(createEl('p', { className: 'today-status', role: 'status', text: detail }));
-      for (const entry of plan.deferredItems.slice(0, 6)) {
-        block.append(createEl('p', { className: 'today-note', text: `Ficou para depois: ${entry.kind === ITEM_KIND_LESSON ? 'Assistir: ' : ''}${entry.name} (${entry.durationMin} min) não cabe no orçamento de ${plan.courses.find(course => course.courseId === entry.courseId)?.budgetMin ?? '?'} min de “${entry.courseTitle}”.` }));
-      }
-      const deferredCount = plan.deferredItems.length;
-      if (deferredCount > 6) {
-        block.append(createEl('p', { className: 'today-note muted', text: `… e mais ${deferredCount - 6} item(ns) fora deste plano.` }));
-      }
-      if (plan.duplicated > 0) block.append(createEl('p', { className: 'today-note muted', text: `${plan.duplicated} exercício(s) compartilhado(s) entre cursos entraram uma vez só.` }));
-      const looseButton = createEl('button', { id: 'today-plan-apply', type: 'button', text: 'Usar este plano na fila' });
-      looseButton.addEventListener('click', () => {
-        if (mutate(() => store.setItems(plan.items))) notify(`Fila de hoje substituída pelo plano (${plan.items.length} item(ns)).`);
-        render();
-      });
-      block.append(createEl('div', { className: 'today-actions' }, [looseButton]));
+    appendPractice(block);
+    appendAssist(block);
+    return block;
+  }
+
+  // O estado da fila é uma lista só: a prática SUBSTITUI a fila (é o plano do
+  // dia) e assistir ACRESCENTA as aulas (as duas partes são independentes e
+  // assistir não consome o orçamento de prática).
+  function planStatus(text) {
+    return createEl('p', { className: 'today-status', role: 'status', text });
+  }
+
+  function formatPlanMinutes(minutes) {
+    return formatMinutes(Math.max(0, minutes) * 60000);
+  }
+
+  // ----- praticar -------------------------------------------------------------
+
+  function appendPractice(block) {
+    const section = createEl('section', { id: 'today-practice', className: 'today-part today-practice', 'aria-label': 'Praticar' });
+    section.append(createEl('h4', { text: 'Praticar' }));
+    const snapshots = courseSnapshots();
+    const plan = practiceCoursePlan({ courses: snapshots, rows: library.list(), resolveExercise: resolveExercise() });
+    if (snapshots.filter(entry => entry.state?.preferences?.active !== false).length === 0) {
+      section.append(planStatus(plan.items.length > 0
+        ? `Sem curso ativo: ${plan.items.length} exercício(s) avulso(s) na sugestão de sempre.`
+        : 'Sem curso ativo e sem sugestão avulsa: monte a fila abaixo.'));
+    } else {
+      const parts = [`${plan.items.length} item(ns)`, `≈ ${formatPlanMinutes(plan.usedMin)} de ${formatPlanMinutes(plan.budgetMin)} orçados`];
+      if (plan.loose > 0) parts.push(`${plan.loose} avulso(s) na folga`);
+      if (plan.deferred > 0) parts.push(`${plan.deferred} fora desta vez`);
+      section.append(planStatus(`Exercícios das aulas assistidas ainda abaixo do alvo, do mais antigo para o mais novo: ${parts.join(' · ')}.`));
     }
-    const planButton = createEl('button', { id: 'today-plan-courses', type: 'button', className: 'primary', text: 'Planejar cursos de hoje' });
-    planButton.addEventListener('click', () => {
-      const next = suggestCourseQueue({ courses: courseSnapshots(), rows: library.list(), resolveExercise: resolveExercise() });
-      view.plan = next;
-      if (mutate(() => store.setItems(next.items))) {
-        notify(next.source === 'loose'
-          ? `Sem curso ativo: fila com a sugestão de sempre (${next.items.length} item(ns)).`
-          : `Plano de hoje: ${next.items.length} item(ns)${next.deferred > 0 ? `; ${next.deferred} ficaram para depois` : ''}.`);
+    if (plan.items.length > 0) {
+      const items = createEl('ol', { className: 'today-plan-list' });
+      const rows = rowsById();
+      for (const item of plan.items.slice(0, 12)) {
+        const row = item.exerciseId ? rows.get(item.exerciseId) ?? null : null;
+        items.append(createEl('li', {
+          className: 'today-plan-item',
+          text: `${row?.name ?? item.exerciseId ?? 'exercício'} (${item.durationMin} min)`,
+        }));
+      }
+      section.append(items);
+    }
+    if (plan.pendingSuggestions.length > 0) {
+      section.append(createEl('p', {
+        className: 'today-note',
+        text: `${plan.offerGenerate} exercício(s) sugerido(s) de aulas assistidas ainda não gerado(s): gerar aumenta a prática de hoje e dos próximos dias.`,
+      }));
+      const offers = createEl('ul', { className: 'today-plan-offers' });
+      for (const entry of plan.pendingSuggestions.slice(0, 6)) {
+        const button = createEl('button', {
+          type: 'button',
+          dataset: { action: 'generate-suggestions', lesson: entry.lessonId },
+          text: `Gerar os ${entry.count} sugeridos de “${entry.lessonTitle}”`,
+        });
+        button.disabled = typeof host.openLesson !== 'function';
+        button.title = button.disabled
+          ? 'Abrir aulas ainda não está ligado nesta tela.'
+          : 'Abre a página da aula, onde “Gerar todos” cria os exercícios com notas e já os vincula.';
+        button.addEventListener('click', () => openLesson({ courseId: entry.courseId, lessonId: entry.lessonId }));
+        offers.append(createEl('li', { className: 'today-plan-offer' }, [button]));
+      }
+      section.append(offers);
+    }
+    for (const entry of plan.deferredItems.slice(0, 4)) {
+      section.append(createEl('p', {
+        className: 'today-note',
+        text: entry.reason === 'exercise-missing'
+          ? `Pendência de “${entry.courseTitle}”: o exercício vinculado não está mais na biblioteca (desvincule ou recrie na aula).`
+          : `Ficou para depois: ${entry.name} (${entry.durationMin} min) não cabe no orçamento de ${formatPlanMinutes(plan.courses.find(course => course.courseId === entry.courseId)?.budgetMin ?? 0)} de “${entry.courseTitle}”.`,
+      }));
+    }
+    if (plan.duplicated > 0) {
+      section.append(createEl('p', { className: 'today-note muted', text: `${plan.duplicated} exercício(s) compartilhado(s) entre cursos entraram uma vez só.` }));
+    }
+    const apply = createEl('button', { id: 'today-practice-apply', type: 'button', className: 'primary', text: 'Usar a prática na fila' });
+    apply.disabled = plan.items.length === 0 || plan.source === 'loose';
+    apply.title = plan.source === 'loose'
+      ? 'Sem curso ativo: use a sugestão avulsa abaixo.'
+      : 'A fila passa a ser exatamente a lista de prática (substitui o que estiver na fila).';
+    apply.addEventListener('click', () => {
+      if (mutate(() => store.setItems(plan.items))) {
+        notify(`Fila de hoje: ${plan.items.length} item(ns) de prática${plan.deferred > 0 ? `; ${plan.deferred} ficaram para depois` : ''}.`);
       }
       render();
     });
-    block.append(createEl('div', { className: 'today-actions' }, [planButton]));
-    return block;
+    section.append(createEl('div', { className: 'today-actions' }, [apply]));
+    block.append(section);
+  }
+
+  // ----- assistir (recolhido por padrão) --------------------------------------
+
+  function appendAssist(block) {
+    const details = createEl('details', { id: 'today-watch', className: 'today-part today-watch', dataset: { disclosure: 'today-watch' } });
+    details.append(createEl('summary', { text: 'Assistir (opcional)' }));
+    const body = createEl('div', { className: 'today-watch-body' });
+    const snapshots = courseSnapshots();
+    const saved = typeof store.assistMinutes === 'function' ? store.assistMinutes() : null;
+    const minutes = Number.isInteger(saved) ? saved : DEFAULT_ASSIST_MINUTES;
+    const plan = assistCoursePlan({ courses: snapshots, minutes });
+    body.append(createEl('p', { className: 'today-note muted', text: 'As próximas aulas do curso, quantas couberem no tempo que você indicar. Assistir várias de uma vez só aumenta a fila de prática dos dias seguintes; nada é marcado como assistido aqui — isso acontece na aula.' }));
+    const field = createEl('input', {
+      id: 'today-watch-minutes', type: 'number', min: '5', max: '600', step: '5',
+      value: String(minutes), 'aria-label': 'Minutos disponíveis para assistir hoje',
+    });
+    field.addEventListener('change', () => {
+      const value = Number(field.value);
+      if (!Number.isInteger(value) || value < 5 || value > 600) {
+        notify('O tempo para assistir precisa ficar entre 5 e 600 minutos.', true);
+        render();
+        return;
+      }
+      if (mutate(() => store.setAssistMinutes(value)) !== null) notify(`Tempo para assistir hoje: ${value} min.`);
+      render();
+    });
+    body.append(createEl('label', { className: 'today-field' }, [createEl('span', { text: 'Tempo para assistir hoje (min)' }), field]));
+    body.append(planStatus(plan.items.length > 0
+      ? `${plan.items.length} aula(s) cabem em ${formatPlanMinutes(plan.minutes)} (${plan.usedMin} min estimados).`
+      : (snapshots.length === 0 ? 'Nenhum curso importado: não há aulas para assistir.' : 'Nenhuma aula pendente cabe neste tempo.')));
+    if (plan.items.length > 0) {
+      const items = createEl('ol', { className: 'today-plan-list' });
+      for (const item of plan.items) {
+        items.append(createEl('li', { className: 'today-plan-item', text: `Assistir: ${item.name} (${item.durationMin} min${item.optional ? ', opcional' : ''})` }));
+      }
+      body.append(items);
+    }
+    if (plan.deferred > 0) {
+      body.append(createEl('p', { className: 'today-note', text: `${plan.deferred} aula(s) ficaram para depois com este tempo.` }));
+    }
+    const action = createEl('button', { id: 'today-watch-apply', type: 'button', text: 'Acrescentar as aulas à fila' });
+    action.disabled = plan.items.length === 0;
+    action.title = 'As aulas entram no fim da fila atual; a prática que já está na fila continua.';
+    action.addEventListener('click', () => {
+      let added = 0;
+      for (const item of plan.items) {
+        if (mutate(() => store.addLessonItem({ courseId: item.courseId, lessonId: item.lessonId, name: item.name, durationMin: item.durationMin }))) added += 1;
+      }
+      notify(added > 0 ? `${added} aula(s) de assistir na fila.` : 'Nenhuma aula foi acrescentada.');
+      render();
+    });
+    body.append(createEl('div', { className: 'today-actions' }, [action]));
+    details.append(body);
+    block.append(details);
   }
 
   // ----- fila -----------------------------------------------------------------
@@ -702,7 +813,7 @@ export function mountTodayPanel(container, host) {
   const unsubscribeLibrary = typeof library.subscribe === 'function' ? library.subscribe(render) : null;
   let unsubscribeCourses = null;
   Promise.resolve(courseAccess.ready)
-    .then(storeRef => { if (storeRef?.subscribe) unsubscribeCourses = storeRef.subscribe(() => { view.plan = null; render(); }); })
+    .then(storeRef => { if (storeRef?.subscribe) unsubscribeCourses = storeRef.subscribe(() => { render(); }); })
     .catch(() => {});
   const panel = document.getElementById('panel-library');
   const observer = new MutationObserver(() => {

@@ -348,3 +348,130 @@ test('os limites de texto são finitos e coerentes com o que o conversor lê', (
   assert.equal(errorAt(rejected, 'course.sections[0].lessons[0].type').code, 'texto');
   assert.equal(errorAt(rejected, 'course.sections[0].lessons[0].resources[0].name').code, 'texto');
 });
+
+// ------------------------------------------- versão 2 (rodada 6, etapa 5)
+
+test('lê um documento v1 e canoniza para v2 sem perder nada', () => {
+  const legacy = {
+    format: COURSE_FORMAT,
+    version: 1,
+    course: {
+      id: 'curso-antigo',
+      title: 'Curso Antigo',
+      instrument: 'bass',
+      strings: 4,
+      sections: [{
+        id: 'secao-1',
+        title: 'Módulo 1',
+        type: 'módulo',
+        lessons: [{
+          id: 'aula-1',
+          title: 'Aula 1',
+          type: 'aula',
+          hasVideo: false,
+          resources: [],
+          resourceRefs: [],
+          suggestedExercises: [{ id: 'sug-1', title: 'Sugestão antiga' }],
+        }],
+      }],
+    },
+  };
+  const result = normalizeCourse(legacy);
+  assert.equal(result.ok, true);
+  assert.equal(result.document.version, COURSE_VERSION);
+  assert.equal(result.document.privacy, null);
+  assert.equal(result.document.course.catalog, null);
+  const suggestion = result.document.course.sections[0].lessons[0].suggestedExercises[0];
+  assert.equal(suggestion.recipe, null);
+  assert.equal(suggestion.practiceMode, null);
+  assert.equal(suggestion.catalogId, null);
+  assert.equal(suggestion.variantOf, null);
+  // A entrada original não é mutada.
+  assert.equal(legacy.version, 1);
+});
+
+test('recusa versão fora das lidas (1 e 2) com o caminho do campo', () => {
+  for (const version of [0, 3, '2', null]) {
+    const document = minimalDocument();
+    document.version = version;
+    const result = normalizeCourse(document);
+    assert.equal(result.ok, false, `versão ${String(version)}`);
+    assert.equal(errorAt(result, 'version').code, 'versao');
+  }
+});
+
+test('marcador de privacidade é estrito e sobrevive à leitura', () => {
+  const document = minimalDocument();
+  document.privacy = 'private';
+  const result = normalizeCourse(document);
+  assert.equal(result.ok, true);
+  assert.equal(result.document.privacy, 'private');
+  const bad = minimalDocument();
+  bad.privacy = 'público';
+  assert.equal(normalizeCourse(bad).ok, false);
+  assert.equal(errorAt(normalizeCourse(bad), 'privacy').code, 'privacidade');
+});
+
+test('a receita da sugestão passa pelo schema do catálogo com caminho de campo', () => {
+  const document = minimalDocument();
+  document.course.sections[0].lessons[0].suggestedExercises = [{
+    id: 'sug-1',
+    title: 'Sugestão com receita',
+    recipe: {
+      family: 'arpejo_triade_forma_unica',
+      progression: { kind: 'quartas', start: 'C', quality: 'major' },
+      region: { from: 1, to: 5, open: false, strings: null },
+      figure: { bars: 2, degrees: [1, 3, 5] },
+      shapeLabel: { label: 'Shape 1', quality: 'major', inversion: 'fundamental' },
+    },
+  }];
+  const ok = normalizeCourse(document);
+  assert.equal(ok.ok, true);
+  const recipe = ok.document.course.sections[0].lessons[0].suggestedExercises[0].recipe;
+  assert.equal(recipe.version, 1);
+  assert.deepEqual(recipe.profile, { type: 'bass', strings: 4 });
+  assert.equal(recipe.rhythm, 'arpejo');
+  assert.equal(recipe.final, 'acorde');
+  assert.equal(recipe.voltas, 1);
+
+  const broken = minimalDocument();
+  broken.course.sections[0].lessons[0].suggestedExercises = [{
+    id: 'sug-1',
+    title: 'Sugestão com receita',
+    recipe: { family: 'familia-inexistente', rhythm: 'galope' },
+  }];
+  const failed = normalizeCourse(broken);
+  assert.equal(failed.ok, false);
+  assert.equal(errorAt(failed, 'course.sections[0].lessons[0].suggestedExercises[0].recipe.family').code, 'valor');
+  assert.equal(errorAt(failed, 'course.sections[0].lessons[0].suggestedExercises[0].recipe.rhythm').code, 'valor');
+});
+
+test('receita com cordas diferentes da sugestão e variação órfã são recusadas', () => {
+  const document = minimalDocument();
+  const first = document.course.sections[0].lessons[0];
+  first.suggestedExercises = [
+    { id: 'sug-1', title: 'Quatro cordas', strings: 4, recipe: { family: 'movimento_continuo_linha_4_notas', profile: { type: 'bass', strings: 5 }, progression: { kind: 'quartas', quality: 'major', start: 'C' } } },
+    { id: 'sug-2', title: 'Variação órfã', strings: 5, variantOf: 'sug-9' },
+    { id: 'sug-3', title: 'Variação dela mesma', strings: 5, variantOf: 'sug-3' },
+  ];
+  const result = normalizeCourse(document);
+  assert.equal(result.ok, false);
+  assert.equal(errorAt(result, 'course.sections[0].lessons[0].suggestedExercises[0].recipe.profile.strings').code, 'cordas');
+  assert.equal(errorAt(result, 'course.sections[0].lessons[0].suggestedExercises[1].variantOf').code, 'referencia-quebrada');
+  assert.equal(errorAt(result, 'course.sections[0].lessons[0].suggestedExercises[2].variantOf').code, 'referencia-quebrada');
+});
+
+test('bloco de procedência do catálogo é aceito e estrito', () => {
+  const document = minimalDocument();
+  document.course.catalog = { id: 'cat-abc', entries: 12 };
+  const result = normalizeCourse(document);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.document.course.catalog, { id: 'cat-abc', entries: 12 });
+
+  const bad = minimalDocument();
+  bad.course.catalog = { id: 'x', entries: -1, extra: true };
+  const failed = normalizeCourse(bad);
+  assert.equal(failed.ok, false);
+  assert.equal(errorAt(failed, 'course.catalog.extra').code, 'campo-desconhecido');
+  assert.equal(errorAt(failed, 'course.catalog.entries').code, 'numero');
+});

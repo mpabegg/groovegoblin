@@ -29,6 +29,7 @@
 //   viram dados estruturados — nenhum texto é cortado por causa do campo.
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -40,6 +41,7 @@ import {
   normalizeCourse,
   serializeCourse,
 } from '../src/course-format.js';
+import { applyCatalog } from '../src/course-catalog.js';
 
 export const DEFAULT_OUTPUT = 'local/curso-convertido.json';
 
@@ -732,6 +734,12 @@ function convertExercise(raw, { path, lessonId, usedIds, index }, warnings, coun
       trackNames: tracks,
       pdfPage: readInteger(field(fonte, ['pagina_pdf']), `${path}.pagina_pdf`, PAGE_RANGE, warnings, 'pagina-ilegivel'),
       strings,
+      // Campos da versão 2: um exercício do MAPA não tem receita de estudo (a
+      // receita vem do catálogo, com --catalogo).
+      recipe: null,
+      practiceMode: null,
+      catalogId: null,
+      variantOf: null,
     },
   };
 }
@@ -955,7 +963,7 @@ function linkResourceRefs(entries, warnings, counts) {
   }
 }
 
-function buildCourse(root, warnings, counts) {
+function buildCourse(root, warnings, counts, catalog = null) {
   const course = {
     id: 'curso',
     title: 'Curso sem título',
@@ -966,6 +974,7 @@ function buildCourse(root, warnings, counts) {
     language: null,
     dailyMinutes: null,
     summary: null,
+    catalog: null,
     sections: [],
   };
   const declaredCourse = unwrap(root.curso, 'curso', warnings);
@@ -1044,6 +1053,19 @@ function buildCourse(root, warnings, counts) {
     lessonBudget -= converted.entries.length;
   }
   linkResourceRefs(entries, warnings, counts);
+  // Catálogo de exercícios (etapa 5): liga cada exercício à sua aula por
+  // `aula_id`, substitui os exercícios sugeridos dessas aulas pela RECEITA
+  // correspondente e vincula as faixas indicadas aos materiais do curso. As
+  // aulas que o catálogo não cita continuam com os exercícios do mapa.
+  if (Array.isArray(catalog) && catalog.length > 0) {
+    const applied = applyCatalog(course, catalog, {
+      catalogId: catalogIdFor(catalog),
+      findResource: (entry, name) => findResource(entry, name, entries),
+      warnings,
+    });
+    Object.assign(course, applied.course);
+    counts.catalog = applied.counts;
+  }
   if (total !== null && total !== counts.lessons) {
     warn(warnings, 'curso.total_aulas', 'total-aulas-divergente', 'O total de aulas declarado no mapa difere das aulas convertidas.');
   }
@@ -1051,19 +1073,29 @@ function buildCourse(root, warnings, counts) {
   return { course, watchedIds };
 }
 
+// Procedência do catálogo no documento: um resumo do CONTEÚDO (sha-256 curto),
+// nunca o nome do arquivo — o curso convertido pode ser compartilhado com o
+// próprio usuário e o caminho de origem é dado privado da máquina.
+export function catalogIdFor(catalog) {
+  const hash = createHash('sha256').update(JSON.stringify(catalog ?? null)).digest('hex');
+  return `cat-${hash.slice(0, 16)}`;
+}
+
 // Converte um mapa já interpretado (objeto) em documento do formato. O retorno
 // traz o documento, os avisos (com caminho de campo e a lista crua), os avisos
 // agrupados por código e caminho genérico, e as contagens de material
-// convertido, mesclado e descartado. includeProgress liga o progresso do mapa.
-export function convertCourseMap(value, { includeProgress = false } = {}) {
+// convertido, mesclado e descartado. includeProgress liga o progresso do mapa;
+// `catalog` liga os exercícios do catálogo às aulas e substitui as sugestões
+// dessas aulas (com receita, faixas, página e modo de prática).
+export function convertCourseMap(value, { includeProgress = false, catalog = null } = {}) {
   const warnings = [];
-  const counts = { sections: 0, lessons: 0, resources: 0, resourceRefs: 0, exercises: 0, discarded: 0, merged: 0 };
+  const counts = { sections: 0, lessons: 0, resources: 0, resourceRefs: 0, exercises: 0, discarded: 0, merged: 0, catalog: null };
   const wrapped = unwrap(value, '', warnings);
   const root = isObject(wrapped) ? wrapped : {};
   if (!isObject(wrapped)) warn(warnings, '', 'raiz', 'A raiz do mapa não é um objeto; o curso convertido ficou vazio.');
   else ignoredKeys(root, ROOT_KEYS, '', warnings, KNOWN_IGNORED.root);
-  const { course, watchedIds } = buildCourse(root, warnings, counts);
-  const document = { format: COURSE_FORMAT, version: COURSE_VERSION, course };
+  const { course, watchedIds } = buildCourse(root, warnings, counts, catalog);
+  const document = { format: COURSE_FORMAT, version: COURSE_VERSION, privacy: 'private', course };
   if (includeProgress) document.progress = { watchedLessonIds: watchedIds };
   const validation = normalizeCourse(document);
   return {
@@ -1079,11 +1111,13 @@ export function convertCourseMap(value, { includeProgress = false } = {}) {
 // ── Linha de comando ─────────────────────────────────────────────────────────
 
 const USAGE = [
-  'Uso: node scripts/convert-course-map.js <mapa.json> [--output CAMINHO] [--com-progresso] [--verbose]',
+  'Uso: node scripts/convert-course-map.js <mapa.json> [--output CAMINHO] [--com-progresso] [--catalogo CAMINHO] [--verbose]',
   '',
   '  <mapa.json>        mapa de curso em JSON (use - para ler da entrada padrão)',
   `  --output CAMINHO   onde gravar o curso convertido (padrão: ${DEFAULT_OUTPUT})`,
   '  --com-progresso    inclui as aulas assistidas do mapa no documento',
+  '  --catalogo CAMINHO catálogo de exercícios (JSON) que liga cada exercício à aula,',
+  '                     com receita de estudo, faixas indicadas, página e modo de prática',
   '  --verbose          lista cada aviso, um por ocorrência (padrão: agrupados)',
 ].join('\n');
 
@@ -1108,7 +1142,7 @@ function printWarnings(result, log, verbose) {
 }
 
 function parseArgs(argv) {
-  const args = { input: null, output: null, includeProgress: false, verbose: false, help: false };
+  const args = { input: null, output: null, catalog: null, includeProgress: false, verbose: false, help: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--output' || arg === '-o') {
@@ -1118,6 +1152,13 @@ function parseArgs(argv) {
       index += 1;
     } else if (arg.startsWith('--output=')) {
       args.output = arg.slice('--output='.length);
+    } else if (arg === '--catalogo' || arg === '--catalog') {
+      const next = argv[index + 1];
+      if (next === undefined || next.startsWith('--')) return { error: 'A opção --catalogo precisa de um caminho.' };
+      args.catalog = next;
+      index += 1;
+    } else if (arg.startsWith('--catalogo=')) {
+      args.catalog = arg.slice('--catalogo='.length);
     } else if (arg === '--com-progresso' || arg === '--include-progress') {
       args.includeProgress = true;
     } else if (arg === '--verbose' || arg === '--avisos-detalhados') {
@@ -1187,7 +1228,29 @@ async function main(argv) {
     return 2;
   }
 
-  const result = convertCourseMap(value, { includeProgress: args.includeProgress });
+  let catalog = null;
+  if (args.catalog !== null) {
+    let catalogText;
+    try {
+      catalogText = await readFile(args.catalog, 'utf8');
+    } catch (error) {
+      console.error(`Não foi possível ler ${args.catalog}: ${describeIoError(error)}.`);
+      return 2;
+    }
+    try {
+      catalog = JSON.parse(catalogText);
+    } catch {
+      console.error(`${args.catalog} não contém JSON válido.`);
+      return 2;
+    }
+    if (!Array.isArray(catalog)) {
+      console.error(`${args.catalog} precisa conter uma lista de exercícios.`);
+      return 2;
+    }
+    console.log(`Catálogo lido: ${catalog.length} exercício(s).`);
+  }
+
+  const result = convertCourseMap(value, { includeProgress: args.includeProgress, catalog });
   if (!result.valid) {
     console.error('A conversão não gerou um curso válido; nenhum arquivo foi gravado.');
     for (const problem of result.problems) console.error(`- ${problem.path === '' ? 'documento' : problem.path}: ${problem.message}`);
@@ -1212,6 +1275,10 @@ async function main(argv) {
   const { counts } = result;
   console.log(`Curso convertido em ${output}`);
   console.log(`Seções ${counts.sections} · aulas ${counts.lessons} · materiais ${counts.resources}${counts.merged > 0 ? ` (${counts.merged} mesclado(s))` : ''} · exercícios ${counts.exercises} · vínculos ${counts.resourceRefs} · descartados ${counts.discarded}`);
+  if (counts.catalog !== null) {
+    const c = counts.catalog;
+    console.log(`Catálogo: ${c.bound} exercício(s) ligado(s) à aula (${c.variations} variação(ões) de 5 cordas) · ${c.replaced} sugestão(ões) do mapa substituída(s) · ${c.withoutRecipe} sem receita · ${c.unknownLesson} sem aula no mapa · ${c.refs} vínculo(s) de faixa`);
+  }
   const watched = result.document.progress?.watchedLessonIds.length ?? 0;
   console.log(args.includeProgress
     ? `Progresso do mapa incluído: ${watched} aulas assistidas.`

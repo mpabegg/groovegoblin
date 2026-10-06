@@ -535,3 +535,61 @@ test('anexos: rótulo de tamanho é legível em pt-BR', () => {
   assert.equal(formatAttachmentSize(1024 * 1024 * 3.5), '3,50 MB');
   assert.equal(formatAttachmentSize(1024 * 1024 * 1024 * 2), '2,00 GB');
 });
+
+// --------------------------- remapeamento por id novo de aula (etapa 5)
+
+test('remapeia as referências de anexo quando a aula muda de id (reimportação por URL)', async () => {
+  const { store } = attachmentStore();
+  await store.ready();
+  await store.put({ courseId: 'curso-exemplo', lessonId: 'aula-1', resourceId: 'material-1', name: 'A.pdf', blob: pdfBlob('um') });
+  await store.put({ courseId: 'curso-exemplo', lessonId: 'aula-1', resourceId: 'material-2', name: 'B.mp3', extension: 'mp3', blob: new Blob([MP3_BYTES], { type: 'audio/mpeg' }) });
+  await store.put({ courseId: 'curso-exemplo', lessonId: 'aula-2', resourceId: 'material-1', name: 'C.pdf', blob: pdfBlob('outro') });
+  await store.put({ courseId: 'outro-curso', lessonId: 'aula-1', resourceId: 'material-1', name: 'D.pdf', blob: pdfBlob('terceiro') });
+
+  const result = await store.remapLessonRefs('curso-exemplo', [{ from: 'aula-1', to: '7' }]);
+  assert.equal(result.moved, 2);
+  assert.equal(result.collisions, 0);
+  assert.deepEqual(result.refs.map(ref => ref.from), [
+    attachmentRefKey('curso-exemplo', 'aula-1', 'material-1'),
+    attachmentRefKey('curso-exemplo', 'aula-1', 'material-2'),
+  ].sort());
+  assert.equal(store.has(attachmentRefKey('curso-exemplo', 'aula-1', 'material-1')), false);
+  assert.equal(store.has(attachmentRefKey('curso-exemplo', '7', 'material-1')), true);
+  assert.equal(store.has(attachmentRefKey('curso-exemplo', '7', 'material-2')), true);
+  // O arquivo continua o MESMO (bytes por conteúdo): só a chave mudou.
+  const moved = await store.getBlob(attachmentRefKey('curso-exemplo', '7', 'material-1'));
+  assert.equal(await moved.text(), '%PDF-1.7\n% um\n%%EOF\n');
+  assert.equal(store.list('curso-exemplo', '7').length, 2);
+  assert.equal(store.list('curso-exemplo', 'aula-1').length, 0);
+  // Aula de outro curso e aula sem alias não são tocadas.
+  assert.equal(store.has(attachmentRefKey('curso-exemplo', 'aula-2', 'material-1')), true);
+  assert.equal(store.has(attachmentRefKey('outro-curso', 'aula-1', 'material-1')), true);
+  assert.equal(store.totals('curso-exemplo').refs, 3);
+});
+
+test('referência que já existe no destino é preservada e a duplicada sai', async () => {
+  const { store } = attachmentStore();
+  await store.ready();
+  await store.put({ courseId: 'curso-exemplo', lessonId: 'aula-1', resourceId: 'material-1', name: 'Antiga.pdf', blob: pdfBlob('antiga') });
+  await store.put({ courseId: 'curso-exemplo', lessonId: '7', resourceId: 'material-1', name: 'Nova.pdf', blob: pdfBlob('nova') });
+
+  const result = await store.remapLessonRefs('curso-exemplo', new Map([['aula-1', '7']]));
+  assert.equal(result.moved, 0);
+  assert.equal(result.collisions, 1);
+  assert.equal(store.has(attachmentRefKey('curso-exemplo', 'aula-1', 'material-1')), false);
+  const kept = await store.getBlob(attachmentRefKey('curso-exemplo', '7', 'material-1'));
+  assert.equal(await kept.text(), '%PDF-1.7\n% nova\n%%EOF\n');
+  assert.equal(store.list('curso-exemplo', '7').length, 1);
+});
+
+test('sem alias (ou com alias vazio) nada muda e nenhuma escrita acontece', async () => {
+  const { store, backend } = attachmentStore();
+  await store.ready();
+  await store.put({ courseId: 'curso-exemplo', lessonId: 'aula-1', resourceId: 'material-1', name: 'A.pdf', blob: pdfBlob() });
+  const before = backend.written.length;
+  assert.deepEqual(await store.remapLessonRefs('curso-exemplo', []), { moved: 0, collisions: 0, missing: 0, refs: [] });
+  assert.deepEqual(await store.remapLessonRefs('curso-exemplo', [{ from: 'aula-1', to: 'aula-1' }]), { moved: 0, collisions: 0, missing: 0, refs: [] });
+  assert.deepEqual(await store.remapLessonRefs('curso-sem-anexos', [{ from: 'aula-1', to: '7' }]), { moved: 0, collisions: 0, missing: 0, refs: [] });
+  assert.equal(backend.written.length, before, 'nenhuma gravação inútil');
+  assert.equal(store.has(attachmentRefKey('curso-exemplo', 'aula-1', 'material-1')), true);
+});

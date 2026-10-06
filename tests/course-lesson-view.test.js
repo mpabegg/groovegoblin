@@ -17,7 +17,7 @@ import { createAttachmentStore } from '../src/course-attachments.js';
 import { mountCourseLesson } from '../src/course-lesson.js';
 import { exerciseOriginBadges, mountExerciseOrigins } from '../src/course-lesson-origins.js';
 import { makeRoot, installDom, dispatchWindow, document as fakeDocument, makeEvent } from './course-lesson-dom.js';
-import { courseDocument, lesson, memoryBackend } from './course-lesson-fixtures.js';
+import { courseDocument, lesson, memoryBackend, section } from './course-lesson-fixtures.js';
 
 const NOW = () => '2026-01-02T03:04:05.000Z';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -37,11 +37,11 @@ function idleAttachments() {
   };
 }
 
-async function setup({ backend = null, attachments = null } = {}) {
+async function setup({ backend = null, attachments = null, host = {}, document: courseDoc = null } = {}) {
   const release = installDom();
   const store = createCourseStore({ backend: backend ?? memoryBackend(), now: NOW, uuid: (() => { let n = 0; return () => `estado-${(n += 1)}`; })() });
   await store.ready();
-  const imported = await store.importText(JSON.stringify(courseDocument()), { source: 'teste' });
+  const imported = await store.importText(JSON.stringify(courseDoc ?? courseDocument()), { source: 'teste' });
   assert.equal(imported.ok, true, imported.error);
   const notifications = [];
   const container = makeRoot();
@@ -53,6 +53,7 @@ async function setup({ backend = null, attachments = null } = {}) {
     notify: (text, error = false) => notifications.push({ text, error: !!error }),
     openExercise: () => {},
     onOpenLesson: (courseId, lessonId) => { void lessonView.show(courseId, lessonId); },
+    ...host,
   });
   return {
     store,
@@ -441,4 +442,274 @@ test('aula: HTML renomeado de áudio não vira player e segue baixável', async 
   assert.equal(container.querySelector('.lesson-audio'), null, 'HTML nunca vira player');
   assert.ok(container.querySelector('#lesson-material-download-0'), 'continua baixável');
   assert.match(container.querySelector('.lesson-material-warning').textContent, /áudio/);
+});
+
+// ------------------------------- "Gerar" a partir da receita do catálogo (A6)
+
+// Curso fictício com um exercício sugerido DE RECEITA (forma única) e outro sem
+// receita, para os dois caminhos da página da aula.
+function recipeDocument() {
+  return {
+    format: 'groovegoblin-course',
+    version: 2,
+    privacy: 'private',
+    course: {
+      id: 'curso-exemplo',
+      title: 'Curso de Exemplo',
+      instrument: 'bass',
+      strings: 4,
+      sections: [
+        section('modulo-1', [
+          lesson('aula-1', {
+            resources: [{ id: 'material-1', name: 'Apostila de Exemplo', extension: 'pdf', role: 'apostila' }],
+            suggestedExercises: [
+              {
+                id: 'cat-1',
+                title: 'Exercício com receita',
+                strings: 4,
+                pdfPage: 12,
+                trackNames: [],
+                practiceMode: 'com metrônomo',
+                catalogId: 'cat-1',
+                recipe: {
+                  version: 1,
+                  family: 'arpejo_triade_forma_unica',
+                  profile: { type: 'bass', strings: 4 },
+                  progression: { kind: 'quartas', start: 'C', direction: 'ascendente', quality: 'major', chords: [], length: null, spelling: 'auto' },
+                  region: { from: 1, to: 5, open: false, strings: null },
+                  bars: null,
+                  rhythm: 'arpejo',
+                  figure: { bars: 2, degrees: [1, 3, 5], order: null, notes: null, inversions: null },
+                  voltas: 1,
+                  final: 'tonica',
+                  shapeLabel: { label: 'Shape 1', quality: 'major', inversion: 'fundamental' },
+                },
+              },
+              { id: 'sem-receita', title: 'Exercício sem receita' },
+            ],
+          }),
+        ]),
+      ],
+    },
+  };
+}
+
+const SHAPE = {
+  id: 'bass4-maior-fundamental',
+  label: 'Maior · fundamental',
+  quality: 'major',
+  degrees: [1, 3, 5],
+  notes: [{ string: 4, fret: 3, degree: 1 }, { string: 3, fret: 2, degree: 3 }, { string: 3, fret: 5, degree: 5 }],
+};
+
+function fakeLibrary() {
+  const entries = new Map();
+  let counter = 0;
+  const updates = [];
+  return {
+    saved: true,
+    updates,
+    entries,
+    list: () => [...entries.values()].map(entry => ({ id: entry.id, name: entry.metadata.name, instrument: 'bass', bpm: entry.session.bpm })),
+    size: () => entries.size,
+    get: id => entries.get(id) ?? null,
+    subscribe: () => () => {},
+    new({ session, metadata }) {
+      counter += 1;
+      const id = `exercicio-${counter}`;
+      const entry = { id, session, metadata };
+      entries.set(id, entry);
+      return entry;
+    },
+    updateMetadata(id, patch) {
+      const entry = entries.get(id);
+      if (!entry) return null;
+      updates.push({ id, patch });
+      entry.metadata = { ...entry.metadata, ...patch };
+      return entry;
+    },
+    // Registro usado pelo fake do Estúdio de estudo (o de verdade cria pela
+    // biblioteca): a loja precisa conhecer o exercício para `updateMetadata`.
+    register(entry) {
+      entries.set(entry.id, { id: entry.id, session: { bpm: 100 }, metadata: { ...entry.metadata } });
+      return entry;
+    },
+  };
+}
+
+function fakeStudies(library = null) {
+  const created = [];
+  return {
+    created,
+    openCalls: [],
+    create(recipe, options = {}) {
+      created.push({ recipe, options });
+      const entry = { id: `estudo-${created.length}`, metadata: { name: 'Estudo de Exemplo' } };
+      // O Estúdio de estudo de verdade cria pela BIBLIOTECA: sem registrar, a
+      // marca de conteúdo de curso (`updateMetadata`) não teria onde cair e o
+      // teste passaria sem exercitar nada.
+      library?.register?.(entry);
+      return entry;
+    },
+    open(options) { this.openCalls.push(options); },
+  };
+}
+
+function boundBindings(shapeId = SHAPE.id) {
+  const map = new Map();
+  return {
+    shapeFor: label => (label?.label === 'Shape 1' && label?.quality === 'major' ? shapeId : null),
+    remember: (label, id) => { map.set(label.label, id); return { saved: true }; },
+    list: () => [...map.entries()],
+  };
+}
+
+const shapeAccess = { choicesFor: () => [{ id: SHAPE.id, label: SHAPE.label, generic: true, shape: SHAPE }], shape: id => (id === SHAPE.id ? SHAPE : null) };
+
+test('aula: "Gerar" cria o exercício com notas, vincula, marca a sugestão e tira a fonte do compartilhamento', async t => {
+  const library = fakeLibrary();
+  const studies = fakeStudies(library);
+  const context = await setup({ host: { library, studies, shapes: shapeAccess, bindings: boundBindings() }, document: recipeDocument() });
+  t.after(() => context.cleanup());
+  const { store, courseId, container, lesson, notifications } = context;
+
+  await lesson.show(courseId, 'aula-1');
+  const generate = [...container.querySelectorAll('button')].find(node => /^Gerar$/.test(node.textContent));
+  assert.ok(generate, 'a sugestão com receita ganha "Gerar"');
+  assert.equal(generate.disabled, false);
+  generate.click();
+  await sleep(20);
+
+  assert.equal(studies.created.length, 1, 'o Estúdio de estudo criou o exercício');
+  const { recipe, options } = studies.created[0];
+  assert.equal(recipe.family, 'arpejo_triade_forma_unica');
+  assert.equal(recipe.shape.id, SHAPE.id, 'a forma lembrada entra na receita');
+  assert.equal(Object.hasOwn(recipe, 'shapeLabel'), false, 'o rótulo do curso não vai para o gerador');
+  assert.equal(options.open, false, 'a geração não tira o usuário da aula');
+  assert.deepEqual(options.origin, { id: 'aula-1', name: 'Aula aula-1', kind: 'course', private: true });
+  assert.equal(options.bpm, undefined);
+  // Vinculado à aula e lembrado como sugestão gerada.
+  const state = store.lessonState(courseId, 'aula-1');
+  assert.deepEqual(state.linkedExerciseIds, ['estudo-1']);
+  assert.deepEqual(state.generatedSuggestionIds, ['cat-1']);
+  // Marca de conteúdo de curso (nada de material de terceiros sai em link).
+  assert.deepEqual(library.updates, [{ id: 'estudo-1', patch: { courseContent: true } }]);
+  assert.ok(notifications.some(item => /gerado com notas/.test(item.text)));
+  // A sugestão sem receita continua no caminho do Estúdio, com os ajustes.
+  assert.ok([...container.querySelectorAll('button')].some(node => node.textContent === 'Criar no Estúdio'));
+  assert.ok(container.querySelector('#lesson-suggestions-generate-all') === null, 'nada pendente: sem "Gerar todos"');
+});
+
+test('aula: "Gerar todos" cria as sugestões de receita ainda não geradas', async t => {
+  const library = fakeLibrary();
+  const studies = fakeStudies(library);
+  const context = await setup({ host: { library, studies, shapes: shapeAccess, bindings: boundBindings() }, document: recipeDocument() });
+  t.after(() => context.cleanup());
+  const { store, courseId, container, lesson } = context;
+  await lesson.show(courseId, 'aula-1');
+  const all = container.querySelector('#lesson-suggestions-generate-all');
+  assert.ok(all, '"Gerar todos" aparece com as sugestões pendentes');
+  assert.match(all.textContent, /Gerar todos \(1\)/);
+  all.click();
+  await sleep(20);
+  assert.equal(studies.created.length, 1);
+  assert.deepEqual(store.lessonState(courseId, 'aula-1').generatedSuggestionIds, ['cat-1']);
+  // Reabrir a aula não oferece de novo (a sugestão foi lembrada).
+  await lesson.show(courseId, 'aula-1');
+  assert.equal(container.querySelector('#lesson-suggestions-generate-all'), null);
+  const again = [...container.querySelectorAll('button')].find(node => /Gerar de novo/.test(node.textContent));
+  assert.ok(again, 'a sugestão gerada continua acessível para gerar de novo');
+});
+
+test('aula: forma não lembrada não gera nada sem escolha (nada é inventado)', async t => {
+  const library = fakeLibrary();
+  const studies = fakeStudies(library);
+  const context = await setup({ host: { library, studies, shapes: shapeAccess, bindings: { shapeFor: () => null, remember: () => ({ saved: true }) } }, document: recipeDocument() });
+  t.after(() => context.cleanup());
+  const { store, courseId, container, lesson, notifications } = context;
+  await lesson.show(courseId, 'aula-1');
+  const generate = [...container.querySelectorAll('button')].find(node => /^Gerar$/.test(node.textContent));
+  generate.click();
+  await sleep(20);
+  assert.equal(studies.created.length, 0, 'sem forma escolhida o exercício não é inventado');
+  assert.deepEqual(store.lessonState(courseId, 'aula-1').linkedExerciseIds, []);
+  assert.deepEqual(store.lessonState(courseId, 'aula-1').generatedSuggestionIds, []);
+});
+
+test('aula: sem o Estúdio de estudo ligado, "Gerar" avisa em vez de fingir', async t => {
+  const library = fakeLibrary();
+  const context = await setup({ host: { library }, document: recipeDocument() });
+  t.after(() => context.cleanup());
+  const { container, lesson, courseId, notifications } = context;
+  await lesson.show(courseId, 'aula-1');
+  const generate = [...container.querySelectorAll('button')].find(node => /^Gerar$/.test(node.textContent));
+  assert.equal(generate.disabled, true);
+  const all = container.querySelector('#lesson-suggestions-generate-all');
+  all.click();
+  await sleep(20);
+  assert.ok(notifications.some(item => item.error && /Estúdio de estudo/.test(item.text)));
+});
+
+test('aula: sem vínculo a sugestão NÃO é lembrada como gerada (nada de mentira no estado)', async t => {
+  const library = fakeLibrary();
+  const studies = fakeStudies(library);
+  const context = await setup({ host: { library, studies, shapes: shapeAccess, bindings: boundBindings() }, document: recipeDocument() });
+  t.after(() => context.cleanup());
+  const { store, courseId, container, lesson, notifications } = context;
+  await lesson.show(courseId, 'aula-1');
+  // A aula "sumiu" entre abrir a página e gerar: a loja recusa o vínculo.
+  store.linkExercise = async () => null;
+  const generate = [...container.querySelectorAll('button')].find(node => /^Gerar$/.test(node.textContent));
+  generate.click();
+  await sleep(20);
+  assert.equal(studies.created.length, 1, 'o exercício é criado na biblioteca');
+  assert.deepEqual(store.lessonState(courseId, 'aula-1').linkedExerciseIds, [], 'nada foi vinculado');
+  assert.deepEqual(store.lessonState(courseId, 'aula-1').generatedSuggestionIds, [], 'nada é marcado como gerado');
+  assert.ok(notifications.some(item => /não foi vinculado nem marcado como gerado/.test(item.text)));
+  // A sugestão continua pendente: "Gerar todos" volta a oferecê-la.
+  await lesson.show(courseId, 'aula-1');
+  assert.ok(container.querySelector('#lesson-suggestions-generate-all'), 'a sugestão pendente continua na oferta');
+});
+
+test('aula: exercício vinculado à mão também é marcado como conteúdo de curso', async t => {
+  const library = fakeLibrary();
+  library.register({ id: 'biblioteca-1', metadata: { name: 'Exercício da biblioteca' } });
+  const context = await setup({ host: { library }, document: recipeDocument() });
+  t.after(() => context.cleanup());
+  const { store, courseId, container, lesson } = context;
+  await lesson.show(courseId, 'aula-1');
+  const select = container.querySelector('#lesson-link-select');
+  select.value = 'biblioteca-1';
+  select.dispatchEvent(makeEvent('change'));
+  container.querySelector('#lesson-link-add').click();
+  await sleep(20);
+  assert.deepEqual(store.lessonState(courseId, 'aula-1').linkedExerciseIds, ['biblioteca-1']);
+  // O vínculo manual marca o exercício: nome da aula e vínculo não saem em
+  // link/exportação de conteúdo de curso.
+  assert.deepEqual(library.updates, [{ id: 'biblioteca-1', patch: { courseContent: true } }]);
+});
+
+test('aula: a receita do catálogo aparece resumida e o material abre pela página', async t => {
+  const library = fakeLibrary();
+  const material = [];
+  const context = await setup({
+    host: { library, studies: fakeStudies(library), shapes: shapeAccess, bindings: boundBindings(), openMaterial: options => { material.push(options); return true; } },
+    document: recipeDocument(),
+  });
+  t.after(() => context.cleanup());
+  const { container, lesson, courseId } = context;
+  await lesson.show(courseId, 'aula-1');
+  const summary = container.querySelector('.lesson-suggestion-recipe');
+  assert.match(summary.textContent, /Arpejo de tríade, forma única/);
+  assert.match(summary.textContent, /ciclo de quartas desde C/);
+  assert.match(summary.textContent, /forma “Shape 1”/);
+  assert.match(container.querySelector('.lesson-suggestion-meta').textContent, /prática: com metrônomo/);
+
+  const button = [...container.querySelectorAll('button')].find(node => /Ver na apostila/.test(node.textContent));
+  assert.ok(button);
+  button.click();
+  await sleep(10);
+  assert.deepEqual(material.map(option => [option.courseId, option.lessonId, option.resourceId, option.page, option.name]), [
+    [courseId, 'aula-1', 'material-1', 12, 'Apostila de Exemplo'],
+  ]);
 });

@@ -107,3 +107,20 @@
   .lesson-material-actions, .lesson-suggestion > button, .lesson-link-actions { grid-column: 1; grid-row: auto; align-items: flex-start; }
   .lesson-root { max-height: none; }
 }
+
+/* Receita de estudo do catálogo na sugestão da aula (etapa 5/A5): o resumo fica
+   no repouso (texto, não campo) e as ações com receita são "Gerar" e "Ver na
+   apostila" — quem ajusta detalhes usa o diálogo do Estúdio de estudo. */
+.lesson-suggestion-recipe { font-size: 11px; color: var(--muted); }
+.lesson-suggestion-variant { font-size: 11px; color: var(--accent); }
+.lesson-suggestion-done { font-size: 11px; color: var(--muted); font-style: italic; }
+.lesson-suggestions-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Diálogo da forma do rótulo do catálogo: nativo, com um select e o lembrete. */
+.shape-chooser { border: 1px solid var(--line); border-radius: 10px; background: #0e171c; color: inherit; max-width: 520px; }
+.shape-chooser::backdrop { background: rgba(0, 0, 0, .55); }
+.shape-chooser form { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; }
+.shape-chooser h3 { margin: 0; font-size: 14px; }
+.shape-chooser-field { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.shape-chooser-remember { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.shape-chooser-actions { display: flex; flex-wrap: wrap; gap: 6px; }
