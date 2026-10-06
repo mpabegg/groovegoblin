@@ -92,7 +92,7 @@ test('ordem de notas é uma edição; estados inválidos não destroem redo', ()
   history.push(a);
   history.push({ ...a, notes: [...a.notes].reverse() });
   assert.deepEqual(history.undo(), a);
-  for (const invalid of [null, undefined, false, [], {}, { ...a, bpm: 301 }, { ...a, bars: 17 }, { ...a, notes: [{ id: 'a', start: 15, duration: 2 }] }, { ...a, notes: [a.notes[0], { ...a.notes[1], start: 0.5 }] }]) {
+  for (const invalid of [null, undefined, false, [], {}, { ...a, bpm: 301 }, { ...a, bars: 65 }, { ...a, notes: [{ id: 'a', start: 15, duration: 2 }] }, { ...a, notes: [a.notes[0], { ...a.notes[1], start: 0.5 }] }]) {
     assert.throws(() => history.push(invalid), TypeError);
     assert.equal(history.canRedo, true);
   }

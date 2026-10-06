@@ -39,10 +39,13 @@ export function mountStudioMinimap({ scroll, canvas, getSession }) {
   return { sync, render(notes = getSession().notes) {
     const session = getSession(); const total = sessionTicks(session); drawing.replaceChildren();
     const pitches = notes.map(note => note.pitch); const low = Math.min(40, ...pitches); const high = Math.max(low + 12, ...pitches);
+    // Rótulos legíveis: um por compasso até 16; a cada 2 até 32; a cada 4 em
+    // sessões longas (64 compassos), para a miniatura não virar mancha.
+    const stride = session.bars <= 16 ? 1 : session.bars <= 32 ? 2 : 4;
     for (let bar = 0; bar < session.bars; bar++) {
       const x = bar / session.bars * 1000;
       drawing.append(svg('line', { x1: x, x2: x, y1: 0, y2: 32, class: 'minimap-bar' }));
-      if (session.bars <= 16 || bar % 2 === 0) { const label = svg('text', { x: x + 3, y: 9 }); label.textContent = bar + 1; drawing.append(label); }
+      if (bar % stride === 0) { const label = svg('text', { x: x + 3, y: 9 }); label.textContent = bar + 1; drawing.append(label); }
     }
     for (const note of notes) drawing.append(svg('rect', { x: note.start / total * 1000, y: 12 + (high - note.pitch) / (high - low) * 13, width: Math.max(2, note.duration / total * 1000), height: 3, class: 'minimap-note' }));
     viewport = svg('rect', { y: 0.5, height: 31, class: 'minimap-viewport' }); drawing.append(viewport); sync();

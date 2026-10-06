@@ -156,7 +156,7 @@ test('generateGroove: opções inválidas rejeitadas com TypeError, sem coerçã
     assert.throws(() => generateGroove(options), TypeError);
   }
   const invalid = {
-    bars: [undefined, null, 0, -1, 17, 1.5, '1', NaN, Infinity, new Number(1)],
+    bars: [undefined, null, 0, -1, 65, 1.5, '1', NaN, Infinity, new Number(1)],
     seed: [undefined, null, false, -1, 0x100000000, 1.5, '42', NaN, Infinity, -Infinity, 42n, new Number(42)],
     density: [undefined, null, false, 2, 'Sparse', '', 'constructor', 'toString', new String('medium')],
     syncopation: [undefined, null, false, 1, 'Straight', '', 'constructor', new String('mixed')],

@@ -133,7 +133,7 @@ export function mountResult(container, host, { comparisons = createComparisonMem
   function renderScore(box) {
     const { session, results, repetition } = model;
     const outcomes = noteResults(results, repetition);
-    const score = el(document, 'div', { className: 'rhythm-score result-score', 'aria-label': 'Partitura anotada com o resultado de cada nota, com cifras e tablatura' });
+    const score = el(document, 'div', { className: 'rhythm-score result-score', role: 'region', tabindex: 0, 'aria-label': 'Partitura anotada com o resultado de cada nota, com cifras e tablatura' });
     box.append(score);
     // Sempre com a vista Tab: o resultado é a partitura anotada completa.
     const scoreSession = scoreViewSession(session);

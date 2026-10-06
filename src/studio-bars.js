@@ -76,7 +76,7 @@ export function copyBar(session, source, target) {
 
 export function duplicateBar(session, source) {
   if (!validBar(session, source)) return { error: 'Compasso fora da sessão.' };
-  if (session.bars >= MAX_BARS) return { error: 'Limite de 16 compassos. Use Copiar para em outro compasso livre; nenhum dado foi apagado.' };
+  if (session.bars >= MAX_BARS) return { error: `Limite de ${MAX_BARS} compassos. Use Copiar para em outro compasso livre; nenhum dado foi apagado.` };
   const insertion = source + 1; const measure = ticksPerBar(session); const boundary = insertion * measure;
   const shifted = session.notes.flatMap(note => {
     if (note.start >= boundary - EPSILON) return [{ ...note, start: note.start + measure }];

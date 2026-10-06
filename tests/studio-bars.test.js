@@ -82,7 +82,7 @@ test('duplicate materializes repeats and shifts later harmony without losing sil
   const duplicated = apply(source, duplicateBar(source, 0));
   assert.equal(duplicated.progression.cycleBars, 5);
   assert.deepEqual(harmony(duplicated), [[8, 8, 'C'], [24, 8, 'C'], [40, 8, 'G'], [56, 8, 'C'], [72, 8, 'G']]);
-  assert.ok(duplicateBar(createSession({ bars: 16 }), 0).error);
+  assert.ok(duplicateBar(createSession({ bars: 64 }), 0).error);
 });
 
 test('materializing ghosts preserves exact rendered harmony including gaps and clipped final chords', () => {

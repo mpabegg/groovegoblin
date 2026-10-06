@@ -1,5 +1,5 @@
 import { GrooveAudio, renderSession } from './audio.js';
-import { loadSession, validateSession, serializeSession, parseSession, encodeSessionLink, decodeSessionLink, drumEditStructureError, ticksPerBar as barTicks, METRONOME_PATTERNS, ARTICULATIONS } from './session.js';
+import { loadSession, validateSession, serializeSession, parseSession, decodeSessionLink, drumEditStructureError, ticksPerBar as barTicks, METRONOME_PATTERNS, ARTICULATIONS } from './session.js';
 import { evaluateSession, summarizeFeedback } from './feedback.js';
 import { getDiatonicChords, invertChord } from './progression.js';
 import { mountPractice } from './practice-trainer.js';
@@ -30,6 +30,7 @@ import { mountPracticeTracks } from './practice-tracks.js';
 import { mountTrainingResult } from './training-result.js';
 import { quietTakeNotices } from './take-notices.js';
 import { mountToday } from './today-view.js';
+import { mountShareLink } from './share-link.js';
 
 const $ = id => document.getElementById(id);
 // Origem declarada do material da execução. O controlador real (treinador)
@@ -437,12 +438,7 @@ $('import-file').addEventListener('change', async event => {
   } catch (error) { if (request === generation) message(`Importação rejeitada: ${error.message}. Exercícios preservados.`, true); }
   finally { if (request === generation) { pending = null; renderControls(); } }
 });
-$('share').addEventListener('click', async () => {
-  const url = `${location.origin}${location.pathname}${location.search}${encodeSessionLink(session)}`;
-  $('share-url').value = url; $('share-output').hidden = false; $('share-url').focus(); $('share-url').select();
-  try { await navigator.clipboard.writeText(url); message('Link do exercício copiado, sem servidor.'); }
-  catch { message('Copie o link selecionado.'); }
-});
+mountShareLink({ button: $('share'), output: $('share-output'), field: $('share-url'), getSession: () => session, notify: message });
 function previewShare() {
   sharedSession = null; $('share-preview').hidden = true;
   if (!location.hash) return;

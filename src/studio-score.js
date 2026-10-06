@@ -142,8 +142,22 @@ export function positionScore(rows, position, { hidden = false } = {}) {
 }
 
 export function mountStudioScores(studioContainer, practiceContainer, host) {
+  practiceContainer.setAttribute('role', 'region');
+  practiceContainer.setAttribute('tabindex', '0');
   let strokes = true, studioSession = null, practiceSession = null, execution = null;
   let studioRows = [], practiceRows = [];
+  let studioDirty = true, practiceDirty = true;
+  const visible = container => container.checkVisibility?.() ?? true;
+  function renderVisible() {
+    if (studioDirty && studioSession && visible(studioContainer)) {
+      studioRows = renderView(studioContainer, studioSession);
+      studioDirty = false;
+    }
+    if (practiceDirty && practiceSession && visible(practiceContainer)) {
+      practiceRows = renderView(practiceContainer, practiceSession);
+      practiceDirty = false;
+    }
+  }
   function renderView(container, session) {
     const model = buildRhythmNotation(session.notes, session);
     const rows = renderPracticeScore(container, model, session, { strokes });
@@ -153,8 +167,8 @@ export function mountStudioScores(studioContainer, practiceContainer, host) {
       toggle.setAttribute('aria-pressed', String(strokes)); toggle.textContent = strokes ? 'Ocultar palhetadas sugeridas' : 'Mostrar palhetadas sugeridas';
       toggle.addEventListener('click', () => {
         strokes = !strokes;
-        studioRows = renderView(studioContainer, studioSession);
-        practiceRows = renderView(practiceContainer, practiceSession);
+        studioDirty = practiceDirty = true;
+        renderVisible();
         container.querySelector('[data-score-strokes]')?.focus({ preventScroll: true });
       });
       const hint = container.ownerDocument.createElement('span'); hint.textContent = '↓/↑ são sugestões rítmicas, não técnica acústica autoral.';
@@ -164,11 +178,12 @@ export function mountStudioScores(studioContainer, practiceContainer, host) {
   }
   function render(session, notes = session.notes) {
     studioSession = notes === session.notes ? session : { ...session, notes };
-    studioRows = renderView(studioContainer, studioSession);
+    studioDirty = true;
     // A partitura do Treinar mostra a fonte atual do treinador (frase da sessão
     // ou o exercício gerado transitório), sem tocar na sessão autoral.
     const source = host.getSourceSession?.() ?? session;
-    if (!execution) { practiceSession = source; practiceRows = renderView(practiceContainer, practiceSession); }
+    if (!execution) { practiceSession = source; practiceDirty = true; }
+    renderVisible();
   }
   function position(value, { hidden = false } = {}) {
     const active = value.mode !== 'idle';
@@ -176,10 +191,13 @@ export function mountStudioScores(studioContainer, practiceContainer, host) {
     if (snapshot !== execution) {
       execution = snapshot;
       practiceSession = snapshot ?? host.getSourceSession?.() ?? host.getSession();
-      practiceRows = renderView(practiceContainer, practiceSession);
+      practiceDirty = true;
     }
-    positionScore(studioRows, value, { hidden: hidden && value.mode === 'train' });
-    positionScore(practiceRows, value);
+    // A atualização por quadro também observa abrir a partitura/trocar de aba:
+    // a última referência é desenhada antes de exibir o cursor, nunca enquanto oculta.
+    renderVisible();
+    if (visible(studioContainer)) positionScore(studioRows, value, { hidden: hidden && value.mode === 'train' });
+    if (visible(practiceContainer)) positionScore(practiceRows, value);
   }
   return { render, position };
 }

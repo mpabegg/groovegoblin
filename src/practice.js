@@ -8,7 +8,7 @@ import { evaluateSession, summarizeFeedback } from './feedback.js';
 import { generateGroove } from './generator.js';
 import { mergeSession } from './studio-state.js';
 import { performTick } from './meter.js';
-import { createSession } from './session.js';
+import { createSession, MAX_BARS } from './session.js';
 import { getInstrumentProfile } from './instrument-profile.js';
 import { instrumentPitchCounts } from './instrument-pitch-evaluation.js';
 
@@ -92,7 +92,7 @@ export function normalizeSession(session) {
   const unit = Number.isInteger(s?.meter?.unit) && [2, 4, 8, 16].includes(s.meter.unit) ? s.meter.unit : 4;
   const ticksPerBar = (beats * 16) / unit;
   const bpm = clamp(Math.round(numOr(s.bpm, 100)), 30, 300);
-  const bars = clamp(Math.round(numOr(s.bars, 4)), 1, 16);
+  const bars = clamp(Math.round(numOr(s.bars, 4)), 1, MAX_BARS);
   const notes = Array.isArray(s.notes)
     ? s.notes
         .filter(note => note && typeof note === 'object' && Number.isFinite(note.start) && Number.isFinite(note.duration))
@@ -680,7 +680,7 @@ export function validateRunEntry(entry) {
       objective: entry.objective,
       stage: typeof entry.stage === 'string' && entry.stage.length <= 40 ? entry.stage : '—',
       bpm: Math.round(bpm),
-      bars: Number.isInteger(entry.bars) && entry.bars > 0 && entry.bars <= 16 ? entry.bars : 1,
+      bars: Number.isInteger(entry.bars) && entry.bars > 0 && entry.bars <= MAX_BARS ? entry.bars : 1,
       durationSec: Math.max(0, Math.round(numOr(entry.durationSec, 0))),
       notes,
       metrics,

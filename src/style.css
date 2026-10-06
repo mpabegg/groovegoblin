@@ -260,6 +260,12 @@ main { max-width: 1440px; padding: 12px 24px 12px; }
 .phrase-view-heading .track-name { min-width: 0; margin: 0; }
 #phrase-view { max-width: 90px; padding: 2px; font-size: 10px; }
 #track-phrase.phrase-tab { height: calc(var(--tab-strings) * 28px); }
+@media(min-width: 901px) {
+  /* Quatro faixas e Tab cabem no laptop sem esconder controles ou cortar a página. */
+  #session-workspace > .panel { margin-bottom: 8px; }
+  #session-workspace > details.panel:not([open]) { padding-block: 4px; }
+  #track-phrase.phrase-tab { height: calc(var(--tab-strings) * 24px); }
+}
 #tab-strings { position: absolute; inset: 0; pointer-events: none; }
 .tab-string { position: absolute; left: 0; right: 0; border-top: 1px solid #8da2a688; }
 .grid.tab-view .note { height: 24px; font-size: 14px; padding: 1px 8px 1px 3px; font-weight: 700; }
@@ -370,7 +376,7 @@ main { max-width: 1440px; padding: 12px 24px 12px; }
 #track-metronome-sound .track-sound-popover { position: static; box-shadow: none; margin-top: 6px; }
 /* Live phrase editing: fixed figure palette and a narrow, unambiguous resize target. */
 .training-primary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-#practice-rhythm-score { overflow: hidden; padding: 6px; }
+#practice-rhythm-score { max-height: 244px; overflow: auto; overscroll-behavior: contain; padding: 6px; }
 #practice-rhythm-score .instrument-score { max-height: 170px; }
 #practice-rhythm-score .instrument-score[data-phrase-view="tab"] { max-height: 230px; }
 .practice-score-system { min-width: 0; }
@@ -488,7 +494,7 @@ main { max-width: 1440px; padding: 12px 24px 12px; }
 .result-repetitions button { padding: 3px 9px; font-size: 12px; }
 .result-repetitions button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #182717; }
 .result-legend { display: flex; flex-wrap: wrap; gap: 3px 12px; margin: 0; font-size: 11px; }
-.result-score { margin-top: 4px; }
+.result-score { margin-top: 4px; max-height: clamp(280px, calc(100vh - 580px), 420px); overflow: auto; overscroll-behavior: contain; }
 /* A partitura do resultado mantém o tamanho de projeto: o invólucro encolhe até
    a largura real do desenho (limitada à caixa) e a faixa de compassos o segue. */
 .result-holder { width: fit-content; max-width: 100%; margin: 0 auto; }

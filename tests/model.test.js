@@ -18,7 +18,7 @@ test('frases fracionárias respeitam compasso, monofonia, adjacência e identida
 });
 
 test('todos os tamanhos canônicos e denominadores têm limites reais', () => {
-  for (let bars = 1; bars <= 16; bars += 1) {
+  for (let bars = 1; bars <= 64; bars += 1) {
     for (const unit of [2, 4, 8, 16]) {
       const session = createSession({ bars, meter: { beats: 5, unit } });
       const end = bars * 80 / unit;
@@ -26,7 +26,7 @@ test('todos os tamanhos canônicos e denominadores têm limites reais', () => {
       assert.equal(validPhrase([note('fora', end - 0.5, 0.75)], session), false);
     }
   }
-  for (const invalid of [null, {}, { bars: 0 }, { bars: 17 }, { bars: 1, meter: { beats: -4, unit: -4 } }, { bars: 1, meter: { beats: 17, unit: 4 } }, { bars: 1, meter: { beats: 4, unit: 3 } }]) {
+  for (const invalid of [null, {}, { bars: 0 }, { bars: 65 }, { bars: 1, meter: { beats: -4, unit: -4 } }, { bars: 1, meter: { beats: 17, unit: 4 } }, { bars: 1, meter: { beats: 4, unit: 3 } }]) {
     assert.equal(validPhrase([], invalid), false);
     const original = [];
     assert.equal(addNote(original, 0, 1, invalid), original);

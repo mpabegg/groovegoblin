@@ -164,8 +164,8 @@ test('versions and envelope versions are authoritative on every entry point', ()
 test('v3 validation rejects invalid grids, order, overlap and bounds without concealing or correcting them', () => {
   const session = gaps();
   const invalidProgressions = [
-    ...[0, -1, 1025, Infinity, NaN, '2', 2.1, null].map(cycleBars => ({ ...session.progression, cycleBars })),
-    ...[-0.25, 0.1, 1025, Infinity, null, '0'].map(startBar => ({ ...session.progression, chords: [{ ...session.progression.chords[0], startBar }] })),
+    ...[0, -1, 4097, Infinity, NaN, '2', 2.1, null].map(cycleBars => ({ ...session.progression, cycleBars })),
+    ...[-0.25, 0.1, 4097, Infinity, null, '0'].map(startBar => ({ ...session.progression, chords: [{ ...session.progression.chords[0], startBar }] })),
     { ...session.progression, chords: [chord('C', 0, 1), chord('G', 0.5, 1)] },
     { ...session.progression, chords: [...session.progression.chords].reverse() },
     { ...session.progression, chords: [chord('C', 1.75, 0.5)] },

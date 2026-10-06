@@ -1,6 +1,6 @@
 import { clearBar, copyBar, duplicateBar, materializeHarmony, repeatPhraseInNewBars } from './studio-bars.js';
 import { mountRulerPlayback } from './studio-ruler-playback.js';
-import { ticksPerBar } from './session.js';
+import { ticksPerBar, MAX_BARS } from './session.js';
 
 // Native event dispatch may run a microtask checkpoint between listeners.
 // A task runs only after the canonical data-path listener has applied the change.
@@ -48,7 +48,7 @@ export function mountStudioRuler(root, host) {
   function open(bar, anchor, ghost = false) {
     selectedBar = bar; focus = anchor;
     $('bar-actions-title').textContent = ghost ? 'Repetição automática de acordes' : `Compasso ${bar + 1}`;
-    $('bar-actions-help').textContent = ghost ? 'Esta ocorrência vem do ciclo harmônico. Materializar permite editar daqui até o fim sem mudar o padrão anterior. Todas as ocorrências anteriores são preservadas, inclusive pausas.' : 'Inclui a frase e, quando habilitados, os acordes. Duplicar insere uma cópia logo após, deslocando os compassos seguintes, loop e forma (limite: 16); os acordes ficam explícitos para preservar cada ocorrência. Sustentações na inserção são divididas sem perder seus trechos. Copiar acrescenta apenas o trecho dentro do compasso e recusa sobreposições. Limpar remove só o trecho deste compasso.';
+    $('bar-actions-help').textContent = ghost ? 'Esta ocorrência vem do ciclo harmônico. Materializar permite editar daqui até o fim sem mudar o padrão anterior. Todas as ocorrências anteriores são preservadas, inclusive pausas.' : `Inclui a frase e, quando habilitados, os acordes. Duplicar insere uma cópia logo após, deslocando os compassos seguintes, loop e forma (limite: ${MAX_BARS}); os acordes ficam explícitos para preservar cada ocorrência. Sustentações na inserção são divididas sem perder seus trechos. Copiar acrescenta apenas o trecho dentro do compasso e recusa sobreposições. Limpar remove só o trecho deste compasso.`;
     const target = $('copy-bar-target'); target.replaceChildren();
     for (let index = 0; index < host.getSession().bars; index++) {
       if (index === bar) continue;

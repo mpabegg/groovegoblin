@@ -15,7 +15,10 @@ import { EPSILON, ticksPerBar, roundTick } from './meter.js';
 
 export const TICKS_PER_BAR = 16; // 4/4, usado apenas pelo atalho legado numérico
 export const MIN_BARS = 1;
-export const MAX_BARS = 16;
+// Teto de compassos da sessão (v5). 64 compassos cobrem as operações por
+// compasso, a partitura em sistemas de 4 e a linha do tempo com rolagem; o
+// formato antigo continua idêntico (nenhum documento salvo passa de 16).
+export const MAX_BARS = 64;
 export const DEFAULT_BARS = 1;
 export const MIN_DURATION = 0.05;
 export const OFFSET_LIMIT_MS = 80;

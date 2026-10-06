@@ -256,7 +256,7 @@ test('invalid phrases and bar counts are rejected before notation is built', () 
     [{ id: 'same', start: 0, duration: 1 }, { id: 'same', start: 2, duration: 1 }],
   ];
   for (const notes of invalidPhrases) assert.throws(() => buildRhythmNotation(notes, 1), TypeError);
-  for (const bars of [0, -1, 17, 1.5, '1', null, NaN]) {
+  for (const bars of [0, -1, 65, 1.5, '1', null, NaN]) {
     assert.throws(() => buildRhythmNotation([], bars), TypeError);
   }
 });
