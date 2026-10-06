@@ -11,6 +11,8 @@
 // embutido. Avisos e erros citam apenas o caminho do campo, nunca valores do
 // documento original (títulos, nomes de arquivo ou endereços).
 
+import { MAX_BARS, MIN_BARS } from './model.js';
+
 export const COURSE_FORMAT = 'groovegoblin-course';
 export const COURSE_VERSION = 1;
 
@@ -19,7 +21,12 @@ export const RESOURCE_ROLES = Object.freeze(['apostila', 'faixa', 'pacote de exe
 export const BASS_STRINGS = Object.freeze([4, 5]);
 
 // Limites do documento: listas curtas o bastante para caber na Biblioteca e
-// folgadas o bastante para um curso longo (200 aulas).
+// folgadas o bastante para um curso longo (200 aulas). Os limites de texto são
+// finitos e coerentes com o que o conversor lê: um rótulo, um nome de arquivo,
+// uma afinação ou uma técnica do mapa real não podem ser cortados só porque o
+// campo é curto. O teto de compassos acompanha o limite da sessão (`MAX_BARS`),
+// porque o número de compassos de um exercício sugerido é o da sessão que ele
+// descreve.
 export const COURSE_LIMITS = Object.freeze({
   sections: 64,
   lessons: 200,
@@ -33,19 +40,21 @@ export const COURSE_LIMITS = Object.freeze({
   errors: 100,
   chars: 8 * 1024 * 1024,
   id: 128,
-  title: 200,
-  name: 160,
-  label: 40,
+  title: 300,
+  name: 240,
+  label: 80,
   url: 2048,
   language: 35,
   extension: 8,
-  shortText: 80,
-  mediumText: 120,
+  shortText: 240,
+  mediumText: 240,
   summary: 2000,
   bpmMin: 30,
   bpmMax: 300,
-  barsMin: 1,
-  barsMax: 64,
+  barsMin: MIN_BARS,
+  barsMax: MAX_BARS,
+  barsPerChordMin: 1,
+  barsPerChordMax: 4,
   dailyMinutesMin: 1,
   dailyMinutesMax: 600,
   videoSecondsMax: 86400,
@@ -55,9 +64,16 @@ export const COURSE_LIMITS = Object.freeze({
   pdfPageMax: 9999,
 });
 
+// Compassos por acorde: 1, 2 e 3 nas quatro cordas e 4 nas cinco (medido no
+// catálogo real). Não existe teto 32: o relato era "32 faixas com compassos por
+// acorde não lidos", não "32 compassos por acorde".
+export const BARS_PER_CHORD_RANGE = Object.freeze({
+  min: COURSE_LIMITS.barsPerChordMin,
+  max: COURSE_LIMITS.barsPerChordMax,
+});
+
 const BPM_RANGE = Object.freeze({ min: COURSE_LIMITS.bpmMin, max: COURSE_LIMITS.bpmMax });
 const BARS_RANGE = Object.freeze({ min: COURSE_LIMITS.barsMin, max: COURSE_LIMITS.barsMax });
-const BARS_PER_CHORD_RANGE = Object.freeze({ min: 1, max: 2 });
 const WEEK_RANGE = Object.freeze({ min: COURSE_LIMITS.weekMin, max: COURSE_LIMITS.weekMax });
 const VIDEO_RANGE = Object.freeze({ min: 0, max: COURSE_LIMITS.videoSecondsMax });
 const DAILY_MINUTES_RANGE = Object.freeze({ min: COURSE_LIMITS.dailyMinutesMin, max: COURSE_LIMITS.dailyMinutesMax });

@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { MAX_BARS, MIN_BARS } from '../src/model.js';
 import {
+  BARS_PER_CHORD_RANGE,
   COURSE_FORMAT,
   COURSE_LIMITS,
   COURSE_VERSION,
@@ -276,4 +278,73 @@ test('limita a quantidade de erros devolvidos', () => {
   assert.equal(result.ok, false);
   assert.equal(result.errors.length, COURSE_LIMITS.errors);
   assert.equal(result.truncated, true);
+});
+
+test('o teto de compassos do curso acompanha o limite da sessão', () => {
+  assert.equal(COURSE_LIMITS.barsMax, MAX_BARS);
+  assert.equal(COURSE_LIMITS.barsMin, MIN_BARS);
+  assert.equal(MAX_BARS, 128, 'a etapa eleva o teto da sessão de 64 para 128');
+
+  const at = minimalDocument();
+  at.course.sections[0].lessons[0].suggestedExercises = [{ id: 'exercicio-1', title: 'Exercício 1', bars: MAX_BARS }];
+  const accepted = normalizeCourse(at);
+  assert.equal(accepted.ok, true);
+  assert.equal(accepted.document.course.sections[0].lessons[0].suggestedExercises[0].bars, 128);
+
+  const over = minimalDocument();
+  over.course.sections[0].lessons[0].suggestedExercises = [{ id: 'exercicio-1', title: 'Exercício 1', bars: MAX_BARS + 1 }];
+  const rejected = normalizeCourse(over);
+  assert.equal(rejected.ok, false);
+  assert.equal(errorAt(rejected, 'course.sections[0].lessons[0].suggestedExercises[0].bars').code, 'numero');
+});
+
+test('compassos por acorde aceita de 1 a 4 (medido no curso real)', () => {
+  assert.deepEqual({ ...BARS_PER_CHORD_RANGE }, { min: 1, max: 4 });
+  assert.equal(BARS_PER_CHORD_RANGE.min, COURSE_LIMITS.barsPerChordMin);
+  assert.equal(BARS_PER_CHORD_RANGE.max, COURSE_LIMITS.barsPerChordMax);
+  for (const value of [1, 2, 3, 4]) {
+    const document = minimalDocument();
+    document.course.sections[0].lessons[0].resources = [{ id: 'recurso-1', name: 'faixa.mp3', extension: 'mp3', role: 'faixa', barsPerChord: value }];
+    const result = normalizeCourse(document);
+    assert.equal(result.ok, true, `compassos por acorde ${value}`);
+    assert.equal(result.document.course.sections[0].lessons[0].resources[0].barsPerChord, value);
+  }
+  const over = minimalDocument();
+  over.course.sections[0].lessons[0].resources = [{ id: 'recurso-1', name: 'faixa.mp3', extension: 'mp3', role: 'faixa', barsPerChord: 5 }];
+  const rejected = normalizeCourse(over);
+  assert.equal(rejected.ok, false);
+  assert.equal(errorAt(rejected, 'course.sections[0].lessons[0].resources[0].barsPerChord').code, 'numero');
+});
+
+test('os limites de texto são finitos e coerentes com o que o conversor lê', () => {
+  assert.deepEqual({
+    label: COURSE_LIMITS.label,
+    name: COURSE_LIMITS.name,
+    shortText: COURSE_LIMITS.shortText,
+    mediumText: COURSE_LIMITS.mediumText,
+    title: COURSE_LIMITS.title,
+  }, { label: 80, name: 240, shortText: 240, mediumText: 240, title: 300 });
+  assert.ok(COURSE_LIMITS.label < COURSE_LIMITS.name);
+  assert.ok(COURSE_LIMITS.name <= COURSE_LIMITS.shortText);
+  assert.ok(COURSE_LIMITS.shortText < COURSE_LIMITS.title);
+  assert.ok(COURSE_LIMITS.title < COURSE_LIMITS.summary);
+  assert.equal(Number.isFinite(COURSE_LIMITS.chars), true);
+
+  const text = (length) => 'x'.repeat(length);
+  const document = minimalDocument();
+  const first = document.course.sections[0].lessons[0];
+  first.type = text(COURSE_LIMITS.label);
+  first.tuning = text(COURSE_LIMITS.shortText);
+  first.resources = [{ id: 'recurso-1', name: `${text(COURSE_LIMITS.name - 4)}.pdf`, extension: 'pdf', role: 'apostila', style: text(COURSE_LIMITS.name) }];
+  document.course.sections[0].prerequisites = [text(COURSE_LIMITS.mediumText)];
+  const accepted = normalizeCourse(document);
+  assert.equal(accepted.ok, true);
+  assert.equal(accepted.document.course.sections[0].lessons[0].tuning.length, COURSE_LIMITS.shortText);
+
+  first.type = text(COURSE_LIMITS.label + 1);
+  first.resources[0].name = `${text(COURSE_LIMITS.name)}.pdf`;
+  const rejected = normalizeCourse(document);
+  assert.equal(rejected.ok, false);
+  assert.equal(errorAt(rejected, 'course.sections[0].lessons[0].type').code, 'texto');
+  assert.equal(errorAt(rejected, 'course.sections[0].lessons[0].resources[0].name').code, 'texto');
 });

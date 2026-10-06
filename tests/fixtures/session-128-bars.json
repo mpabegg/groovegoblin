@@ -1,0 +1,4717 @@
+{
+  "version": 5,
+  "name": "Estudo fictício de 128 compassos",
+  "bpm": 96,
+  "bars": 128,
+  "subdivision": 4,
+  "swing": 0,
+  "swingUnit": "eighth",
+  "meter": {
+    "beats": 4,
+    "unit": 4
+  },
+  "progression": {
+    "keyId": "c-major",
+    "chords": [
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 0
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 1
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 2
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 3
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 4
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 5
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 6
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 7
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 8
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 9
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 10
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 11
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 12
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 13
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 14
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 15
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 16
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 17
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 18
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 19
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 20
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 21
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 22
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 23
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 24
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 25
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 26
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 27
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 28
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 29
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 30
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 31
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 32
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 33
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 34
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 35
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 36
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 37
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 38
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 39
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 40
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 41
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 42
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 43
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 44
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 45
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 46
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 47
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 48
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 49
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 50
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 51
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 52
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 53
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 54
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 55
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 56
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 57
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 58
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 59
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 60
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 61
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 62
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 63
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 64
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 65
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 66
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 67
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 68
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 69
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 70
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 71
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 72
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 73
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 74
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 75
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 76
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 77
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 78
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 79
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 80
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 81
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 82
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 83
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 84
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 85
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 86
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 87
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 88
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 89
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 90
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 91
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 92
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 93
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 94
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 95
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 96
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 97
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 98
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 99
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 100
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 101
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 102
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 103
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 104
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 105
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 106
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 107
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 108
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 109
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 110
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 111
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 112
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 113
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 114
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 115
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 116
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 117
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 118
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 119
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 120
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 121
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 122
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 123
+      },
+      {
+        "symbol": "C",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 0,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "C",
+            "midi": 48
+          },
+          {
+            "name": "E",
+            "midi": 52
+          },
+          {
+            "name": "G",
+            "midi": 55
+          }
+        ],
+        "startBar": 124
+      },
+      {
+        "symbol": "Am",
+        "roman": "",
+        "quality": "m",
+        "degree": null,
+        "root": 9,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          },
+          {
+            "name": "E",
+            "midi": 64
+          }
+        ],
+        "startBar": 125
+      },
+      {
+        "symbol": "F",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 5,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "F",
+            "midi": 53
+          },
+          {
+            "name": "A",
+            "midi": 57
+          },
+          {
+            "name": "C",
+            "midi": 60
+          }
+        ],
+        "startBar": 126
+      },
+      {
+        "symbol": "G",
+        "roman": "",
+        "quality": "",
+        "degree": null,
+        "root": 7,
+        "bass": null,
+        "function": "other",
+        "source": "custom",
+        "inversion": 0,
+        "durationBars": 1,
+        "notes": [
+          {
+            "name": "G",
+            "midi": 55
+          },
+          {
+            "name": "B",
+            "midi": 59
+          },
+          {
+            "name": "D",
+            "midi": 62
+          }
+        ],
+        "startBar": 127
+      }
+    ],
+    "enabled": true,
+    "cycleBars": 128
+  },
+  "drums": {
+    "enabled": true,
+    "seed": 7,
+    "style": "pop",
+    "density": "medium",
+    "edits": []
+  },
+  "band": {
+    "bassEnabled": true,
+    "style": "pop",
+    "density": "medium",
+    "mode": "steady",
+    "role": "solo"
+  },
+  "loop": {
+    "startBar": 0,
+    "endBar": 128
+  },
+  "training": {
+    "countInBars": 1,
+    "repetitions": 4,
+    "goal": "timing",
+    "evaluation": "strict",
+    "tempoStep": 4,
+    "adaptive": false,
+    "monitor": true
+  },
+  "metronome": {
+    "enabled": true,
+    "pattern": "quarters",
+    "silentBars": 0,
+    "audibleBars": 1
+  },
+  "companion": {
+    "enabled": false,
+    "pulses": 3,
+    "spanBeats": 4,
+    "pitch": 84
+  },
+  "generator": {
+    "density": "medium",
+    "syncopation": "mixed",
+    "lengths": "mixed",
+    "seed": null
+  },
+  "timbres": {
+    "phrase": "soft-lead",
+    "chords": "electric-piano",
+    "bass": "upright-bass"
+  },
+  "form": {
+    "enabled": false,
+    "loop": true,
+    "sections": []
+  },
+  "notes": [
+    {
+      "id": "n1",
+      "start": 0,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n2",
+      "start": 16,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n3",
+      "start": 32,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n4",
+      "start": 48,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n5",
+      "start": 64,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n6",
+      "start": 80,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n7",
+      "start": 96,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n8",
+      "start": 112,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n9",
+      "start": 128,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n10",
+      "start": 144,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n11",
+      "start": 160,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n12",
+      "start": 176,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n13",
+      "start": 192,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n14",
+      "start": 208,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n15",
+      "start": 224,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n16",
+      "start": 240,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n17",
+      "start": 256,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n18",
+      "start": 272,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n19",
+      "start": 288,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n20",
+      "start": 304,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n21",
+      "start": 320,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n22",
+      "start": 336,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n23",
+      "start": 352,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n24",
+      "start": 368,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n25",
+      "start": 384,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n26",
+      "start": 400,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n27",
+      "start": 416,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n28",
+      "start": 432,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n29",
+      "start": 448,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n30",
+      "start": 464,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n31",
+      "start": 480,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n32",
+      "start": 496,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n33",
+      "start": 512,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n34",
+      "start": 528,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n35",
+      "start": 544,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n36",
+      "start": 560,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n37",
+      "start": 576,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n38",
+      "start": 592,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n39",
+      "start": 608,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n40",
+      "start": 624,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n41",
+      "start": 640,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n42",
+      "start": 656,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n43",
+      "start": 672,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n44",
+      "start": 688,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n45",
+      "start": 704,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n46",
+      "start": 720,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n47",
+      "start": 736,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n48",
+      "start": 752,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n49",
+      "start": 768,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n50",
+      "start": 784,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n51",
+      "start": 800,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n52",
+      "start": 816,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n53",
+      "start": 832,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n54",
+      "start": 848,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n55",
+      "start": 864,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n56",
+      "start": 880,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n57",
+      "start": 896,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n58",
+      "start": 912,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n59",
+      "start": 928,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n60",
+      "start": 944,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n61",
+      "start": 960,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n62",
+      "start": 976,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n63",
+      "start": 992,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n64",
+      "start": 1008,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n65",
+      "start": 1024,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n66",
+      "start": 1040,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n67",
+      "start": 1056,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n68",
+      "start": 1072,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n69",
+      "start": 1088,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n70",
+      "start": 1104,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n71",
+      "start": 1120,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n72",
+      "start": 1136,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n73",
+      "start": 1152,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n74",
+      "start": 1168,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n75",
+      "start": 1184,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n76",
+      "start": 1200,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n77",
+      "start": 1216,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n78",
+      "start": 1232,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n79",
+      "start": 1248,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n80",
+      "start": 1264,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n81",
+      "start": 1280,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n82",
+      "start": 1296,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n83",
+      "start": 1312,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n84",
+      "start": 1328,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n85",
+      "start": 1344,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n86",
+      "start": 1360,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n87",
+      "start": 1376,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n88",
+      "start": 1392,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n89",
+      "start": 1408,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n90",
+      "start": 1424,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n91",
+      "start": 1440,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n92",
+      "start": 1456,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n93",
+      "start": 1472,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n94",
+      "start": 1488,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n95",
+      "start": 1504,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n96",
+      "start": 1520,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n97",
+      "start": 1536,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n98",
+      "start": 1552,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n99",
+      "start": 1568,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n100",
+      "start": 1584,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n101",
+      "start": 1600,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n102",
+      "start": 1616,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n103",
+      "start": 1632,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n104",
+      "start": 1648,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n105",
+      "start": 1664,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n106",
+      "start": 1680,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n107",
+      "start": 1696,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n108",
+      "start": 1712,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n109",
+      "start": 1728,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n110",
+      "start": 1744,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n111",
+      "start": 1760,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n112",
+      "start": 1776,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n113",
+      "start": 1792,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n114",
+      "start": 1808,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n115",
+      "start": 1824,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n116",
+      "start": 1840,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n117",
+      "start": 1856,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n118",
+      "start": 1872,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n119",
+      "start": 1888,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n120",
+      "start": 1904,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n121",
+      "start": 1920,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n122",
+      "start": 1936,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n123",
+      "start": 1952,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n124",
+      "start": 1968,
+      "duration": 4,
+      "pitch": 58,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n125",
+      "start": 1984,
+      "duration": 4,
+      "pitch": 59,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n126",
+      "start": 2000,
+      "duration": 4,
+      "pitch": 55,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n127",
+      "start": 2016,
+      "duration": 4,
+      "pitch": 56,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    },
+    {
+      "id": "n128",
+      "start": 2032,
+      "duration": 4,
+      "pitch": 57,
+      "velocity": 0.8,
+      "articulation": "normal",
+      "offsetMs": 0
+    }
+  ],
+  "mixer": {
+    "phrase": {
+      "volume": 1,
+      "muted": false
+    },
+    "metronome": {
+      "volume": 1,
+      "muted": false
+    },
+    "drums": {
+      "volume": 1,
+      "muted": false
+    },
+    "chords": {
+      "volume": 1,
+      "muted": false
+    },
+    "bass": {
+      "volume": 1,
+      "muted": false
+    }
+  },
+  "extensions": {
+    "studio": {
+      "generator": {
+        "density": "medium",
+        "syncopation": "mixed",
+        "lengths": "mixed",
+        "seed": 11
+      }
+    }
+  }
+}

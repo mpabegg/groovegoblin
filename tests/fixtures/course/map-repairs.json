@@ -1,0 +1,82 @@
+{
+  "_sobre": "Mapa inteiramente fictício, com os defeitos relatados por quem usa o conversor num curso real (ids numéricos, progresso em objeto, material duplicado, pacote alternativo de 6 cordas e campos longos). Nenhum conteúdo de curso real.",
+  "curso": {
+    "id": 0,
+    "titulo": "Curso de Reparos",
+    "autor": "Autor de Exemplo",
+    "url": "https://example.invalid/curso-reparos",
+    "descricao": "Curso fictício de reparos do conversor",
+    "instrumento": {
+      "nome": "Baixo elétrico de quatro cordas, afinação padrão (E A D G), cordas de bitola média, ajustado em casa com fone de ouvido, metrônomo externo e apoio de partitura",
+      "cordas": 4
+    },
+    "idioma": "pt-BR",
+    "minutos_diarios": "20",
+    "total_aulas": 3
+  },
+  "modulos": [
+    {
+      "id": 7,
+      "titulo": "Módulo de reparos",
+      "aulas": [
+        {
+          "id": 0,
+          "titulo": "Aula com identificador zero",
+          "tipo_de_aula": "Prática",
+          "video": {
+            "hospedagem": "Vídeo publicado na plataforma externa do curso, com legendas em português e capítulos organizados por assunto; o link fica sempre na descrição original do exercício",
+            "duracao": "10:00",
+            "capitulos": ["Introdução", "Prática", "Recapitulação"]
+          },
+          "afinacao": "E A D G",
+          "meu_progresso": { "status": "concluida", "fonte": "marcação fictícia", "obs": "observação pessoal fictícia" },
+          "anexos": [
+            { "id": "material-1", "nome": "apostila-reparos-4-cordas.pdf", "extensao": "pdf", "papel": "apostila", "cordas": 4 },
+            { "nome": "faixa-reparos-4-cordas-80bpm.mp3", "cordas": 4 },
+            { "nome": "faixa-compartilhada-reparos.mp3", "cordas": 4 }
+          ],
+          "backing_tracks": [
+            { "nome": "faixa-reparos-4-cordas-80bpm.mp3", "andamento": "80 BPM", "compassos_por_acorde": 3, "estilo": "Reparos", "estendida": true, "cordas": 4 },
+            { "nome": "faixa-compartilhada-reparos.mp3", "andamento": "90 BPM", "compassos_por_acorde": 4, "cordas": 4 },
+            { "nome": "faixa-reparos-3-compassos-5-cordas.mp3", "andamento": "100 BPM", "compassos_por_acorde": 3, "cordas": 5 },
+            { "nome": "faixa-reparos-6-cordas.mp3", "cordas": 6 }
+          ],
+          "exercicios": [
+            {
+              "nome": "Exercício com pacote alternativo",
+              "compassos_aproximados": "25",
+              "arquivo_correspondente": "apostila-reparos-4-cordas.pdf, pacote-reparos-6-cordas.zip"
+            },
+            {
+              "nome": "Exercício de cinco cordas longo",
+              "compassos_aproximados": "97",
+              "cordas": 5,
+              "arquivo_correspondente": "faixa-compartilhada-reparos.mp3"
+            },
+            {
+              "nome": "Exercício de 6 cordas",
+              "compassos_aproximados": "13",
+              "cordas": 6,
+              "arquivo_correspondente": "faixa-reparos-6-cordas.mp3"
+            }
+          ]
+        },
+        {
+          "id": 25,
+          "titulo": "Aula com identificador vinte e cinco",
+          "url": "https://example.invalid/aula/25",
+          "video": { "hospedagem": "youtube", "capitulos": ["Parte 1"] },
+          "afinacao": "B E A D G (afinação fictícia de cinco cordas, meio tom abaixo, com corda Si grave, observação longa de propósito para passar do limite do formato e ainda assim preservar as notas citadas no começo do texto; nada aqui é conteúdo de curso real)",
+          "meu_progresso": { "status": { "valor": "assistida", "inferido": true } }
+        },
+        {
+          "id": 26,
+          "titulo": "Aula ainda não assistida",
+          "cordas": 5,
+          "video": { "capitulos": [] },
+          "meu_progresso": { "status": "em andamento", "assistida": false }
+        }
+      ]
+    }
+  ]
+}

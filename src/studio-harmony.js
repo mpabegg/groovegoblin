@@ -1,4 +1,4 @@
-import { ticksPerBar, sessionTicks } from './session.js';
+import { ticksPerBar, sessionTicks, MAX_CHORDS } from './session.js';
 import { PROGRESSION_KEYS, CHORD_QUALITIES, chordTimeline, getDiatonicChords, getBorrowedChords, getSecondaryDominants, parseChordSymbol, generateProgression, invertChord } from './progression.js';
 import { mountStudioChordSelection } from './studio-chord-selection.js';
 import { musicalDuration } from './studio-bars.js';
@@ -87,7 +87,7 @@ export function mountStudioHarmony(root, host) {
     if (host.isBusy()) return;
     const session = host.getSession(); const progression = session.progression;
     const startBar = Math.floor(Math.max(0, bar) % progression.cycleBars + EPSILON);
-    if (progression.chords.length >= 64) { host.notify('A sessão admite até 64 acordes.', true); return; }
+    if (progression.chords.length >= MAX_CHORDS) { host.notify(`A sessão admite até ${MAX_CHORDS} acordes.`, true); return; }
     const next = progression.chords.find(chord => chord.startBar > startBar);
     const durationBars = Math.min(1, progression.cycleBars - startBar, next ? next.startBar - startBar : Infinity);
     if (durationBars < 1 / session.meter.beats - EPSILON || progression.chords.some(chord => startBar < chord.startBar + chord.durationBars - EPSILON && startBar + durationBars > chord.startBar + EPSILON)) {

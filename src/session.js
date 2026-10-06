@@ -16,7 +16,7 @@ import { DRUM_EDIT_VOICES, MAX_DRUM_EDITS, DRUM_POSITION_EPSILON } from './drum-
 import { normalizeInstrumentProfile } from './instrument-profile.js';
 export { DRUM_EDIT_VOICES, MAX_DRUM_EDITS, DRUM_POSITION_EPSILON };
 
-export { ticksPerBar, sessionTicks, beatGroups, ARTICULATIONS, MIN_BARS, MAX_BARS };
+export { ticksPerBar, sessionTicks, beatGroups, ARTICULATIONS, MIN_BARS, MAX_BARS, MAX_CHORDS, MAX_NOTES };
 
 export const SESSION_VERSION = 5;
 export const SESSION_FORMAT = 'groovegoblin-session';
@@ -82,9 +82,10 @@ const LINK_PREFIX = '#session=';
 const LINK_MAX_LENGTH = 65536;
 const EXTENSIONS_MAX_LENGTH = 65536;
 const MAX_NOTES = 512;
-const MAX_CHORDS = 64;
+// Um acorde por compasso no teto de 128 compassos exige 128 acordes.
+const MAX_CHORDS = 128;
 const MAX_CYCLE_BARS = MAX_CHORDS * MAX_BARS;
-// Starts/cycles can sum up to 64 individually valid legacy durations.
+// Starts/cycles can sum up to MAX_CHORDS individually valid legacy durations.
 // Retain those exact values after saving v3; do not quantize during migration.
 const POSITION_GRID_EPSILON = MAX_CHORDS * EPSILON;
 

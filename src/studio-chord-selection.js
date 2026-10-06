@@ -1,4 +1,5 @@
 import { editChords } from './studio-editing.js';
+import { MAX_CHORDS } from './session.js';
 
 export function mountStudioChordSelection(lane, host) {
   let copied = []; let cursor = 0; let drag = null; let suppressClick = false;
@@ -16,7 +17,7 @@ export function mountStudioChordSelection(lane, host) {
   }
   function paste(source, tick) {
     const session = host.getSession();
-    if (!source.length || session.progression.chords.length + source.length > 64) return false;
+    if (!source.length || session.progression.chords.length + source.length > MAX_CHORDS) return false;
     const start = Math.min(...source.map(chord => chord.startBar));
     const added = source.map(chord => ({ ...chord, notes: [...chord.notes], startBar: tick + chord.startBar - start }));
     const combined = [...session.progression.chords, ...added];

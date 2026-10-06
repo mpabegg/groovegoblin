@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validPhrase, isValidNote, spanTicks, addNote, moveNote, resizeNote, updateNote, deleteNote, completeNote, MIN_DURATION } from '../src/model.js';
+import { validPhrase, isValidNote, spanTicks, addNote, moveNote, resizeNote, updateNote, deleteNote, completeNote, MIN_DURATION, MAX_BARS } from '../src/model.js';
 import { createSession } from '../src/session.js';
 
 const span = createSession({ bars: 3, meter: { beats: 7, unit: 8 }, subdivision: 3 });
@@ -18,7 +18,7 @@ test('frases fracionárias respeitam compasso, monofonia, adjacência e identida
 });
 
 test('todos os tamanhos canônicos e denominadores têm limites reais', () => {
-  for (let bars = 1; bars <= 64; bars += 1) {
+  for (let bars = 1; bars <= MAX_BARS; bars += 1) {
     for (const unit of [2, 4, 8, 16]) {
       const session = createSession({ bars, meter: { beats: 5, unit } });
       const end = bars * 80 / unit;
@@ -26,7 +26,7 @@ test('todos os tamanhos canônicos e denominadores têm limites reais', () => {
       assert.equal(validPhrase([note('fora', end - 0.5, 0.75)], session), false);
     }
   }
-  for (const invalid of [null, {}, { bars: 0 }, { bars: 65 }, { bars: 1, meter: { beats: -4, unit: -4 } }, { bars: 1, meter: { beats: 17, unit: 4 } }, { bars: 1, meter: { beats: 4, unit: 3 } }]) {
+  for (const invalid of [null, {}, { bars: 0 }, { bars: MAX_BARS + 1 }, { bars: 1, meter: { beats: -4, unit: -4 } }, { bars: 1, meter: { beats: 17, unit: 4 } }, { bars: 1, meter: { beats: 4, unit: 3 } }]) {
     assert.equal(validPhrase([], invalid), false);
     const original = [];
     assert.equal(addNote(original, 0, 1, invalid), original);

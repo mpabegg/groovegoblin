@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateGroove, generatePolyrhythm } from '../src/generator.js';
 import { TICKS_PER_BAR, validPhrase } from '../src/model.js';
-import { createSession, ticksPerBar } from '../src/session.js';
+import { createSession, ticksPerBar, MAX_BARS } from '../src/session.js';
 const BAR_COUNTS = [1, 2, 3, 4, 8, 16];
 
 const BASE = { bars: 2, seed: 42, density: 'medium', syncopation: 'mixed', lengths: 'mixed' };
@@ -156,7 +156,7 @@ test('generateGroove: opções inválidas rejeitadas com TypeError, sem coerçã
     assert.throws(() => generateGroove(options), TypeError);
   }
   const invalid = {
-    bars: [undefined, null, 0, -1, 65, 1.5, '1', NaN, Infinity, new Number(1)],
+    bars: [undefined, null, 0, -1, MAX_BARS + 1, 1.5, '1', NaN, Infinity, new Number(1)],
     seed: [undefined, null, false, -1, 0x100000000, 1.5, '42', NaN, Infinity, -Infinity, 42n, new Number(42)],
     density: [undefined, null, false, 2, 'Sparse', '', 'constructor', 'toString', new String('medium')],
     syncopation: [undefined, null, false, 1, 'Straight', '', 'constructor', new String('mixed')],

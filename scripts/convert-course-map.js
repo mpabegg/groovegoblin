@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Conversor de mapas de curso em português para o formato "groovegoblin-course" v1.
 //
-//   node scripts/convert-course-map.js <mapa.json> [--output local/curso-convertido.json] [--com-progresso]
+//   node scripts/convert-course-map.js <mapa.json> [--output local/curso-convertido.json] [--com-progresso] [--verbose]
 //
 // O conversor é tolerante: campo ausente, nulo ou embrulhado em { valor, inferido }
 // não derruba a conversão. O que não pode ser lido com segurança fica nulo e gera
@@ -10,16 +10,29 @@
 //
 // Observações do idioma de origem: "≈25 (12 acordes × 2 + acorde final)" vale 25,
 // porque só há um número fora da explicação entre parênteses; "80 ou 90 BPM" fica
-// nulo, porque a fonte admite dois andamentos. Material ou exercício de 6 cordas é
-// descartado, porque o app só aceita baixo de 4 ou 5 cordas; um curso que declara 6
-// cordas é incompatível: a conversão falha apontando course.strings e nada é gravado.
+// nulo, porque a fonte admite dois andamentos. Material de 6 cordas é descartado,
+// porque o app só aceita baixo de 4 ou 5 cordas; um curso que declara 6 cordas é
+// incompatível: a conversão falha apontando course.strings e nada é gravado.
 // O progresso pessoal do mapa (aulas assistidas e anotações) só sai com
 // --com-progresso, e as anotações nunca.
+//
+// Reparos desta etapa (relatos de quem usa o conversor num curso real):
+// - identificador numérico (inclusive 0) vira texto estável e é o id da aula;
+// - `meu_progresso` aceita booleano, texto ou objeto com `status`;
+// - o mesmo material em `anexos` e em `backing_tracks` vira UM item, com os dados
+//   das duas listas (andamento e compassos por acorde só existem na faixa);
+// - o descarte de 6 cordas vale para o MATERIAL: um exercício que cita, além da
+//   apostila de 4 cordas, o pacote alternativo de 6 continua no curso;
+// - avisos saem agrupados por código e caminho genérico, com a contagem, e o
+//   `--verbose` lista cada ocorrência;
+// - hospedagem/duração do vídeo, afinação e instrumento são lidos por inteiro e
+//   viram dados estruturados — nenhum texto é cortado por causa do campo.
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  BARS_PER_CHORD_RANGE,
   COURSE_FORMAT,
   COURSE_LIMITS,
   COURSE_VERSION,
@@ -56,7 +69,35 @@ const EXERCISE_KEYS = [
 ];
 const ANEXO_KEYS = ['id', 'nome', 'arquivo', 'extensao', 'papel', 'tipo', 'cordas', 'strings', 'andamento', 'compassos_por_acorde', 'estilo', 'estendida'];
 const TRACK_KEYS = ['id', 'nome', 'arquivo', 'extensao', 'papel', 'tipo', 'andamento', 'compassos_por_acorde', 'estilo', 'estendida', 'cordas', 'strings'];
-const PROGRESS_KEYS = ['assistida', 'anotacoes'];
+const PROGRESS_KEYS = ['assistida', 'status', 'anotacoes'];
+
+// Campos conhecidos do mapa que este formato não guarda: são reconhecidos e
+// deliberadamente ignorados, sem aviso. O nome do instrumento já alimenta a
+// classificação (não é copiado), a quantidade de cordas da aula não muda nada
+// (quem manda é a do material), e a origem/observação do progresso é dado
+// pessoal do mapa, como as anotações.
+export const KNOWN_IGNORED = Object.freeze({
+  root: ['_sobre'],
+  curso: [],
+  instrumento: ['tipo'],
+  modulo: [],
+  aula: ['cordas', 'strings'],
+  video: [],
+  material: ['id'],
+  exercicio: ['ordem'],
+  progresso: ['fonte', 'obs'],
+});
+
+// Um campo de arquivo citado pode listar mais de um nome (a apostila de 4 cordas
+// e o pacote alternativo de 6), separados por vírgula, ponto e vírgula, "+" ou "e".
+const CITATION_SPLIT = /\s*[,;+]\s*|\s+e\s+/i;
+
+// Nota musical isolada ("E", "A#", "Bb"), usada para extrair a afinação.
+const NOTE_TOKEN = /^[A-Ga-g](?:#|b)?$/;
+
+// Marcações de aula assistida no mapa, depois de aparar espaços e acentos.
+const WATCHED_WORDS = /^(assistida|assistido|concluida|concluido|completa|completo|finalizada|finalizado|vista|visto|feito|sim|true|ok|done|yes)$/;
+const UNWATCHED_WORDS = /^(pendente|em andamento|aberta|aberto|comecada|comecado|nao|no|false|nunca|nada|0)$/;
 
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'm4a', 'ogg', 'oga', 'flac'];
 const PACKAGE_EXTENSIONS = ['zip', 'rar', '7z'];
@@ -72,14 +113,47 @@ function collapse(value) {
   return text === '' ? null : text;
 }
 
+function foldText(value) {
+  return collapse(value)?.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') ?? null;
+}
+
 function warn(warnings, path, code, message) {
   warnings.push({ path, code, message });
 }
 
-function ignoredKeys(source, allowed, path, warnings) {
+// `known` são campos conhecidos e deliberadamente ignorados: entram sem aviso.
+function ignoredKeys(source, allowed, path, warnings, known = []) {
   for (const key of Object.keys(source)) {
-    if (!allowed.includes(key)) warn(warnings, path === '' ? key : `${path}.${key}`, 'campo-ignorado', 'Campo do mapa não reconhecido; foi ignorado.');
+    if (allowed.includes(key) || known.includes(key)) continue;
+    warn(warnings, path === '' ? key : `${path}.${key}`, 'campo-ignorado', 'Campo do mapa não reconhecido; foi ignorado.');
   }
+}
+
+// Caminho genérico de um aviso: todo índice de lista vira "[]", para agrupar
+// ocorrências do mesmo tipo em pontos diferentes do mapa
+// (ex.: modulos[].aulas[].video.capitulos).
+export function genericPath(path) {
+  return path.replace(/\[\d+\]/g, '[]');
+}
+
+// Uma linha por (código, caminho genérico), com a contagem; a mensagem é a da
+// primeira ocorrência. Nenhuma mensagem repete valor do mapa.
+export function groupWarnings(warnings) {
+  const groups = [];
+  const index = new Map();
+  for (const warning of warnings) {
+    const path = genericPath(warning.path);
+    const key = `${warning.code}\u0000${path}`;
+    const existing = index.get(key);
+    if (existing !== undefined) {
+      existing.count += 1;
+      continue;
+    }
+    const group = { code: warning.code, path, message: warning.message, count: 1 };
+    index.set(key, group);
+    groups.push(group);
+  }
+  return groups;
 }
 
 function field(source, names) {
@@ -126,6 +200,134 @@ function readText(value, path, max, warnings, code = 'texto-ilegivel') {
     return text.slice(0, max);
   }
   return text;
+}
+
+// Identificador do mapa: número finito (inclusive 0) vira texto estável — é o id
+// da aula, e não um texto ilegível. Texto é aparamado, nunca reinterpretado.
+function readId(value, path, warnings) {
+  const raw = unwrap(value, path, warnings);
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw === 'number') {
+    if (!Number.isInteger(raw)) {
+      warn(warnings, path, 'id-ilegivel', 'O identificador numérico deste campo não é um inteiro e ficou indefinido.');
+      return null;
+    }
+    return String(raw);
+  }
+  if (typeof raw !== 'string') {
+    warn(warnings, path, 'id-ilegivel', 'O identificador deste campo não é texto nem número; ficou indefinido.');
+    return null;
+  }
+  const text = collapse(raw);
+  if (text === null) return null;
+  if (text.length > COURSE_LIMITS.id) {
+    warn(warnings, path, 'id-longo', 'O identificador deste campo excede o limite e foi cortado.');
+    return text.slice(0, COURSE_LIMITS.id);
+  }
+  return text;
+}
+
+// `meu_progresso` aceita booleano, texto ("assistida", "concluída", "pendente")
+// ou objeto com `status`; o valor pode vir embrulhado. Só marcação clara conta —
+// o formato guarda apenas "assistida ou não".
+export function readWatchedFlag(value, path, warnings) {
+  const raw = unwrap(value, path, warnings);
+  if (raw === undefined || raw === null) return false;
+  if (typeof raw === 'boolean') return raw;
+  if (typeof raw === 'string') {
+    const text = foldText(raw);
+    if (text === null) return false;
+    if (WATCHED_WORDS.test(text)) return true;
+    if (UNWATCHED_WORDS.test(text)) return false;
+    warn(warnings, path, 'progresso-ilegivel', 'A marcação de aula assistida não foi reconhecida; a aula ficou sem marcação.');
+    return false;
+  }
+  if (isObject(raw)) {
+    for (const name of ['status', 'assistida']) {
+      if (Object.hasOwn(raw, name) && raw[name] !== undefined && raw[name] !== null) {
+        return readWatchedFlag(raw[name], `${path}.${name}`, warnings);
+      }
+    }
+  }
+  warn(warnings, path, 'progresso-ilegivel', 'A marcação de aula assistida não foi reconhecida; a aula ficou sem marcação.');
+  return false;
+}
+
+// A marcação de uma aula é assistida quando qualquer uma das marcas conhecidas
+// (`assistida`, `status`) diz isso; marcas ausentes não marcam nada.
+function readProgressWatched(progress, path, warnings) {
+  let watched = false;
+  for (const name of ['assistida', 'status']) {
+    if (!Object.hasOwn(progress, name) || progress[name] === undefined || progress[name] === null) continue;
+    if (readWatchedFlag(progress[name], `${path}.${name}`, warnings)) watched = true;
+  }
+  return watched;
+}
+
+// Hospedagem do vídeo: o formato v1 não guarda o texto, então extrai-se só o
+// dado estruturado (o serviço citado). O texto nunca é cortado.
+export function classifyVideoHosting(value) {
+  if (typeof value !== 'string') return null;
+  const text = foldText(value);
+  if (text === null) return null;
+  if (text.includes('youtu')) return 'youtube';
+  if (text.includes('vimeo')) return 'vimeo';
+  if (/(drive|dropbox|onedrive|mega|nuvem|cloud)/.test(text)) return 'nuvem';
+  if (/(arquivo|local|baixad|download|disco)/.test(text)) return 'arquivo';
+  return 'externo';
+}
+
+// Notas de uma afinação escrita por extenso ("E A D G", "B E A D G (meio tom
+// abaixo)"): a primeira sequência de duas ou mais notas fora das explicações
+// entre parênteses.
+function tuningNotes(text) {
+  const outside = text.replace(/\([^)]*\)|\[[^\]]*\]/g, ' ');
+  const tokens = outside.split(/[^A-Za-z#]+/).filter((token) => token !== '');
+  let run = [];
+  for (const token of tokens) {
+    if (NOTE_TOKEN.test(token)) {
+      run.push(token[0].toUpperCase() + token.slice(1));
+      continue;
+    }
+    if (run.length >= 2) break;
+    run = [];
+  }
+  return run.length >= 2 ? run : null;
+}
+
+// Afinação: o texto inteiro é guardado enquanto couber no formato. Se passar do
+// limite, vale o dado estruturado (as notas citadas) — e só em último caso o
+// texto é cortado, com aviso.
+export function readTuning(value, path, warnings) {
+  const raw = unwrap(value, path, warnings);
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== 'string') {
+    warn(warnings, path, 'texto-ilegivel', 'O campo não pôde ser lido como texto; ficou indefinido.');
+    return null;
+  }
+  const text = collapse(raw);
+  if (text === null) return null;
+  if (text.length <= COURSE_LIMITS.shortText) return text;
+  const notes = tuningNotes(text);
+  if (notes !== null) return notes.join(' ');
+  warn(warnings, path, 'texto-truncado', 'O texto deste campo era longo demais e foi cortado.');
+  return text.slice(0, COURSE_LIMITS.shortText);
+}
+
+// Nome do instrumento: lido por inteiro (o formato aceita só baixo) e reduzido a
+// um dado estruturado; nunca cortado.
+function classifyInstrumentName(value, path, warnings) {
+  const raw = unwrap(value, path, warnings);
+  if (raw === undefined || raw === null) return null;
+  if (typeof raw !== 'string') {
+    warn(warnings, path, 'texto-ilegivel', 'O campo não pôde ser lido como texto; ficou indefinido.');
+    return null;
+  }
+  const text = foldText(raw);
+  if (text === null) return null;
+  if (/(baixo|bass|contrabaixo)/.test(text)) return 'baixo';
+  if (/(guitarra|violao)/.test(text)) return 'guitarra';
+  return 'outro';
 }
 
 function isHttpUrl(value) {
@@ -259,14 +461,26 @@ function readBoolean(value, path, warnings, fallback = false) {
   return raw;
 }
 
-// 4 ou 5 são aceitos; 6 é sinalizado para descarte; o resto fica indefinido.
+// 4 ou 5 são aceitos; 6 é sinalizado para descarte. A alternância ("4+6",
+// "4 e 6") é reconhecida e fica indefinida sem aviso: o material ou exercício
+// fica, porque o app toca a versão de 4 ou 5 cordas. O resto fica indefinido.
 function readStrings(value, path, warnings) {
   const raw = unwrap(value, path, warnings);
   if (raw === undefined || raw === null) return null;
   const number = typeof raw === 'number' ? raw : parseUnambiguousInteger(raw);
   if (number === 4 || number === 5 || number === 6) return number;
+  if (typeof raw === 'string' && mentionsAlternateStrings(raw)) return null;
   warn(warnings, path, 'cordas-ignoradas', 'A quantidade de cordas não foi reconhecida e ficou indefinida.');
   return null;
+}
+
+// "4+6 cordas", "4 e 6", "4/6": as duas versões do mesmo exercício.
+function mentionsAlternateStrings(value) {
+  const text = foldText(value);
+  if (text === null) return false;
+  const numbers = (text.match(/\d+/g) ?? []).map(Number);
+  if (numbers.length < 2) return false;
+  return numbers.includes(4) || numbers.includes(5);
 }
 
 function readTextList(value, path, { limit, max }, warnings) {
@@ -365,10 +579,19 @@ function convertVideo(value, path, warnings) {
     warn(warnings, path, 'video-ilegivel', 'Os dados de vídeo desta aula não foram reconhecidos; a aula ficou sem vídeo.');
     return { seconds: null, hasVideo: false };
   }
-  ignoredKeys(video, VIDEO_KEYS, path, warnings);
-  const hosting = readText(video.hospedagem, `${path}.hospedagem`, COURSE_LIMITS.label, warnings);
+  ignoredKeys(video, VIDEO_KEYS, path, warnings, KNOWN_IGNORED.video);
+  const hostingRaw = unwrap(video.hospedagem, `${path}.hospedagem`, warnings);
+  if (hostingRaw !== undefined && hostingRaw !== null && typeof hostingRaw !== 'string') {
+    warn(warnings, `${path}.hospedagem`, 'texto-ilegivel', 'O campo não pôde ser lido como texto; ficou indefinido.');
+  }
+  const hosting = classifyVideoHosting(hostingRaw);
   const declared = readInteger(video.duracao_segundos, `${path}.duracao_segundos`, { min: 0, max: COURSE_LIMITS.videoSecondsMax }, warnings, 'duracao-ilegivel');
-  const duration = readText(video.duracao, `${path}.duracao`, COURSE_LIMITS.label, warnings);
+  const durationRaw = unwrap(video.duracao, `${path}.duracao`, warnings);
+  let duration = null;
+  if (typeof durationRaw === 'string') duration = collapse(durationRaw);
+  else if (durationRaw !== undefined && durationRaw !== null) {
+    warn(warnings, `${path}.duracao`, 'duracao-ilegivel', 'A duração do vídeo não pôde ser lida; o tempo ficou indefinido.');
+  }
   let seconds = declared;
   if (seconds === null && duration !== null) {
     seconds = parseVideoDuration(duration);
@@ -392,34 +615,87 @@ function convertTempos(value, path, warnings) {
   return tempos;
 }
 
-function convertResource(raw, { kind, path, lessonId, usedIds }, warnings, counts) {
+// Material exclusivamente de 6 cordas: quando o nome cita as duas versões
+// ("4 e 6 cordas"), o item fica — o app toca a versão de 4 ou 5.
+function exclusiveSixStrings(value) {
+  return mentionsSixStrings(value) && !mentionsAlternateStrings(value);
+}
+
+// Um material sem id próprio: o identificador é dado depois da fusão dos
+// duplicados da aula, para o mesmo arquivo não virar dois itens com "-2".
+function convertResource(raw, { kind, path }, warnings, counts) {
   const material = unwrap(raw, path, warnings);
   if (!isObject(material)) {
     warn(warnings, path, 'material-invalido', 'Uma entrada de material não é um objeto e foi descartada.');
     counts.discarded += 1;
     return null;
   }
-  ignoredKeys(material, kind === 'anexo' ? ANEXO_KEYS : TRACK_KEYS, path, warnings);
+  ignoredKeys(material, kind === 'anexo' ? ANEXO_KEYS : TRACK_KEYS, path, warnings, KNOWN_IGNORED.material);
   const name = readText(field(material, ['nome', 'arquivo']), `${path}.nome`, COURSE_LIMITS.name, warnings);
   if (name === null) warn(warnings, `${path}.nome`, 'nome-ausente', 'Este material não tem nome; foi usado um nome genérico.');
   const extension = extensionOf(field(material, ['extensao']), name, warnings, `${path}.extensao`);
   const strings = readStrings(field(material, ['cordas', 'strings']), `${path}.cordas`, warnings);
-  if (strings === 6 || mentionsSixStrings(name)) {
+  if (strings === 6 || exclusiveSixStrings(name)) {
     warn(warnings, path, 'cordas-6', 'Um material de 6 cordas foi descartado.');
     counts.discarded += 1;
     return null;
   }
   return {
-    id: ensureUniqueId(usedIds, slugifyId(name, `${lessonId}-material-${counts.resources + 1}`), `${path}.nome`, warnings),
-    name: name ?? `material-${counts.resources + 1}`,
+    id: null,
+    name,
     extension,
     role: convertRole(field(material, ['papel', 'tipo']), { kind, extension }, `${path}.papel`, warnings),
     bpm: readInteger(field(material, ['andamento']), `${path}.andamento`, BPM_RANGE, warnings, 'andamento-ilegivel'),
-    barsPerChord: readInteger(field(material, ['compassos_por_acorde']), `${path}.compassos_por_acorde`, { min: 1, max: 2 }, warnings, 'compassos-ilegiveis'),
+    barsPerChord: readInteger(field(material, ['compassos_por_acorde']), `${path}.compassos_por_acorde`, BARS_PER_CHORD_RANGE, warnings, 'compassos-ilegiveis'),
     style: readText(field(material, ['estilo']), `${path}.estilo`, COURSE_LIMITS.name, warnings),
     extended: readBoolean(field(material, ['estendida']), `${path}.estendida`, warnings, false),
     strings,
   };
+}
+
+// A mesma faixa pode aparecer em `anexos` e em `backing_tracks` da mesma aula:
+// um item só, com os dados das duas listas (andamento e compassos por acorde só
+// existem na faixa). O papel declarado e o primeiro nome mandam.
+function resourceKey(resource) {
+  const name = normalizeFileName(resource.name);
+  if (name === null) return null;
+  return `${name}\u0000${resource.extension ?? ''}`;
+}
+
+function mergeResource(target, extra) {
+  for (const key of ['bpm', 'barsPerChord', 'style', 'strings']) {
+    if (target[key] === null && extra[key] !== null) target[key] = extra[key];
+  }
+  if (target.extension === null && extra.extension !== null) target.extension = extra.extension;
+  if (target.role === 'outro' && extra.role !== 'outro') target.role = extra.role;
+  target.extended = target.extended || extra.extended;
+}
+
+// `arquivo_correspondente` pode citar mais de um arquivo (a apostila de 4 cordas
+// e o pacote alternativo de 6), separados por vírgula, ponto e vírgula, "+" ou
+// "e". Cada nome citado vira um nome de faixa do exercício.
+function readCitations(value, path, warnings) {
+  const raw = unwrap(value, path, warnings);
+  if (raw === undefined || raw === null) return [];
+  const items = Array.isArray(raw) ? raw : [raw];
+  const names = [];
+  for (const [index, item] of items.entries()) {
+    const itemPath = Array.isArray(raw) ? `${path}[${index}]` : path;
+    if (typeof item !== 'string') {
+      warn(warnings, itemPath, 'texto-ilegivel', 'O arquivo citado não pôde ser lido como texto; ficou indefinido.');
+      continue;
+    }
+    for (const part of Array.isArray(raw) ? [item] : item.split(CITATION_SPLIT)) {
+      const text = readText(part, itemPath, COURSE_LIMITS.name, warnings);
+      if (text === null || names.includes(text)) continue;
+      if (names.length >= COURSE_LIMITS.trackNames) {
+        warn(warnings, path, 'lista-longa', 'A lista deste campo tinha itens demais e foi cortada.');
+        return names;
+      }
+      names.push(text);
+    }
+  }
+  return names;
 }
 
 function convertExercise(raw, { path, lessonId, usedIds, index }, warnings, counts) {
@@ -427,22 +703,25 @@ function convertExercise(raw, { path, lessonId, usedIds, index }, warnings, coun
   if (!isObject(fonte)) {
     warn(warnings, path, 'exercicio-invalido', 'Uma entrada de exercício não é um objeto e foi descartada.');
     counts.discarded += 1;
-    return { exercise: null, track: null, path };
+    return { exercise: null, tracks: [], path };
   }
-  ignoredKeys(fonte, EXERCISE_KEYS, path, warnings);
+  ignoredKeys(fonte, EXERCISE_KEYS, path, warnings, KNOWN_IGNORED.exercicio);
   const name = readText(field(fonte, ['nome']), `${path}.nome`, COURSE_LIMITS.name, warnings);
   if (name === null) warn(warnings, `${path}.nome`, 'nome-ausente', 'Este exercício não tem nome; foi usado um nome genérico.');
   const strings = readStrings(field(fonte, ['cordas', 'strings']), `${path}.cordas`, warnings);
-  const track = readText(field(fonte, ['arquivo_correspondente']), `${path}.arquivo_correspondente`, COURSE_LIMITS.name, warnings);
-  if (strings === 6 || mentionsSixStrings(name) || mentionsSixStrings(track)) {
-    warn(warnings, path, 'cordas-6', 'Um exercício ligado a material de 6 cordas foi descartado.');
+  const citations = readCitations(field(fonte, ['arquivo_correspondente']), `${path}.arquivo_correspondente`, warnings);
+  // O descarte de 6 cordas vale para o exercício e para o material dele. Citar o
+  // pacote alternativo de 6 cordas NÃO descarta o exercício: só o pacote é ignorado.
+  const tracks = citations.filter((citation) => !mentionsSixStrings(citation));
+  if (strings === 6 || exclusiveSixStrings(name)) {
+    warn(warnings, path, 'cordas-6', 'Um exercício de 6 cordas foi descartado.');
     counts.discarded += 1;
-    return { exercise: null, track: null, path };
+    return { exercise: null, tracks: [], path };
   }
   const title = name ?? `Exercício ${index + 1}`;
   return {
     path,
-    track,
+    tracks,
     exercise: {
       id: ensureUniqueId(usedIds, slugifyId(name, `${lessonId}-exercicio-${index + 1}`), `${path}.nome`, warnings),
       title,
@@ -450,7 +729,7 @@ function convertExercise(raw, { path, lessonId, usedIds, index }, warnings, coun
       initialBpm: readInteger(field(fonte, ['andamento_inicial']), `${path}.andamento_inicial`, BPM_RANGE, warnings, 'andamento-ilegivel'),
       targetBpm: readInteger(field(fonte, ['andamento_alvo']), `${path}.andamento_alvo`, BPM_RANGE, warnings, 'andamento-ilegivel'),
       bars: readInteger(field(fonte, ['compassos_aproximados']), `${path}.compassos_aproximados`, BARS_RANGE, warnings, 'compassos-ilegiveis'),
-      trackNames: track === null ? [] : [track],
+      trackNames: tracks,
       pdfPage: readInteger(field(fonte, ['pagina_pdf']), `${path}.pagina_pdf`, PAGE_RANGE, warnings, 'pagina-ilegivel'),
       strings,
     },
@@ -465,10 +744,10 @@ function convertLesson(raw, context, warnings, counts) {
     counts.discarded += 1;
     return null;
   }
-  ignoredKeys(source, LESSON_KEYS, path, warnings);
+  ignoredKeys(source, LESSON_KEYS, path, warnings, KNOWN_IGNORED.aula);
   const title = readText(source.titulo, `${path}.titulo`, COURSE_LIMITS.title, warnings);
   if (title === null) warn(warnings, `${path}.titulo`, 'titulo-ausente', 'Esta aula não tem título; foi usado um título genérico.');
-  const declaredId = readText(source.id, `${path}.id`, COURSE_LIMITS.id, warnings);
+  const declaredId = readId(source.id, `${path}.id`, warnings);
   const id = ensureUniqueId(
     usedLessonIds,
     slugifyId(declaredId, `${sectionId}-aula-${ordinal}`),
@@ -490,7 +769,7 @@ function convertLesson(raw, context, warnings, counts) {
     practiceInstruction: readText(source.instrucoes_de_pratica, `${path}.instrucoes_de_pratica`, COURSE_LIMITS.summary, warnings),
     key: readText(source.tom, `${path}.tom`, COURSE_LIMITS.shortText, warnings),
     chordFormula: readText(source.formula_de_compasso, `${path}.formula_de_compasso`, COURSE_LIMITS.shortText, warnings),
-    tuning: readText(source.afinacao, `${path}.afinacao`, COURSE_LIMITS.shortText, warnings),
+    tuning: readTuning(source.afinacao, `${path}.afinacao`, warnings),
     techniques: readTextList(source.tecnicas_ou_conceitos, `${path}.tecnicas_ou_conceitos`, { limit: COURSE_LIMITS.techniques, max: COURSE_LIMITS.shortText }, warnings),
     initialBpm: tempos.initial,
     targetBpm: tempos.target,
@@ -509,12 +788,32 @@ function convertLesson(raw, context, warnings, counts) {
     warn(warnings, `${path}.anexos`, 'lista-longa', 'Os materiais desta aula eram muitos e o excedente foi descartado.');
     counts.discarded += resourceEntries.length - keptResources.length;
   }
+  const pendingResources = [];
+  const resourcesByKey = new Map();
   for (const { entry, path: entryPath, kind } of keptResources) {
-    const resource = convertResource(entry, { kind, path: entryPath, lessonId: id, usedIds: usedResourceIds }, warnings, counts);
-    if (resource !== null) {
-      lesson.resources.push(resource);
-      counts.resources += 1;
+    const resource = convertResource(entry, { kind, path: entryPath }, warnings, counts);
+    if (resource === null) continue;
+    const key = resourceKey(resource);
+    const existing = key === null ? undefined : resourcesByKey.get(key);
+    if (existing !== undefined) {
+      mergeResource(existing.resource, resource);
+      counts.merged += 1;
+      continue;
     }
+    const pending = { resource, path: entryPath };
+    if (key !== null) resourcesByKey.set(key, pending);
+    pendingResources.push(pending);
+  }
+  for (const [index, { resource, path: entryPath }] of pendingResources.entries()) {
+    if (resource.name === null) resource.name = `material-${index + 1}`;
+    resource.id = ensureUniqueId(
+      usedResourceIds,
+      slugifyId(resource.name, `${id}-material-${index + 1}`),
+      `${entryPath}.nome`,
+      warnings,
+    );
+    lesson.resources.push(resource);
+    counts.resources += 1;
   }
 
   const usedExerciseIds = new Set();
@@ -530,14 +829,16 @@ function convertLesson(raw, context, warnings, counts) {
     if (converted.exercise !== null) {
       lesson.suggestedExercises.push(converted.exercise);
       counts.exercises += 1;
-      links.push({ track: converted.track, path: converted.path });
+      for (const track of converted.tracks) links.push({ track, path: converted.path });
     }
   }
 
   const rawProgress = unwrap(source.meu_progresso, `${path}.meu_progresso`, warnings);
   const progress = isObject(rawProgress) ? rawProgress : {};
-  if (isObject(rawProgress)) ignoredKeys(progress, PROGRESS_KEYS, `${path}.meu_progresso`, warnings);
-  const watched = readBoolean(progress.assistida, `${path}.meu_progresso.assistida`, warnings, false);
+  if (isObject(rawProgress)) ignoredKeys(progress, PROGRESS_KEYS, `${path}.meu_progresso`, warnings, KNOWN_IGNORED.progresso);
+  const watched = isObject(rawProgress)
+    ? readProgressWatched(progress, `${path}.meu_progresso`, warnings)
+    : readWatchedFlag(rawProgress, `${path}.meu_progresso`, warnings);
   if (progress.anotacoes !== undefined && progress.anotacoes !== null) {
     warn(warnings, `${path}.meu_progresso.anotacoes`, 'anotacoes-descartadas', 'As anotações pessoais do mapa não são convertidas.');
   }
@@ -553,13 +854,13 @@ function convertSection(raw, { path, usedSectionIds, usedLessonIds, ordinal, les
     counts.discarded += 1;
     return null;
   }
-  ignoredKeys(source, MODULE_KEYS, path, warnings);
+  ignoredKeys(source, MODULE_KEYS, path, warnings, KNOWN_IGNORED.modulo);
   const title = readText(source.titulo, `${path}.titulo`, COURSE_LIMITS.title, warnings);
   const type = classifySectionTitle(title);
   if (type === 'outro') warn(warnings, `${path}.titulo`, 'titulo-ausente', 'Esta seção não tem título; foi marcada como "outro" com um título genérico.');
   const sectionId = ensureUniqueId(
     usedSectionIds,
-    slugifyId(field(source, ['id']) ?? title, `modulo-${ordinal}`),
+    slugifyId(readId(field(source, ['id']), `${path}.id`, warnings) ?? title, `modulo-${ordinal}`),
     `${path}.id`,
     warnings,
   );
@@ -600,8 +901,7 @@ function convertSection(raw, { path, usedSectionIds, usedLessonIds, ordinal, les
 }
 
 function normalizeFileName(value) {
-  const text = collapse(value)?.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') ?? null;
-  return text;
+  return foldText(value);
 }
 
 function withoutExtension(fileName) {
@@ -672,13 +972,13 @@ function buildCourse(root, warnings, counts) {
   if (!isObject(declaredCourse)) {
     warn(warnings, 'curso', 'curso-ausente', 'O mapa não traz os dados do curso; o documento ficou com um curso genérico.');
   } else {
-    ignoredKeys(declaredCourse, COURSE_KEYS, 'curso', warnings);
+    ignoredKeys(declaredCourse, COURSE_KEYS, 'curso', warnings, KNOWN_IGNORED.curso);
   }
   const source = isObject(declaredCourse) ? declaredCourse : {};
   const title = readText(field(source, ['titulo']), 'curso.titulo', COURSE_LIMITS.title, warnings);
   if (title === null) warn(warnings, 'curso.titulo', 'titulo-ausente', 'O título do curso não foi informado; foi usado um título genérico.');
   course.title = title ?? 'Curso sem título';
-  course.id = slugifyId(field(source, ['id', 'curso_id']) ?? title, 'curso');
+  course.id = slugifyId(readId(field(source, ['id', 'curso_id']), 'curso.id', warnings) ?? title, 'curso');
   course.author = readText(field(source, ['autor']), 'curso.autor', COURSE_LIMITS.title, warnings);
   course.url = readUrl(field(source, ['url']), 'curso.url', warnings);
   course.summary = readText(field(source, ['descricao']), 'curso.descricao', COURSE_LIMITS.summary, warnings);
@@ -687,9 +987,9 @@ function buildCourse(root, warnings, counts) {
 
   const declaredInstrument = unwrap(source.instrumento, 'curso.instrumento', warnings);
   const instrument = isObject(declaredInstrument) ? declaredInstrument : {};
-  if (isObject(declaredInstrument)) ignoredKeys(declaredInstrument, INSTRUMENT_KEYS, 'curso.instrumento', warnings);
-  const instrumentName = readText(isObject(declaredInstrument) ? declaredInstrument.nome : declaredInstrument, 'curso.instrumento', COURSE_LIMITS.label, warnings);
-  if (instrumentName !== null && !/baixo|bass|contrabaixo/i.test(instrumentName)) {
+  if (isObject(declaredInstrument)) ignoredKeys(declaredInstrument, INSTRUMENT_KEYS, 'curso.instrumento', warnings, KNOWN_IGNORED.instrumento);
+  const instrumentName = classifyInstrumentName(isObject(declaredInstrument) ? declaredInstrument.nome : declaredInstrument, 'curso.instrumento', warnings);
+  if (instrumentName !== null && instrumentName !== 'baixo') {
     warn(warnings, 'curso.instrumento', 'instrumento-diferente', 'O mapa aponta outro instrumento; este formato aceita somente baixo.');
   }
   const declaredStrings = readStrings(
@@ -752,15 +1052,16 @@ function buildCourse(root, warnings, counts) {
 }
 
 // Converte um mapa já interpretado (objeto) em documento do formato. O retorno
-// traz o documento, os avisos (com caminho de campo) e as contagens de material
-// convertido e descartado. includeProgress liga o progresso pessoal do mapa.
+// traz o documento, os avisos (com caminho de campo e a lista crua), os avisos
+// agrupados por código e caminho genérico, e as contagens de material
+// convertido, mesclado e descartado. includeProgress liga o progresso do mapa.
 export function convertCourseMap(value, { includeProgress = false } = {}) {
   const warnings = [];
-  const counts = { sections: 0, lessons: 0, resources: 0, resourceRefs: 0, exercises: 0, discarded: 0 };
+  const counts = { sections: 0, lessons: 0, resources: 0, resourceRefs: 0, exercises: 0, discarded: 0, merged: 0 };
   const wrapped = unwrap(value, '', warnings);
   const root = isObject(wrapped) ? wrapped : {};
   if (!isObject(wrapped)) warn(warnings, '', 'raiz', 'A raiz do mapa não é um objeto; o curso convertido ficou vazio.');
-  else ignoredKeys(root, ROOT_KEYS, '', warnings);
+  else ignoredKeys(root, ROOT_KEYS, '', warnings, KNOWN_IGNORED.root);
   const { course, watchedIds } = buildCourse(root, warnings, counts);
   const document = { format: COURSE_FORMAT, version: COURSE_VERSION, course };
   if (includeProgress) document.progress = { watchedLessonIds: watchedIds };
@@ -768,6 +1069,7 @@ export function convertCourseMap(value, { includeProgress = false } = {}) {
   return {
     document,
     warnings,
+    grouped: groupWarnings(warnings),
     counts,
     valid: validation.ok,
     problems: validation.ok ? [] : validation.errors,
@@ -777,15 +1079,36 @@ export function convertCourseMap(value, { includeProgress = false } = {}) {
 // ── Linha de comando ─────────────────────────────────────────────────────────
 
 const USAGE = [
-  'Uso: node scripts/convert-course-map.js <mapa.json> [--output CAMINHO] [--com-progresso]',
+  'Uso: node scripts/convert-course-map.js <mapa.json> [--output CAMINHO] [--com-progresso] [--verbose]',
   '',
   '  <mapa.json>        mapa de curso em JSON (use - para ler da entrada padrão)',
   `  --output CAMINHO   onde gravar o curso convertido (padrão: ${DEFAULT_OUTPUT})`,
   '  --com-progresso    inclui as aulas assistidas do mapa no documento',
+  '  --verbose          lista cada aviso, um por ocorrência (padrão: agrupados)',
 ].join('\n');
 
+// `verbose` lista cada ocorrência; sem ele sai uma linha por (código, caminho
+// genérico) com a contagem — 5.576 avisos viram algumas linhas.
+function printWarnings(result, log, verbose) {
+  if (result.warnings.length === 0) {
+    log('Sem avisos.');
+    return;
+  }
+  if (verbose) {
+    log(`Avisos (${result.warnings.length}):`);
+    for (const warning of result.warnings) {
+      log(`- ${warning.path === '' ? 'mapa' : warning.path} · ${warning.code}: ${warning.message}`);
+    }
+    return;
+  }
+  log(`Avisos agrupados (${result.grouped.length} tipo(s), ${result.warnings.length} ocorrência(s)):`);
+  for (const group of result.grouped) {
+    log(`- ${group.path === '' ? 'mapa' : group.path} · ${group.code} (${group.count}): ${group.message}`);
+  }
+}
+
 function parseArgs(argv) {
-  const args = { input: null, output: null, includeProgress: false, help: false };
+  const args = { input: null, output: null, includeProgress: false, verbose: false, help: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--output' || arg === '-o') {
@@ -797,6 +1120,8 @@ function parseArgs(argv) {
       args.output = arg.slice('--output='.length);
     } else if (arg === '--com-progresso' || arg === '--include-progress') {
       args.includeProgress = true;
+    } else if (arg === '--verbose' || arg === '--avisos-detalhados') {
+      args.verbose = true;
     } else if (arg === '--ajuda' || arg === '--help' || arg === '-h') {
       args.help = true;
     } else if (arg === '-') {
@@ -866,10 +1191,7 @@ async function main(argv) {
   if (!result.valid) {
     console.error('A conversão não gerou um curso válido; nenhum arquivo foi gravado.');
     for (const problem of result.problems) console.error(`- ${problem.path === '' ? 'documento' : problem.path}: ${problem.message}`);
-    if (result.warnings.length > 0) {
-      console.error(`Avisos (${result.warnings.length}):`);
-      for (const warning of result.warnings) console.error(`- ${warning.path === '' ? 'mapa' : warning.path}: ${warning.message}`);
-    }
+    printWarnings(result, (line) => console.error(line), args.verbose);
     return 1;
   }
 
@@ -889,16 +1211,12 @@ async function main(argv) {
 
   const { counts } = result;
   console.log(`Curso convertido em ${output}`);
-  console.log(`Seções ${counts.sections} · aulas ${counts.lessons} · materiais ${counts.resources} · exercícios ${counts.exercises} · vínculos ${counts.resourceRefs} · descartados ${counts.discarded}`);
+  console.log(`Seções ${counts.sections} · aulas ${counts.lessons} · materiais ${counts.resources}${counts.merged > 0 ? ` (${counts.merged} mesclado(s))` : ''} · exercícios ${counts.exercises} · vínculos ${counts.resourceRefs} · descartados ${counts.discarded}`);
   const watched = result.document.progress?.watchedLessonIds.length ?? 0;
   console.log(args.includeProgress
     ? `Progresso do mapa incluído: ${watched} aulas assistidas.`
     : 'Progresso do mapa fora do documento (use --com-progresso para incluir as aulas assistidas).');
-  if (result.warnings.length === 0) console.log('Sem avisos.');
-  else {
-    console.log(`Avisos (${result.warnings.length}):`);
-    for (const warning of result.warnings) console.log(`- ${warning.path === '' ? 'mapa' : warning.path}: ${warning.message}`);
-  }
+  printWarnings(result, (line) => console.log(line), args.verbose);
   return 0;
 }
 

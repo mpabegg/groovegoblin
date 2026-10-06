@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { History } from '../src/history.js';
-import { createSession, patchSession } from '../src/session.js';
+import { createSession, patchSession, MAX_BARS } from '../src/session.js';
 import { parseChordSymbol } from '../src/progression.js';
 
 const session = (bpm = 100) => createSession({ bpm, bars: 3, meter: { beats: 7, unit: 8 }, subdivision: 3, notes: [{ id: 'a', start: 4 / 3, duration: 8 / 3, pitch: 60 }] });
@@ -92,7 +92,7 @@ test('ordem de notas é uma edição; estados inválidos não destroem redo', ()
   history.push(a);
   history.push({ ...a, notes: [...a.notes].reverse() });
   assert.deepEqual(history.undo(), a);
-  for (const invalid of [null, undefined, false, [], {}, { ...a, bpm: 301 }, { ...a, bars: 65 }, { ...a, notes: [{ id: 'a', start: 15, duration: 2 }] }, { ...a, notes: [a.notes[0], { ...a.notes[1], start: 0.5 }] }]) {
+  for (const invalid of [null, undefined, false, [], {}, { ...a, bpm: 301 }, { ...a, bars: MAX_BARS + 1 }, { ...a, notes: [{ id: 'a', start: 15, duration: 2 }] }, { ...a, notes: [a.notes[0], { ...a.notes[1], start: 0.5 }] }]) {
     assert.throws(() => history.push(invalid), TypeError);
     assert.equal(history.canRedo, true);
   }

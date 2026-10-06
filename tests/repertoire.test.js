@@ -305,7 +305,7 @@ test('repertoire: 7/8 e notas fracionárias produzem uma sessão canônica limit
   assert.ok(validateSession(session).ok);
   assert.equal(ticksPerBar(session), 14);
   assert.throws(() => regionNotesToSessionPatch(notes, { start: 0, end: 3, bpm: 20 }), /andamento/);
-  assert.throws(() => regionNotesToSessionPatch([{ start: 0, end: 113, midi: 60, confidence: 1 }], { start: 0, end: 113, bpm: 120, beatsPerBar: 7, beatUnit: 8 }), /limites/);
+  assert.throws(() => regionNotesToSessionPatch([{ start: 0, end: 225, midi: 60, confidence: 1 }], { start: 0, end: 225, bpm: 120, beatsPerBar: 7, beatUnit: 8 }), /limites/);
 });
 
 test('repertoire: sessão extraída chega ao render real e falha de áudio não vira silêncio', async () => {

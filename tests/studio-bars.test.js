@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createSession, patchSession, validateSession } from '../src/session.js';
+import { createSession, patchSession, validateSession, MAX_BARS } from '../src/session.js';
 import { parseChordSymbol, chordTimeline } from '../src/progression.js';
 import { History } from '../src/history.js';
 import { clearBar, copyBar, duplicateBar, materializeHarmony, repeatPhraseInNewBars, timelineWidth, musicalDuration } from '../src/studio-bars.js';
@@ -82,7 +82,7 @@ test('duplicate materializes repeats and shifts later harmony without losing sil
   const duplicated = apply(source, duplicateBar(source, 0));
   assert.equal(duplicated.progression.cycleBars, 5);
   assert.deepEqual(harmony(duplicated), [[8, 8, 'C'], [24, 8, 'C'], [40, 8, 'G'], [56, 8, 'C'], [72, 8, 'G']]);
-  assert.ok(duplicateBar(createSession({ bars: 64 }), 0).error);
+  assert.ok(duplicateBar(createSession({ bars: MAX_BARS }), 0).error);
 });
 
 test('materializing ghosts preserves exact rendered harmony including gaps and clipped final chords', () => {
@@ -96,7 +96,7 @@ test('expansion retains source chords beyond the visible session and rejects sch
   const source = createSession({ bars: 2, progression: { enabled: true, cycleBars: 4, chords: [chord('C', 0, 0.5), chord('G', 3, 1)] } });
   const cleared = apply(source, clearBar(source, 0));
   assert.deepEqual(cleared.progression.chords.map(value => value.startBar), [3]);
-  const many = createSession({ bars: 15, meter: { beats: 8, unit: 8 }, progression: { enabled: true, cycleBars: 0.25, chords: [chord('C', 0, 0.125), chord('G', 0.125, 0.125)] } });
+  const many = createSession({ bars: 17, meter: { beats: 8, unit: 8 }, progression: { enabled: true, cycleBars: 0.25, chords: [chord('C', 0, 0.125), chord('G', 0.125, 0.125)] } });
   assert.ok(copyBar(many, 0, 1).error);
   assert.ok(duplicateBar(many, 0).error);
   assert.ok(materializeHarmony(many, 1).error);

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateDrums, DRUM_VOICES } from '../src/drums.js';
-import { createSession, STYLES, DENSITIES, ticksPerBar } from '../src/session.js';
+import { createSession, STYLES, DENSITIES, ticksPerBar, MAX_BARS } from '../src/session.js';
 
 const phrase = starts => starts.map((start, index) => ({ id: `n${index}`, start, duration: 0.5 }));
 const lane = (pattern, instrument) => pattern.hits.filter(hit => hit.instrument === instrument);
@@ -62,7 +62,7 @@ test('shuffle conserva tercinas fracionárias; valsa e viradas seguem o compasso
 
 test('bateria rejeita sessões inválidas em vez de aceitar antigos objetos de opções', () => {
   const base = createSession();
-  for (const input of [null, {}, { notes: [], bars: 1, seed: 0 }, { ...base, bars: 65 }, { ...base, notes: phrase([16]) }, { ...base, drums: { ...base.drums, seed: -1 } }, { ...base, drums: { ...base.drums, style: 'unknown' } }]) {
+  for (const input of [null, {}, { notes: [], bars: 1, seed: 0 }, { ...base, bars: MAX_BARS + 1 }, { ...base, notes: phrase([16]) }, { ...base, drums: { ...base.drums, seed: -1 } }, { ...base, drums: { ...base.drums, style: 'unknown' } }]) {
     assert.throws(() => generateDrums(input), TypeError);
   }
 });

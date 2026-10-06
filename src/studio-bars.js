@@ -1,4 +1,4 @@
-import { ticksPerBar, MAX_BARS, validateSession } from './session.js';
+import { ticksPerBar, MAX_BARS, MAX_CHORDS, MAX_NOTES, validateSession } from './session.js';
 import { generateId } from './model.js';
 import { chordTimeline } from './progression.js';
 
@@ -71,7 +71,7 @@ export function copyBar(session, source, target) {
     patch.progression = progression;
   }
   const checked = result(session, patch);
-  return checked.error ? { error: `Não foi possível copiar: o destino tem dados sobrepostos ou o limite de 512 notas / 64 acordes foi atingido. Nenhum dado foi apagado.` } : checked;
+  return checked.error ? { error: `Não foi possível copiar: o destino tem dados sobrepostos ou o limite de ${MAX_NOTES} notas / ${MAX_CHORDS} acordes foi atingido. Nenhum dado foi apagado.` } : checked;
 }
 
 export function duplicateBar(session, source) {

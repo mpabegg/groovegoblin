@@ -6,15 +6,21 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { COURSE_FORMAT, COURSE_VERSION, normalizeCourse } from '../src/course-format.js';
+import { BARS_PER_CHORD_RANGE, COURSE_FORMAT, COURSE_LIMITS, COURSE_VERSION, normalizeCourse } from '../src/course-format.js';
 import {
   DEFAULT_OUTPUT,
+  KNOWN_IGNORED,
   classifyResourceRole,
   classifySectionTitle,
+  classifyVideoHosting,
   convertCourseMap,
+  genericPath,
+  groupWarnings,
   mentionsSixStrings,
   parseUnambiguousInteger,
   parseVideoDuration,
+  readTuning,
+  readWatchedFlag,
   slugifyId,
 } from '../scripts/convert-course-map.js';
 
@@ -27,7 +33,7 @@ function fixturePath(name) {
   return fileURLToPath(new URL(`./fixtures/course/${name}`, import.meta.url));
 }
 
-const ZERO_COUNTS = { sections: 0, lessons: 0, resources: 0, resourceRefs: 0, exercises: 0, discarded: 0 };
+const ZERO_COUNTS = { sections: 0, lessons: 0, resources: 0, resourceRefs: 0, exercises: 0, discarded: 0, merged: 0 };
 
 function lessonsOf(document) {
   return document.course.sections.flatMap((section) => section.lessons);
@@ -40,11 +46,15 @@ function stringsOf(value, found = []) {
   return found;
 }
 
+function resourcesOf(document) {
+  return lessonsOf(document).flatMap((lesson) => lesson.resources);
+}
+
 test('converte o mapa fictício completo com as contagens medidas', () => {
   const result = convertCourseMap(readFixture('map-example.json'));
   assert.equal(result.valid, true);
   assert.deepEqual(result.problems, []);
-  assert.deepEqual(result.counts, { sections: 3, lessons: 5, resources: 3, resourceRefs: 1, exercises: 2, discarded: 4 });
+  assert.deepEqual(result.counts, { sections: 3, lessons: 5, resources: 3, resourceRefs: 1, exercises: 2, discarded: 4, merged: 0 });
   assert.deepEqual(result.document, readFixture('course-example-normalized.json'));
 });
 
@@ -103,11 +113,296 @@ test('avisos citam caminho de campo e nunca valores do mapa', () => {
   assert.doesNotMatch(warnText, /faixa-exemplo/);
 });
 
+test('avisos saem agrupados por código e caminho genérico, com a contagem', () => {
+  const modulos = Array.from({ length: 60 }, (_, index) => ({
+    titulo: `Módulo ${index}`,
+    campo_extra: index,
+    campo_extra_2: index,
+    campo_extra_3: index,
+    campo_extra_4: index,
+    aulas: [],
+  }));
+  const result = convertCourseMap({ curso: { titulo: 'Curso de Exemplo' }, modulos });
+  assert.equal(result.warnings.length, 240, 'a lista crua mantém uma entrada por ocorrência');
+  assert.equal(result.grouped.length, 4, 'agrupa por código e caminho genérico');
+  assert.deepEqual(result.grouped.map((group) => [group.path, group.code, group.count]), [
+    ['modulos[].campo_extra', 'campo-ignorado', 60],
+    ['modulos[].campo_extra_2', 'campo-ignorado', 60],
+    ['modulos[].campo_extra_3', 'campo-ignorado', 60],
+    ['modulos[].campo_extra_4', 'campo-ignorado', 60],
+  ]);
+  for (const group of result.grouped) {
+    assert.equal(typeof group.message, 'string');
+    assert.equal(group.message.includes('Módulo'), false, 'o agrupamento não repete valor do mapa');
+  }
+
+  assert.equal(genericPath('modulos[2].aulas[1].video.capitulos'), 'modulos[].aulas[].video.capitulos');
+  assert.equal(genericPath('curso.titulo'), 'curso.titulo');
+  assert.equal(genericPath(''), '');
+  assert.deepEqual(groupWarnings([
+    { path: 'a[0].b', code: 'x', message: 'primeira' },
+    { path: 'a[7].b', code: 'x', message: 'segunda' },
+    { path: 'a[7].b', code: 'y', message: 'terceira' },
+  ]), [
+    { code: 'x', path: 'a[].b', message: 'primeira', count: 2 },
+    { code: 'y', path: 'a[].b', message: 'terceira', count: 1 },
+  ]);
+  assert.deepEqual(groupWarnings([]), []);
+});
+
+test('campos conhecidos e deliberadamente ignorados não geram aviso', () => {
+  const result = convertCourseMap({
+    _sobre: 'Mapa fictício de exemplo',
+    curso: { titulo: 'Curso de Exemplo', instrumento: { nome: 'baixo', tipo: 'elétrico', cordas: 4 } },
+    modulos: [{
+      id: 7,
+      titulo: 'Módulo 1',
+      aulas: [{
+        id: 0,
+        titulo: 'Aula 1',
+        tipo_de_aula: 'Prática',
+        cordas: 5,
+        strings: 5,
+        exercicios: [{ nome: 'Exercício de Exemplo', ordem: 3 }],
+        anexos: [{ id: 'material-1', nome: 'apostila-exemplo.pdf', extensao: 'pdf', papel: 'apostila' }],
+        meu_progresso: { status: 'concluida', fonte: 'marcação fictícia', obs: 'observação fictícia' },
+      }],
+    }],
+  }, { includeProgress: true });
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.warnings, []);
+  assert.deepEqual(result.document.progress, { watchedLessonIds: ['0'] });
+  assert.deepEqual(KNOWN_IGNORED.progresso, ['fonte', 'obs']);
+  assert.deepEqual(KNOWN_IGNORED.aula, ['cordas', 'strings']);
+});
+
+test('progresso escalar e embrulhado chega à lista de aulas assistidas', () => {
+  const markers = [true, 'assistida', { valor: 'concluída', inferido: false }, false, 'pendente'];
+  const result = convertCourseMap({
+    curso: { titulo: 'Curso de Exemplo', instrumento: { nome: 'baixo', cordas: 4 } },
+    modulos: [{ titulo: 'Módulo de Exemplo', aulas: markers.map((meu_progresso, id) => ({
+      id, titulo: `Aula de Exemplo ${id}`, meu_progresso,
+    })) }],
+  }, { includeProgress: true });
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.document.progress.watchedLessonIds, ['0', '1', '2']);
+});
+
+test('citação única com mais de 32 arquivos não invalida o curso inteiro', () => {
+  const names = Array.from({ length: 33 }, (_, i) => `faixa-exemplo-${i}.mp3`);
+  const result = convertCourseMap({
+    curso: { titulo: 'Curso de Exemplo', instrumento: { nome: 'baixo', cordas: 4 } },
+    modulos: [{ titulo: 'Módulo de Exemplo', aulas: [{
+      id: 1, titulo: 'Aula de Exemplo',
+      exercicios: [{ nome: 'Estudo de Exemplo', arquivo_correspondente: names.join('; ') }],
+    }] }],
+  });
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.document.course.sections[0].lessons[0].suggestedExercises[0].trackNames, names.slice(0, 32));
+  assert.equal(result.warnings.filter(w => w.code === 'lista-longa').length, 1);
+});
+
+test('identificador numérico vira texto estável e é o id da aula', () => {
+  const result = convertCourseMap({
+    curso: { id: 0, titulo: 'Curso de Exemplo' },
+    modulos: [{
+      id: 7,
+      titulo: 'Módulo 1',
+      aulas: [{ id: 0, titulo: 'Aula zero' }, { id: 25, titulo: 'Aula vinte e cinco' }, { titulo: 'Aula sem identificador' }],
+    }],
+  });
+  assert.equal(result.valid, true);
+  assert.equal(result.document.course.id, '0');
+  assert.deepEqual(result.document.course.sections.map((section) => section.id), ['7']);
+  assert.deepEqual(lessonsOf(result.document).map((lesson) => lesson.id), ['0', '25', '7-aula-3']);
+  assert.equal(result.warnings.some((warning) => warning.code === 'texto-ilegivel'), false);
+  const ids = new Set(lessonsOf(result.document).map((lesson) => lesson.id));
+  assert.ok(ids.has('0'), 'o id zero não se perde');
+
+  const invalid = convertCourseMap({ curso: { titulo: 'Curso de Exemplo' }, modulos: [{ titulo: 'Módulo 1', aulas: [{ id: 1.5, titulo: 'Aula' }] }] });
+  assert.equal(lessonsOf(invalid.document)[0].id, 'modulo-1-aula-1');
+  assert.ok(invalid.warnings.some((warning) => warning.code === 'id-ilegivel'));
+});
+
+test('progresso aceita booleano, texto e objeto com status', () => {
+  assert.equal(readWatchedFlag(true, 'p', []), true);
+  assert.equal(readWatchedFlag(false, 'p', []), false);
+  assert.equal(readWatchedFlag('assistida', 'p', []), true);
+  assert.equal(readWatchedFlag('concluída', 'p', []), true);
+  assert.equal(readWatchedFlag('CONCLUIDA', 'p', []), true);
+  assert.equal(readWatchedFlag('pendente', 'p', []), false);
+  assert.equal(readWatchedFlag('em andamento', 'p', []), false);
+  assert.equal(readWatchedFlag('não', 'p', []), false);
+  assert.equal(readWatchedFlag({ valor: true, inferido: true }, 'p', []), true);
+  assert.equal(readWatchedFlag({ status: 'concluida' }, 'p', []), true);
+  assert.equal(readWatchedFlag({ status: { valor: 'assistida', inferido: true } }, 'p', []), true);
+  assert.equal(readWatchedFlag(undefined, 'p', []), false);
+  const warnings = [];
+  assert.equal(readWatchedFlag('talvez', 'p', warnings), false);
+  assert.deepEqual(warnings.map((warning) => [warning.path, warning.code]), [['p', 'progresso-ilegivel']]);
+
+  const result = convertCourseMap(readFixture('map-repairs.json'), { includeProgress: true });
+  assert.deepEqual(result.document.progress, { watchedLessonIds: ['0', '25'] });
+  assert.equal(result.warnings.some((warning) => warning.code === 'progresso-ilegivel'), false);
+  assert.equal(result.warnings.some((warning) => warning.path.endsWith('.fonte') || warning.path.endsWith('.obs')), false);
+});
+
+test('o mesmo material nas duas listas vira um item com os dados das duas', () => {
+  const result = convertCourseMap(readFixture('map-repairs.json'));
+  assert.equal(result.valid, true);
+  assert.equal(result.counts.merged, 2);
+  assert.equal(result.counts.resources, 4);
+  assert.equal(result.counts.discarded, 2);
+
+  const lesson = lessonsOf(result.document)[0];
+  assert.deepEqual(lesson.resources.map((resource) => resource.name), [
+    'apostila-reparos-4-cordas.pdf',
+    'faixa-reparos-4-cordas-80bpm.mp3',
+    'faixa-compartilhada-reparos.mp3',
+    'faixa-reparos-3-compassos-5-cordas.mp3',
+  ]);
+  const [apostila, repetida, compartilhada, cincoCordas] = lesson.resources;
+  assert.deepEqual(repetida, {
+    id: 'faixa-reparos-4-cordas-80bpm-mp3',
+    name: 'faixa-reparos-4-cordas-80bpm.mp3',
+    extension: 'mp3',
+    role: 'faixa',
+    bpm: 80,
+    barsPerChord: 3,
+    style: 'Reparos',
+    extended: true,
+    strings: 4,
+  });
+  assert.equal(apostila.role, 'apostila');
+  assert.equal(apostila.bpm, null, 'o anexo fica com os dados da faixa, não com um segundo item');
+  assert.equal(compartilhada.bpm, 90);
+  assert.equal(compartilhada.barsPerChord, 4);
+  assert.equal(cincoCordas.barsPerChord, 3);
+  assert.equal(cincoCordas.strings, 5);
+  assert.equal(normalizeCourse(result.document).ok, true);
+});
+
+test('exercício que cita o pacote alternativo de 6 cordas continua no curso', () => {
+  const result = convertCourseMap(readFixture('map-repairs.json'));
+  const lesson = lessonsOf(result.document)[0];
+  assert.deepEqual(lesson.suggestedExercises.map((exercise) => [exercise.id, exercise.bars, exercise.strings, exercise.trackNames]), [
+    ['exercicio-com-pacote-alternativo', 25, null, ['apostila-reparos-4-cordas.pdf']],
+    ['exercicio-de-cinco-cordas-longo', 97, 5, ['faixa-compartilhada-reparos.mp3']],
+  ]);
+  assert.deepEqual(lesson.resourceRefs, [
+    { lessonId: '0', resourceId: 'apostila-reparos-4-cordas-pdf' },
+    { lessonId: '0', resourceId: 'faixa-compartilhada-reparos-mp3' },
+  ]);
+  const six = result.warnings.filter((warning) => warning.code === 'cordas-6');
+  assert.deepEqual(six.map((warning) => warning.path), [
+    'modulos[0].aulas[0].backing_tracks[3]',
+    'modulos[0].aulas[0].exercicios[2]',
+  ]);
+  assert.ok(result.warnings.some((warning) => warning.code === 'cordas-6' && warning.path.endsWith('exercicios[2]')));
+  assert.equal(result.warnings.some((warning) => warning.path.endsWith('exercicios[0]')), false);
+});
+
+test('material e exercício que citam as duas versões ficam', () => {
+  const result = convertCourseMap({
+    curso: { titulo: 'Curso de Exemplo', instrumento: { nome: 'baixo', cordas: 4 } },
+    modulos: [{ titulo: 'Módulo 1', aulas: [{
+      titulo: 'Aula 1',
+      tipo_de_aula: 'Prática',
+      anexos: [
+        { nome: 'apostila-exemplo-4-cordas.pdf', extensao: 'pdf', papel: 'apostila', cordas: 4 },
+        { nome: 'faixa-exemplo-4-e-6-cordas.mp3' },
+        { nome: 'apostila-exemplo-6-cordas.pdf', cordas: 6 },
+      ],
+      backing_tracks: [{ nome: 'faixa-exemplo-4-cordas.mp3', cordas: '4+6' }],
+      exercicios: [{
+        nome: 'Exercício 4 e 6 cordas',
+        cordas: '4+6',
+        arquivo_correspondente: 'apostila-exemplo-4-cordas.pdf; pacote-exemplo-6-cordas.zip',
+      }],
+    }] }],
+  });
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 3, resourceRefs: 1, exercises: 1, discarded: 1, merged: 0 });
+  const lesson = lessonsOf(result.document)[0];
+  assert.deepEqual(lesson.resources.map((resource) => [resource.name, resource.strings]), [
+    ['apostila-exemplo-4-cordas.pdf', 4],
+    ['faixa-exemplo-4-e-6-cordas.mp3', null],
+    ['faixa-exemplo-4-cordas.mp3', null],
+  ]);
+  assert.deepEqual(lesson.suggestedExercises.map((exercise) => [exercise.title, exercise.strings, exercise.trackNames]), [
+    ['Exercício 4 e 6 cordas', null, ['apostila-exemplo-4-cordas.pdf']],
+  ]);
+  assert.deepEqual(lesson.resourceRefs, [{ lessonId: 'modulo-1-aula-1', resourceId: 'apostila-exemplo-4-cordas-pdf' }]);
+  assert.deepEqual(result.warnings.filter((warning) => warning.code === 'cordas-6').map((warning) => warning.path), ['modulos[0].aulas[0].anexos[2]']);
+  assert.equal(result.warnings.some((warning) => warning.code === 'cordas-ignoradas'), false);
+  assert.equal(result.warnings.some((warning) => warning.code === 'vinculo-ausente'), false);
+});
+
+test('compassos por acorde aceita de 1 a 4 e texto numérico', () => {
+  assert.deepEqual({ ...BARS_PER_CHORD_RANGE }, { min: 1, max: 4 });
+  const result = convertCourseMap(readFixture('map-repairs.json'));
+  const valores = resourcesOf(result.document).map((resource) => resource.barsPerChord);
+  assert.deepEqual(valores, [null, 3, 4, 3]);
+  assert.equal(result.warnings.some((warning) => warning.code === 'compassos-ilegiveis'), false);
+
+  const text = convertCourseMap({
+    curso: { titulo: 'Curso de Exemplo' },
+    modulos: [{ titulo: 'Módulo 1', aulas: [{
+      titulo: 'Aula 1',
+      anexos: [
+        { nome: 'faixa-exemplo-a.mp3', compassos_por_acorde: '2' },
+        { nome: 'faixa-exemplo-b.mp3', 'compassos_por_acorde': '≈4 (explicação fictícia)' },
+        { nome: 'faixa-exemplo-c.mp3', compassos_por_acorde: 5 },
+      ],
+    }] }],
+  });
+  assert.deepEqual(resourcesOf(text.document).map((resource) => resource.barsPerChord), [2, 4, null]);
+  assert.ok(text.warnings.some((warning) => warning.code === 'compassos-ilegiveis' && warning.path === 'modulos[0].aulas[0].anexos[2].compassos_por_acorde'));
+});
+
+test('textos longos de hospedagem, afinação e instrumento não são cortados', () => {
+  const map = readFixture('map-repairs.json');
+  const hospedagem = map.modulos[0].aulas[0].video.hospedagem;
+  assert.ok(hospedagem.length > COURSE_LIMITS.label, 'a hospedagem do fixture passa do rótulo curto');
+  const afinacao = map.modulos[0].aulas[1].afinacao;
+  assert.ok(afinacao.length > COURSE_LIMITS.shortText, 'a afinação do fixture passa do texto curto');
+  const instrumento = map.curso.instrumento.nome;
+  assert.ok(instrumento.length > COURSE_LIMITS.label, 'o instrumento do fixture passa do rótulo curto');
+
+  const result = convertCourseMap(map);
+  const lessons = lessonsOf(result.document);
+  assert.equal(lessons[0].videoSeconds, 600);
+  assert.equal(lessons[0].hasVideo, true);
+  assert.equal(lessons[0].tuning, 'E A D G', 'afinação curta fica como veio');
+  assert.equal(lessons[1].tuning, 'B E A D G', 'afinação longa vira as notas citadas');
+  assert.equal(lessons[1].hasVideo, true);
+  assert.equal(result.document.course.instrument, 'bass');
+  assert.equal(result.document.course.strings, 4);
+  const cortes = result.warnings.filter((warning) => warning.code === 'texto-truncado');
+  assert.deepEqual(cortes.map((warning) => warning.path), []);
+  assert.equal(result.warnings.some((warning) => warning.code === 'instrumento-diferente'), false);
+
+  assert.equal(classifyVideoHosting('Vídeo publicado na plataforma externa do curso'), 'externo');
+  assert.equal(classifyVideoHosting('youtube'), 'youtube');
+  assert.equal(classifyVideoHosting('Vimeo privado'), 'vimeo');
+  assert.equal(classifyVideoHosting('arquivo local em disco'), 'arquivo');
+  assert.equal(classifyVideoHosting(null), null);
+  assert.equal(classifyVideoHosting(''), null);
+
+  const longText = `${'observação fictícia muito longa '.repeat(12)}`;
+  const warnings = [];
+  assert.equal(readTuning(longText, 'p', warnings), longText.length > COURSE_LIMITS.shortText ? longText.slice(0, COURSE_LIMITS.shortText) : longText);
+  assert.equal(warnings[0].code, 'texto-truncado');
+  assert.equal(readTuning('   E   A   D   G   ', 'p', []), 'E A D G');
+  assert.equal(readTuning(null, 'p', []), null);
+});
+
 test('textos numéricos inequívocos valem e ambíguos ficam nulos', () => {
   assert.equal(parseUnambiguousInteger('≈25 (12 acordes × 2 + acorde final)', { min: 1, max: 64 }), 25);
   assert.equal(parseUnambiguousInteger('13', { min: 1, max: 64 }), 13);
   assert.equal(parseUnambiguousInteger('80 BPM', { min: 30, max: 300 }), 80);
   assert.equal(parseUnambiguousInteger(100, { min: 30, max: 300 }), 100);
+  assert.equal(parseUnambiguousInteger('90 compassos', { min: 1, max: COURSE_LIMITS.barsMax }), 90);
   assert.equal(parseUnambiguousInteger('80 ou 90 BPM', { min: 30, max: 300 }), null);
   assert.equal(parseUnambiguousInteger('90-100 BPM', { min: 30, max: 300 }), null);
   assert.equal(parseUnambiguousInteger('500 BPM', { min: 30, max: 300 }), null);
@@ -189,13 +484,14 @@ test('o mapa irregular converte igual e determinístico', () => {
   const second = convertCourseMap(readFixture('map-example-irregular.json'));
   assert.equal(first.valid, true);
   assert.deepEqual(first.problems, []);
-  assert.deepEqual(first.counts, { sections: 2, lessons: 2, resources: 4, resourceRefs: 2, exercises: 5, discarded: 6 });
+  assert.deepEqual(first.counts, { sections: 2, lessons: 2, resources: 4, resourceRefs: 2, exercises: 5, discarded: 6, merged: 0 });
   assert.deepEqual(first.document, readFixture('course-irregular-normalized.json'));
   assert.equal(JSON.stringify(first.document), JSON.stringify(second.document));
   const lessons = lessonsOf(first.document);
   assert.deepEqual(lessons.map((lesson) => lesson.id), ['modulo-repetido-aula-1', 'modulo-repetido-aula-1-2']);
   assert.ok(first.warnings.some((warning) => warning.code === 'id-ajustado'));
   assert.ok(first.warnings.some((warning) => warning.code === 'total-aulas-divergente'));
+  assert.equal(lessons[1].suggestedExercises[1].bars, 90, 'compassos acima do teto antigo de 64 são lidos');
 });
 
 test('curso que declara 6 cordas é incompatível: falha estrita e não é reclassificado', () => {
@@ -203,7 +499,7 @@ test('curso que declara 6 cordas é incompatível: falha estrita e não é recla
   assert.equal(result.valid, false);
   assert.deepEqual(result.problems.map((problem) => [problem.path, problem.code]), [['course.strings', 'cordas']]);
   assert.equal(result.document.course.strings, 6);
-  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 0, resourceRefs: 0, exercises: 0, discarded: 0 });
+  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 0, resourceRefs: 0, exercises: 0, discarded: 0, merged: 0 });
   const warning = result.warnings.find((item) => item.path === 'curso.cordas' && item.code === 'cordas-6');
   assert.ok(warning, 'o aviso explica que o curso é incompatível');
   assert.equal(warning.message.includes('convertido para 4'), false);
@@ -252,7 +548,7 @@ test('listas embrulhadas em { valor, inferido } não perdem itens', () => {
     }], inferido: false },
   });
   assert.equal(result.valid, true);
-  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 2, resourceRefs: 1, exercises: 1, discarded: 0 });
+  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 2, resourceRefs: 1, exercises: 1, discarded: 0, merged: 0 });
   const lesson = lessonsOf(result.document)[0];
   assert.equal(lesson.id, 'modulo-1-aula-1');
   assert.deepEqual(lesson.resources.map((resource) => resource.id), ['apostila-exemplo-pdf', 'faixa-exemplo-4-cordas-80bpm-mp3']);
@@ -288,7 +584,7 @@ test('ordem_global do módulo é reconhecida e não vira campo ignorado', () => 
 test('módulos são convertidos mesmo sem o curso', () => {
   const result = convertCourseMap({ modulos: [{ titulo: 'Módulo 1', aulas: [{ titulo: 'Aula 1' }] }] });
   assert.equal(result.valid, true);
-  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 0, resourceRefs: 0, exercises: 0, discarded: 0 });
+  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 0, resourceRefs: 0, exercises: 0, discarded: 0, merged: 0 });
   assert.deepEqual(result.document.course.sections.map((section) => section.title), ['Módulo 1']);
   assert.equal(result.document.course.title, 'Curso sem título');
   assert.ok(result.warnings.some((warning) => warning.code === 'curso-ausente'));
@@ -315,7 +611,7 @@ test('embrulhos em containers e aninhados preservam conteúdo', () => {
   assert.equal(lesson.hasVideo, true);
   assert.equal(lesson.initialBpm, 80);
   assert.equal(lesson.targetBpm, 100);
-  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 1, resourceRefs: 0, exercises: 1, discarded: 0 });
+  assert.deepEqual(result.counts, { sections: 1, lessons: 1, resources: 1, resourceRefs: 0, exercises: 1, discarded: 0, merged: 0 });
   assert.deepEqual(result.document.progress.watchedLessonIds, [lesson.id]);
   assert.equal(result.warnings.some((warning) => warning.code === 'campo-ignorado'), false);
 });
@@ -345,6 +641,8 @@ test('lista com tipo errado avisa e o resto do mapa continua', () => {
 test('campo extra fora do embrulho ainda é avisado', () => {
   const result = convertCourseMap({ curso: { valor: { titulo: 'Curso de Exemplo', instrumento: { nome: 'baixo', cordas: 4 } }, extra: 1 } });
   assert.ok(result.warnings.some((warning) => warning.code === 'campo-ignorado' && warning.path === 'curso.extra'));
+  assert.deepEqual(result.grouped.filter((group) => group.code === 'campo-ignorado').map((group) => [group.path, group.count]), [['curso.extra', 1]]);
+  assert.deepEqual(result.grouped.map((group) => group.path), ['curso.extra', 'modulos']);
   assert.equal(result.document.course.title, 'Curso de Exemplo');
   assert.equal(result.document.course.strings, 4);
 });
@@ -360,7 +658,7 @@ test('embrulho em papel, extensão e total de aulas alimenta as regras', () => {
   assert.ok(result.warnings.some((warning) => warning.code === 'total-aulas-divergente' && warning.path === 'curso.total_aulas'));
 });
 
-test('a linha de comando grava no caminho indicado e reporta totais', async () => {
+test('a linha de comando grava no caminho indicado, agrupa avisos e aceita --verbose', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'groovegoblin-curso-'));
   const script = fileURLToPath(new URL('../scripts/convert-course-map.js', import.meta.url));
   try {
@@ -368,11 +666,21 @@ test('a linha de comando grava no caminho indicado e reporta totais', async () =
     const cli = spawnSync(process.execPath, [script, fixturePath('map-example.json'), '--output', output], { encoding: 'utf8' });
     assert.equal(cli.status, 0, cli.stderr);
     assert.match(cli.stdout, /Seções 3 · aulas 5/);
+    assert.match(cli.stdout, /Avisos agrupados \(/);
+    assert.doesNotMatch(cli.stdout, /^Avisos \(\d+\):$/m);
     const written = JSON.parse(await readFile(output, 'utf8'));
     assert.equal(written.format, COURSE_FORMAT);
     assert.equal(written.version, COURSE_VERSION);
     assert.equal(Object.hasOwn(written, 'progress'), false);
     assert.equal(normalizeCourse(written).ok, true);
+
+    const repairs = join(directory, 'curso-reparos.json');
+    const verbose = spawnSync(process.execPath, [script, fixturePath('map-repairs.json'), '--output', repairs, '--com-progresso', '--verbose'], { encoding: 'utf8' });
+    assert.equal(verbose.status, 0, verbose.stderr);
+    assert.match(verbose.stdout, /Avisos \(7\):/);
+    assert.match(verbose.stdout, /campo-ignorado/);
+    assert.match(verbose.stdout, /2 mesclado\(s\)/);
+    assert.match(verbose.stdout, /Progresso do mapa incluído: 2 aulas assistidas/);
 
     const incompatible = join(directory, 'incompativel.json');
     const six = spawnSync(process.execPath, [script, fixturePath('map-six-strings.json'), '--output', incompatible], { encoding: 'utf8' });
