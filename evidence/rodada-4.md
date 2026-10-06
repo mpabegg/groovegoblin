@@ -44,6 +44,37 @@ Verificação da branch: `npm test && npm run check` — **567 testes aprovados*
 - A API atual de `evaluateSession` aceita modo, objetivo e repetições, mas não tolerância configurável. O seletor Auto/±60/±90 não será introduzido alterando o algoritmo nesta rodada.
 - Houve perda de isolamento de contexto nos primeiros agentes delegados. Foram cancelados; suas alegações de testes/capturas foram descartadas. Os números acima são da execução independente do integrador, não daqueles relatos.
 
+## Etapa 2 — resultado anotado
+
+- O resultado substitui a área de toque, a partitura de repouso e as opções/guidado enquanto está aberto. Há uma só partitura de resultado, com cifras, ritmo e Tab; a tabela por nota começa recolhida.
+- Resumos, estados por nota, moda entre repetições, desvios, extras e pior trecho são derivados do resultado existente de `evaluateSession`. O avaliador não foi alterado. O módulo e os estilos da antiga timeline sobreposta foram removidos.
+- Erros de altura, inclusive oitava, têm anotação própria; altura não identificada não é inventada. A posição dos extras usa o instante observado, não a posição de uma nota esperada.
+- Salvar a tentativa continua alimentando os consumidores existentes, mas não produz o toast de sucesso do playground/repertório após o treino. Erros e outros avisos permanecem visíveis.
+
+### Prova no navegador
+
+Chromium isolado, porta 5222, quatro compassos, duas repetições, 16 notas, quatro faixas e Tab de seis cordas:
+
+| Cenário exercitado | Resultado observado |
+| --- | --- |
+| 1440×900, resultado completo em repouso | documento **900 px**, sem overflow horizontal, **20 controles** visíveis em Treinar |
+| 1280×800 | documento **863 px**, sem overflow horizontal; rolagem vertical permitida |
+| Entrada uniforme de +30 ms | **32 de 32**, texto **30 ms**, dispersão **0 ms** |
+| Tentativa mista: −45/+45 ms, oito omissões no compasso 2, um extra | **20/32**; cores/sinais e tooltips com desvios; faixa **50%, 0%, 100%, 100%**, pior compasso marcado |
+| Seletor de repetição | repetição 1 mostra o extra; repetição 2 não; Todas restaura a visão agregada |
+| Tecla `L` | seleciona os compassos **1–2** (`startBar: 0`, `endBar: 2`) e inicia novo treino; execução seguinte **16/16** |
+| Tecla `+` após 32/32 | **120 → 124 BPM**, com nova execução |
+| Tecla `+` após 20/32 | permanece **124 BPM**, resultado continua visível |
+| Botão −10, depois tecla `−` | **124 → 114 → 104 BPM**, ambas as ações iniciam o treino |
+| Enter e botão Tentar de novo | repetem no mesmo BPM; a tentativa anterior correspondente aparece na comparação |
+| Estado final | áudio `idle`, nenhum Parar visível, nenhum toast “Tentativa…”, tabela fechada, antigo `#timeline` ausente |
+
+Os 30 ms exatos foram fornecidos como **timestamps controlados pela API pública `GrooveAudio.press/release`, atravessando transporte e avaliador reais**; não são uma medição de instrumento físico. Também houve 64 eventos de teclado CDP nativos/confiáveis: nessa execução o desvio efetivo foi 39 ms, corretamente mostrado como 39 ms. O atraso pedido ao agendador nativo não foi apresentado como atraso medido.
+
+Capturas reais: [1440×900](rodada-4-resultado-1440x900.png), [1280×800](rodada-4-resultado-1280x800.png).
+
+Verificação da branch: `npm test && npm run check` — **585 aprovados, 1 ignorado, zero falhas**; **142 módulos**, zero falhas. O único ignorado continua sendo o fixture opcional de instrumento. Regressões permanentes cobrem resumos/estados/oitava, agregação, limites de trecho, comparação, identidade da execução, atalhos e escopo da supressão dos avisos.
+
 ## Etapa 7 — diagnóstico da entrada
 
 Etapa independente, verificada antes das etapas de biblioteca/treinador. A captura existente é compartilhada: exportar JSON não grava áudio; “Salvar amostra · 10 s” é a única ação que começa a retenção de PCM para um WAV.
@@ -71,13 +102,13 @@ Captura: [configuração e exceção explícita de gravação, 1440×900](rodada
 
 | Nº | Critério | Estado observado |
 | --- | --- | --- |
-| 1 | Resultado 4 compassos/2 repetições sem rolar | Pendente |
-| 2 | Partitura anotada, sinais, cores e desvios | Pendente |
-| 3 | Atraso uniforme de 30 ms descrito com precisão | Pendente |
-| 4 | Pior compasso e treino do trecho | Pendente |
-| 5 | Repetir, −10 BPM e +4 BPM condicionado | Pendente |
-| 6 | Comparação com tentativa anterior | Pendente |
-| 7 | Sem timeline sobreposta; tabela recolhida | Pendente |
+| 1 | Resultado 4 compassos/2 repetições sem rolar | Aprovado na etapa 2 |
+| 2 | Partitura anotada, sinais, cores e desvios | Aprovado na etapa 2; navegador e regressões derivadas |
+| 3 | Atraso uniforme de 30 ms descrito com precisão | Aprovado na etapa 2; timestamps controlados, sem alegação de hardware |
+| 4 | Pior compasso e treino do trecho | Aprovado na etapa 2 |
+| 5 | Repetir, −10 BPM e +4 BPM condicionado | Aprovado na etapa 2 |
+| 6 | Comparação com tentativa anterior | Aprovado na etapa 2 |
+| 7 | Sem timeline sobreposta; tabela recolhida | Aprovado na etapa 2 |
 | 8 | Treinador único, seis combinações | Pendente |
 | 9 | Treinador com até 30 controles e 900 px | Pendente |
 | 10 | Jogos de ouvido em Explorar | Pendente |
@@ -93,4 +124,4 @@ Captura: [configuração e exceção explícita de gravação, 1440×900](rodada
 | 20 | Cordas nomeadas e Drop D | Aprovado na etapa 1 |
 | 21 | Baixo sem convite redundante nem baixo gerado forçado | Aprovado na etapa 1 |
 | 22 | Diagnóstico JSON, WAV explícito e fixtures opcionais | Aprovado na etapa 7; áudio sintético, sem hardware físico |
-| 23 | Preservação das rodadas anteriores | Suítes aprovadas nas etapas 1 e 7; revisão final pendente |
+| 23 | Preservação das rodadas anteriores | Suítes aprovadas nas etapas 1, 2 e 7; revisão final pendente |

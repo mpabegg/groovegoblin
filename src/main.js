@@ -1,8 +1,6 @@
-import { instrumentPitchCounts, instrumentPitchLabel } from './instrument-pitch-evaluation.js';
 import { GrooveAudio, renderSession } from './audio.js';
 import { loadSession, saveSession, validateSession, serializeSession, parseSession, encodeSessionLink, decodeSessionLink, drumEditStructureError, ticksPerBar as barTicks, METRONOME_PATTERNS, ARTICULATIONS } from './session.js';
-import { evaluateSession, summarizeFeedback } from './feedback.js';
-import { buildTimelineData, renderTimeline } from './timeline.js';
+import { evaluateSession } from './feedback.js';
 import { getDiatonicChords, invertChord } from './progression.js';
 import { mountPractice } from './practice.js';
 import { mountPlayground } from './playground.js';
@@ -26,6 +24,8 @@ import { mountPerformanceInput } from './performance-input.js';
 import { withStudioChoices, createStudioSession, initialStudioSession } from './studio-session.js';
 import { mountStudioInstrument } from './studio-instrument.js';
 import { mountPracticeTracks } from './practice-tracks.js';
+import { mountTrainingResult } from './training-result.js';
+import { quietTakeNotices } from './take-notices.js';
 
 const $ = id => document.getElementById(id);
 const restored = loadSession();
@@ -40,11 +40,10 @@ function setNoteSelection(id) { selected = id === null ? null : { kind: 'note', 
 function setChordSelection(index) { selected = index === null ? null : { kind: 'chord', index, indices: [index] }; }
 let performanceInput;
 let practiceTracks;
+let trainingResult;
 let generation = 0;
 let pending = null;
 let sharedSession = null;
-let results = null;
-let reference = null;
 let lastMode = 'idle';
 let executionSession = null;
 let exercisePlayback = false;
@@ -59,23 +58,21 @@ const library = readSessionLibrary(undefined, parseSession);
 const notices = mountStudioNotices({ isBusy: () => false, canUndo: () => history.canUndo, current: () => history.current, undo: () => travelHistory('undo') });
 const audio = new GrooveAudio({ onState: () => renderControls(), onFinish: (attempts, detail) => {
   performanceInput?.reset();
-  const focusResult = $('tab-practice').getAttribute('aria-selected') === 'true'
+  const focus = $('tab-practice').getAttribute('aria-selected') === 'true'
     && (document.activeElement === $('train-pad') || document.activeElement === document.body);
-  reference = detail.session;
-  results = detail.results ?? evaluateSession(reference, attempts);
-  renderFeedback();
-  practice?.onFinish(attempts, { ...detail, session: reference, results });
-  playground?.onFinish(attempts, { ...detail, session: reference, results });
+  const reference = detail.session, results = detail.results ?? evaluateSession(reference, attempts);
+  const finished = { ...detail, session: reference, results };
+  trainingResult.finished({ session: reference, results, focus });
+  practice?.onFinish(attempts, finished);
+  // A captura automática do playground roda dentro da janela de avisos mudos:
+  // a gravação continua, a confirmação automática não aparece sobre o resultado.
+  takeNotices.around(() => playground?.onFinish(attempts, finished));
   journey?.render();
-  void saveTake(attempts, { ...detail, session: reference, results }).catch(error => message(`Treino concluído; não foi possível guardar a tomada: ${error.message}`, true));
+  void saveTake(attempts, finished).catch(error => message(`Treino concluído; não foi possível guardar a tomada: ${error.message}`, true));
   $('train-state').textContent = 'Treino concluído. Veja seu resultado e repita quando quiser.';
   renderControls();
-  if (focusResult) {
-    const summary = $('practice-results') ?? $('feedback-detail').querySelector('summary');
-    summary.focus({ preventScroll: true });
-    summary.scrollIntoView({ block: 'center', behavior: 'instant' });
-  }
 } });
+const takeNotices = quietTakeNotices(message);
 const playback = createStudioPlayback({ getSession: () => session, getPlaybackSession: () => exercisePlayback && executionSession ? executionSession : session, audio, render: renderControls, notify: message, isPending: () => pending !== null });
 
 function message(text, error = false) { notices.show(text, { error }); }
@@ -120,7 +117,7 @@ function replaceSession(value, { record = true, stopPlayback = true, notice = 'S
   return true;
 }
 function renderAll() {
-  renderControls(); studioTimeline.render(); studioForm.render(); renderFeedback();
+  renderControls(); studioTimeline.render(); studioForm.render(); trainingResult?.render();
   practice?.render(); playground?.render(); journey?.render(); repertoire?.render();
 }
 function stop(reason) {
@@ -147,6 +144,7 @@ async function begin(mode = 'loop', practiceSession = null, { listen = false } =
   const request = ++generation;
   if (mode === 'train') {
     studio.activate($('tab-practice'));
+    trainingResult.began(practiceSession);
     if (!practiceSession) practice.useSession();
   }
   pending = 'play';
@@ -160,7 +158,6 @@ async function begin(mode = 'loop', practiceSession = null, { listen = false } =
   playback.setListening(listen);
   executionSession = snapshot;
   exercisePlayback = practiceSession !== null || listen;
-  if (mode === 'train') { results = null; reference = null; renderFeedback(); }
   try {
     await audio.playSession(snapshot, {
       mode, startTick: mode === 'train' || practiceSession || listen ? null : playback.getStartTick(),
@@ -193,7 +190,7 @@ async function preview(notes, options = {}) {
   }
   finally { if (request === generation) { pending = null; renderControls(); } }
 }
-async function saveTake(attempts, detail) { return repertoire.captureTake(attempts, detail); }
+async function saveTake(attempts, detail) { return takeNotices.capture(() => repertoire.captureTake(attempts, detail)); }
 const host = {
   getSession: () => structuredClone(session), updateSession, replaceSession, play: begin, stop, notify: message, preview, saveTake, renderSession,
   isBusy: busy, isInstrumentInput: () => !!performanceInput?.instrument,
@@ -370,6 +367,11 @@ performanceInput = mountPerformanceInput({
   isPreparingTraining: () => pending === 'play' && executionMode === 'train',
   changed: renderAll,
 });
+trainingResult = mountTrainingResult({
+  getSession: () => session, updateSession, isBusy: () => pending !== null || !!performanceInput.calibrating,
+  retry: () => practice.useSession({ train: true }), train: snapshot => void begin('train', snapshot).catch(() => {}),
+  resultNote: value => performanceInput.resultNote(value),
+});
 practiceTracks = mountPracticeTracks($('practice-audible-mount'), {
   getSession: () => executionSession ?? session, getMixer: playback.getMixer, toggleAudible: playback.toggleAudible,
 });
@@ -451,54 +453,6 @@ $('replace-library-recovery').addEventListener('click', () => {
   renderLibrary();
 });
 
-function renderFeedback() {
-  $('feedback').replaceChildren(); $('timeline').replaceChildren();
-  $('feedback-detail').hidden = !results;
-  if (results) $('feedback-detail').open = true;
-  if (!results) { const p = document.createElement('p'); p.className = 'muted'; p.textContent = 'Conclua um treino para comparar cada ataque e término, notas omitidas e extras.'; $('feedback').append(p); return; }
-  renderTimeline($('timeline'), buildTimelineData(results, { session: reference }));
-  const summary = summarizeFeedback(results);
-  const attackOnly = reference.extensions?.performanceInput?.mode === 'instrument';
-  const heading = document.createElement('p');
-  heading.className = 'timing-counts';
-  const counts = summary.mode === 'free'
-    ? `${summary.free} ataque(s) observado(s) · execução livre, sem acertos ou erros`
-    : `Ataques: ${summary.attackOk}/${summary.expected} · ${attackOnly ? `términos não avaliados · ${results.goal === 'pitch' ? instrumentPitchCounts(summary) : 'alturas não avaliadas'}` : `términos: ${summary.endOk}/${summary.expected}${summary.pitchChecked > 0 ? ` · alturas: ${summary.pitchOk}/${summary.pitchChecked}` : ' · alturas não avaliadas'}`} · ${summary.mode === 'style' ? 'estilo expressivo' : 'avaliação estrita'}`;
-  heading.textContent = `${counts} · referência ${reference.bpm} BPM, ${reference.meter.beats}/${reference.meter.unit}.`;
-  $('feedback').append(heading);
-  const inputNote = performanceInput.resultNote(reference);
-  if (inputNote) $('feedback').append(Object.assign(document.createElement('p'), { className: 'tool-hint muted', textContent: inputNote }));
-  const tolerance = document.createElement('p'); tolerance.className = 'tool-hint muted';
-  tolerance.textContent = summary.mode === 'free'
-    ? 'Os desvios indicam distância à subdivisão mais próxima, não erros de interpretação. Valores negativos = antes; positivos = depois.'
-    : `Tolerância: ±${Math.round(results.toleranceMs)} ms. Negativo = antes; positivo = depois. Feedback baseado na sessão executada, mesmo após editar o arranjo.`;
-  $('feedback').append(tolerance);
-  for (const text of summary.advice) { const p = document.createElement('p'); p.textContent = text; $('feedback').append(p); }
-  const scroll = document.createElement('div'); scroll.className = 'table-scroll'; const table = document.createElement('table');
-  const head = document.createElement('thead'); const tr = document.createElement('tr');
-  for (const label of ['Repetição / nota', 'Ataque', 'Término', ...(attackOnly && results.goal === 'pitch' ? ['Altura · ±50 cents'] : [])]) { const th = document.createElement('th'); th.textContent = label; tr.append(th); }
-  head.append(tr); table.append(head); const body = document.createElement('tbody');
-  for (const [index, row] of results.rows.entries()) {
-    const line = document.createElement('tr'); const label = document.createElement('td'); label.textContent = `${row.repetition ?? 1} · ${row.kind === 'extra' ? 'Extra' : row.kind === 'missed' ? 'Omitida' : `Nota ${index + 1}`}`; line.append(label);
-    for (const type of ['onset', 'end']) {
-      const cell = document.createElement('td');
-      if (attackOnly && type === 'end') { cell.textContent = 'Não avaliado'; line.append(cell); continue; }
-      if (row.kind === 'matched') { const ms = Math.round(type === 'onset' ? row.onsetMs : row.endMs); cell.textContent = `${ms > 0 ? '+' : ''}${ms} ms`; cell.className = Math.abs(ms) <= results.toleranceMs ? 'ok' : 'error-timing'; }
-      else if (row.kind === 'free') {
-        const ms = Math.round(row.onsetMs);
-        cell.textContent = type === 'onset'
-          ? `${row.actualStart.toFixed(3)} s · ${ms > 0 ? '+' : ''}${ms} ms da grade`
-          : `${Math.round((row.actualEnd - row.actualStart) * 1000)} ms sustentados`;
-        cell.className = 'free-observation';
-      }
-      else { cell.textContent = row.kind === 'missed' ? 'Omitida' : type === 'onset' ? 'Ataque extra' : `${Math.round((row.actualEnd - row.actualStart) * 1000)} ms`; cell.className = row.kind === 'missed' ? 'missing' : 'extra'; }
-      line.append(cell);
-    }
-    if (attackOnly && results.goal === 'pitch') line.append(Object.assign(document.createElement('td'), { textContent: instrumentPitchLabel(row), className: row.pitchStatus === 'correct' ? 'ok' : 'free-observation' }));
-    body.append(line);
-  }
-  table.append(body); scroll.append(table); $('feedback').append(scroll);
-}
 function frame() {
   const position = audio.position;
   if (position.mode === 'idle' && pending === null && playback.isListening()) playback.setListening(false);
@@ -514,9 +468,9 @@ function frame() {
   transport.position({ position, pending, ticksPerBar: barTicks(playing), repetitions: playing.training.repetitions, startTick: playback.getStartTick(), beatTicks: 16 / playing.meter.unit, listening: playback.isListening() });
   requestAnimationFrame(frame);
 }
-repertoire = mountRepertoire($('repertoire-mount'), host);
+repertoire = mountRepertoire($('repertoire-mount'), { ...host, notify: takeNotices.notify });
 practice = mountPractice($('practice-mount'), host);
-playground = mountPlayground($('playground-mount'), host);
+playground = mountPlayground($('playground-mount'), { ...host, notify: takeNotices.notify });
 journey = mountJourney($('journey-mount'), host);
 setupOffline({ isBusy: () => busy() || repertoire.isBusy(), canReload: () => sessionSaved, notify: message });
 history.push(session); playback.applyMixer(); renderLibrary(); renderAll();

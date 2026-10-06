@@ -7,7 +7,6 @@ import { resolveInputDevice } from '../src/instrument-capture.js';
 import { mountPerformanceInput } from '../src/performance-input.js';
 import { createSession, serializeSession } from '../src/session.js';
 import { evaluateSession, summarizeFeedback } from '../src/feedback.js';
-import { buildTimelineData } from '../src/timeline.js';
 import { harness, audioContext, deferred, close } from './audio-harness.js';
 import { mountPracticeTracks, practiceVoices } from '../src/practice-tracks.js';
 import { createStudioPlayback } from '../src/studio-playback.js';
@@ -189,8 +188,8 @@ test('input policy changes only the executed snapshot, preserving session format
   assert.equal(executed.extensions.custom.retained, true);
   assert.equal(serializeSession(source), before); assert.equal(source.training.goal, 'pitch'); assert.equal(source.training.monitor, true);
   const result = evaluateSession(executed, []);
-  assert.equal(result.goal, 'timing'); assert.equal(buildTimelineData(result, { session: executed }).attackOnly, true);
-  assert.equal(buildTimelineData(evaluateSession(source, []), { session: source }).attackOnly, false);
+  assert.equal(result.goal, 'timing'); assert.equal(result.instrument, true);
+  assert.equal(evaluateSession(source, []).instrument, false);
 });
 
 function trainingSession(overrides = {}) {

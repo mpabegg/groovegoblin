@@ -1089,7 +1089,7 @@ export function mountPractice(container, host, options = {}) {
       subdivision: selectedSession?.subdivision ?? 4,
       metronome: { ...exercise.metronome },
       training: { goal: selectedSession?.training.goal ?? (exercise.objective === 'durations' ? 'duration' : 'timing'), adaptive: state.routine.adaptiveTempo },
-      extensions: { practice: { objective: exercise.objective, stage: activeStage()?.name ?? 'execução livre', workspace: 'studio' } },
+      extensions: { practice: { objective: exercise.objective, source: exercise.source, stage: activeStage()?.name ?? 'execução livre', workspace: 'studio' } },
     };
   }
 
