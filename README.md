@@ -121,6 +121,26 @@ No **Estúdio**, abra **Organizar uma música em seções**, recolhido abaixo da
 
 Consulte [guide.html](./guide.html) para os controles, formatos aceitos, funcionamento offline e limitações de análise.
 
+## Curso importado (formato `groovegoblin-course`)
+
+Além da biblioteca de exercícios, o GrooveGoblin lê **Cursos** descritos no documento JSON `groovegoblin-course` **versão 1**: o catálogo de seções, aulas, materiais e sugestões de exercício. Curso, progresso e vínculos ficam **fora** da Sessão; o formato não embute nem baixa vídeo, PDF, áudio, iframe ou prévia de link e nunca consulta a rede. Só entram **baixo de 4 ou 5 cordas**: material ou sugestão de 6 cordas é descartado com aviso, e um curso que declara 6 cordas é **incompatível** — a conversão falha apontando `course.strings` e nada é gravado. O esquema completo, campo a campo, está em [`guide.html#course`](./guide.html#course).
+
+Um **mapa de curso em português** pode ser convertido para esse formato pela linha de comando (Node.js 22, sem dependências):
+
+```sh
+node scripts/convert-course-map.js CAMINHO/mapa.json --output CAMINHO/curso.json [--com-progresso]
+```
+
+- `<mapa.json>` é a entrada posicional; use `-` para ler da entrada padrão. `--ajuda` mostra o uso.
+- `--output` escolhe o destino (padrão `local/curso-convertido.json`, com a pasta criada quando falta). Nada é gravado quando o resultado não passa na validação estrita.
+- `--com-progresso` inclui no documento as aulas assistidas do mapa; as **anotações pessoais nunca são convertidas**.
+- O conversor é **tolerante**: campo ausente, nulo ou embrulhado em `{ "valor": …, "inferido": … }` não derruba a conversão. O que não puder ser lido com segurança fica `null`, com um aviso; listas acima dos limites são cortadas e contam em `descartados`.
+- Avisos e relatórios citam apenas o **caminho do campo** (por exemplo `modulos[1].aulas[0].anexos[1]`), nunca títulos, nomes de arquivo ou endereços do mapa original.
+- Saída: caminho gravado, totais (`Seções N · aulas N · materiais N · exercícios N · vínculos N · descartados N`), estado do progresso e a lista de avisos.
+- Códigos de saída: `0` sucesso; `1` a conversão não gerou documento válido (por exemplo, curso incompatível de 6 cordas; nada é gravado); `2` uso inválido, entrada ilegível ou JSON inválido.
+
+A leitura estrita do app vive em `src/course-format.js` (`normalizeCourse`, `parseCourse`, `serializeCourse`) e reprova o documento inteiro apontando o caminho do campo reprovado. Exemplos e fixtures públicos usam somente ficção — "Curso de Exemplo", `example.invalid` — e nenhum conteúdo de curso real entra no repositório.
+
 ## Dados, privacidade e mídia
 
 A biblioteca de exercícios (as sessões e seus metadados: nome, etiquetas, alvo de BPM, anotações e os treinos registrados), as preferências de prática/jogos e o Percurso são armazenados localmente no navegador. Metadados e registros ficam em **chaves locais próprias**, fora do formato da Sessão: o documento `groovegoblin-session` v5 e o esquema **não mudaram**. O Repertório usa IndexedDB para mídias e metadados e avisa se o banco estiver indisponível ou se faltar quota; armazenamento persistente pode ser solicitado ao navegador, mas não é garantido. Exporte cópias para backup: limpar os dados do site pode apagar o conteúdo local. Sessões completas podem ser exportadas/importadas como JSON ou compartilhadas em link, sem enviar os dados a um servidor do GrooveGoblin. Pacotes de tarefa são arquivos explícitos para o usuário enviar por conta própria.

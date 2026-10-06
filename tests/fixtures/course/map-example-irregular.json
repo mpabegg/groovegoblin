@@ -1,0 +1,97 @@
+{
+  "_sobre": "Mapa inteiramente fictício, com campos irregulares, para exercitar o conversor. Nenhum conteúdo de curso real.",
+  "campo_fora_do_formato": { "algo": true },
+  "curso": {
+    "titulo": { "valor": "", "inferido": "talvez" },
+    "autor": null,
+    "url": "example.invalid/sem-esquema",
+    "descricao": { "valor": "Descrição fictícia e irregular", "inferido": true },
+    "instrumento": { "nome": "guitarra", "cordas": "5" },
+    "idioma": "português brasileiro com nome comprido demais para o limite do formato",
+    "total_aulas": 7,
+    "minutos_diarios": "30",
+    "extra_do_curso": 1
+  },
+  "modulos": [
+    null,
+    {
+      "ordem": "2",
+      "titulo": "   Encontros   extras   ",
+      "prerequisitos": "Nenhum",
+      "semana": "3",
+      "aulas": null,
+      "campo_estranho": false
+    },
+    {
+      "id": "modulo-repetido",
+      "titulo": "",
+      "aulas": [
+        {
+          "titulo": "Primeira aula sem identificador",
+          "url": "ftp://example.invalid/aula/sem-http",
+          "video": "sim",
+          "andamentos": 90,
+          "meu_progresso": { "assistida": { "valor": true } },
+          "anexos": [
+            { "nome": "apostila-irregular.pdf" },
+            { "nome": "material-desconhecido.dat", "papel": "figurinha" },
+            { "nome": "apostila-6-cordas.pdf", "extensao": "pdf", "cordas": 6 },
+            "isto não é um material"
+          ],
+          "backing_tracks": [
+            { "nome": "faixa-irregular-4-cordas-80bpm.mp3", "andamento": "80 BPM", "compassos_por_acorde": 1, "estilo": "Irregular", "estendida": true, "cordas": 4 },
+            { "nome": "faixa-irregular-6-cordas.mp3", "cordas": 6 },
+            { "nome": "pacote-irregular.zip", "papel": "pacote de exercícios", "cordas": 4 }
+          ]
+        },
+        {
+          "id": "modulo-repetido-aula-1",
+          "titulo": "Segunda aula irregular",
+          "tipo_de_aula": { "valor": 42, "inferido": "sim" },
+          "video": { "duracao": "1:02:03", "hospedagem": "" },
+          "andamentos": { "inicial": "500 BPM", "alvo": "90-100" },
+          "resumo": "Resumo fictício irregular.",
+          "tom": "Lá menor inventado",
+          "formula_de_compasso": "dois compassos por acorde",
+          "afinacao": "afinação fictícia",
+          "tecnicas_ou_conceitos": ["técnica fictícia", null],
+          "meu_progresso": { "assistida": false, "anotacoes": "Anotação pessoal fictícia que não deve sair daqui." },
+          "exercicios": [
+            {
+              "nome": "Exercício irregular A",
+              "descricao": null,
+              "compassos_aproximados": "≈25 (12 acordes × 2 + acorde final)",
+              "andamento_inicial": { "valor": "80 BPM", "inferido": true },
+              "andamento_alvo": "100",
+              "arquivo_correspondente": "faixa-irregular-4-cordas-80bpm.mp3",
+              "pagina_pdf": "12"
+            },
+            {
+              "nome": "Exercício irregular B",
+              "compassos_aproximados": "90 compassos",
+              "andamento_inicial": "80 ou 90 BPM",
+              "andamento_alvo": 400,
+              "arquivo_correspondente": null
+            },
+            {
+              "nome": "Exercício irregular com pacote",
+              "arquivo_correspondente": "pacote-irregular-faixa-1.mp3"
+            },
+            {
+              "nome": "Exercício irregular sem material",
+              "arquivo_correspondente": "faixa-inexistente.mp3"
+            },
+            {
+              "nome": "Exercício irregular de 6 cordas",
+              "compassos_aproximados": "13",
+              "cordas": 6,
+              "arquivo_correspondente": "faixa-irregular-6-cordas.mp3"
+            },
+            null,
+            { "campo_exotico": "ignorado", "nome": "Exercício irregular com campo exótico" }
+          ]
+        }
+      ]
+    }
+  ]
+}

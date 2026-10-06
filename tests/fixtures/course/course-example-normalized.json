@@ -1,0 +1,209 @@
+{
+  "format": "groovegoblin-course",
+  "version": 1,
+  "course": {
+    "id": "curso-de-exemplo",
+    "title": "Curso de Exemplo",
+    "author": "Autor de Exemplo",
+    "url": "https://example.invalid/curso",
+    "instrument": "bass",
+    "strings": 4,
+    "language": "pt-BR",
+    "dailyMinutes": null,
+    "summary": "Trilha fictícia de estudo",
+    "sections": [
+      {
+        "id": "boas-vindas-de-exemplo",
+        "title": "Boas-vindas de Exemplo",
+        "type": "boas-vindas",
+        "week": null,
+        "summary": null,
+        "objective": null,
+        "prerequisites": [],
+        "lessons": [
+          {
+            "id": "welcome-1",
+            "title": "Aula de boas-vindas",
+            "url": "https://example.invalid/aula/inicio",
+            "type": "aula",
+            "videoSeconds": null,
+            "hasVideo": false,
+            "summary": null,
+            "practiceInstruction": null,
+            "key": null,
+            "chordFormula": null,
+            "tuning": null,
+            "techniques": [],
+            "initialBpm": null,
+            "targetBpm": null,
+            "resources": [],
+            "resourceRefs": [],
+            "suggestedExercises": []
+          }
+        ]
+      },
+      {
+        "id": "modulo-1",
+        "title": "Módulo 1",
+        "type": "módulo",
+        "week": null,
+        "summary": null,
+        "objective": "Praticar a sequência fictícia",
+        "prerequisites": [],
+        "lessons": [
+          {
+            "id": "lesson-1",
+            "title": "Aula 1",
+            "url": "https://example.invalid/aula/1",
+            "type": "Prática",
+            "videoSeconds": 360,
+            "hasVideo": true,
+            "summary": "Resumo fictício da aula",
+            "practiceInstruction": "Escreva suas próprias notas no Estúdio.",
+            "key": null,
+            "chordFormula": null,
+            "tuning": null,
+            "techniques": [],
+            "initialBpm": 80,
+            "targetBpm": 100,
+            "resources": [],
+            "resourceRefs": [
+              {
+                "lessonId": "lesson-downloads",
+                "resourceId": "faixa-exemplo-4-cordas-80bpm-mp3"
+              }
+            ],
+            "suggestedExercises": [
+              {
+                "id": "exercicio-de-exemplo-a",
+                "title": "Exercício de Exemplo A",
+                "description": null,
+                "initialBpm": 80,
+                "targetBpm": 100,
+                "bars": 25,
+                "trackNames": [
+                  "faixa-exemplo-4-cordas-80bpm.mp3"
+                ],
+                "pdfPage": null,
+                "strings": null
+              },
+              {
+                "id": "exercicio-de-exemplo-b",
+                "title": "Exercício de Exemplo B",
+                "description": null,
+                "initialBpm": null,
+                "targetBpm": null,
+                "bars": 13,
+                "trackNames": [],
+                "pdfPage": null,
+                "strings": null
+              }
+            ]
+          },
+          {
+            "id": "lesson-downloads",
+            "title": "Arquivos de Exemplo",
+            "url": "https://example.invalid/aula/arquivos",
+            "type": "Downloads",
+            "videoSeconds": null,
+            "hasVideo": false,
+            "summary": null,
+            "practiceInstruction": null,
+            "key": null,
+            "chordFormula": null,
+            "tuning": null,
+            "techniques": [],
+            "initialBpm": null,
+            "targetBpm": null,
+            "resources": [
+              {
+                "id": "apostila-exemplo-4-cordas-pdf",
+                "name": "apostila-exemplo-4-cordas.pdf",
+                "extension": "pdf",
+                "role": "apostila",
+                "bpm": null,
+                "barsPerChord": null,
+                "style": null,
+                "extended": false,
+                "strings": 4
+              },
+              {
+                "id": "faixa-exemplo-4-cordas-80bpm-mp3",
+                "name": "faixa-exemplo-4-cordas-80bpm.mp3",
+                "extension": "mp3",
+                "role": "faixa",
+                "bpm": 80,
+                "barsPerChord": 2,
+                "style": "Exemplo",
+                "extended": false,
+                "strings": 4
+              },
+              {
+                "id": "faixa-exemplo-5-cordas-90bpm-mp3",
+                "name": "faixa-exemplo-5-cordas-90bpm.mp3",
+                "extension": "mp3",
+                "role": "faixa",
+                "bpm": 90,
+                "barsPerChord": null,
+                "style": null,
+                "extended": false,
+                "strings": 5
+              }
+            ],
+            "resourceRefs": [],
+            "suggestedExercises": []
+          },
+          {
+            "id": "lesson-3",
+            "title": "Aula 3",
+            "url": "https://example.invalid/aula/3",
+            "type": "aula",
+            "videoSeconds": 120,
+            "hasVideo": true,
+            "summary": null,
+            "practiceInstruction": null,
+            "key": null,
+            "chordFormula": null,
+            "tuning": null,
+            "techniques": [],
+            "initialBpm": null,
+            "targetBpm": null,
+            "resources": [],
+            "resourceRefs": [],
+            "suggestedExercises": []
+          }
+        ]
+      },
+      {
+        "id": "seminario-de-exemplo",
+        "title": "Seminário de Exemplo",
+        "type": "seminário",
+        "week": null,
+        "summary": null,
+        "objective": null,
+        "prerequisites": [],
+        "lessons": [
+          {
+            "id": "seminar-1",
+            "title": "Encontro de Exemplo",
+            "url": "https://example.invalid/aula/encontro",
+            "type": "aula",
+            "videoSeconds": null,
+            "hasVideo": true,
+            "summary": null,
+            "practiceInstruction": null,
+            "key": null,
+            "chordFormula": null,
+            "tuning": null,
+            "techniques": [],
+            "initialBpm": null,
+            "targetBpm": null,
+            "resources": [],
+            "resourceRefs": [],
+            "suggestedExercises": []
+          }
+        ]
+      }
+    ]
+  }
+}

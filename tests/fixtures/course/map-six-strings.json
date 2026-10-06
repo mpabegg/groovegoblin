@@ -1,0 +1,17 @@
+{
+  "_sobre": "Mapa inteiramente fictício: o curso declara seis cordas, incompatível com o formato. Nenhum conteúdo de curso real.",
+  "curso": {
+    "titulo": "Curso de Exemplo",
+    "autor": "Autor de Exemplo",
+    "instrumento": { "nome": "guitarra", "cordas": 6 }
+  },
+  "modulos": [
+    {
+      "ordem": 1,
+      "titulo": "Módulo 1",
+      "aulas": [
+        { "id": "aula-1", "titulo": "Aula 1" }
+      ]
+    }
+  ]
+}

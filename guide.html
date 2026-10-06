@@ -33,6 +33,7 @@
       <li><a href="#explore">Exploração criativa e jogos de ouvido</a></li>
       <li><a href="#repertoire">Repertório e análise de áudio</a></li>
       <li><a href="#files">Arquivos e dados locais</a></li>
+      <li><a href="#course">Curso importado (formato do curso)</a></li>
       <li><a href="#offline">Offline e privacidade</a></li>
       <li><a href="#development">Desenvolvimento e preview</a></li>
     </ul></nav>
@@ -198,6 +199,162 @@
     <p><strong>Formatos.</strong> Exportar na Biblioteca ou <strong>Exportar exercício</strong> no Estúdio baixa um JSON <code>groovegoblin-exercise</code> (versão 1) com <code>exercise.session</code> e <code>exercise.metadata</code> em campos separados; <strong>Exportar biblioteca</strong> baixa <code>groovegoblin-exercise-library</code>. A importação mescla sem sobrescrever: documentos idênticos são ignorados, um arquivo incompatível rejeita a importação inteira sem alterar nada e arquivos de sessão antigos (v2–v5) continuam abrindo. O esquema musical <code>groovegoblin-session</code> permanece v5; o envelope acrescenta os metadados por fora.</p>
     <p>Bibliotecas corrompidas não são substituídas silenciosamente: o backup da migração e os bytes brutos ficam disponíveis em <strong>Ajuda e app → Biblioteca</strong> antes de decidir substituir ou apagar. Se o IndexedDB ficar indisponível, o Repertório pode manter alterações só em memória até fechar a página. Armazenamentos de <code>localhost</code>, portas diferentes e site publicado são separados.</p>
     <p>Importar documentos, arquivos musicais, áudio ou pacotes processa arquivos selecionados localmente. GitHub Pages hospeda os arquivos estáticos do app; o app não envia Sessão, áudio, resultados ou histórico. Ações de compartilhamento/clipboard, download e abertura de links externos seguem as permissões e escolhas do navegador.</p>
+  </section>
+  <section class="panel" id="course" aria-labelledby="course-title">
+    <h2 id="course-title">Curso importado: o formato <code>groovegoblin-course</code></h2>
+    <p>Um <strong>Curso</strong> é um documento JSON <code>groovegoblin-course</code> <strong>versão 1</strong>: o catálogo de seções, aulas, materiais e sugestões de exercício. Ele fica <strong>fora da Sessão</strong>. O formato não embute nem baixa vídeo, PDF, áudio, iframe ou prévia de link, nunca consulta a rede, e um endereço só serve para abrir uma nova aba com <code>rel="noopener noreferrer"</code>. Somente <strong>baixo de 4 ou 5 cordas</strong> entra no app: <code>instrument</code> diferente de <code>bass</code> e <code>strings: 6</code> são recusados com o caminho do campo.</p>
+    <p>O documento é <code>{ "format": "groovegoblin-course", "version": 1, "course": { … }, "progress": { … } }</code>. <code>progress</code> é <strong>opcional</strong> e só existe quando o documento o traz; sem ele, entende-se "nenhuma aula assistida registrada", não "progresso desconhecido". Campo não previsto, tipo errado, valor fora de faixa, endereço que não seja <code>http(s)</code>, identificador repetido ou referência quebrada reprovam o documento inteiro, sempre com o caminho do campo (por exemplo <code>course.sections[1].lessons[0].resources[0].strings</code>). A leitura é pura: devolve clones, nunca altera a entrada, apara espaços externos, mantém a ordem das listas e preenche opcionais ausentes com <code>null</code>, <code>false</code> ou <code>[]</code>. Texto com caracteres de controle é recusado; no máximo <strong>100 erros</strong> são devolvidos por leitura.</p>
+
+    <h3>Documento e <code>course</code></h3>
+    <div class="table-scroll"><table>
+      <thead><tr><th>Campo</th><th>Tipo</th><th>Obrigatório</th><th>Regra</th></tr></thead>
+      <tbody>
+        <tr><td><code>format</code></td><td>texto</td><td>sim</td><td>sempre <code>"groovegoblin-course"</code></td></tr>
+        <tr><td><code>version</code></td><td>inteiro</td><td>sim</td><td>sempre <code>1</code></td></tr>
+        <tr><td><code>course</code></td><td>objeto</td><td>sim</td><td>catálogo descrito nesta seção</td></tr>
+        <tr><td><code>progress</code></td><td>objeto</td><td>não</td><td>só existe quando o documento de origem o traz</td></tr>
+        <tr><td><code>course.id</code></td><td>texto</td><td>sim</td><td>1–128 caracteres, sem caracteres de controle; único no documento</td></tr>
+        <tr><td><code>course.title</code></td><td>texto</td><td>sim</td><td>1–200 caracteres</td></tr>
+        <tr><td><code>course.author</code></td><td>texto ou nulo</td><td>não</td><td>até 200 caracteres</td></tr>
+        <tr><td><code>course.url</code></td><td>texto ou nulo</td><td>não</td><td>somente <code>http(s)</code>, até 2048 caracteres; nulo = sem link</td></tr>
+        <tr><td><code>course.instrument</code></td><td><code>"bass"</code></td><td>sim</td><td>qualquer outro valor é recusado; guitarra não entra por aqui</td></tr>
+        <tr><td><code>course.strings</code></td><td><code>4</code> ou <code>5</code></td><td>sim</td><td><strong>6 cordas é recusado</strong> com o caminho <code>course.strings</code></td></tr>
+        <tr><td><code>course.language</code></td><td>texto ou nulo</td><td>não</td><td>etiqueta curta, até 35 caracteres (por exemplo <code>pt-BR</code>)</td></tr>
+        <tr><td><code>course.dailyMinutes</code></td><td>inteiro ou nulo</td><td>não</td><td>1–600 minutos por dia</td></tr>
+        <tr><td><code>course.summary</code></td><td>texto ou nulo</td><td>não</td><td>até 2000 caracteres</td></tr>
+        <tr><td><code>course.sections</code></td><td>lista</td><td>sim</td><td>até 64 seções, na ordem do documento</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Seção (<code>section</code>) e aula (<code>lesson</code>)</h3>
+    <div class="table-scroll"><table>
+      <thead><tr><th>Campo</th><th>Tipo</th><th>Obrigatório</th><th>Regra</th></tr></thead>
+      <tbody>
+        <tr><td><code>section.id</code></td><td>texto</td><td>sim</td><td>1–128 caracteres; único entre seções</td></tr>
+        <tr><td><code>section.title</code></td><td>texto</td><td>sim</td><td>1–200 caracteres</td></tr>
+        <tr><td><code>section.type</code></td><td>enum</td><td>sim</td><td><code>módulo</code>, <code>seminário</code>, <code>boas-vindas</code> ou <code>outro</code></td></tr>
+        <tr><td><code>section.week</code></td><td>inteiro ou nulo</td><td>não</td><td>1–52</td></tr>
+        <tr><td><code>section.summary</code></td><td>texto ou nulo</td><td>não</td><td>até 2000 caracteres</td></tr>
+        <tr><td><code>section.objective</code></td><td>texto ou nulo</td><td>não</td><td>até 2000 caracteres</td></tr>
+        <tr><td><code>section.prerequisites</code></td><td>lista de textos</td><td>não</td><td>até 16 itens, 120 caracteres cada</td></tr>
+        <tr><td><code>section.lessons</code></td><td>lista</td><td>sim</td><td>até 200 aulas por seção</td></tr>
+        <tr><td><code>lesson.id</code></td><td>texto</td><td>sim</td><td>1–128 caracteres; <strong>único no curso inteiro</strong> (progresso e vínculos usam esse id)</td></tr>
+        <tr><td><code>lesson.title</code></td><td>texto</td><td>sim</td><td>1–200 caracteres</td></tr>
+        <tr><td><code>lesson.url</code></td><td>texto ou nulo</td><td>não</td><td>somente <code>http(s)</code>; abre em nova aba, sem incorporar conteúdo</td></tr>
+        <tr><td><code>lesson.type</code></td><td>texto</td><td>sim</td><td>rótulo curto de até 40 caracteres: "Prática", "Downloads", "aula"…</td></tr>
+        <tr><td><code>lesson.videoSeconds</code></td><td>inteiro ou nulo</td><td>não</td><td>0–86400 segundos; exige <code>hasVideo</code> verdadeiro</td></tr>
+        <tr><td><code>lesson.hasVideo</code></td><td>booleano</td><td>sim</td><td>aula sem vídeo usa <code>false</code></td></tr>
+        <tr><td><code>lesson.summary</code></td><td>texto ou nulo</td><td>não</td><td>até 2000 caracteres</td></tr>
+        <tr><td><code>lesson.practiceInstruction</code></td><td>texto ou nulo</td><td>não</td><td>até 2000 caracteres</td></tr>
+        <tr><td><code>lesson.key</code></td><td>texto ou nulo</td><td>não</td><td>até 80 caracteres (tom da aula)</td></tr>
+        <tr><td><code>lesson.chordFormula</code></td><td>texto ou nulo</td><td>não</td><td>até 80 caracteres (fórmula de compasso)</td></tr>
+        <tr><td><code>lesson.tuning</code></td><td>texto ou nulo</td><td>não</td><td>até 80 caracteres (afinação)</td></tr>
+        <tr><td><code>lesson.techniques</code></td><td>lista de textos</td><td>não</td><td>até 16 itens, 80 caracteres cada</td></tr>
+        <tr><td><code>lesson.initialBpm</code></td><td>inteiro ou nulo</td><td>não</td><td>30–300</td></tr>
+        <tr><td><code>lesson.targetBpm</code></td><td>inteiro ou nulo</td><td>não</td><td>30–300; nulo = "definir alvo", fora do cálculo de distância</td></tr>
+        <tr><td><code>lesson.resources</code></td><td>lista</td><td>sim</td><td>até 64 materiais da própria aula (metadados; nada é baixado)</td></tr>
+        <tr><td><code>lesson.resourceRefs</code></td><td>lista</td><td>sim</td><td>até 128 vínculos <code>{ lessonId, resourceId }</code> para material de qualquer aula do curso</td></tr>
+        <tr><td><code>lesson.suggestedExercises</code></td><td>lista</td><td>sim</td><td>até 64 sugestões</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Material, vínculo, sugestão de exercício e progresso</h3>
+    <div class="table-scroll"><table>
+      <thead><tr><th>Campo</th><th>Tipo</th><th>Obrigatório</th><th>Regra</th></tr></thead>
+      <tbody>
+        <tr><td><code>resource.id</code></td><td>texto</td><td>sim</td><td>único dentro da aula</td></tr>
+        <tr><td><code>resource.name</code></td><td>texto</td><td>sim</td><td>1–160 caracteres; é o nome do arquivo, nada é buscado na rede</td></tr>
+        <tr><td><code>resource.extension</code></td><td>texto ou nulo</td><td>não</td><td>1–8 caracteres <code>[a-z0-9]</code> minúsculos; nulo = desconhecida</td></tr>
+        <tr><td><code>resource.role</code></td><td>enum</td><td>sim</td><td><code>apostila</code>, <code>faixa</code>, <code>pacote de exercícios</code> ou <code>outro</code></td></tr>
+        <tr><td><code>resource.bpm</code></td><td>inteiro ou nulo</td><td>não</td><td>30–300</td></tr>
+        <tr><td><code>resource.barsPerChord</code></td><td><code>1</code>, <code>2</code> ou nulo</td><td>não</td><td>compassos por acorde da faixa</td></tr>
+        <tr><td><code>resource.style</code></td><td>texto ou nulo</td><td>não</td><td>até 160 caracteres</td></tr>
+        <tr><td><code>resource.extended</code></td><td>booleano</td><td>não</td><td>padrão <code>false</code>; faixa "estendida"</td></tr>
+        <tr><td><code>resource.strings</code></td><td><code>4</code>, <code>5</code> ou nulo</td><td>não</td><td>6 cordas é recusado no caminho do recurso</td></tr>
+        <tr><td><code>resourceRef.lessonId</code></td><td>texto</td><td>sim</td><td>precisa existir no curso</td></tr>
+        <tr><td><code>resourceRef.resourceId</code></td><td>texto</td><td>sim</td><td>precisa existir naquela aula; referência quebrada aponta o caminho, e o par repetido é recusado</td></tr>
+        <tr><td><code>suggestedExercises[].id</code></td><td>texto</td><td>sim</td><td>único dentro da aula</td></tr>
+        <tr><td><code>suggestedExercises[].title</code></td><td>texto</td><td>sim</td><td>1–200 caracteres</td></tr>
+        <tr><td><code>suggestedExercises[].description</code></td><td>texto ou nulo</td><td>não</td><td>até 2000 caracteres</td></tr>
+        <tr><td><code>suggestedExercises[].initialBpm</code></td><td>inteiro ou nulo</td><td>não</td><td>30–300</td></tr>
+        <tr><td><code>suggestedExercises[].targetBpm</code></td><td>inteiro ou nulo</td><td>não</td><td>30–300; nulo = "definir alvo", sem seta</td></tr>
+        <tr><td><code>suggestedExercises[].bars</code></td><td>inteiro ou nulo</td><td>não</td><td>1–64 compassos</td></tr>
+        <tr><td><code>suggestedExercises[].trackNames</code></td><td>lista de textos</td><td>não</td><td>até 32 itens, 160 caracteres cada</td></tr>
+        <tr><td><code>suggestedExercises[].pdfPage</code></td><td>inteiro ou nulo</td><td>não</td><td>1–9999</td></tr>
+        <tr><td><code>suggestedExercises[].strings</code></td><td><code>4</code>, <code>5</code> ou nulo</td><td>não</td><td>herda o curso quando nulo</td></tr>
+        <tr><td><code>progress.watchedLessonIds</code></td><td>lista de textos</td><td>sim, dentro de <code>progress</code></td><td>até 200 identificadores de aula existentes, sem repetição; id desconhecido é referência quebrada</td></tr>
+      </tbody>
+    </table></div>
+    <p>O Curso é uma <strong>sugestão</strong>: criar o exercício no Estúdio exige notas vazias, BPM inicial e alvo e vínculo ao material. Anotações pessoais <strong>nunca</strong> fazem parte do formato.</p>
+    <p>Limites do documento: 64 seções, 200 aulas (no curso e por seção), 64 materiais e 64 sugestões por aula, 128 vínculos, 32 nomes de faixa, 16 pré-requisitos, 16 técnicas, 8 MiB de arquivo. Textos: id 128, título 200, nome de arquivo 160, rótulo 40, endereço 2048, idioma 35, extensão 8, texto curto 80, texto médio 120, resumo 2000 caracteres. Faixas: BPM 30–300, compassos 1–64, compassos por acorde 1–2, minutos por dia 1–600, duração de vídeo 0–86400 s, semana 1–52, página de PDF 1–9999.</p>
+
+    <details><summary>Avançado · leitura estrita, erros e conversão de um mapa</summary>
+      <p>A porta estrita é <code>src/course-format.js</code>: <code>normalizeCourse(valor)</code> e <code>parseCourse(texto)</code> devolvem <code>{ ok: true, document }</code> ou <code>{ ok: false, error, errors, truncated }</code>, e <code>serializeCourse(documento)</code> devolve o texto JSON (2 espaços e quebra de linha final). Cada erro é <code>{ path, code, message }</code>; <code>error</code> repete a primeira mensagem já com o caminho. Códigos: <code>documento</code>, <code>objeto</code>, <code>campo-obrigatorio</code>, <code>campo-desconhecido</code>, <code>texto</code>, <code>numero</code>, <code>booleano</code>, <code>lista</code>, <code>limite</code>, <code>valor</code>, <code>url</code>, <code>extensao</code>, <code>cordas</code>, <code>instrumento</code>, <code>formato</code>, <code>versao</code>, <code>id-repetido</code>, <code>referencia-repetida</code>, <code>referencia-quebrada</code>, <code>video</code> e <code>json</code>. JSON malformado nunca expõe detalhes do parser: a mensagem é sempre "Não foi possível ler o arquivo: o JSON é inválido."</p>
+      <p>Um <strong>mapa de curso em português</strong> é convertido por <code>scripts/convert-course-map.js</code>. A raiz é <code>{ _sobre, curso, modulos }</code>; <code>curso</code> traz <code>titulo</code>, <code>autor</code>, <code>url</code>, <code>descricao</code>, <code>instrumento</code> (<code>nome</code>, <code>cordas</code>), <code>idioma</code>, <code>minutos_diarios</code> e <code>total_aulas</code>. Cada módulo tem <code>ordem</code>/<code>ordem_global</code>, <code>titulo</code>, <code>descricao</code>, <code>objetivo</code>, <code>prerequisitos</code>, <code>semana</code> e <code>aulas</code>; cada aula tem <code>id</code>, <code>titulo</code>, <code>url</code>, <code>tipo_de_aula</code>, <code>video</code> (<code>hospedagem</code>, <code>duracao</code>, <code>duracao_segundos</code>), <code>resumo</code>, <code>instrucoes_de_pratica</code>, <code>tom</code>, <code>formula_de_compasso</code>, <code>afinacao</code>, <code>tecnicas_ou_conceitos</code>, <code>andamentos</code> (<code>inicial</code>, <code>alvo</code>), <code>anexos</code>, <code>backing_tracks</code>, <code>exercicios</code> e <code>meu_progresso</code> (<code>assistida</code>, <code>anotacoes</code>). Campos ausentes, nulos ou embrulhados em <code>{ valor, inferido }</code> não derrubam a conversão; só o caminho do campo aparece nos avisos, nunca títulos, nomes de arquivo ou endereços.</p>
+      <pre><code>node scripts/convert-course-map.js CAMINHO/mapa.json --output CAMINHO/curso.json [--com-progresso]</code></pre>
+      <p><code>--com-progresso</code> inclui as aulas assistidas; as anotações nunca saem. Material ou sugestão de 6 cordas é descartado com aviso, porque o formato aceita somente baixo de 4 ou 5 cordas; um curso que <strong>declara 6 cordas é incompatível</strong> — a conversão falha apontando <code>course.strings</code>, nenhum arquivo é gravado e o aviso explica o motivo, sem reclassificar o curso. Códigos de saída: <code>0</code> sucesso; <code>1</code> nenhum documento válido (nada gravado); <code>2</code> uso inválido, entrada ilegível ou JSON inválido.</p>
+    </details>
+
+    <details><summary>Avançado · exemplo mínimo fictício</summary>
+      <p>Nenhum dado real de curso entra no repositório: os exemplos usam "Curso de Exemplo" e <code>example.invalid</code>.</p>
+      <pre><code>{
+  "format": "groovegoblin-course",
+  "version": 1,
+  "course": {
+    "id": "curso-de-exemplo",
+    "title": "Curso de Exemplo",
+    "author": "Autor de Exemplo",
+    "url": "https://example.invalid/curso",
+    "instrument": "bass",
+    "strings": 4,
+    "language": "pt-BR",
+    "dailyMinutes": 20,
+    "summary": "Trilha fictícia de estudo",
+    "sections": [
+      {
+        "id": "modulo-1",
+        "title": "Módulo 1",
+        "type": "módulo",
+        "week": 1,
+        "lessons": [
+          {
+            "id": "aula-1",
+            "title": "Aula 1",
+            "url": "https://example.invalid/aula/1",
+            "type": "Prática",
+            "hasVideo": true,
+            "videoSeconds": 360,
+            "resources": [
+              {
+                "id": "faixa-exemplo-4-cordas-80bpm-mp3",
+                "name": "faixa-exemplo-4-cordas-80bpm.mp3",
+                "extension": "mp3",
+                "role": "faixa",
+                "bpm": 80,
+                "barsPerChord": 2,
+                "extended": false,
+                "strings": 4
+              }
+            ],
+            "resourceRefs": [],
+            "suggestedExercises": [
+              {
+                "id": "exercicio-de-exemplo-a",
+                "title": "Exercício de Exemplo A",
+                "initialBpm": 80,
+                "targetBpm": 100,
+                "bars": 25,
+                "trackNames": ["faixa-exemplo-4-cordas-80bpm.mp3"],
+                "strings": 4
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}</code></pre>
+    </details>
   </section>
   <section class="panel" id="offline" aria-labelledby="offline-title">
     <h2 id="offline-title">Preparar offline, atualizar e proteger seu trabalho</h2>

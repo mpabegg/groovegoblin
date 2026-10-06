@@ -1,0 +1,196 @@
+{
+  "format": "groovegoblin-course",
+  "version": 1,
+  "course": {
+    "id": "curso",
+    "title": "Curso sem título",
+    "author": null,
+    "url": null,
+    "instrument": "bass",
+    "strings": 5,
+    "language": "português brasileiro com nome compr",
+    "dailyMinutes": 30,
+    "summary": "Descrição fictícia e irregular",
+    "sections": [
+      {
+        "id": "encontros-extras",
+        "title": "Encontros extras",
+        "type": "módulo",
+        "week": 3,
+        "summary": null,
+        "objective": null,
+        "prerequisites": [
+          "Nenhum"
+        ],
+        "lessons": []
+      },
+      {
+        "id": "modulo-repetido",
+        "title": "Seção sem título",
+        "type": "outro",
+        "week": null,
+        "summary": null,
+        "objective": null,
+        "prerequisites": [],
+        "lessons": [
+          {
+            "id": "modulo-repetido-aula-1",
+            "title": "Primeira aula sem identificador",
+            "url": null,
+            "type": "aula",
+            "videoSeconds": null,
+            "hasVideo": false,
+            "summary": null,
+            "practiceInstruction": null,
+            "key": null,
+            "chordFormula": null,
+            "tuning": null,
+            "techniques": [],
+            "initialBpm": 90,
+            "targetBpm": null,
+            "resources": [
+              {
+                "id": "apostila-irregular-pdf",
+                "name": "apostila-irregular.pdf",
+                "extension": "pdf",
+                "role": "apostila",
+                "bpm": null,
+                "barsPerChord": null,
+                "style": null,
+                "extended": false,
+                "strings": null
+              },
+              {
+                "id": "material-desconhecido-dat",
+                "name": "material-desconhecido.dat",
+                "extension": "dat",
+                "role": "outro",
+                "bpm": null,
+                "barsPerChord": null,
+                "style": null,
+                "extended": false,
+                "strings": null
+              },
+              {
+                "id": "faixa-irregular-4-cordas-80bpm-mp3",
+                "name": "faixa-irregular-4-cordas-80bpm.mp3",
+                "extension": "mp3",
+                "role": "faixa",
+                "bpm": 80,
+                "barsPerChord": 1,
+                "style": "Irregular",
+                "extended": true,
+                "strings": 4
+              },
+              {
+                "id": "pacote-irregular-zip",
+                "name": "pacote-irregular.zip",
+                "extension": "zip",
+                "role": "pacote de exercícios",
+                "bpm": null,
+                "barsPerChord": null,
+                "style": null,
+                "extended": false,
+                "strings": 4
+              }
+            ],
+            "resourceRefs": [],
+            "suggestedExercises": []
+          },
+          {
+            "id": "modulo-repetido-aula-1-2",
+            "title": "Segunda aula irregular",
+            "url": null,
+            "type": "aula",
+            "videoSeconds": 3723,
+            "hasVideo": true,
+            "summary": "Resumo fictício irregular.",
+            "practiceInstruction": null,
+            "key": "Lá menor inventado",
+            "chordFormula": "dois compassos por acorde",
+            "tuning": "afinação fictícia",
+            "techniques": [
+              "técnica fictícia"
+            ],
+            "initialBpm": null,
+            "targetBpm": null,
+            "resources": [],
+            "resourceRefs": [
+              {
+                "lessonId": "modulo-repetido-aula-1",
+                "resourceId": "faixa-irregular-4-cordas-80bpm-mp3"
+              },
+              {
+                "lessonId": "modulo-repetido-aula-1",
+                "resourceId": "pacote-irregular-zip"
+              }
+            ],
+            "suggestedExercises": [
+              {
+                "id": "exercicio-irregular-a",
+                "title": "Exercício irregular A",
+                "description": null,
+                "initialBpm": 80,
+                "targetBpm": 100,
+                "bars": 25,
+                "trackNames": [
+                  "faixa-irregular-4-cordas-80bpm.mp3"
+                ],
+                "pdfPage": 12,
+                "strings": null
+              },
+              {
+                "id": "exercicio-irregular-b",
+                "title": "Exercício irregular B",
+                "description": null,
+                "initialBpm": null,
+                "targetBpm": null,
+                "bars": null,
+                "trackNames": [],
+                "pdfPage": null,
+                "strings": null
+              },
+              {
+                "id": "exercicio-irregular-com-pacote",
+                "title": "Exercício irregular com pacote",
+                "description": null,
+                "initialBpm": null,
+                "targetBpm": null,
+                "bars": null,
+                "trackNames": [
+                  "pacote-irregular-faixa-1.mp3"
+                ],
+                "pdfPage": null,
+                "strings": null
+              },
+              {
+                "id": "exercicio-irregular-sem-material",
+                "title": "Exercício irregular sem material",
+                "description": null,
+                "initialBpm": null,
+                "targetBpm": null,
+                "bars": null,
+                "trackNames": [
+                  "faixa-inexistente.mp3"
+                ],
+                "pdfPage": null,
+                "strings": null
+              },
+              {
+                "id": "exercicio-irregular-com-campo-exotico",
+                "title": "Exercício irregular com campo exótico",
+                "description": null,
+                "initialBpm": null,
+                "targetBpm": null,
+                "bars": null,
+                "trackNames": [],
+                "pdfPage": null,
+                "strings": null
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
