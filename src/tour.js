@@ -1,6 +1,7 @@
 // Tour guiado "Como usar": um <dialog> modal nativo que apenas ensina.
 // Não toca som, não altera a sessão nem o histórico; ao sair, devolve aba,
-// painéis abertos, modo de foco, rolagem e foco exatamente como estavam.
+// conteúdo da Biblioteca (Exercícios/Cursos), painéis abertos, modo de foco,
+// rolagem e foco exatamente como estavam.
 
 import { setStudioDetailsOpen } from './studio-popovers.js';
 
@@ -8,9 +9,14 @@ export const TOUR_STORAGE_KEY = 'groovegoblin:tour:v1';
 
 const STEPS = [
   {
-    tab: 'tab-library', target: '#library-mount .library-toolbar',
+    tab: 'tab-library', mode: 'exercises', target: '#library-mount .library-toolbar',
     title: 'Sua biblioteca, sempre salva',
     body: 'Cada exercício fica salvo automaticamente neste navegador. Novo preserva o anterior; Editar abre o Estúdio e Treinar abre sua frase. Etiquetas, alvo de BPM e anotações ajudam a organizar; Histórico reúne as tentativas e os gráficos de cada exercício. “Montar sessão de hoje” prepara uma fila com durações: quando o tempo chega a zero, você escolhe Próximo ou Encerrar. Salve uma rotina para recriar a fila. Exporte a biblioteca antes de limpar os dados do navegador.',
+  },
+  {
+    tab: 'tab-library', mode: 'courses', target: '#library-mode',
+    title: 'Cursos na mesma biblioteca',
+    body: 'Em Conteúdo, escolha Cursos e use Importar curso para ler um mapa JSON do seu computador: nada é baixado nem enviado, e sua biblioteca de exercícios não muda. O mapa traz seções e aulas; cada aula mostra tipo, duração, estado e sugestões, e os exercícios sugeridos só passam a existir quando você cria ou vincula um exercício seu do Estúdio — a importação não cria exercícios sozinha. PDFs e áudios de apoio são anexados manualmente e ficam neste navegador; o app não baixa nem incorpora vídeo ou prévia de link. Reimportar o mesmo curso atualiza a estrutura e preserva progresso, anotações e vínculos.',
   },
   {
     tab: 'tab-studio', target: '#studio-instrument',
@@ -54,6 +60,19 @@ function writeFlag(status) {
 }
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const clamp = (value, min, max) => Math.min(Math.max(value, min), Math.max(min, max));
+
+// A Biblioteca é uma só aba com dois conteúdos; o tour entra no conteúdo do
+// passo pelo próprio seletor nativo, sem ganchos novos no host, e devolve a
+// escolha anterior ao sair. Trocar de conteúdo só oculta/mostra o painel, sem
+// destruir o curso aberto nem as anotações em rascunho.
+const librarySelect = () => document.querySelector('#library-mode');
+const libraryMode = () => librarySelect()?.value ?? 'exercises';
+function setLibraryMode(next) {
+  const select = librarySelect();
+  if (!select || select.value === next) return;
+  select.value = next;
+  select.dispatchEvent(new Event('change', { bubbles: true }));
+}
 
 function el(tag, props = {}, ...children) {
   const node = document.createElement(tag);
@@ -123,10 +142,13 @@ export function mountTour(button, host) {
       return false;
     }
     const tab = document.querySelector('.intentions [role=tab][aria-selected=true]');
+    const tabId = tab?.id ?? 'tab-studio';
+    const priorMode = libraryMode();
     state = {
       index: 0, token: 0, raf: 0, settleTimer: 0, settling: false, animations: [],
       restore: {
-        tab: tab?.id ?? 'tab-studio',
+        tab: tabId,
+        library: priorMode,
         details: [...document.querySelectorAll('details')].map(node => ({ node, id: node.id, open: node.open })),
         focusMode: document.body.classList.contains('performance-focus'),
         x: scrollX, y: scrollY,
@@ -152,7 +174,9 @@ export function mountTour(button, host) {
       host.notify(`Não foi possível abrir o tour: ${error.message}`, true);
       return false;
     }
-    const contextualIndex = STEPS.findIndex(step => step.tab === tab?.id);
+    const contextualIndex = tabId === 'tab-library'
+      ? STEPS.findIndex(step => step.tab === 'tab-library' && step.mode === priorMode)
+      : STEPS.findIndex(step => step.tab === tabId);
     show(Math.max(0, contextualIndex), { first: true });
     return true;
   }
@@ -188,6 +212,9 @@ export function mountTour(button, host) {
       if (token !== state?.token) return;
     }
     host.activateTab(step.tab);
+    // O conteúdo da Biblioteca (Exercícios/Cursos) é trocado antes de medir o
+    // alvo: o passo dos exercícios vive no painel oculto em Cursos.
+    if (step.mode) setLibraryMode(step.mode);
     // A ativação pode reaplicar o foco na execução e fechar “Mais opções”.
     // Abrimos os ancestrais reais, incluindo details sem id, sem editar dados.
     document.body.classList.remove('performance-focus');
@@ -361,6 +388,9 @@ export function mountTour(button, host) {
     if (dialog.open) dialog.close();
     document.documentElement.classList.remove('tour-active');
     host.activateTab(restore.tab);
+    // Devolve o conteúdo escolhido na Biblioteca antes dos painéis e do foco:
+    // o curso aberto e o rascunho voltam ao painel, sem recarregar nada.
+    setLibraryMode(restore.library);
     for (const { node, id, open } of restore.details) {
       const details = id ? document.getElementById(id) : node;
       if (details?.isConnected) setStudioDetailsOpen(details, open);

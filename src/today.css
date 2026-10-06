@@ -65,6 +65,10 @@
   .training-controls #today-trainer-mount { flex: 1; min-width: 0; }
   .training-controls .today-run { margin: 0; padding: 4px 6px; }
   .training-controls .today-run-name { max-width: 16ch; }
+  /* Reserva espaço para a fila sem cortar os sistemas: a partitura já tem rolagem própria. */
+  #panel-practice:has(#today-trainer-mount .today-run:not([hidden])) #practice-rhythm-score {
+    max-height: clamp(180px, calc(100vh - 720px), 244px);
+  }
 }
 
 /* Cursos de hoje: orçamento diário e plano dentro da montagem (o repouso da

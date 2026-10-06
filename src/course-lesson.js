@@ -870,8 +870,7 @@ export function mountCourseLesson(container, host) {
   function notesGroup(outcome) {
     const draft = draftFor(view.courseId, view.lessonId, outcome.lessonState.notes);
     const details = createEl('details', { id: 'lesson-notes-group', className: 'lesson-group', dataset: { disclosure: 'lesson-notes' } });
-    const flag = draft.dirty ? 'alterações não salvas' : draft.text ? 'salvas' : 'vazio';
-    details.append(createEl('summary', { text: `Anotações pessoais (${flag})` }));
+    details.append(createEl('summary', { text: 'Anotações pessoais' }));
     const body = createEl('div', { className: 'lesson-group-body' });
     const textarea = createEl('textarea', {
       id: 'lesson-notes',
