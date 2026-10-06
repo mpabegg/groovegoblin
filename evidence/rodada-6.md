@@ -14,7 +14,9 @@ depois de cada merge e push.
 | 1 — limite de 128 compassos e correções do conversor | `2f98106` | 928 (927 passam, 1 ignorado) | 194 módulos |
 | 2 — motor de geração (`src/study-generator.js`) | `46a862d` | 957 (956 passam, 1 ignorado) | 198 módulos |
 | 3 — formas de dedilhado | `8169a0d` | 979 (978 passam, 1 ignorado) | 202 módulos |
-| 4 — interface do gerador e variações | (esta etapa) | 1027 (1026 passam, 1 ignorado) | 209 módulos |
+| 4 — interface do gerador e variações | `50f75b0` | 1027 (1026 passam, 1 ignorado) | 209 módulos |
+| 5 — catálogo no curso, aula e sessão de hoje | `1903c21` | 1088 (1087 passam, 1 ignorado) | 214 módulos |
+| 6 — servidor e segurança | (esta etapa) | 1146 (1145 passam, 1 ignorado) | 234 módulos |
 
 O teste ignorado é o de amostra física da rodada 1 (`physical sample`), ignorado por desenho.
 
@@ -172,4 +174,99 @@ testes de módulo provam a reconciliação; a prova de UI entra na etapa 10.
    descartado na gravação e a barreira B6 perderia a marca no navegador.
 3. `src/study-recipe.js` (etapa 4) aceita a receita do documento do curso (cifras em texto,
    `shapeLabel` descartado) — ver a etapa 4.
+
+## Etapa 6 — servidor e segurança (B2/B3)
+
+`server.js` passou a ler o ambiente e subir o processo; o backend nativo ficou em `server/`
+(onze módulos: `config`, `store`, `fsutil`, `http`, `auth`, `static`, `blobs`, `backup`, `api`,
+`app`, `restore`), tudo com módulos nativos do Node 22 e **zero dependências** novas. Sem
+`GROOVE_DATA_DIR` o comportamento é o de sempre (só estático, `/api/*` → 404); com ele, a API
+liga em `dev` (loopback, sem identidade) ou `tailscale` (identidade do Serve conferida contra
+lista, bind obrigatório em `127.0.0.1`).
+
+### Critério 16 — autenticação e recusa de subida
+
+Testes `tests/server-config.test.js` e `tests/server-auth.test.js`, mais o smoke HTTP real
+abaixo: recusa subir em `tailscale` sem lista, sem origem canônica ou com host fora do loopback;
+em `dev`, recusa host fora do loopback, origem pública e cabeçalho de proxy (`X-Forwarded-*`);
+`Host` estranho → 403; identidade ausente → 401 `identity_required`, fora da lista → 401
+`identity_forbidden`, repetida → 400, permitida → 200; escrita sem `Origin` da própria origem →
+403 `origin_forbidden`.
+
+### Critérios 17 e 20 — escrita condicional e blobs
+
+`PUT` sem precondição → 428; `If-None-Match: *` sobre doc vivo → 412 com a revisão atual no
+`ETag` e `X-Groove-Rev`; `If-Match` velho → 412 `precondition_failed` com `current`; doc
+individual devolve `X-Groove-Rev` também no 304, no `PUT`, no `DELETE` e na lápide (listas e
+feed seguem com a revisão **por registro no corpo**, sem cabeçalho singular). Blobs: `PUT`
+confere o sha no fluxo (hash errado → 400, nada gravado), reenvio → 200 `created:false`, `HEAD`
+com `Accept-Ranges`/`ETag`, `Range: bytes=0-99` → 206 com `Content-Range`, faixa insatisfazível
+→ 416, tipo e disposição vêm da **assinatura** (PDF e áudio `inline`, HTML/desconhecido viram
+anexo opaco com CSP `sandbox`), `DELETE` libera o espaço.
+
+### Critério 22 e consertos de fronteira — backup autocontido, tetos e estado ausente
+
+O backup diário é NDJSON gzip v2 **autocontido** (leva os bytes de cada blob em pedaços de até
+1 MiB, além de documentos e privados), com `header` e `footer` conferidos, mantendo os 14 mais
+novos; a rotação plantando 20 diários antigos + um novo manteve exatamente 14. A restauração por
+CLI exige o servidor parado, valida tudo antes de tocar no estado, grava
+`backups/pre-restore-*.ndjson.gz` (completo), repõe os blobs apagados, transforma em lápide o
+que nasceu depois, preserva blob vivo fora do arquivo e dá **revisões novas** aos documentos
+(o feed anuncia a restauração). Consertos de fronteira desta etapa:
+
+- `POST /api/courses/convert`: `map` e `catalog` são medidos **antes** de qualquer gravação de
+  privado — acima de 16 MiB (o teto de registro, não o do envelope de 32 MiB) → 413 e o privado
+  anterior fica byte a byte intacto (um pedido com `map` pequeno e catálogo grande **não** grava
+  o mapa);
+- o escritor do backup recusa (`backup_invalid`) uma linha acima de
+  `MAX_LINE_BYTES = MAX_RECORD_BYTES (16 MiB) + 512`, então ele nunca emite um arquivo que o
+  leitor recusaria (o leitor recusava linhas > 32 MiB e o escritor não conferia);
+- `state.json` ausente **com documentos ou privados no disco** → recusa subir (`state_corrupt`)
+  sem criar lock, sem sintetizar estado e sem apagar nada;
+- `PUT` de blob em fluxo (`Transfer-Encoding: chunked`, sem `Content-Length`) reserva o teto
+  inteiro antes de gravar (507 honesto em vez de furar `GROOVE_MIN_FREE_BYTES`);
+- os fallbacks 400/404 do app passam a sair com o mesmo conjunto de cabeçalhos de segurança do
+  estático (uma só CSP em `staticSecurityHeaders({hsts})`).
+
+Ajuste de integração (marcador de estado): `hasStoredData` conta **objetos e privados**, não
+blobs. Blob é endereçado por conteúdo, não entra no manifesto e nunca é coletado; um data dir
+que só recebeu blobs (upload antes do primeiro commit) é legítimo, então continua subindo — só
+documentos ou privados órfãos caracterizam manifesto perdido. Regressão em
+`tests/server-crash.test.js` (só blob → sobe e o blob continua servido).
+
+### Smoke HTTP real (dados fictícios em diretório temporário, fora do repositório)
+
+Servidor de verdade em processos filhos, 90 verificações, 90 aprovadas:
+
+| Grupo | Verificações |
+| --- | --- |
+| subida e recusas (modos, host, data dir, marcador, só-blob) | 12 |
+| `dev`: cabeçalhos/segurança, Host/proxy/origem, docs/ETag/`X-Groove-Rev`/412/428/405/413/415, cursor, travessia | 27 |
+| blobs: bytes, `HEAD`, `Range`/416, assinatura, CSP, auth, `DELETE` | 10 |
+| privados (`map`/`catalog`) e convert (413 de 16 MiB, 409) | 7 |
+| backup: criação diária, rotação para 14, NDJSON v2 com bytes de blob, privado | 7 |
+| restauração: dry-run, pre-restore, lápide, blob do backup reposto, blob vivo preservado, data dir vazio | 11 |
+| `tailscale`: 401/400/200, `Host` loopback e alheio, `Origin` correto/ausente/alheio, HSTS, blob/privado/backup sem identidade | 12 |
+| estático sem data dir: `/api` 404, app 200, escrita 405, 404 do app com cabeçalhos | 4 |
+
+Conferido também: nenhuma resposta de erro cita caminho, login ou corpo; a saída do CLI de
+restauração só traz contagens; o log do servidor traz `api <MÉTODO> <rota-modelo> <status> <ms>`,
+sem id, login, IP nem corpo.
+
+### Interface publicada para as próximas etapas
+
+- `receiveBlob(request, { tmpDir, maxBytes, reserveSpace })` — o gancho que a etapa 8 (intake)
+  reusa para reservar espaço antes de gravar;
+- `store.reserveSpace(bytes)` → `release()`, contando reservas em voo;
+- `server/backup.js` exporta `MAX_RECORD_BYTES`, `RECORD_OVERHEAD_BYTES` e `MAX_LINE_BYTES`;
+- `server/http.js` exporta `staticSecurityHeaders({ hsts })`;
+- `api.LIMITS.course/private = MAX_RECORD_BYTES` (16 MiB), fonte única com o backup;
+- `X-Groove-Rev` no documento individual (o adaptador da etapa 7 já prefere esse cabeçalho).
+
+### Privacidade
+
+Nenhum identificador de curso ou de infraestrutura nos arquivos desta etapa: o smoke usa
+`usuario@example.org`, `https://groove.exemplo.ts.net` e fixtures fictícios em diretório
+temporário; a auditoria dos arquivos preparados (`local/round6-private-audit.json`) saiu com
+0 ocorrências.
 

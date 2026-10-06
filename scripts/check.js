@@ -12,7 +12,7 @@ async function collect(directory) {
     else if (/\.[cm]?js$/.test(entry.name)) files.push(path);
   }
 }
-for (const directory of ['src', 'scripts', 'tests']) await collect(directory);
+for (const directory of ['src', 'scripts', 'server', 'tests']) await collect(directory);
 let failed = 0;
 for (const file of files.sort()) {
   const result = spawnSync(process.execPath, ['--check', file], { cwd: root, encoding: 'utf8' });

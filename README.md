@@ -199,7 +199,7 @@ Requer Node.js 22 ou posterior e navegador moderno com Web Audio; não é necess
 npm start
 ```
 
-Abra <http://127.0.0.1:5173>. O servidor local escuta somente em loopback e serve arquivos; não recebe nem processa sessões. Porta alternativa: `PORT=5174 npm start`. Pare com Ctrl+C. `file://` não é suportado por causa dos módulos ES.
+Abra <http://127.0.0.1:5173>. Sem `GROOVE_DATA_DIR` o servidor local escuta somente em loopback e serve arquivos; não recebe nem processa sessões. Com `GROOVE_DATA_DIR` ele também expõe a API descrita em **Servidor pessoal** abaixo. Porta alternativa: `PORT=5174 npm start`. Pare com Ctrl+C. `file://` não é suportado por causa dos módulos ES.
 
 ## Build e preview com prefixo
 
@@ -209,6 +209,21 @@ npm run preview
 ```
 
 `npm run build` gera `dist/` para publicação estática. `npm run preview` serve esse artefato sob o prefixo `/groovegoblin/`; abra <http://127.0.0.1:5173/groovegoblin/>. Para usar outro prefixo, porta ou diretório: `STATIC_ROOT=dist BASE_PATH=/meu-projeto/ PORT=5174 node server.js`. O servidor redireciona o prefixo sem a barra final.
+
+## Servidor pessoal (opcional)
+
+Sem servidor nada muda: o app é estático, funciona offline e no GitHub Pages. Com `GROOVE_DATA_DIR` apontando para um diretório **fora do repositório**, o mesmo processo passa a expor `/api` e os dados deixam de viver só no navegador. Node 22, sem dependências novas.
+
+```sh
+GROOVE_DATA_DIR=~/groovegoblin-dados npm start
+```
+
+- **Modos.** `GROOVE_AUTH=dev` (padrão) só aceita loopback, sem identidade. `GROOVE_AUTH=tailscale` exige `GROOVE_ALLOWED_LOGINS` (logins permitidos, separados por vírgula) e `GROOVE_PUBLIC_ORIGIN` (`https://…`), escuta **só** em `127.0.0.1` e confia no cabeçalho `Tailscale-User-Login` que o `tailscale serve` injeta; sem cabeçalho ou com login fora da lista, 401. Em qualquer modo, escrita (`PUT`/`POST`/`DELETE`) exige `Origin` da própria origem. O servidor recusa subir se a lista estiver vazia, se a origem não for `https://` canônica, se o host não for loopback ou se o data dir estiver dentro do repositório ou da raiz estática.
+- **Rotas.** `GET /api/health`; documentos `GET|PUT|DELETE /api/docs/:colecao/:id` (exercícios, formas, cursos, estado dos cursos, anexos de curso, fila/rotinas, preferências) com revisão por documento, `If-None-Match: *` para criar e `If-Match` para atualizar (`428` sem precondição, `412` com revisão velha); `GET /api/changes?since=cursor`; blobs `PUT|GET|HEAD|DELETE /api/blobs/:sha256` com `Range` e tipo conferido por assinatura; área privada `PUT|GET|DELETE /api/private/:nome`; `POST /api/courses/convert`; `GET|POST /api/backups` e `GET|HEAD /api/backup`.
+- **Cabeçalhos.** Toda resposta sai com CSP, `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` e `Cross-Origin-Opener-Policy`; no modo `tailscale` também HSTS. API e blobs nunca são cacheados (`Cache-Control: private, no-store`).
+- **Limites.** Documento 4 MiB (cursos 16 MiB), privado 16 MiB, envelope do `convert` 32 MiB, blob 200 MiB (`GROOVE_MAX_BLOB_BYTES`). Gravar abaixo da reserva de disco (`GROOVE_MIN_FREE_BYTES`, 128 MiB) responde 507.
+- **Cópia de segurança.** Um instantâneo diário em NDJSON gzip, autocontido (inclui os **bytes** dos blobs), mantendo os 14 últimos (`GROOVE_BACKUP_KEEP`). Restaure com o servidor parado: `node server/restore.js --data-dir DIR --latest` (só contagens) e `--yes` para aplicar; a restauração grava antes um `pre-restore-*.ndjson.gz` e repõe documentos, privados e blobs com revisões novas, sem apagar blobs vivos fora do arquivo.
+- **Privado por desenho.** O data dir guarda o mapa e o catálogo do curso, os materiais e os backups; nada disso vai para o Git nem para o servidor estático. As rotas `/api` exigem a identidade autenticada (no modo `tailscale`) e os logs não registram conteúdo, ids, login, IP nem caminho. A instalação no Raspberry Pi com `tailscale serve` e HTTPS é documentada na pasta [`deploy/`](./deploy/) (serviço, `serve`, scripts e guia).
 
 ## Comandos de verificação
 
