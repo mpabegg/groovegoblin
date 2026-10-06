@@ -28,6 +28,10 @@ import { mountStudioInstrument } from './studio-instrument.js';
 import { mountPracticeTracks } from './practice-tracks.js';
 import { mountTrainingResult } from './training-result.js';
 import { quietTakeNotices } from './take-notices.js';
+import { createPracticeActivity } from './practice-activity.js';
+import { createTodayStore } from './today-store.js';
+import { createTodaySession } from './today-session.js';
+import { mountTodayPanel, mountTodayTrainer } from './today-view.js';
 
 const $ = id => document.getElementById(id);
 // Estado legado cru é preservado ANTES de qualquer leitura/migração.
@@ -59,6 +63,9 @@ let playground;
 let journey;
 let lastRepertoireBusy = false;
 const history = new History();
+// Uma única instância do diário de tempo real por app: Hoje, treinador e
+// Percurso compartilham o mesmo estado (nunca três instâncias divergentes).
+const activity = createPracticeActivity();
 const library = createExerciseLibrary({ parse: parseSession, serialize: serializeSession, currentSession: session });
 let activeExerciseId = library.active(); session = withStudioChoices(library.activeEntry()?.session ?? session);
 const notices = mountStudioNotices({ isBusy: () => false, canUndo: () => history.canUndo, current: () => history.current, undo: () => travelHistory('undo') });
@@ -204,7 +211,7 @@ async function preview(notes, options = {}) {
 async function saveTake(attempts, detail) { return takeNotices.capture(() => repertoire.captureTake(attempts, detail)); }
 const host = {
   getSession: () => structuredClone(session), updateSession, replaceSession, play: begin, stop, notify: message, preview, saveTake, renderSession,
-  isBusy: busy, isInstrumentInput: () => !!performanceInput?.instrument,
+  isBusy: busy, isInstrumentInput: () => !!performanceInput?.instrument, activity,
 };
 
 const studio = mountStudio({ onActivate: id => {
@@ -446,6 +453,29 @@ const libraryView = mountLibrary($('library-mount'), {
   undoDeleteExercise: () => { const restored = library.undoDelete(); syncActive(); return restored; },
   updateExerciseMetadata: (id, patch) => { const entry = library.updateMetadata(id, patch); syncActive(); return entry; },
 });
+// Sessão de hoje (rodada 4, item 4): fila/rotinas em chave própria e a tira de
+// tempo na aba Treinar. `openItem` abre o exercício no Treinar; `start` inicia o
+// take avaliado só quando o usuário pede "Começar".
+const todayStore = createTodayStore();
+const todaySession = createTodaySession({
+  store: todayStore,
+  library,
+  getActivity: () => host.activity ?? null,
+  notify: message,
+  openItem: (exerciseId, { start = false } = {}) => {
+    if (!library.get(exerciseId) || !library.select(exerciseId)) return false;
+    syncActive();
+    studio.activate($('tab-practice'));
+    if (start) practice.useSession({ train: true });
+    return true;
+  },
+  getOwner: () => library.active(),
+  isExecuting: () => executionMode === 'train' && (pending === 'play' || audio.position.mode === 'countin' || audio.position.mode === 'train'),
+  stopExecution: reason => { practice?.cancel(); stop(reason); },
+  onEvent: () => { todayPanel?.render(); todayTrainer?.render(); },
+});
+const todayPanel = mountTodayPanel($('today-mount'), { store: todayStore, session: todaySession, library, notify: message, download, activateTab: id => studio.activate($(id)) });
+const todayTrainer = mountTodayTrainer($('today-trainer-mount'), { session: todaySession, library, notify: message });
 $('new-session').addEventListener('click', () => openExercise(library.new({ session: createStudioSession() }).id));
 $('duplicate-session').addEventListener('click', () => { const active = library.active(); if (active) openExercise(library.duplicate(active).id); else message('Não há exercício para duplicar.'); });
 for (const [id, raw, name] of [['download-library-backup', library.backupRaw, 'groovegoblin-backup-legado.json'], ['download-library-recovery', library.recoveryRaw, 'groovegoblin-biblioteca-corrompida.json']]) { $(id).hidden = raw === null; $(id).addEventListener('click', () => download(raw, name)); }

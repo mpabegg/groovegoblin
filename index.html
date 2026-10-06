@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="./src/practice.css">
   <link rel="stylesheet" href="./src/repertoire.css">
   <link rel="stylesheet" href="./src/library.css">
+  <link rel="stylesheet" href="./src/today.css">
   <link rel="stylesheet" href="./src/tour.css">
   <script type="module" src="./src/main.js"></script>
 </head>
@@ -33,7 +34,7 @@
     <section id="recovery" class="notice" hidden><h3>Dados originais protegidos</h3><p>A biblioteca agora é a autoridade e os originais ficam preservados. Baixe-os antes de qualquer limpeza manual.</p><button id="download-recovery">Baixar originais</button></section>
     <section id="share-preview" class="notice" hidden><h3>Sessão recebida por link</h3><p id="share-description"></p><p>Nada foi substituído. Aplicar permite desfazer depois.</p><button id="apply-share">Aplicar sessão recebida</button><button id="dismiss-share">Dispensar</button></section>
   </div>
-  <section id="panel-library" class="intention-panel" role="tabpanel" aria-labelledby="tab-library" hidden><div id="library-mount"></div></section>
+  <section id="panel-library" class="intention-panel" role="tabpanel" aria-labelledby="tab-library" hidden><div id="library-mount"></div><div id="today-mount"></div></section>
   <section id="panel-studio" class="intention-panel" role="tabpanel" aria-labelledby="tab-studio">
   <div id="session-workspace">
   <section id="studio-transport" class="panel studio-transport" aria-label="Transporte da sessão">
@@ -171,6 +172,7 @@
   </div>
   </section>
   <section id="panel-practice" class="intention-panel" role="tabpanel" aria-labelledby="tab-practice" hidden>
+    <div id="today-trainer-mount"></div>
     <section class="panel" aria-labelledby="practice-session-title">
       <div class="section-heading"><div><div class="eyebrow">FRASE ATUAL · SOMENTE LEITURA</div><h2 id="practice-session-title">Sua frase</h2></div><span id="session-badge" class="badge"></span></div>
       <div class="training-controls"><div class="training-primary"><button id="train" type="button" class="primary">Treinar esta frase</button><button id="listen-phrase" type="button" aria-pressed="false">Ouvir frase</button></div><button id="edit-in-studio" type="button">Editar no Estúdio</button></div>

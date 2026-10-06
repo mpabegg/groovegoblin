@@ -112,6 +112,28 @@ Capturas reais: [1440×900](rodada-4-biblioteca-1440x900.png), [1280×800](rodad
 
 Verificação final da branch já sobre a etapa 2: `npm test && npm run check` — **613 aprovados, 1 ignorado, zero falhas**; **145 módulos**, zero falhas. Regressões cobrem migração, backup, corrupção/quota, identidade da execução, ida/volta, nomes e preservação integral dos registros. Testes de encaminhamento por mocks de DOM foram removidos em favor dos fluxos reais acima.
 
+## Etapa 5 — fila de hoje e rotinas
+
+Etapa independente do treinador novo, integrada depois da Biblioteca. `today-store.js` guarda fila e rotinas nomeadas; `today-session.js` fecha os intervalos de prática; `today-view.js` reúne a montagem na Biblioteca e a tira no Treinar. O diário compartilhado `practice-activity.js` registra intervalos fechados por exercício/instrumento, sem inventar duração para registros antigos nem sobrescrever dados corrompidos.
+
+### Prova de interação e tempo
+
+- Sugestão com quatro exercícios: três nunca treinados em ordem de criação, depois o já treinado. Cliques nativos reordenaram Pulso, removeram um item e ajustaram a primeira duração de 5 para 1 minuto; total de **11 minutos em três itens**. Salvar “Rotina real de verificação”, limpar e recriar restaurou a fila em um clique.
+- **63 segundos de relógio real**, sem avanço artificial: meta de 1 minuto vencida com `+00:03`, item **1 de 3**, transporte **Parar**, área de toque ativa e posição **Treino · C3 · T4 · 2/16**. Nada interrompeu ou avançou a tomada; somente o clique em **Próximo** parou o áudio e abriu o item 2.
+- O diário real recebeu o intervalo de **63.218 ms**, com início/fim e o exercício correto. Pausar e recarregar conservou exatamente os tempos `[63218, 53, 0]`; a fila voltou pausada, sem cobrar o intervalo fora da página.
+- Depois de mudar o BPM do segundo exercício por teclado, avançar conservou **30 → 34 BPM**, `finishedAt` e o tempo praticado na loja e no resumo final.
+- A prova adicional do responsável usou relógio controlado para o intervalo de dez horas: reabertura pausada, nenhum tempo noturno somado. Também exercitou seleção de outro dono, retomada no item correto, quota, corrupção e downloads dos bytes originais. Esses cenários não são alegações de dez horas de prática física.
+
+### Correções encontradas pela verificação
+
+- O tempo excedido era convertido em booleano antes da formatação e permanecia `+00:00`; passou a usar os milissegundos reais, comprovados por `+00:03`.
+- `Próximo` guardava uma referência de item invalidada pela persistência, perdendo BPM final e data de término. Agora reobtém o item após fechar o intervalo; a regressão usa a loja real e verifica resumo e recarregamento.
+- Um resumo antigo podia reaparecer junto de uma fila ativa após reload; agora permanece fora da tira enquanto há sessão em andamento, evitando “sessão encerrada” ao lado do timer ativo.
+
+Capturas: [meta vencida durante a tomada, 1440×900](rodada-4-etapa5-parent-zero-1440x900.png), [resumo com mudança de BPM, 1440×900](rodada-4-etapa5-parent-resumo-1440x900.png). As capturas do responsável também cobrem montagem, rotina e 1280×800.
+
+`npm test && npm run check`: **653 aprovados, 1 ignorado, zero falhas**; **152 módulos**, zero falhas. Cobertura de ordem/duração, retomada, intervalos, dono, término manual, quota/corrupção, rotinas e preservação do BPM final. `main.js`: **514 linhas**.
+
 ## Etapa 7 — diagnóstico da entrada
 
 Etapa independente, verificada antes das etapas de biblioteca/treinador. A captura existente é compartilhada: exportar JSON não grava áudio; “Salvar amostra · 10 s” é a única ação que começa a retenção de PCM para um WAV.
@@ -154,7 +176,7 @@ Captura: [configuração e exceção explícita de gravação, 1440×900](rodada
 | 13 | Metadados, filtros e ordenação | Aprovado na etapa 4 |
 | 14 | Registro no exercício dono da execução | Aprovado na etapa 4; também após integrar o resultado |
 | 15 | Intercâmbio de metadados e legado | Aprovado na etapa 4 |
-| 16 | Fila de hoje, timer, resumo e retomada | Pendente |
+| 16 | Fila de hoje, timer, resumo e retomada | Aprovado na etapa 5; inclusive 63 segundos de relógio real durante tomada ativa |
 | 17 | Histórico com gráficos e alvo | Pendente |
 | 18 | Ordem do inspetor com Braço aberto/fechado | Aprovado na etapa 1 |
 | 19 | Estúdio com quatro faixas e Tab sem rolar, até 58 controles | Aprovado na etapa 1 |
