@@ -1,81 +1,105 @@
-# Rodada 6 — evidências de execução
+# Rodada 6 — servidor pessoal e gerador de estudos
 
-## Etapa 1 — 128 compassos e reparos do conversor
+Formato das rodadas anteriores. Capturas com dados fictícios (`tests/fixtures/course/`,
+formulários de exemplo), em 1440×900 e 1280×800. Nada de conteúdo real de curso nem de
+identificador de infraestrutura entra neste arquivo: só contagens e caminhos do repositório.
 
-- Fixture pública `tests/fixtures/session-128-bars.json`: 128 compassos, 128 notas e 128 acordes, sem conteúdo de curso real. Sessão v5; teto de 512 notas preservado.
-- Navegador real, perfil de teste isolado: importação, troca para baixo de quatro cordas e edição da nota do compasso 128. Reprodução a 300 BPM alcançou `C128 · T1` aos 101,8 s e voltou ao início do loop.
-- Treino completo de uma repetição, sem contagem, terminou em aproximadamente 102,9 s. O resultado contabilizou as 128 notas e renderizou 32 sistemas de pauta/tablatura. Nenhum ataque foi fornecido: a evidência valida a duração e os limites, não a precisão com instrumento físico.
-- Exportação pelo botão real: envelope de exercício com 51.081 caracteres. Os bytes do Blob foram observados, gravados em arquivo temporário e reimportados pelo seletor real após excluir somente a fixture. A importação adicionou um exercício sem sobrescrever os demais; o documento musical reimportado foi idêntico ao exportado, com 128 notas.
-- [Captura do treino em 1440 × 900](rodada-6/128-compassos-treino-1440.png).
+`npm test` e `npm run check` passam ao fim de cada etapa; os números abaixo são da `main`
+depois de cada merge e push.
 
-### Conversão privada: somente contagens
+## Etapas
 
-A execução corrigida usou o mapa privado existente; todos os arquivos de saída e diagnósticos ficaram na área local ignorada pelo Git. Nenhum título, URL, identificador de aula, nome de material ou texto privado foi reproduzido nesta evidência.
+| Etapa | Commit | `npm test` | `npm run check` |
+| --- | --- | --- | --- |
+| 1 — limite de 128 compassos e correções do conversor | `2f98106` | 928 (927 passam, 1 ignorado) | 194 módulos |
+| 2 — motor de geração (`src/study-generator.js`) | `46a862d` | 957 (956 passam, 1 ignorado) | 198 módulos |
+| 3 — formas de dedilhado | `8169a0d` | 979 (978 passam, 1 ignorado) | 202 módulos |
+| 4 — interface do gerador e variações | (esta etapa) | 1027 (1026 passam, 1 ignorado) | 209 módulos |
 
-| Medida | Resultado |
-| --- | ---: |
-| Seções | 22 |
-| Aulas | 169 |
-| IDs numéricos preservados como texto | 169 |
-| Aulas assistidas | 25 |
-| Materiais depois da fusão | 199 |
-| Exercícios preservados | 24 |
-| Materiais com compassos por acorde | 116 |
-| Código de saída | 0 |
+O teste ignorado é o de amostra física da rodada 1 (`physical sample`), ignorado por desenho.
 
-Fixtures fictícias cobrem progresso booleano/textual/objeto, identificadores numéricos, materiais duplicados com metadados complementares, alternativas de quatro e seis cordas, campos longos e agrupamento dos avisos. A revisão independente identificou e corrigiu também progresso escalar na aula e o limite de 32 nomes dentro de uma única citação composta.
+## Etapa 4 — interface do gerador (A4)
 
-### Gancho de privacidade
+Módulos novos: `src/study-recipe.js` (controles ↔ receita, presets, avisos acionáveis, 12
+tonalidades), `src/study-controller.js` (diálogo, prévia, criação, variação), `src/study-view.js`
+(DOM do diálogo), `src/study-session.js` (receita → sessão v5 + metadata) e `src/study.css`.
+Ligação em `src/library-view.js` (botão "Novo estudo", "Gerar variação", vínculos no cartão) e
+`index.html` (`./src/study.css`). A receita vive em `metadata.study`, **fora** da sessão; a sessão
+continua v5 e o documento da sessão não ganhou campo nenhum.
 
-Três repositórios Git descartáveis executaram commits reais com o gancho instalado: PDF novo fora das fixtures, arquivo em `local/` e linha contendo termo privado fictício. Os três commits foram recusados; cada diagnóstico informou arquivo e linha, sem imprimir o termo. Sem lista de termos, continuam ativas as regras de caminhos e mídia; isso está documentado no README.
+### Critério 8 — diálogo com no máximo 14 controles, prévia ao vivo e avisos com ação
 
-### Verificação automatizada da branch
+Contagem medida no navegador (Chromium próprio, CDP, viewport 1440×900), com o app servido pelo
+servidor estático do próprio repositório:
 
-`npm test`: 928 testes, 927 passaram, nenhum falhou e uma verificação de instrumento físico foi pulada por ausência de amostra. `npm run check`: 194 módulos, nenhuma falha. A primeira execução encontrou um teste de Repertório ainda ancorado no teto antigo; o cenário foi atualizado para 129 compassos em 7/8, sem alteração do Repertório.
-
-## Etapa 2 — motor musical e conferência
-
-Execução direta de `generateStudy`, com receitas inventadas:
-
-| Cenário | Resultado observado |
+| Estado | Controles visíveis |
 | --- | --- |
-| Arpejo T–3–5 em quartas, dois compassos por acorde, repetição final | 25 compassos, 37 notas, acorde final C |
-| Linha contínua em quartas, casas 1–5 | 13 compassos, 49 notas, acorde final C; primeiras alturas 31, 36, 40, 43, 45, 48, 45, 41 |
-| Linha de C nas casas 3–5, até fechar o período, sem compasso final | Período de três voltas; três compassos e 12 notas |
-| Linha em quartas, casas 1–5, período maior que o limite | Dez voltas inteiras, 120 compassos, 480 notas; aviso `limite-128`, sem compasso final artificial |
+| repouso, presets de ciclo (arpejo/linha contínua) | 9 |
+| repouso, progressão "lista" (aparece "Nas 12 tonalidades") | 10 |
+| "Mais opções" aberto — grupos Progressão / Figura / Duração | 9 cada |
+| "Mais opções" aberto — grupos Forma / Região | 6 e 7 |
+| pior caso (painel aberto + "Nas 12 tonalidades" + 4 botões de aviso, 1 por motivo) | 14 |
 
-Os 29 testes do motor/conferidor passaram. Valores esperados foram calculados a partir de exemplos pequenos, não de partituras do curso: transição estrita entre acordes, inversão de direção, percurso completo, região impossível com expansão mínima, ordem dos graus, uso da corda Si, grafia e durações.
+O painel avançado tem um seletor de grupo e mostra no máximo 4 campos do grupo escolhido, reusando
+os MESMOS nós de campo (nenhum valor se perde: o formulário inteiro é lido no commit). Os campos
+primários viram a linha de contexto quando o painel abre.
 
-### Catálogo privado: correspondência parcial, não transcrição
+Prévia ao vivo (tablatura + partitura com cifras) medida no mesmo navegador:
 
-O conferidor executou sobre o catálogo local, com saída e diagnóstico guardados somente na área ignorada. Código de saída **1**, sem saída de erro: há divergências reais, não uma alegação de reprodução fiel. Os campos de observação não entram no cálculo da receita. A ordem dos graus define a figura: sua comparação é apenas informativa e não altera as contagens de sucesso, divergência ou o código de saída.
+- preset "Arpejo pelo ciclo de quartas": `25 compassos · 12 acordes · 12 blocos · 37 notas · casas 1–5 · cordas 1,2,3,4`;
+- preset "Linha contínua numa região": `13 compassos · 12 acordes · 12 blocos · 49 notas · casas 1–5 · cordas 1,2,3,4`.
 
-| Família | Materiais | Sem divergência nos campos conferíveis | Motivos por categoria |
-| --- | ---: | ---: | --- |
-| Arpejo de forma única | 105 | 96 | Compassos: 9; sem forma para conferir geometria: 105 |
-| Arpejo de formas combinadas | 99 | 84 | Compassos: 9; extensão: 6; região: 6 |
-| Três inversões por acorde | 2 | 0 | Cifra não reconhecida: 2 |
-| Contínuo agudo–grave–agudo | 26 | 0 | Sem acordes definidos: 2; compassos: 7; cifra não reconhecida: 2; extensão: 1; ritmo: 22 |
-| Contínuo grave–agudo–grave | 35 | 6 | Sem acordes definidos: 2; compassos: 9; extensão: 2; ritmo: 25; código rítmico não mapeado: 8 |
-| Linha contínua de quatro notas | 68 | 30 | Sem acordes definidos: 2; compassos: 6; cifra não reconhecida: 4; ritmo: 30 |
+### Critério 4 — aviso do percurso com o mínimo necessário, e a ação resolve
 
-Total: **335 materiais; 216 sem divergência nos campos conferíveis, 113 com divergência e seis não conferíveis**. Categorias podem coexistir no mesmo material. As 105 figuras de forma única ficaram sem prova de casas/cordas por falta de binding de uma forma; os 96 casos sem divergência dessa família só conferem os demais campos. As oito ocorrências agrupadas pelo script como `erro` foram diagnosticadas, sem expor entradas, como cifra não reconhecida. Foram feitas 321 comparações de compassos, 216 de cordas, 216 de extensão, 216 de região e 313 de ritmo. As 204 correspondências de ordem de graus são apenas informativas.
+No diálogo, percurso "sobe e desce", baixo de **5 cordas**, região 1–12, 1 compasso por bloco,
+lista C–Am–Dm7–G7: o motor avisa que a figura precisa de **6** compassos por bloco e a única ação
+oferecida leva a receita a esse tamanho; aplicada, a lista de avisos fica **vazia** e o "Criar
+exercício" continua habilitado (`25 compassos · 4 acordes · 4 blocos · 75 notas · casas 1–12 ·
+cordas 1,2,3,4,5` com o bloco em 6). Nada é truncado: as notas do primeiro acorde continuam todas.
 
-### Correções da revisão e verificação da branch
+### Regressão do teto de 128 compassos (corrigida na etapa 2 → 4)
 
-A revisão independente encontrou um percurso de cinco cordas que exige cinco compassos: a ação agora permite esse mínimo apenas nas famílias de percurso, sem truncar; arpejos continuam limitados a quatro compassos por acorde. A figura de arpejo em colcheias toca uma vez, com a última nota sustentada, em vez de repetir e cortar na barra. O final padrão repete o primeiro acorde. A grafia fora das quartas maiores reutiliza as tonalidades do app. O controle numérico de quantidade de formas, que não alterava o resultado, foi removido do contrato.
+Quartas em arpejo, `compassos = 2`, `voltas = 12` no diálogo: **um** aviso, o do teto
+("o ciclo pede 289 compassos e o teto é 128" → "Reduzir para 5 voltas"), sem o aviso contraditório
+de "aumentar compassos". Aplicada a redução, aparece o aviso de total que é legítimo: a receita
+pede 2 compassos e o estudo precisa de **121** (o compasso final conta), com a ação "Aumentar para
+121 compassos". A guarda é `shortTotal = !capped && …` em `src/study-generator.js`.
 
-`npm test`: 957 testes, 956 passaram, nenhum falhou e uma amostra física ausente foi pulada. `npm run check`: 198 módulos, nenhuma falha.
+### Critério 9 — variação e 12 tonalidades
 
-## Etapa 3 — formas criadas no Braço
+- "Gerar variação" num estudo salvo abre o diálogo preenchido; mudar a tonalidade cria um exercício
+  **novo** ligado ao original (`metadata.study.origin`) e o original fica **byte a byte igual**
+  (comparação do documento no armazenamento do navegador antes/depois).
+- "Nas 12 tonalidades" numa lista I–vi–ii–V: **12** exercícios no MESMO grupo (`Nas 12 tonalidades ·
+  C`), com as 12 fundamentais distintas (`chords[0].root` = 0..11) e nomes distintos por tonalidade
+  (C, Db, D, Eb, E, F, Gb, G, Ab, A, Bb, B). Quando a base já existe na Biblioteca, ela é REUSADA
+  (só as outras 11 são criadas), entra no mesmo grupo e a sessão, a receita e o histórico dela ficam
+  intactos. Um ciclo (quartas/quintas/cromática) não mostra o botão: já percorre as 12 fundamentais.
 
-Navegador real isolado, 1440 × 900, somente dados fictícios:
+### Biblioteca
 
-1. **Nova forma** em baixo de quatro cordas; cliques em corda/casa `4/3`, `3/2`, `3/5` criaram G–B–D, graus 1–3–5. Um clique em `3/4` foi recusado por estar a seis semitons da tônica; as três notas válidas ficaram intactas.
-2. A ordem foi alterada pelas setas para **1–5–3** e salva como “Forma de exemplo R6”. O documento da biblioteca/sessão permaneceu byte a byte igual durante essa edição: a forma ficou na loja própria.
-3. Trocar para cinco cordas mostrou **“do baixo 4 cordas”**. Em C, a forma usou `5/1`, `4/0`, `4/3` na região visível 0–12. Na reprodução real, o destaque acompanhou **Cmaj7 → Fmaj7 → G7 → Cmaj7**, com três posições em cada acorde.
-4. O botão real de exportação gerou um backup com a forma e a ordem 1–5–3. Após excluir somente essa fixture pelo editor e confirmar a exclusão, o mesmo arquivo foi escolhido no diálogo **Importar backup**: uma forma restaurada, exercício existente reutilizado. O bloco de formas restaurado foi idêntico ao exportado.
+Barra de ferramentas da Biblioteca em repouso: **7** controles (Novo exercício, **Novo estudo**,
+Buscar, Instrumento, Etiqueta, Ordenar, Arquivo), dentro do teto de 22 da rodada 5. Medição no
+navegador com dois exercícios fictícios na lista: 19 controles visíveis no total (incluindo as abas
+do app e as ações dos cartões), sem rolagem vertical em 1440×900.
 
-[Forma no baixo de quatro cordas](rodada-6/forma-baixo-1440.png) · [Reutilização no baixo de cinco cordas](rodada-6/forma-cinco-cordas-1440.png).
+### Consertos de integração desta etapa
 
-Nenhum erro de página foi registrado. A primeira execução automatizada encontrou uma fixture com terça musicalmente inválida, um DOM de teste que percorria nós de texto como elementos e uma expectativa incorreta sobre deduplicação; foram corrigidos nos testes, sem relaxar a validação musical. Verificação final da branch: **979 testes, 978 passaram, nenhuma falha, uma amostra física ausente pulada; 202 módulos verificados, nenhuma falha**.
+1. `src/study-session.js` traduz o perfil **mínimo** da receita (`{type, strings}`) para o perfil
+   completo da sessão (afinação e nomes das notas) — sem isso o commit do estudo lançava "perfil do
+   instrumento inválido".
+2. `src/study-recipe.js` rotula a ação `expandir-regiao` (a chave do rótulo é o `kind` da AÇÃO do
+   motor, não o motivo agrupado) — sem isso "Ampliar a região" não existia e o botão não aparecia.
+3. `src/study-recipe.js` aceita a receita vinda do documento do CURSO (etapa 5): a lista de acordes
+   em TEXTO volta ao campo e `shapeLabel` (chave que o motor não conhece) é descartada — sem isso
+   "Ajustar no Estúdio de estudo" numa sugestão de aula lançaria na frente do usuário.
+4. `src/exercise-library.js`: a importação de backup não colapsa duas entradas de conteúdo igual do
+   MESMO arquivo (nada do backup é descartado) e continua não duplicando nada ao reimportar.
+5. `src/study-controller.js`: a base já existente entra no grupo das 12 (só o rótulo do grupo muda;
+   sessão, receita e histórico ficam intactos) — sem isso as 11 irmãs ficariam agrupadas e a base não.
+
+### Privacidade
+
+Auditoria dos 14 arquivos preparados para o commit desta etapa contra a lista privada (mapa e
+catálogo reais + termos explícitos): **0** ocorrências. A varredura cobre o texto preparado
+(arquivo:linha), pulando imagens e áudio.

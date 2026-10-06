@@ -150,7 +150,7 @@ function instrumentOf(session) {
 // implícito herdado do andamento. Migrações legadas ainda passam o BPM da
 // sessão explicitamente para preservar o alvo que existia antes.
 function defaultMetadata(name, bpm) {
-  return { name, tags: [], targetBPM: bpm, notes: '', records: [] };
+  return { name, tags: [], targetBPM: bpm, notes: '', study: null, records: [] };
 }
 
 function intOr(value, fallback = 0) {
@@ -199,6 +199,39 @@ function normalizeRecord(value) {
   return record;
 }
 
+// Bloco `study` da metadata (etapa A4): a receita do estudo vive FORA da
+// sessão e viaja com o exercício. Sem receita não existe estudo — nada de
+// "estudo pela metade"; campos ausentes/ inválidos são descartados em vez de
+// fingir um vínculo. `origin` é o exercício original de uma variação e `group`
+// o conjunto de irmãos (as 12 tonalidades), ambos só RÓTULOS: um id que não
+// existe mais continua legível pelo nome guardado, sem quebrar a lista.
+//
+// PRIVACIDADE (B6): um vínculo pode ser marcado `private: true` — o rótulo
+// (`name`/`label`) vem de material de curso e NÃO pode sair em exportação
+// padrão. `kind` (`exercise`/`course`/`material`) diz de onde o vínculo veio.
+// A receita em si é sempre musical (parâmetros), então a política de
+// exportação pode remover `origin`/`group` e conservar `recipe` inteiro.
+function normalizeLink(value, labelKey) {
+  if (!isObject(value) || !isNonEmptyString(value.id)) return null;
+  const link = { id: value.id, [labelKey]: isString(value[labelKey]) ? value[labelKey] : '' };
+  if (['exercise', 'course', 'material'].includes(value.kind)) link.kind = value.kind;
+  if (value.private === true) link.private = true;
+  return link;
+}
+
+function normalizeStudy(value) {
+  if (!isObject(value)) return null;
+  const recipe = isObject(value.recipe) ? clone(value.recipe) : null;
+  if (recipe === null) return null;
+  return {
+    version: Number.isInteger(value.version) ? value.version : LIBRARY_VERSION,
+    recipe,
+    summary: isObject(value.summary) ? clone(value.summary) : null,
+    origin: normalizeLink(value.origin, 'name'),
+    group: normalizeLink(value.group, 'label'),
+  };
+}
+
 function normalizeMetadata(value, session) {
   const base = defaultMetadata(validName(session?.name) ? session.name : 'Exercício', session?.bpm ?? null);
   if (!isObject(value)) return base;
@@ -210,6 +243,7 @@ function normalizeMetadata(value, session) {
     // implícito que a migração sempre gravou (o BPM da sessão).
     targetBPM: value.targetBPM === null ? null : finiteOr(value.targetBPM, base.targetBPM),
     notes: isString(value.notes) ? value.notes : '',
+    study: normalizeStudy(value.study),
     records,
   };
 }
@@ -256,6 +290,9 @@ export function summarize(entry) {
     recordsCount: records.length,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
+    // Vínculos do estudo (A4) só para a lista: a receita completa continua em
+    // metadata.study.recipe, fora do resumo.
+    study: metadata.study ? { origin: metadata.study.origin, group: metadata.study.group } : null,
   };
 }
 
@@ -477,12 +514,20 @@ export function createExerciseLibrary({
   function fullContentKey(session, metadata) {
     const meta = isObject(metadata) ? metadata : {};
     const records = Array.isArray(meta.records) ? meta.records : [];
+    const study = isObject(meta.study) && isObject(meta.study.recipe) ? meta.study : null;
     return JSON.stringify({
       session: serialize(session),
       name: isString(meta.name) ? meta.name : null,
       tags: Array.isArray(meta.tags) ? meta.tags : [],
       targetBPM: meta.targetBPM === undefined ? null : meta.targetBPM,
       notes: isString(meta.notes) ? meta.notes : '',
+      // A receita do estudo define o exercício: duas sessões iguais com
+      // receitas diferentes são exercícios diferentes. O VÍNCULO com o
+      // original entra só como presença (`linked`), nunca pelo id: o id é
+      // remapeado na importação e um backup reimportado não pode virar cópia
+      // sem fim. `group` é um rótulo criado uma vez pela interface, estável
+      // entre exportar e importar.
+      ...(study ? { study: { version: study.version ?? null, recipe: study.recipe, group: study.group?.id ?? null, linked: study.origin !== null && study.origin !== undefined } } : {}),
       records: records.map(record => {
         const { ownerId, ...rest } = isObject(record) ? record : {};
         return rest;
@@ -720,6 +765,7 @@ export function createExerciseLibrary({
         // esses nomes responderiam com o protótipo em vez do destino.
         const map = Object.create(null);
         const created = [];
+        const linked = [];
         for (const item of prepared) {
           const candidate = {
             id: uuid(),
@@ -729,15 +775,30 @@ export function createExerciseLibrary({
             metadata: normalizeMetadata(item.metadata, item.session),
           };
           const key = fullContentKey(candidate.session, candidate.metadata);
+          // O `known` é a fotografia da biblioteca ANTES do arquivo: a
+          // importação nunca apaga um exercício do backup, então duas entradas
+          // de conteúdo igual NO MESMO arquivo entram as duas (o usuário as
+          // criou, a biblioteca as aceita). Reimportar o mesmo backup continua
+          // não duplicando nada, porque aí as duas já existem.
           const existing = known.get(key);
           if (existing) { map[item.sourceId] = existing; continue; }
           // O dono dos treinos passa a ser o id DESTE exercício: nenhum
           // registro fica apontando para o exercício de origem.
           candidate.metadata.records = candidate.metadata.records.map(record => ({ ...record, ownerId: candidate.id }));
-          known.set(key, candidate.id);
           next.push(candidate);
           map[item.sourceId] = candidate.id;
           created.push({ sourceId: item.sourceId, id: candidate.id });
+          if (candidate.metadata.study?.origin) linked.push(candidate);
+        }
+        // Vínculo de variação: o original apontado pelo backup é REMAPEADO para
+        // o exercício desta biblioteca quando ele veio no mesmo arquivo. Um
+        // vínculo que aponta para fora (ou para si mesmo) fica sem id, com o
+        // nome guardado — nenhum exercício passa a apontar para o id errado.
+        for (const candidate of linked) {
+          const target = map[candidate.metadata.study.origin.id];
+          if (target === undefined) continue;
+          const origin = target === candidate.id ? null : { ...candidate.metadata.study.origin, id: target };
+          candidate.metadata.study = { ...candidate.metadata.study, origin };
         }
         const added = next.length - state.entries.length;
         const mappedActive = isNonEmptyString(activeId) ? map[activeId] ?? null : null;

@@ -16,6 +16,7 @@ import { mountLibraryBackup } from './library-backup-view.js';
 // segurança: a MESMA instância usada pelo painel Braço.
 import { fingeringShapeStore } from './fingering-shapes-controller.js';
 import { exerciseOriginBadges, mountExerciseOrigins } from './course-lesson-origins.js';
+import { createStudyController } from './study-controller.js';
 
 const INSTRUMENTS = Object.freeze([['all', 'Todos'], ['guitar', 'Guitarra'], ['bass', 'Baixo']]);
 const SORTS = Object.freeze([
@@ -200,6 +201,19 @@ export function mountLibrary(container, host) {
 
   function notify(text, error = false) { host.notify?.(text, error); }
   const updateMetadata = (id, patch) => host.updateExerciseMetadata(id, patch);
+  // Estúdio de estudo (item A4): a Biblioteca é a entrada. A tela nasce só
+  // quando o usuário abre (nada de DOM no repouso) e a criação passa pela mesma
+  // loja e pelo mesmo caminho de abertura do main. O perfil do instrumento vem
+  // do host quando ele existe e, sem ele, do instrumento da SESSÃO do exercício
+  // ativo — nunca de um valor fixo (o baixo de 5 cordas do perfil precisa valer).
+  const studies = createStudyController({
+    library,
+    openExercise: (id, options) => openExercise(id, options),
+    getInstrument: typeof host.getInstrument === 'function'
+      ? host.getInstrument
+      : () => library.get(library.active())?.session?.extensions?.studio?.instrument ?? null,
+    notify,
+  });
 
   function rows() {
     return library.list({ filter: { instrument: view.instrument, tag: view.tag, query: view.query }, sort: view.sort });
@@ -244,6 +258,10 @@ export function mountLibrary(container, host) {
       notify('Novo exercício criado na biblioteca. O anterior continua guardado.');
       render();
     });
+    // Item A4: botão "Novo estudo" na Biblioteca (o diálogo traz presets, prévia
+    // ao vivo e avisos com ação). É UM controle a mais em repouso.
+    const study = createEl('button', { id: 'library-new-study', type: 'button', text: 'Novo estudo' });
+    study.addEventListener('click', () => studies.open());
     const search = createEl('label', { className: 'library-field' }, [
       createEl('span', { text: 'Buscar' }),
       createEl('input', { id: 'library-search', type: 'search', value: view.query, placeholder: 'Nome do exercício', 'aria-label': 'Buscar exercício por nome' }),
@@ -280,7 +298,7 @@ export function mountLibrary(container, host) {
     // segundo campo de arquivo com validação paralela.
     const files = createEl('details', { className: 'library-menu library-files', dataset: { disclosure: 'library-files' } });
     files.append(createEl('summary', { text: 'Arquivo' }), createEl('div', { className: 'library-menu-content' }, [exportAll, importButton]));
-    bar.append(add, search, createEl('label', { className: 'library-field' }, [createEl('span', { text: 'Instrumento' }), instrument]),
+    bar.append(add, study, search, createEl('label', { className: 'library-field' }, [createEl('span', { text: 'Instrumento' }), instrument]),
       createEl('label', { className: 'library-field' }, [createEl('span', { text: 'Etiqueta' }), tag]),
       createEl('label', { className: 'library-field' }, [createEl('span', { text: 'Ordenar' }), sort]),
       files);
@@ -351,6 +369,9 @@ export function mountLibrary(container, host) {
         case 'train': openExercise(entry.id, { train: true }); break;
         case 'edit': openExercise(entry.id, { train: false }); break;
         case 'duplicate': host.duplicateExercise(entry.id); notify('Exercício duplicado; a cópia virou o exercício ativo.'); render(); break;
+        // "Gerar variação" (A4): reabre o diálogo preenchido pela receita do
+        // exercício. O controlador do estudo já avisa quando não há receita.
+        case 'variation': studies.openVariation(entry.id); break;
         case 'rename': editing = { id: entry.id, field: 'name' }; render(); break;
         case 'tags': editing = { id: entry.id, field: 'tags' }; render(); break;
         case 'target': editing = { id: entry.id, field: 'targetBPM' }; render(); break;
@@ -389,6 +410,12 @@ export function mountLibrary(container, host) {
       createEl('p', { className: 'library-meta', text: `${INSTRUMENT_LABELS[row.instrument] ?? row.instrument} · ${row.bars ?? '—'} compasso(s) · ${goalText}${active ? ' · exercício ativo' : ''}` }),
       createEl('p', { className: 'library-tags' }, row.tags.length ? row.tags.map(tag => createEl('span', { className: 'library-tag', text: tag })) : [createEl('span', { className: 'muted', text: 'Sem etiquetas' })]),
       createEl('p', { className: 'library-stats muted', text: stats.join(' · ') }),
+      // Vínculos do estudo (A4): variação e grupo das 12 tonalidades. Só
+      // rótulos musicais/privados que já vivem na metadata do exercício.
+      ...(row.study?.origin || row.study?.group ? [createEl('p', { className: 'library-study-links muted' }, [
+        row.study.origin ? createEl('span', { className: 'library-study-link', text: `Variação de “${row.study.origin.name}”` }) : null,
+        row.study.group ? createEl('span', { className: 'library-study-group', text: row.study.group.label }) : null,
+      ])] : []),
       createEl('div', { className: 'library-progress', role: 'img', 'aria-label': hasTarget ? `Progresso em direção ao alvo: ${progress}%` : 'Sem alvo definido' }, [createEl('span', { style: `width: ${hasTarget ? progress : 0}%` })]),
     ]);
     // Treinar continua direto; Editar (e o resto) vive em Mais ações, e a
@@ -403,6 +430,8 @@ export function mountLibrary(container, host) {
         const menu = createEl('details', { className: 'library-menu' });
         menu.append(createEl('summary', { text: 'Mais ações' }), createEl('div', { className: 'library-menu-content' }, [
           actionButton('Editar', 'edit', entry),
+          // Só exercícios COM receita de estudo podem gerar variação.
+          ...(entry.metadata.study?.recipe ? [actionButton('Gerar variação', 'variation', entry)] : []),
           actionButton('Duplicar', 'duplicate', entry),
           actionButton('Renomear', 'rename', entry),
           actionButton('Etiquetas', 'tags', entry),
@@ -497,6 +526,7 @@ export function mountLibrary(container, host) {
     openLesson,
     destroy() {
       unsubscribe?.();
+      studies.destroy();
       studioOrigins?.destroy();
       historyView?.destroy();
       historyDialog.remove();

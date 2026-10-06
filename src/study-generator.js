@@ -1073,7 +1073,11 @@ function compose(normalized, session) {
   }
   const generatedBars = slots.length * barsPerSlot;
   const neededBars = generatedBars + finalBars;
-  const shortTotal = normalized.bars !== null && normalized.bars < neededBars;
+  // Capado em 128, o material não cresce: pedir "aumentar para N compassos"
+  // seria uma ação que NÃO resolve o cap (a ação honesta é reduzir voltas, que
+  // o aviso `limite-128` já traz). O aviso de total fica DEFERIDO — depois de
+  // aplicar a redução de voltas ele volta, agora legítimo.
+  const shortTotal = !capped && normalized.bars !== null && normalized.bars < neededBars;
   // Um aviso por causa: a figura curta já leva o total corrigido na ação.
   if (figureShort) {
     report.push({

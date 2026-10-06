@@ -638,3 +638,170 @@ test('metadado legado sem a chave do alvo herda o andamento; o null explícito p
   const semAlvo = open(memoryStorage(new Map([[LIBRARY_KEY, explicit]])), session);
   assert.equal(semAlvo.get('legado-1').metadata.targetBPM, null, 'null explícito nunca vira andamento');
 });
+
+// ----- estudo (A4): receita, vínculo de variação e grupo ---------------------
+
+// Receita mínima no schema do gerador (A2); a biblioteca guarda o objeto
+// íntegro sem interpretar música.
+const studyRecipe = (start = 'C') => ({
+  version: 1, family: 'arpejo_triade_forma_unica',
+  progression: { kind: 'quartas', start, direction: 'ascendente', quality: 'major', chords: [], length: null, spelling: 'auto' },
+  bars: null, region: { from: 1, to: 12, open: false, strings: null },
+  figure: { degrees: [1, 3, 5], inversions: 3, notes: 4, order: 'sobe', bars: 2 },
+  rhythm: 'arpejo', voltas: 1, final: 'acorde',
+});
+const studyMetadata = (start = 'C', extra = {}) => ({
+  name: `Estudo ${start}`, tags: ['estudo'],
+  study: { version: 1, recipe: studyRecipe(start), summary: { noteCount: 36 }, origin: null, group: null, ...extra },
+});
+
+test('a receita do estudo vive fora da sessão e o vínculo/grupo sobrevivem à reabertura', () => {
+  const storage = memoryStorage();
+  const library = open(storage, createSession({ name: 'Base', bpm: 100 }));
+  const entry = library.new({
+    session: createSession({ name: 'Estudo C' }),
+    metadata: studyMetadata('C', {
+      origin: { id: 'origem-1', name: 'Estudo antes' },
+      group: { id: 'g1', label: 'Ciclo de quartas em 12 tonalidades' },
+    }),
+  });
+  const stored = library.get(entry.id);
+  assert.equal(stored.metadata.study.recipe.progression.start, 'C');
+  assert.deepEqual(stored.metadata.study.origin, { id: 'origem-1', name: 'Estudo antes' });
+  assert.deepEqual(stored.metadata.study.group, { id: 'g1', label: 'Ciclo de quartas em 12 tonalidades' });
+  assert.deepEqual(stored.metadata.study.summary, { noteCount: 36 });
+  // A sessão não ganha nada: a receita é metadata, não extensão da sessão.
+  assert.equal(stored.session.extensions.studio, undefined);
+  assert.equal(serializeSession(stored.session).includes('arpejo_triade_forma_unica'), false);
+  // O resumo da lista expõe só os vínculos (a receita continua em metadata).
+  const row = summarize(stored);
+  assert.deepEqual(row.study.origin, { id: 'origem-1', name: 'Estudo antes' });
+  assert.deepEqual(row.study.group, { id: 'g1', label: 'Ciclo de quartas em 12 tonalidades' });
+  assert.equal(Object.hasOwn(row, 'recipe'), false);
+  // Nada é compartilhado por referência: o que voltou do get é uma cópia.
+  stored.metadata.study.recipe.progression.start = 'G';
+  stored.metadata.study.origin.id = 'outro';
+  assert.equal(library.get(entry.id).metadata.study.recipe.progression.start, 'C');
+  assert.equal(library.get(entry.id).metadata.study.origin.id, 'origem-1');
+  // Reabrir a loja preserva o bloco inteiro.
+  const reloaded = open(storage, createSession({ name: 'Base' }));
+  assert.deepEqual(reloaded.get(entry.id).metadata.study, library.get(entry.id).metadata.study);
+});
+
+test('bloco de estudo inválido ou sem receita não vira estudo pela metade', () => {
+  const library = open(memoryStorage(), createSession({ name: 'Base' }));
+  const cases = [
+    'texto', 42, ['a'], null,
+    { origin: { id: 'x', name: 'Sem receita' } },
+    { recipe: 'não é objeto' },
+    { recipe: { family: 'x' }, origin: 'não é link', group: 7 },
+  ];
+  for (const study of cases) {
+    const entry = library.new({ session: createSession({ name: `Caso ${Math.random()}` }), metadata: { name: 'Caso', study } });
+    const saved = library.get(entry.id).metadata.study;
+    if (saved === null) continue;
+    assert.equal(typeof saved.recipe, 'object', `receita inválida aceita: ${JSON.stringify(study)}`);
+    assert.equal(saved.origin, null, 'link inválido descartado');
+    assert.equal(saved.group, null, 'grupo inválido descartado');
+  }
+  // Sem receita o estudo é null (nada de metade do vínculo).
+  assert.equal(library.get(library.new({ session: createSession({ name: 'Só link' }), metadata: { name: 'Só link', study: { origin: { id: 'x' } } } }).id).metadata.study, null);
+});
+
+test('receitas diferentes com a mesma sessão são exercícios diferentes; a mesma receita deduplica', () => {
+  const session = createSession({ name: 'Igual', bpm: 100 });
+  const source = open(memoryStorage(), session);
+  source.new({ session, metadata: studyMetadata('C') });
+  source.new({ session, metadata: studyMetadata('G') });
+  source.new({ session, metadata: studyMetadata('C') });
+  assert.equal(source.size(), 4, 'exercício atual + duas receitas + a repetida');
+  const bundle = JSON.parse(source.exportLibrary());
+  const target = open(memoryStorage(), createSession({ name: 'Outra' }));
+  const first = target.importEntries(bundle.entries);
+  assert.equal(first.added, 4);
+  const repeat = target.importEntries(JSON.parse(source.exportLibrary()).entries);
+  assert.equal(repeat.added, 0, 'reimportar o mesmo backup não duplica (a receita entra na chave de conteúdo)');
+  const starts = target.list().map(row => target.get(row.id).metadata.study?.recipe.progression.start).filter(Boolean).sort();
+  assert.deepEqual(starts, ['C', 'C', 'G'], 'as duas receitas "C" continuam separadas da "G"');
+});
+
+test('importação do backup remapeia o vínculo da variação para o original desta biblioteca', () => {
+  const session = createSession({ name: 'Base', bpm: 100 });
+  const source = open(memoryStorage(), session);
+  const original = source.new({ session: createSession({ name: 'Estudo C' }), metadata: studyMetadata('C', { group: { id: 'g1', label: 'Quartas em 12 tonalidades' } }) });
+  const variation = source.new({
+    session: createSession({ name: 'Estudo G' }),
+    metadata: studyMetadata('G', {
+      origin: { id: original.id, name: 'Estudo C' },
+      group: { id: 'g1', label: 'Quartas em 12 tonalidades' },
+    }),
+  });
+  const externo = source.new({
+    session: createSession({ name: 'Estudo F#' }),
+    metadata: studyMetadata('F#', { origin: { id: 'de-outra-biblioteca', name: 'De fora' } }),
+  });
+  const target = open(memoryStorage(), createSession({ name: 'Outra' }));
+  const result = target.importEntries(JSON.parse(source.exportLibrary()).entries);
+  assert.equal(result.added, 4);
+  assert.notEqual(result.map[original.id], original.id);
+  const importedOriginal = target.get(result.map[original.id]);
+  const importedVariation = target.get(result.map[variation.id]);
+  assert.deepEqual(importedVariation.metadata.study.origin, { id: importedOriginal.id, name: 'Estudo C' });
+  assert.equal(importedVariation.metadata.study.origin.id !== original.id, true, 'o id de origem é o DESTA biblioteca');
+  assert.deepEqual(importedVariation.metadata.study.group, importedOriginal.metadata.study.group, 'o grupo é o mesmo rótulo');
+  assert.deepEqual(importedOriginal.metadata.study.origin, null);
+  // Vínculo para fora do arquivo não aponta para ninguém: continua rótulo.
+  const importedExterno = target.get(result.map[externo.id]);
+  assert.deepEqual(importedExterno.metadata.study.origin, { id: 'de-outra-biblioteca', name: 'De fora' });
+  // Importar de novo não cria nada e não mexe nos vínculos já remapeados.
+  assert.equal(target.importEntries(JSON.parse(source.exportLibrary()).entries).added, 0);
+  assert.deepEqual(target.get(result.map[variation.id]).metadata.study.origin, { id: importedOriginal.id, name: 'Estudo C' });
+});
+
+test('autosave, renomear e duplicar preservam a receita do estudo', () => {
+  const library = open(memoryStorage(), createSession({ name: 'Base' }));
+  const entry = library.new({ session: createSession({ name: 'Estudo C' }), metadata: studyMetadata('C') });
+  const recipe = library.get(entry.id).metadata.study.recipe;
+  library.autosave({ ...library.get(entry.id).session, bpm: 120, notes: [] }, entry.id);
+  assert.deepEqual(library.get(entry.id).metadata.study.recipe, recipe);
+  library.updateMetadata(entry.id, { name: 'Outro nome' });
+  assert.deepEqual(library.get(entry.id).metadata.study.recipe, recipe);
+  library.updateMetadata(entry.id, { study: null });
+  assert.equal(library.get(entry.id).metadata.study, null, 'dá para largar a receita explicitamente');
+  const copy = library.duplicate(entry.id);
+  assert.equal(copy.metadata.study, null);
+  // A exportação de UM exercício leva o bloco inteiro.
+  const back = library.new({ session: createSession({ name: 'Estudo G' }), metadata: studyMetadata('G') });
+  const exported = JSON.parse(library.exportExercise(back.id));
+  const other = open(memoryStorage(), createSession({ name: 'Outra' }));
+  other.importExercise(JSON.stringify(exported));
+  const imported = other.list().find(row => row.name === 'Estudo G');
+  assert.equal(other.get(imported.id).metadata.study.recipe.progression.start, 'G');
+});
+
+test('vínculo de curso é marcado como privado e sobrevive a exportar/importar', () => {
+  const library = open(memoryStorage(), createSession({ name: 'Base' }));
+  const entry = library.new({
+    session: createSession({ name: 'Estudo F#' }),
+    metadata: studyMetadata('F#', {
+      origin: { id: 'aula-7', name: 'Título privado', kind: 'course', private: true },
+      group: { id: 'g-aula', label: 'Rótulo privado', private: true },
+    }),
+  });
+  const study = library.get(entry.id).metadata.study;
+  assert.deepEqual(study.origin, { id: 'aula-7', name: 'Título privado', kind: 'course', private: true });
+  assert.deepEqual(study.group, { id: 'g-aula', label: 'Rótulo privado', private: true });
+  // A marca viaja junto (a política de exportação da etapa 8 remove
+  // origin/group privados e conserva a receita musical).
+  const other = open(memoryStorage(), createSession({ name: 'Outra' }));
+  other.importExercise(library.exportExercise(entry.id));
+  const row = other.list().find(candidate => candidate.name === 'Estudo F#');
+  const imported = other.get(row.id).metadata.study;
+  assert.equal(imported.origin.private, true);
+  assert.equal(imported.group.private, true);
+  assert.equal(imported.recipe.family, 'arpejo_triade_forma_unica');
+  // Remover os rótulos e conservar a receita é o que a exportação padrão fará.
+  const { origin, group, ...musical } = imported;
+  assert.deepEqual(Object.keys(musical).sort(), ['recipe', 'summary', 'version']);
+  assert.equal(origin.private && group.private, true);
+});

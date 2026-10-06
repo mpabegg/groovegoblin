@@ -1,0 +1,67 @@
+/* A4 — Estúdio de estudo (rodada 6): diálogo nativo "Novo estudo", prévia ao
+   vivo, avisos com correção e os vínculos de estudo na lista da Biblioteca.
+   Só classes próprias (.study-*, #library-new-study, .library-study-*): nenhum
+   controle existente é reestilizado. Desktop 1280–1440. */
+
+.study-dialog {
+  width: min(880px, 94vw);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #0e181d;
+  color: var(--text);
+}
+.study-dialog::backdrop { background: #04080a; opacity: 0.72; }
+.study-dialog h2 { margin: 0 0 8px; font-size: 20px; letter-spacing: -0.5px; }
+.study-hint { margin: 0 0 12px; font-size: 12px; line-height: 1.6; }
+.study-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.study-row { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; }
+.study-row[hidden] { display: none; }
+.study-field { display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: var(--muted); min-width: 0; }
+.study-field[hidden] { display: none; }
+.study-field-wide { flex: 1 1 240px; }
+.study-field-wide input { width: 100%; }
+.study-field-inline { flex-direction: row; align-items: center; gap: 8px; color: var(--text); font-size: 13px; min-height: 36px; }
+.study-field select, .study-field input[type=text] { max-width: 100%; }
+.study-field select[multiple] { min-height: 76px; }
+
+.study-advanced-details > summary { color: var(--accent); cursor: pointer; font-weight: 700; min-height: 32px; }
+.study-advanced-details[open] > summary { margin-bottom: 10px; }
+.study-advanced { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #16232a; }
+/* Um grupo visível por vez: os campos são os MESMOS nós, só escondidos. */
+.study-group { display: flex; flex: 1 1 100%; flex-wrap: wrap; gap: 10px 14px; align-items: end; min-width: 0; }
+.study-group[hidden] { display: none; }
+.study-advanced-context { flex: 1 1 100%; margin: 0; font-size: 11px; }
+.study-advanced .study-hint { flex: 1 1 100%; margin: 0; }
+
+.study-status { margin: 0; font-size: 12px; color: var(--muted); }
+.study-status[hidden] { display: none; }
+.study-error { margin: 0; padding: 9px 12px; border: 1px solid #7a3b2e; border-radius: 8px; background: #241512; color: #ffba9d; font-size: 12px; }
+.study-error[hidden] { display: none; }
+.study-error-hint { margin: 0; padding: 0 12px; font-size: 12px; color: #f1d48a; }
+.study-error-hint[hidden] { display: none; }
+.study-warnings { padding: 10px 12px; border: 1px solid #7a6a2e; border-radius: 8px; background: #241f12; }
+.study-warnings[hidden] { display: none; }
+.study-warning-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #f1d48a; }
+.study-warning { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.study-warning button { padding: 6px 10px; font-size: 12px; }
+
+.study-preview { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 12px; }
+.study-preview-title { margin: 0; font-size: 13px; color: var(--muted); }
+.study-preview .harmony-now-next { position: static; }
+.study-preview-score { max-height: 220px; }
+.study-preview-note { margin: 0; font-size: 12px; }
+.study-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.study-actions button { min-height: 40px; padding: 8px 16px; }
+
+/* Entrada na Biblioteca e vínculos de estudo no card. */
+#library-new-study { min-height: 38px; }
+.library-study-links { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 0; font-size: 11px; }
+.library-study-link { display: inline-block; padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px; background: #111b20; color: var(--blue); font-size: 11px; }
+.library-study-group { color: var(--muted); }
+
+@media (max-width: 720px) {
+  .study-dialog { width: 96vw; padding: 16px; }
+}

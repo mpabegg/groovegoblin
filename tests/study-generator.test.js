@@ -547,6 +547,31 @@ test('limites: 128 compassos só com voltas inteiras e sem final; 512 notas avis
   assert.equal(dense.notes.length, dense.slots.length * 32); // nenhuma nota descartada
 });
 
+test('capado em 128: o aviso de total não pede um aumento que não resolve o cap', () => {
+  // Quartas em arpejo: 24 compassos por volta; 12 voltas = 289 com o final.
+  // Capado em 5 voltas (120 compassos), o gerador pedia também "aumentar para
+  // 120 compassos" — uma ação que não muda nada enquanto o material está
+  // capado. O aviso de total fica deferido; a ação acionável é reduzir voltas.
+  const capped = generateStudy(defaultRecipe({
+    family: 'arpejo_triade_forma_unica', profile: bass, progression: { kind: 'quartas', quality: 'major' },
+    bars: 2, region: region5, voltas: 12,
+  }));
+  assert.equal(count(capped, 'limite-128'), 1);
+  assert.equal(count(capped, 'aumentar-compassos'), 0, 'capado: só o limite é acionável');
+  assert.equal(capped.actualBars, 120);
+  const limit = capped.warnings.find(item => item.code === 'limite-128');
+  assert.deepEqual(limit.action, { kind: 'reduzir-voltas', voltas: 5 });
+  // Aplicada a única ação, o cap sai e o aviso de total VOLTA — legítimo:
+  // 5 voltas x 24 = 120 de ciclo + 1 compasso final = 121 > 2 pedidos.
+  const resolved = generateStudy({ ...capped.recipe, voltas: 5 });
+  assert.equal(count(resolved, 'limite-128'), 0);
+  assert.equal(resolved.actualBars, 121);
+  const total = resolved.warnings.find(item => item.code === 'aumentar-compassos' && item.scope === 'total');
+  assert.equal(total.minimumBars, 121);
+  assert.equal(total.requestedBars, 2);
+  assert.deepEqual(total.action, { kind: 'aumentar-compassos', bars: 121 });
+});
+
 test('notas canônicas: sem derivados, válidas para a sessão v5', () => {
   const result = generateStudy(simple());
   const canonical = canonicalNotes(result);
