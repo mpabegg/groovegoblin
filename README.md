@@ -129,6 +129,26 @@ No **Estúdio**, abra **Organizar uma música em seções**, recolhido abaixo da
 
 Consulte [guide.html](./guide.html) para os controles, formatos aceitos, funcionamento offline e limitações de análise.
 
+## Gerador de estudos
+
+`src/study-generator.js` expõe funções puras: `generateStudy(receita)` devolve notas com altura, corda, casa e duração, acordes e avisos acionáveis. `canonicalNotes(resultado)` retira os campos derivados para a Sessão v5; a receita e sua origem pertencem aos metadados da biblioteca, não à sessão.
+
+```js
+import { generateStudy } from './src/study-generator.js';
+const estudo = generateStudy({
+  profile: { type: 'bass', strings: 4 },
+  progression: { kind: 'quartas', start: 'C', quality: 'major' },
+  region: { from: 1, to: 12 },
+  figure: { degrees: [1, 3, 5], bars: 2 },
+  final: 'tonica',
+});
+// 25 compassos: 12 acordes × 2, mais a tônica longa do primeiro acorde.
+```
+
+Arpejos respeitam a ordem dos graus; a linha contínua escolhe a próxima altura a partir da última nota tocada, inclusive ao mudar de acorde. Percursos sobem e descem a região inteira: se faltarem compassos, o resultado avisa o mínimo necessário em vez de truncar. `voltas: 'periodo'` repete até fechar o estado de altura/direção; o teto de 128 preserva voltas inteiras e avisa quando o período não cabe. Formas de quatro cordas podem usar a corda Si do baixo de cinco cordas.
+
+`node scripts/check-study-generator.js` confere exemplos públicos inventados. Com um caminho de catálogo privado como argumento, compara valores derivados e imprime **apenas contagens por família e motivo**; divergências retornam código 1. `--formas=CAMINHO/formas.json` fornece digitações vinculadas. Sem uma forma, a conferência não alega correspondência de casas/cordas de uma figura de forma única. Arquivos privados ficam em `local/`, nunca nos exemplos públicos.
+
 ## Curso importado (formato `groovegoblin-course`)
 
 Além da biblioteca de exercícios, o GrooveGoblin lê **Cursos** descritos no documento JSON `groovegoblin-course` **versão 1**: o catálogo de seções, aulas, materiais e sugestões de exercício. Curso, progresso e vínculos ficam **fora** da Sessão; o formato não embute nem baixa vídeo, PDF, áudio, iframe ou prévia de link e nunca consulta a rede. Só entram **baixo de 4 ou 5 cordas**: material ou sugestão de 6 cordas é descartado com aviso, e um curso que declara 6 cordas é **incompatível** — a conversão falha apontando `course.strings` e nada é gravado. O esquema completo, campo a campo, está em [`guide.html#course`](./guide.html#course).

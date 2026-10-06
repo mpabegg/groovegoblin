@@ -6,6 +6,9 @@ const STANDARD = Object.freeze({
 });
 const LETTERS = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
 const SOLFEGE = ['Dó', 'Dó♯', 'Ré', 'Ré♯', 'Mi', 'Fá', 'Fá♯', 'Sol', 'Sol♯', 'Lá', 'Lá♯', 'Si'];
+// Grafia bemol, para tonalidades/ciclos que pedem bemóis (ex.: ciclo de quartas) sem duplicar enarmônicos.
+const LETTERS_FLAT = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
+const SOLFEGE_FLAT = ['Dó', 'Ré♭', 'Ré', 'Mi♭', 'Mi', 'Fá', 'Sol♭', 'Sol', 'Lá♭', 'Lá', 'Si♭', 'Si'];
 const FIELDS = ['type', 'strings', 'tuning', 'noteNames'];
 
 export function standardInstrumentProfile(type = 'guitar', strings = type === 'bass' ? 4 : 6) {
@@ -30,8 +33,10 @@ export function getInstrumentProfile(session) {
   return value === undefined ? standardInstrumentProfile() : normalizeInstrumentProfile(value);
 }
 
-export function formatInstrumentNote(pitch, profile, { octave = true } = {}) {
-  const names = profile?.noteNames === 'solfege' ? SOLFEGE : LETTERS;
+export function formatInstrumentNote(pitch, profile, { octave = true, flats = false } = {}) {
+  const names = profile?.noteNames === 'solfege'
+    ? (flats ? SOLFEGE_FLAT : SOLFEGE)
+    : (flats ? LETTERS_FLAT : LETTERS);
   return `${names[((pitch % 12) + 12) % 12]}${octave ? Math.floor(pitch / 12) - 1 : ''}`;
 }
 

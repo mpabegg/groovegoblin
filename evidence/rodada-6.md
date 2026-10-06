@@ -32,3 +32,37 @@ Três repositórios Git descartáveis executaram commits reais com o gancho inst
 ### Verificação automatizada da branch
 
 `npm test`: 928 testes, 927 passaram, nenhum falhou e uma verificação de instrumento físico foi pulada por ausência de amostra. `npm run check`: 194 módulos, nenhuma falha. A primeira execução encontrou um teste de Repertório ainda ancorado no teto antigo; o cenário foi atualizado para 129 compassos em 7/8, sem alteração do Repertório.
+
+## Etapa 2 — motor musical e conferência
+
+Execução direta de `generateStudy`, com receitas inventadas:
+
+| Cenário | Resultado observado |
+| --- | --- |
+| Arpejo T–3–5 em quartas, dois compassos por acorde, repetição final | 25 compassos, 37 notas, acorde final C |
+| Linha contínua em quartas, casas 1–5 | 13 compassos, 49 notas, acorde final C; primeiras alturas 31, 36, 40, 43, 45, 48, 45, 41 |
+| Linha de C nas casas 3–5, até fechar o período, sem compasso final | Período de três voltas; três compassos e 12 notas |
+| Linha em quartas, casas 1–5, período maior que o limite | Dez voltas inteiras, 120 compassos, 480 notas; aviso `limite-128`, sem compasso final artificial |
+
+Os 29 testes do motor/conferidor passaram. Valores esperados foram calculados a partir de exemplos pequenos, não de partituras do curso: transição estrita entre acordes, inversão de direção, percurso completo, região impossível com expansão mínima, ordem dos graus, uso da corda Si, grafia e durações.
+
+### Catálogo privado: correspondência parcial, não transcrição
+
+O conferidor executou sobre o catálogo local, com saída e diagnóstico guardados somente na área ignorada. Código de saída **1**, sem saída de erro: há divergências reais, não uma alegação de reprodução fiel. Os campos de observação não entram no cálculo da receita. A ordem dos graus define a figura: sua comparação é apenas informativa e não altera as contagens de sucesso, divergência ou o código de saída.
+
+| Família | Materiais | Sem divergência nos campos conferíveis | Motivos por categoria |
+| --- | ---: | ---: | --- |
+| Arpejo de forma única | 105 | 96 | Compassos: 9; sem forma para conferir geometria: 105 |
+| Arpejo de formas combinadas | 99 | 84 | Compassos: 9; extensão: 6; região: 6 |
+| Três inversões por acorde | 2 | 0 | Cifra não reconhecida: 2 |
+| Contínuo agudo–grave–agudo | 26 | 0 | Sem acordes definidos: 2; compassos: 7; cifra não reconhecida: 2; extensão: 1; ritmo: 22 |
+| Contínuo grave–agudo–grave | 35 | 6 | Sem acordes definidos: 2; compassos: 9; extensão: 2; ritmo: 25; código rítmico não mapeado: 8 |
+| Linha contínua de quatro notas | 68 | 30 | Sem acordes definidos: 2; compassos: 6; cifra não reconhecida: 4; ritmo: 30 |
+
+Total: **335 materiais; 216 sem divergência nos campos conferíveis, 113 com divergência e seis não conferíveis**. Categorias podem coexistir no mesmo material. As 105 figuras de forma única ficaram sem prova de casas/cordas por falta de binding de uma forma; os 96 casos sem divergência dessa família só conferem os demais campos. As oito ocorrências agrupadas pelo script como `erro` foram diagnosticadas, sem expor entradas, como cifra não reconhecida. Foram feitas 321 comparações de compassos, 216 de cordas, 216 de extensão, 216 de região e 313 de ritmo. As 204 correspondências de ordem de graus são apenas informativas.
+
+### Correções da revisão e verificação da branch
+
+A revisão independente encontrou um percurso de cinco cordas que exige cinco compassos: a ação agora permite esse mínimo apenas nas famílias de percurso, sem truncar; arpejos continuam limitados a quatro compassos por acorde. A figura de arpejo em colcheias toca uma vez, com a última nota sustentada, em vez de repetir e cortar na barra. O final padrão repete o primeiro acorde. A grafia fora das quartas maiores reutiliza as tonalidades do app. O controle numérico de quantidade de formas, que não alterava o resultado, foi removido do contrato.
+
+`npm test`: 957 testes, 956 passaram, nenhum falhou e uma amostra física ausente foi pulada. `npm run check`: 198 módulos, nenhuma falha.
