@@ -10,6 +10,7 @@ import { setupOffline } from './offline.js';
 import { mountTour } from './tour.js';
 import { mergeSession } from './studio-state.js';
 import { captureLegacyBackup, createExerciseLibrary } from './exercise-library.js';
+import { createPracticeActivity } from './practice-activity.js';
 import { mountLibrary } from './library-view.js';
 import { History } from './history.js';
 import { playbackEditPolicy } from './studio-editing.js';
@@ -28,7 +29,6 @@ import { mountStudioInstrument } from './studio-instrument.js';
 import { mountPracticeTracks } from './practice-tracks.js';
 import { mountTrainingResult } from './training-result.js';
 import { quietTakeNotices } from './take-notices.js';
-import { createPracticeActivity } from './practice-activity.js';
 import { createTodayStore } from './today-store.js';
 import { createTodaySession } from './today-session.js';
 import { mountTodayPanel, mountTodayTrainer } from './today-view.js';
@@ -211,7 +211,7 @@ async function preview(notes, options = {}) {
 async function saveTake(attempts, detail) { return takeNotices.capture(() => repertoire.captureTake(attempts, detail)); }
 const host = {
   getSession: () => structuredClone(session), updateSession, replaceSession, play: begin, stop, notify: message, preview, saveTake, renderSession,
-  isBusy: busy, isInstrumentInput: () => !!performanceInput?.instrument, activity,
+  isBusy: busy, isInstrumentInput: () => !!performanceInput?.instrument, openExerciseHistory, activity,
 };
 
 const studio = mountStudio({ onActivate: id => {
@@ -445,8 +445,17 @@ function openExercise(id, { train = false } = {}) {
   if (train) { studio.activate($('tab-practice')); practice.useSession({ train: true }); }
   else studio.activate($('tab-studio'));
 }
+// Caminho único do histórico por exercício (biblioteca e treinador). Sem
+// argumento usa o exercício ativo; nunca cria vínculo com outro exercício.
+function openExerciseHistory(id) {
+  const target = typeof id === 'string' && id.length > 0 ? id : library.active();
+  if (!target || !library.get(target)) { message('Escolha um exercício para ver o histórico.', true); return null; }
+  studio.activate($('tab-library'));
+  return libraryView.openHistory(target);
+}
 const libraryView = mountLibrary($('library-mount'), {
-  library, openExercise, notify: message, download,
+  library, openExercise, notify: message, download, openExerciseHistory,
+  clearExerciseRecords: id => library.clearRecords(id),
   newExercise: () => { library.new({ session: createStudioSession() }); return syncActive(); },
   duplicateExercise: id => { const copy = library.duplicate(id); if (copy) openExercise(copy.id); return copy; },
   deleteExercise: id => { const removed = library.deleteUndo(id); if (!removed) message('A biblioteca precisa de ao menos um exercício.'); syncActive(); return removed; },
@@ -498,7 +507,7 @@ function frame() {
 repertoire = mountRepertoire($('repertoire-mount'), { ...host, notify: takeNotices.notify });
 practice = mountPractice($('practice-mount'), host);
 playground = mountPlayground($('playground-mount'), { ...host, notify: takeNotices.notify });
-journey = mountJourney($('journey-mount'), host);
+journey = mountJourney($('journey-mount'), { ...host, library });
 setupOffline({ isBusy: () => busy() || repertoire.isBusy(), canReload: () => sessionSaved, notify: message });
 history.push(session); playback.applyMixer(); renderAll();
 mountStudioPatterns({ getSession: () => session, isBusy: () => false, updateSession, notify: message, renderControls });

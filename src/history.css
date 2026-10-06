@@ -1,0 +1,81 @@
+/* Histórico por exercício e panorama do Percurso (rodada 4, item 5).
+   Desktop 1280–1440; nada depende de toque. O diálogo do histórico vive no
+   body (fora de .journey-root), por isso usa as variáveis globais do estúdio;
+   as seções do Percurso usam a paleta --pg-* de practice.css. */
+
+.history-dialog {
+  width: min(1040px, 94vw);
+  max-height: 88vh;
+  overflow: auto;
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.history-dialog::backdrop { background: #04080a; opacity: 0.72; }
+.history-dialog-body { min-width: 0; }
+.history-root { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.history-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.history-title { margin: 0; font-size: 20px; letter-spacing: -0.5px; }
+.history-meta { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+.history-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.history-actions button { min-height: 34px; padding: 7px 12px; font-size: 12px; }
+.history-facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.history-facts li { display: flex; justify-content: space-between; gap: 16px; padding: 6px 2px; border-bottom: 1px solid var(--line); }
+.history-facts li:last-child { border-bottom: 0; }
+.history-fact-label { color: var(--muted); }
+.history-fact-value { font-weight: 600; }
+.history-section { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.history-section h3 { margin: 0 0 8px; font-size: 15px; }
+.history-hint { margin: 6px 0 0; font-size: 12px; line-height: 1.55; }
+.history-hint.muted, .history-meta.muted { color: var(--muted); }
+
+/* Gráficos SVG (rótulos de texto visíveis; cor nunca é a única informação). */
+.history-chart { display: block; width: 100%; height: auto; margin-top: 8px; background: #0e1519; border: 1px solid var(--line); border-radius: 10px; }
+.history-chart-axis-line { stroke: #35434b; stroke-width: 1; }
+.history-chart-line { fill: none; stroke: var(--blue); stroke-width: 2; }
+.history-chart-axis, .history-chart-label { fill: #9eaea9; font-size: 11px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+.history-chart-target { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.history-chart-target-label, .history-chart-note { fill: var(--accent); font-size: 11px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+.history-chart-empty-text { fill: #9eaea9; font-size: 12px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+.history-mark-dot { fill: var(--blue); stroke: #0e1519; stroke-width: 1; }
+.history-mark-value { fill: #e8eee9; font-size: 11px; text-anchor: middle; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+.history-chart-bar { fill: var(--blue); opacity: 0.9; }
+.history-chart-free { stroke: #9eaea9; stroke-width: 2; }
+.history-mark-generated .history-mark-dot, .history-mark-generated .history-chart-bar { fill: #d8a76a; }
+.history-mark-authored .history-mark-dot, .history-mark-authored .history-chart-bar { fill: var(--blue); }
+.history-day .history-chart-bar { fill: #3f5a68; }
+.history-day-active .history-chart-bar { fill: var(--accent); }
+
+/* Lista de treinos do exercício. */
+.history-runs { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.history-run { display: flex; flex-direction: column; gap: 3px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: #131d22; }
+.history-run-authored { border-left: 3px solid var(--accent); }
+.history-run-generated { border-left: 3px solid #d8a76a; }
+.history-run-at { font-size: 12px; color: var(--muted); }
+.history-run-detail { font-size: 13px; }
+
+/* Panorama do Percurso. */
+.journey-instruments { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.journey-instrument { display: grid; grid-template-columns: 92px minmax(0, 1fr) 108px; align-items: center; gap: 10px; font-size: 13px; }
+.journey-instrument-bar { height: 10px; border-radius: 999px; background: #223037; overflow: hidden; }
+.journey-instrument-bar span { display: block; height: 100%; background: var(--pg-blue); }
+.journey-instrument-bass .journey-instrument-bar span { background: var(--pg-accent); }
+.journey-instrument-value { text-align: right; color: var(--pg-muted); white-space: nowrap; }
+.journey-ranking { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.journey-ranking-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto auto; gap: 4px 12px; padding: 10px 12px; border: 1px solid var(--pg-line); border-radius: 10px; background: var(--pg-panel-2); }
+.journey-ranking-name { grid-column: 1; font-size: 14px; font-weight: 600; }
+.journey-ranking-detail { grid-column: 1; font-size: 12px; color: var(--pg-muted); }
+.journey-ranking-bar { grid-column: 1; height: 6px; border-radius: 999px; background: #223037; overflow: hidden; }
+.journey-ranking-bar span { display: block; height: 100%; background: var(--pg-accent); }
+.journey-ranking-item button { grid-column: 2; grid-row: 1 / span 3; align-self: center; }
+.journey-subsection { margin: 14px 0 0; padding: 12px 0 0; border-top: 1px solid var(--pg-line); }
+.journey-subsection h5 { margin: 0 0 8px; font-size: 13px; color: var(--pg-accent); }
+.journey-legacy { display: flex; flex-direction: column; }
+
+@media (max-width: 900px) {
+  .journey-instrument { grid-template-columns: 74px minmax(0, 1fr) 92px; }
+  .history-dialog { width: 96vw; padding: 18px; }
+}

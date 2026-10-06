@@ -134,6 +134,25 @@ Capturas: [meta vencida durante a tomada, 1440×900](rodada-4-etapa5-parent-zero
 
 `npm test && npm run check`: **653 aprovados, 1 ignorado, zero falhas**; **152 módulos**, zero falhas. Cobertura de ordem/duração, retomada, intervalos, dono, término manual, quota/corrupção, rotinas e preservação do BPM final. `main.js`: **514 linhas**.
 
+## Etapa 6 — histórico por exercício e Percurso
+
+`exercise-history.js` e `history-charts.js` apresentam os registros da Biblioteca; `history-time.js` une intervalos e divide por datas locais. O Percurso usa o mesmo diário de Hoje e do treinador, sem somar duas vezes um período sobreposto. A etapa foi integrada antes do treinador novo para que seu botão de histórico já tenha destino funcional.
+
+### Provas no navegador
+
+- Histórico aberto por clique no menu de um exercício não ativo: alvo **150 BPM**, melhor autoral **120 BPM**, gráfico de aproveitamento **100%**, data local, lista e **18 s** de tempo conhecido. O registro foi produzido pelo avaliador na prova anterior de 32 ataques com timestamps controlados, não por equipamento físico.
+- Download real `guitarra-pratica-completa-historico.json`: **2.636 bytes**, envelope `groovegoblin-exercise-history`, exercício/alvo/instrumento e o registro completo com intervalo de **18.194 ms**.
+- Percurso integrado aos intervalos reais da fila: **10 min 24 s**, **28 datas locais**, três registros avaliados e sete blocos de Hoje. Acrescentar ao diário uma cópia do intervalo de 18.194 ms já presente no registro aumentou a contagem de blocos do treinador para um e conservou **10 min 24 s**: tempo sobreposto contou uma vez.
+- Exportação anterior preservada: download `groovegoblin-percurso.json`, **6.029 bytes**, com os dois registros legados. O controle passou a dizer **Exportar registros anteriores**, em **Dados anteriores**, para não prometer exportação de dados que pertencem à Biblioteca.
+- Limpeza explícita com confirmação: registro do exercício passou de um para zero; sessão e metadados ficaram byte a byte iguais, assim como os demais exercícios e a chave do histórico anterior. O diálogo mostrou o estado vazio.
+- As provas do responsável também cobriram guitarra/baixo, progresso autoral **100 → 124 BPM**, mudanças de alvo, sobreposição com um bloco controlado de 20 minutos, legado sem intervalos e downloads de dados corrompidos. As tomadas usaram eventos com timestamps controlados no transporte/avaliador reais.
+
+Correção de fronteira: registros sem data ficavam antes dos recentes ao inverter a ordem cronológica; agora permanecem ao fim nos dois sentidos, sem inventar data. Testes também cobrem BPM ausente, importação com `ownerId` antigo (o dono é o exercício que contém o registro), material gerado sem progresso autoral, meia-noite local e horário de verão.
+
+Capturas do integrador: [histórico, 1440×900](rodada-4-etapa6-parent-historico-1440x900.png), [Percurso, 1440×900](rodada-4-etapa6-parent-percurso-1440x900.png), [Percurso, 1280×800](rodada-4-etapa6-parent-percurso-1280x800.png). Sem overflow horizontal nos dois tamanhos; o histórico anterior continua disponível abaixo do panorama.
+
+`npm test && npm run check` após integrar Hoje: **683 aprovados, 1 ignorado, zero falhas**; **158 módulos**, zero falhas. `main.js`: **523 linhas**; `practice.js`: **1988**, sem crescimento nesta etapa.
+
 ## Etapa 7 — diagnóstico da entrada
 
 Etapa independente, verificada antes das etapas de biblioteca/treinador. A captura existente é compartilhada: exportar JSON não grava áudio; “Salvar amostra · 10 s” é a única ação que começa a retenção de PCM para um WAV.
@@ -177,10 +196,10 @@ Captura: [configuração e exceção explícita de gravação, 1440×900](rodada
 | 14 | Registro no exercício dono da execução | Aprovado na etapa 4; também após integrar o resultado |
 | 15 | Intercâmbio de metadados e legado | Aprovado na etapa 4 |
 | 16 | Fila de hoje, timer, resumo e retomada | Aprovado na etapa 5; inclusive 63 segundos de relógio real durante tomada ativa |
-| 17 | Histórico com gráficos e alvo | Pendente |
+| 17 | Histórico com gráficos e alvo | Aprovado na etapa 6; gráficos, download, limpeza e união temporal exercitados no navegador |
 | 18 | Ordem do inspetor com Braço aberto/fechado | Aprovado na etapa 1 |
 | 19 | Estúdio com quatro faixas e Tab sem rolar, até 58 controles | Aprovado na etapa 1 |
 | 20 | Cordas nomeadas e Drop D | Aprovado na etapa 1 |
 | 21 | Baixo sem convite redundante nem baixo gerado forçado | Aprovado na etapa 1 |
 | 22 | Diagnóstico JSON, WAV explícito e fixtures opcionais | Aprovado na etapa 7; áudio sintético, sem hardware físico |
-| 23 | Preservação das rodadas anteriores | Suítes aprovadas nas etapas 1, 2, 4 e 7; revisão final pendente |
+| 23 | Preservação das rodadas anteriores | Suítes aprovadas nas etapas 1, 2, 4, 5, 6 e 7; revisão final pendente |

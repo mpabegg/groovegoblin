@@ -463,6 +463,23 @@ export function createExerciseLibrary({
         return entry ? clone(entry) : null;
       },
       records(id) { return find(id)?.metadata.records.map(clone) ?? []; },
+      // Limpeza EXPLÍCITA do histórico de treinos: sem id, limpa todos os
+      // exercícios; com id, só o exercício indicado. Exercício, nome,
+      // etiquetas, alvo e anotações são preservados; nenhum chamador
+      // automático existe (só a confirmação deliberada da interface).
+      clearRecords(id = null) {
+        const targets = id === null || id === undefined ? state.entries : [requireEntry(id)];
+        let removed = 0;
+        for (const entry of targets) {
+          removed += entry.metadata.records.length;
+          entry.metadata.records = [];
+          entry.updatedAt = now();
+        }
+        if (targets.length === 0) return { removed: 0, exercises: 0, saved: true };
+        const saved = persist();
+        emit();
+        return { removed, exercises: targets.length, saved };
+      },
       tags() {
         const tags = new Set();
         for (const entry of state.entries) for (const tag of entry.metadata.tags) tags.add(tag);

@@ -454,3 +454,100 @@ test('histórico acima de 200 treinos permanece integral ao salvar, recarregar e
   const imported = target.list().find(row => row.name === session.name);
   assert.deepEqual(target.get(imported.id).metadata.records, expected);
 });
+
+// ----- limpeza explícita de histórico (clearRecords) -------------------------
+
+function recordOne(library, session) {
+  return library.recordRun(
+    library.captureRunContext(session, { source: 'authored', objective: 'timing' }),
+    { summary: { mode: 'strict', expected: 4, attackOk: 4 }, metric: 0.9 },
+  );
+}
+
+function quotaStorage(initial) {
+  const map = new Map(initial);
+  return {
+    getItem: key => (map.has(key) ? map.get(key) : null),
+    setItem: () => { throw new Error('QuotaExceededError'); },
+    removeItem: key => map.delete(key),
+    _map: map,
+  };
+}
+
+test('clearRecords apaga os treinos do exercício e preserva exercício, nome, etiquetas e alvo', () => {
+  const storage = memoryStorage();
+  const session = createSession({ name: 'Alvo', bpm: 100 });
+  const library = open(storage, session);
+  const id = library.active();
+  library.updateMetadata(id, { tags: ['escala'], targetBPM: 140, notes: 'dedilhar devagar' });
+  recordOne(library, session);
+  recordOne(library, session);
+  const copy = library.duplicate(id);
+  const sessionBefore = JSON.stringify(library.get(id).session);
+  assert.equal(library.records(id).length, 2);
+
+  const result = library.clearRecords(id);
+  assert.deepEqual(result, { removed: 2, exercises: 1, saved: true });
+  assert.deepEqual(library.records(id), []);
+  const entry = library.get(id);
+  assert.equal(entry.metadata.name, 'Alvo');
+  assert.deepEqual(entry.metadata.tags, ['escala']);
+  assert.equal(entry.metadata.targetBPM, 140);
+  assert.equal(entry.metadata.notes, 'dedilhar devagar');
+  assert.equal(JSON.stringify(entry.session), sessionBefore, 'a sessão autoral não é tocada');
+  assert.deepEqual(library.records(copy.id), [], 'a limpeza não atingiu o outro exercício');
+  assert.equal(library.size(), 2, 'nenhum exercício é removido');
+
+  const reopened = open(storage, session);
+  assert.deepEqual(reopened.records(id), [], 'a limpeza foi persistida');
+  assert.equal(reopened.list().find(row => row.id === id).recordsCount, 0);
+  assert.throws(() => library.clearRecords('nao-existe'), RangeError);
+});
+
+test('clearRecords sem id limpa todos os exercícios e mantém cada metadado', () => {
+  const storage = memoryStorage();
+  const session = createSession({ name: 'Um', bpm: 100 });
+  const library = open(storage, session);
+  const first = library.active();
+  const second = library.duplicate(first);
+  recordOne(library, session);
+  library.select(second.id);
+  recordOne(library, session);
+  assert.equal(library.records(first).length, 1);
+  assert.equal(library.records(second.id).length, 1);
+
+  const result = library.clearRecords();
+  assert.deepEqual(result, { removed: 2, exercises: 2, saved: true });
+  assert.deepEqual(library.records(first), []);
+  assert.deepEqual(library.records(second.id), []);
+  assert.equal(library.get(first).metadata.name, 'Um');
+  assert.ok(library.get(second.id).metadata.name.length > 0);
+});
+
+test('quota negada na limpeza não perde nem sobrescreve o histórico guardado', () => {
+  const good = memoryStorage();
+  const session = createSession({ name: 'Quota', bpm: 100 });
+  const library = open(good, session);
+  const id = library.active();
+  recordOne(library, session);
+  const bytes = good.getItem(LIBRARY_KEY);
+  const limited = quotaStorage([[LIBRARY_KEY, bytes]]);
+
+  const second = open(limited, session);
+  const result = second.clearRecords(id);
+  assert.equal(result.saved, false, 'sem armazenamento a limpeza não é gravada');
+  assert.deepEqual(second.records(id), [], 'a intenção fica visível na memória');
+  assert.equal(limited.getItem(LIBRARY_KEY), bytes, 'os bytes guardados continuam intactos');
+});
+
+test('biblioteca corrompida: limpeza explícita não sobrescreve os bytes originais', () => {
+  const corrupt = '{nao é json';
+  const storage = memoryStorage(new Map([[LIBRARY_KEY, corrupt]]));
+  const session = createSession({ name: 'Corrompida', bpm: 100 });
+  const library = open(storage, session);
+  assert.equal(library.status, 'corrupt');
+  const result = library.clearRecords();
+  assert.equal(result.saved, false);
+  assert.equal(storage.getItem(LIBRARY_KEY), corrupt, 'os originais permanecem recuperáveis');
+  assert.equal(storage.getItem(LIBRARY_RECOVERY_KEY), corrupt);
+});

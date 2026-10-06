@@ -7,6 +7,7 @@
 
 import { createEl, renderKeepingFocus } from './practice.js';
 import { SESSION_NAME_MAX } from './session.js';
+import { mountExerciseHistory } from './exercise-history.js';
 
 const INSTRUMENTS = Object.freeze([['all', 'Todos'], ['guitar', 'Guitarra'], ['bass', 'Baixo']]);
 const SORTS = Object.freeze([
@@ -53,6 +54,14 @@ export function mountLibrary(container, host) {
 
   const root = createEl('section', { className: 'library-root', 'aria-label': 'Biblioteca de exercícios' });
   container.appendChild(root);
+  // O histórico do exercício abre em um diálogo nativo (Esc e foco vêm do
+  // navegador) e lê apenas a biblioteca; mora no body para sobreviver às
+  // reconstruções da lista.
+  const historyDialog = createEl('dialog', { id: 'library-history-dialog', className: 'history-dialog', 'aria-label': 'Histórico do exercício' });
+  const historyBody = createEl('div', { className: 'history-dialog-body' });
+  historyDialog.appendChild(historyBody);
+  (document.body ?? container).appendChild(historyDialog);
+  let historyView = null;
   const view = { instrument: 'all', tag: 'all', query: '', sort: 'untrained' };
   let undo = null;
   let editing = null;
@@ -73,6 +82,26 @@ export function mountLibrary(container, host) {
     if (host.download) host.download(text, filename);
     else notify('Download indisponível neste navegador.', true);
   }
+
+  // Abre o histórico do exercício (por padrão, o ativo). Limpeza explícita
+  // passa por host.clearExerciseRecords, que preserva exercício e metadados.
+  function openHistory(id = null) {
+    const targetId = typeof id === 'string' && id.length > 0 ? id : library.active();
+    if (!targetId || !library.get(targetId)) { notify('Escolha um exercício para ver o histórico.', true); return null; }
+    historyView?.destroy();
+    historyView = mountExerciseHistory(historyBody, {
+      library,
+      exerciseId: targetId,
+      notify,
+      download,
+      clearRecords: candidate => (typeof host.clearExerciseRecords === 'function' ? host.clearExerciseRecords(candidate) : null),
+      close: () => historyDialog.close(),
+    });
+    if (!historyDialog.open) historyDialog.showModal();
+    return historyView;
+  }
+
+  historyDialog.addEventListener('close', () => { historyView?.destroy(); historyView = null; });
 
   function renderToolbar() {
     const bar = createEl('header', { className: 'library-toolbar' });
@@ -204,6 +233,7 @@ export function mountLibrary(container, host) {
         case 'target': editing = { id: entry.id, field: 'targetBPM' }; render(); break;
         case 'notes': editing = { id: entry.id, field: 'notes' }; render(); break;
         case 'export': download(library.exportExercise(entry.id), `${slugify(entry.metadata.name)}.json`); break;
+        case 'history': openHistory(entry.id); break;
         case 'delete': {
           const removed = host.deleteExercise(entry.id);
           if (removed) { undo = { entry: removed }; notify(`Exercício “${removed.metadata.name}” excluído. Use “Desfazer exclusão” se foi engano.`); }
@@ -248,6 +278,7 @@ export function mountLibrary(container, host) {
           actionButton('Etiquetas', 'tags', entry),
           actionButton('Alvo de BPM', 'target', entry),
           actionButton('Anotações', 'notes', entry),
+          actionButton(row.recordsCount > 0 ? `Histórico (${row.recordsCount})` : 'Histórico', 'history', entry),
           actionButton('Exportar', 'export', entry),
           actionButton('Excluir', 'delete', entry),
         ]));
@@ -303,6 +334,12 @@ export function mountLibrary(container, host) {
   render();
   return {
     render,
-    destroy() { unsubscribe?.(); root.remove(); },
+    openHistory,
+    destroy() {
+      unsubscribe?.();
+      historyView?.destroy();
+      historyDialog.remove();
+      root.remove();
+    },
   };
 }
