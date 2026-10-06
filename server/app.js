@@ -28,7 +28,7 @@ export async function startGrooveServer(config, { now = () => new Date(), log = 
   const store = api
     ? await openStore({ dataDir: api.dataDir, guardRoots: [projectRoot, config.staticRoot], now, minFreeBytes: api.minFreeBytes })
     : null;
-  const serveStatic = createStaticHandler({ root: config.staticRoot, projectRoot, basePath: config.basePath, hsts: api?.mode === 'tailscale' });
+  const serveStatic = createStaticHandler({ root: config.staticRoot, projectRoot, basePath: config.basePath, hsts: api?.mode === 'tailscale', apiEnabled: Boolean(api) });
   // Os fallbacks 400/404 do app saem com os MESMOS cabeçalhos de segurança do
   // estático (e HSTS no modo tailscale); nada de CSP duplicada.
   const security = staticSecurityHeaders({ hsts: api?.mode === 'tailscale' });

@@ -39,7 +39,7 @@ export const ATTACHMENT_SCHEMA_VERSION = 1;
 export const ATTACHMENT_FORMAT = 'groovegoblin-course-attachments';
 
 export const ATTACHMENT_KINDS = Object.freeze({ pdf: 'pdf', audio: 'audio', other: 'other' });
-export const ATTACHMENT_SOURCES = Object.freeze(['upload', 'import']);
+export const ATTACHMENT_SOURCES = Object.freeze(['upload', 'import', 'servidor']);
 
 export const AUDIO_EXTENSIONS = Object.freeze(['mp3', 'wav', 'wave', 'ogg', 'oga', 'm4a', 'aac', 'flac', 'opus', 'webm']);
 export const PDF_EXTENSIONS = Object.freeze(['pdf']);
@@ -275,6 +275,12 @@ function normalizeAttachmentRef(value) {
     name: isText(value.name) ? value.name : 'arquivo',
     extension: normalizeExtension(value.extension),
     role: isText(value.role) ? value.role : null,
+    // Tamanho e tipo ficam NA REFERÊNCIA: quando os bytes saem do navegador
+    // (material que passou a viver no servidor) ou quando o material chega do
+    // servidor sem download, são a única fonte do que o arquivo é, e é o que o
+    // documento de sincronização carrega.
+    size: Number.isFinite(value.size) ? value.size : null,
+    kind: ATTACHMENT_KINDS[value.kind] ?? (value.kind === 'pdf' || value.kind === 'audio' ? value.kind : null),
     source: ATTACHMENT_SOURCES.includes(value.source) ? value.source : 'upload',
     addedAt: isText(value.addedAt) ? value.addedAt : isoNow(),
     verified: value.verified !== false,
@@ -448,9 +454,12 @@ export function createAttachmentStore({
       ...clone(ref),
       fileId: ref.fileId,
       present: file !== null,
-      size: file?.size ?? null,
+      // Sem bytes locais (material que só existe no servidor), a referência é
+      // quem sabe tamanho e tipo — a lista e o documento de sincronização não
+      // podem mudar quando os bytes são liberados.
+      size: file?.size ?? ref.size ?? null,
       mime: file?.mime ?? null,
-      kind: file?.kind ?? ATTACHMENT_KINDS.other,
+      kind: file?.kind ?? ref.kind ?? ATTACHMENT_KINDS.other,
       contentName: file?.name ?? ref.name,
       contentAddedAt: file?.addedAt ?? null,
     };
@@ -515,6 +524,11 @@ export function createAttachmentStore({
     const refRecord = {
       key, courseId, lessonId, resourceId, fileId: id,
       name: cleanName, extension: ext, role: isText(role) ? role : null,
+      // Tamanho e tipo ficam na REFERÊNCIA: quando os bytes sobem para o
+      // servidor e saem do navegador, é o que sobra para a lista e para o
+      // documento de sincronização.
+      size: blob.size,
+      kind: sniffed.kind,
       source: ATTACHMENT_SOURCES.includes(source) ? source : 'upload',
       addedAt: timestamp,
       verified: sniffed.verified,
@@ -563,6 +577,74 @@ export function createAttachmentStore({
     if (fileDeleted) files.delete(ref.fileId);
     emit();
     return { removed: true, freedBytes: fileDeleted ? file.size : 0, fileDeleted, shared: !fileDeleted };
+  }
+
+  // Corpo da adoção de referência remota (etapa 7 · B4). NENHUM byte é
+  // baixado: o material existe do lado do servidor (hash) e o navegador guarda
+  // só a referência; `joined()` devolve `present:false` e a aula abre/ouve pela
+  // API autenticada. A referência antiga do mesmo material, se houver, é
+  // liberada quando ninguém mais aponta para ela.
+  async function adoptRemoteRefNow({ key, sha256, size = null, kind = 'other', name = null, addedAt = null } = {}) {
+    await prepare();
+    const parsed = parseAttachmentRefKey(key);
+    if (!parsed) throw new TypeError('A referência do anexo precisa de curso, aula e material.');
+    if (!/^[0-9a-f]{64}$/.test(String(sha256 ?? ''))) throw new TypeError('O material remoto precisa do hash do conteúdo.');
+    const previous = refs.get(key) ?? null;
+    const cleanName = (isText(name) ? name : 'arquivo').slice(0, ATTACHMENT_LIMITS.name);
+    const refRecord = {
+      key,
+      courseId: parsed.courseId,
+      lessonId: parsed.lessonId,
+      resourceId: parsed.resourceId,
+      fileId: `sha256:${sha256}`,
+      name: cleanName,
+      extension: normalizeExtension(extensionOfName(cleanName)),
+      role: null,
+      // Sem bytes locais, tamanho e tipo vêm daqui — é o que o documento de
+      // sincronização carrega e o que a lista mostra.
+      size: Number.isFinite(size) ? size : null,
+      kind: ATTACHMENT_KINDS[kind] ?? (kind === 'pdf' || kind === 'audio' ? kind : null),
+      source: 'servidor',
+      addedAt: isText(addedAt) ? addedAt : now(),
+      verified: true,
+      warning: null,
+    };
+    try {
+      await backend.writeBatch([{ store: 'refs', value: refRecord }]);
+    } catch (cause) {
+      throw describeAttachmentStorageError(cause);
+    }
+    refs.set(key, refRecord);
+    warning = null;
+    let freedBytes = 0;
+    if (previous && previous.fileId !== refRecord.fileId) {
+      const previousFile = files.get(previous.fileId);
+      const dropped = await dropFileIfUnused(previous.fileId);
+      if (dropped) freedBytes = previousFile?.size ?? 0;
+    }
+    emit();
+    return { key, fileId: refRecord.fileId, size, kind, reused: previous?.fileId === refRecord.fileId, freedBytes };
+  }
+
+  // Corpo da liberação de BYTES (etapa 7 · B4): o arquivo sai do navegador e as
+  // referências continuam apontando para o hash. Só é chamado depois de o blob
+  // estar CONFIRMADO no servidor e fora do "manter offline"; sem hash de
+  // conteúdo o servidor não teria como deduplicar o arquivo, então nada é
+  // liberado.
+  async function dropBlobNow(fileId) {
+    await prepare();
+    if (!isText(fileId) || !files.has(fileId)) return { dropped: false, freedBytes: 0, reason: 'ausente' };
+    if (!fileId.startsWith('sha256:')) return { dropped: false, freedBytes: 0, reason: 'sem-hash' };
+    const file = files.get(fileId);
+    try {
+      await backend.writeBatch([{ store: 'files', id: fileId, remove: true }]);
+    } catch {
+      return { dropped: false, freedBytes: 0, reason: 'escrita' };
+    }
+    files.delete(fileId);
+    warning = null;
+    emit();
+    return { dropped: true, freedBytes: file?.size ?? 0 };
   }
 
   // Corpo da limpeza explícita (chamado serializado por clearCourse).
@@ -703,6 +785,18 @@ export function createAttachmentStore({
       // escrita; o corpo está em putNow, junto dos outros auxiliares).
       put(options = {}) {
         return serialize(() => putNow(options));
+      },
+
+      // Sincronização (etapa 7): adota a referência de um material que vive no
+      // servidor, sem baixar bytes (serializado com as demais escritas).
+      adoptRemoteRef(options = {}) {
+        return serialize(() => adoptRemoteRefNow(options));
+      },
+
+      // Sincronização (etapa 7): libera os bytes de um arquivo confirmado no
+      // servidor. As referências continuam válidas.
+      dropBlob(fileId) {
+        return serialize(() => dropBlobNow(fileId));
       },
 
       // Remove a REFERÊNCIA; o arquivo só sai quando nenhuma outra aponta para

@@ -16,7 +16,8 @@ depois de cada merge e push.
 | 3 — formas de dedilhado | `8169a0d` | 979 (978 passam, 1 ignorado) | 202 módulos |
 | 4 — interface do gerador e variações | `50f75b0` | 1027 (1026 passam, 1 ignorado) | 209 módulos |
 | 5 — catálogo no curso, aula e sessão de hoje | `1903c21` | 1088 (1087 passam, 1 ignorado) | 214 módulos |
-| 6 — servidor e segurança | (esta etapa) | 1146 (1145 passam, 1 ignorado) | 234 módulos |
+| 6 — servidor e segurança | `c302592` | 1146 (1145 passam, 1 ignorado) | 234 módulos |
+| 7 — sincronização no app | (esta etapa) | 1222 (1220 passam, 2 ignorados) | 253 módulos |
 
 O teste ignorado é o de amostra física da rodada 1 (`physical sample`), ignorado por desenho.
 
@@ -269,4 +270,128 @@ Nenhum identificador de curso ou de infraestrutura nos arquivos desta etapa: o s
 `usuario@example.org`, `https://groove.exemplo.ts.net` e fixtures fictícios em diretório
 temporário; a auditoria dos arquivos preparados (`local/round6-private-audit.json`) saiu com
 0 ocorrências.
+
+## Etapa 7 — sincronização no app (B4)
+
+Módulos novos: `src/server-client.js`, `src/sync-outbox.js`, `src/sync-store.js`,
+`src/sync-adapters.js`, `src/sync-engine.js`, `src/sync-status.js`, `src/sync-wire.js`,
+`src/course-convert-server.js`, `src/app-services.js` e `src/sync.css`. Patches cirúrgicos em
+`src/exercise-library.js` (entradas + aplicação/remoção remotas), `src/course-attachments.js`
+(referência com `size`/`kind`, adoção sem bytes e liberação), `src/today-store.js` +
+`src/today-view.js` (loja compartilhada), `src/course-view.js` (gancho da conversão),
+`src/main.js` (três linhas trocadas, ainda 530 linhas), `index.html` (`sync.css` e
+`data-groove-server="off"`), `server/static.js` + `server/app.js` (marcador com data dir) e
+`sw.js` (`/api/` fora do Cache Storage).
+
+Oito coleções: `exercises`, `courses`, `courseStates`, `courseAttachments`, `todayQueues`,
+`routines`, `forms` (`shapes` e `bindings`) e `preferences` (allowlist explícito). Duas
+superfícies: uma linha em "Ajuda e app" (sempre) e um indicador no cabeçalho só com problema.
+
+### Defeitos reais encontrados ao exercitar (corrigidos nesta etapa)
+
+1. **A varredura de remoção apagava o documento vizinho da MESMA coleção.** `forms` tem dois
+   documentos com donos distintos (`shapes`, `bindings`) em portos separados; a varredura de
+   cada porto percorria todas as revisões da coleção, e o documento que o outro porto listava
+   não estava no `seen` dele — o resultado era `PUT` dos dois seguido de `DELETE` dos dois. A
+   varredura agora respeita `owns(id)` (regressão: "varredura normal não apaga o documento
+   vizinho da MESMA coleção", que falha sem o conserto).
+2. **Documento que subia para sempre.** O documento carregava id e carimbos de tempo de CADA
+   navegador (id/`createdAt`/`updatedAt` da fila, id/carimbos da rotina, `createdAt`/
+   `updatedAt` do estado do curso e de cada aula) e a fusão reescrevia os locais, então o mesmo
+   conteúdo virava bytes diferentes nas duas máquinas: cada ciclo subia três documentos novos
+   (`courseStates`, `todayQueues`, `routines`), sem nenhuma mudança de conteúdo. O documento
+   passou a levar só o conteúdo portátil (itens da fila; nome + itens da rotina; progresso,
+   lápides, intervalos, aula ativa e preferências do estado do curso). Medido no navegador:
+   com o defeito, quatro sincronizações somavam 12 revisões novas; corrigido, a revisão do
+   servidor não muda mais entre ciclos. Regressões: "dois navegadores convergem" (motor, com
+   a loja de Hoje de verdade) e "o documento do outro navegador não muda os nossos bytes"
+   (adaptadores).
+3. **Anexo com os mesmos bytes nunca convergia.** Com o mesmo `sha256` dos dois lados, a
+   aplicação não fazia nada (`existing && localFileSha(...) === entry.sha256 → continue`) e o
+   `addedAt` de cada máquina ficava diferente: o documento de anexos subia a cada ciclo. Agora,
+   quando os bytes são os mesmos, os campos do documento (nome, tipo, tamanho, `addedAt`) são
+   adotados do servidor — sem baixar nem liberar bytes (regressão própria).
+
+### Critério 18 — servidor vazio → envio; dois lados → mesclagem sem perda
+
+Dois perfis de navegador independentes (Chromium próprio, TLS de teste confiado, sem
+`ignore-certificate-errors`), servidor de verdade em loopback com identidade fictícia.
+Primeira conexão com dados locais e servidor vazio: a oferta é só "Enviar meus dados para o
+servidor" + "Agora não" e **nada sobe sem consentimento**; aceito, o servidor recebe as oito
+coleções (11 documentos, incluindo o blob do anexo por hash, `HEAD` 404 → `PUT` 201). No
+segundo perfil: oferta de mesclagem, fusão sem perda (os dois lados ficam com o mesmo
+conteúdo; o exercício criado só no segundo perfil sobe) e nenhum conflito espúrio.
+
+### Critério 19 — fila offline, recarga no meio e volta
+
+Rede cortada no segundo perfil (`offline`), edição de exercício (BPM 100 → 90): a operação
+entra na fila durável (`groovegoblin.sync.outbox.v1`), a linha diz "Servidor: sem conexão" e a
+edição **sobrevive à recarga** com a fila intacta. Ao voltar a rede, "Sincronizar agora" drena
+a fila e o servidor passa a ter o BPM 90 (revisão nova); a fila volta a zero.
+
+### Critério 17 — 412 com as duas escolhas e cópias baixáveis
+
+Duas direções, exercitadas nos dois perfis: (a) o segundo perfil grava e escolhe "Ficar com
+esta" — a versão dele sobe e a do servidor fica nas cópias; (b) o primeiro perfil grava e
+escolhe "Ficar com a do servidor" — a do servidor fica e a dele vai para as cópias. Nos dois
+casos o painel mostra "1 conflito para resolver" com as duas ações, e a versão descartada
+continua guardada (conferida no estado: `recovered` com o corpo descartado), disponível em
+"Baixar cópias guardadas".
+
+### Critério 20 — anexo por hash, ida e volta e liberação
+
+O PDF fictício (193 B) sobe por `HEAD` + `PUT /api/blobs/:sha256` e o arquivo no servidor tem
+exatamente o `sha256` do arquivo local. Marcado "manter offline", os bytes **ficam** no
+navegador mesmo depois da confirmação; ao deixar de manter offline e sincronizar, os bytes
+locais são liberados e a referência continua no documento com nome, tipo e tamanho (o
+documento de anexos não muda ao liberar).
+
+### Critério 21 — conversão no servidor com mapa e catálogo fictícios
+
+No segundo perfil, mapa + catálogo fictícios vão para a área privada do servidor (nada é
+publicado); o id já existe, então a resposta é 409 e a interface oferece "Atualizar o curso
+existente". Confirmando, a estrutura é atualizada com `expectedRev` e o progresso local
+(`lesson-1` assistida) é preservado.
+
+### Critério 15 — sem servidor
+
+Página servida por um servidor estático comum (sem backend, marcador `off`): **zero**
+requisições a `/api/`, console limpo e a única linha é "Sem servidor (dados só neste
+navegador)". O site estático e o GitHub Pages continuam funcionando como antes.
+
+### Verificação executada
+
+- `npm test` na etapa: **1222 testes, 1220 passam, 0 falham, 2 ignorados** (amostra física e o
+  teste contra o servidor real, que roda por flag).
+- `npm run check`: **253 módulos, 0 falhas**.
+- `GROOVE_SYNC_REAL_SERVER=1 node --test tests/sync-real-server.test.js`: **1/1 passa** contra o
+  servidor de verdade (saúde, `PUT` 201, 412, `GET`/304, feed, blob por hash ida e volta,
+  conversão gravando `groovegoblin-course`).
+- Navegador (dois perfis, dados fictícios, 1440×900 e 1280×800): capturas em
+  `evidence/sync-1440x900.png` e `evidence/sync-1280x800.png`.
+
+### Interface publicada para as próximas etapas
+
+- Chave de host `serverImport` (função que devolve nós) de `appImportNodes` em
+  `src/app-services.js` → host da Biblioteca → `course-view` (a etapa 8 liga o painel de
+  material, que esta etapa não abre).
+- `index.html` mantém `data-groove-server="off"` e o `<link>` de `src/sync.css`; o servidor só
+  troca o marcador para `on` com data dir (`SERVER_MARKER_ATTR` em `src/sync-engine.js`).
+- `courseAttachments/<courseId>` = `{ refs: { "<refKey>": { sha256, size, kind, name, addedAt } } }`;
+  os bytes vivem só em `/api/blobs/:sha256`. `receiveBlob(request, { reserveSpace })` continua
+  sendo a interface de reserva.
+- `preferences/default`: só `practice.{objective,routine}` e `transport.{countInBars,accelerator}`.
+- `forms`: dois documentos com donos distintos (`shapes`, `bindings`); a lápide remota nunca
+  apaga formas/vínculos locais.
+- Documentos sincronizados levam **conteúdo portátil**: fila = itens; rotinas = nome + itens;
+  estado do curso = progresso/lápides/intervalos/aula ativa/preferências, **sem** os carimbos de
+  tempo locais. Qualquer coleção nova que carregue id/carimbo do navegador no corpo volta a
+  subir a cada ciclo — a regressão "dois navegadores convergem" cobre isso.
+
+### Privacidade
+
+Perfis e fixtures só com dados fictícios (`example.invalid`, `groove.exemplo.ts.net`,
+`usuario@example.org`, o curso de exemplo do repositório e um PDF de 193 B). Nenhum
+identificador real de curso ou de infraestrutura: a auditoria privada desta etapa saiu com 0
+ocorrências e nada de `local/` foi para o commit.
 

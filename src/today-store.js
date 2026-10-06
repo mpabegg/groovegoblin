@@ -681,3 +681,17 @@ export function createTodayStore({ storage = globalThis.localStorage, now = Date
 
   return api();
 }
+
+// Uma única loja de Hoje por app. A tela (`today-view`) e a sincronização
+// precisam do MESMO estado em memória: duas instâncias gravariam a mesma chave
+// e a memória de uma ficaria velha em relação à outra. `createTodayStore` é
+// síncrona (localStorage), então a instância única também é — quem chamar
+// primeiro cria, os demais recebem a mesma referência.
+let sharedInstance = null;
+export function sharedTodayStore(options) {
+  if (!sharedInstance) sharedInstance = createTodayStore(options);
+  return sharedInstance;
+}
+export function resetSharedTodayStore() {
+  sharedInstance = null;
+}

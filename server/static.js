@@ -32,7 +32,7 @@ export function publicRelativePath(rawRelative) {
   return PUBLIC_DIRS.includes(segments[0]) ? segments.join('/') : null;
 }
 
-export function createStaticHandler({ root, projectRoot, basePath, hsts = false }) {
+export function createStaticHandler({ root, projectRoot, basePath, hsts = false, apiEnabled = false }) {
   const isProjectRoot = root === resolve(projectRoot);
   const rootPrefix = root.endsWith(sep) ? root : root + sep;
   const security = staticSecurityHeaders({ hsts });
@@ -75,6 +75,13 @@ export function createStaticHandler({ root, projectRoot, basePath, hsts = false 
         if (isProjectRoot && relative === 'sw.js') {
           const manifest = await createAssetManifest(root);
           content = content.toString('utf8').replace('__GROOVE_REVISION__', manifest.version);
+        }
+        // A página entregue pelo servidor diz que a API está ligada: é o único
+        // sinal que autoriza o app a consultar `/api/health` na abertura. O site
+        // estático (e o modo somente-estático, sem diretório de dados) fica com
+        // `off` e não faz requisição nenhuma — nenhum 404 no console.
+        if (apiEnabled && relative === 'index.html') {
+          content = content.toString('utf8').replace('data-groove-server="off"', 'data-groove-server="on"');
         }
       }
       const type = TYPES[extname(path)] || 'application/octet-stream';

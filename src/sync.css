@@ -1,0 +1,115 @@
+/* Sincronização com o servidor pessoal (rodada 6, etapa 7).
+   Duas superfícies: a linha de estado em "Ajuda e app" e o indicador de
+   problema no cabeçalho. O resto (conflitos, primeiros passos, cópias) mora
+   dentro do mesmo painel de Ajuda. Desktop 1280–1440. */
+
+.sync-help > summary {
+  cursor: pointer;
+  padding: 8px;
+  font-size: 12px;
+}
+.sync-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 2px 8px;
+  min-width: 0;
+}
+#sync-status {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text);
+}
+.sync-detail p {
+  margin: 2px 0;
+  font-size: 12px;
+}
+.sync-actions,
+.sync-first {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#sync-panel button {
+  min-height: 30px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+#sync-panel button[hidden] {
+  display: none;
+}
+.sync-first[hidden] {
+  display: none;
+}
+.sync-conflict-list,
+.sync-pinned-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sync-conflict {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  background: #16232a;
+}
+.sync-conflict p {
+  margin: 0 0 6px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.sync-pinned-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.sync-indicator {
+  border-color: #7a3b2e;
+  background: #241512;
+  color: #ffba9d;
+  font-size: 12px;
+  padding: 8px 10px;
+}
+.sync-indicator[hidden] {
+  display: none;
+}
+
+.courses-server-import > summary {
+  cursor: pointer;
+  padding: 8px;
+  font-size: 12px;
+}
+.courses-server-import-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #16232a;
+}
+.courses-server-import-panel label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.courses-server-import-panel input[type="file"] {
+  font-size: 12px;
+  max-width: 100%;
+}
+.courses-server-status {
+  margin: 0;
+  font-size: 12px;
+  color: #ffba9d;
+}
+.courses-server-status.muted {
+  color: var(--muted);
+}

@@ -225,6 +225,18 @@ GROOVE_DATA_DIR=~/groovegoblin-dados npm start
 - **Cópia de segurança.** Um instantâneo diário em NDJSON gzip, autocontido (inclui os **bytes** dos blobs), mantendo os 14 últimos (`GROOVE_BACKUP_KEEP`). Restaure com o servidor parado: `node server/restore.js --data-dir DIR --latest` (só contagens) e `--yes` para aplicar; a restauração grava antes um `pre-restore-*.ndjson.gz` e repõe documentos, privados e blobs com revisões novas, sem apagar blobs vivos fora do arquivo.
 - **Privado por desenho.** O data dir guarda o mapa e o catálogo do curso, os materiais e os backups; nada disso vai para o Git nem para o servidor estático. As rotas `/api` exigem a identidade autenticada (no modo `tailscale`) e os logs não registram conteúdo, ids, login, IP nem caminho. A instalação no Raspberry Pi com `tailscale serve` e HTTPS é documentada na pasta [`deploy/`](./deploy/) (serviço, `serve`, scripts e guia).
 
+### Sincronização com o servidor
+
+Quando a página é servida pelo servidor pessoal (o marcador `data-groove-server="on"` no `<html>`), o app sincroniza sozinho: envia o que mudou, traz o que mudou no servidor e mantém uma linha de estado em **Ajuda e app** (e um indicador no cabeçalho apenas quando há problema). Sem servidor, a página fica com o marcador `off`, nenhuma requisição a `/api` acontece e nada muda no app.
+
+- **Coleções.** Exercícios (um documento por exercício, com o id preservado), cursos, estado dos cursos, anexos de curso, fila do dia, rotinas, formas de dedilhado e vínculos de forma (dois documentos com donos distintos na coleção `forms`) e preferências — só `practice.{objective,routine}` e `transport.{countInBars,accelerator}`. Dispositivo de entrada, calibração, layout de faixas, mixer, Músicas e histórico **não** saem do navegador.
+- **Primeira conexão.** Com dados locais e servidor vazio, o app **pergunta** antes de enviar ("Enviar meus dados para o servidor" / "Agora não"); com dados dos dois lados, oferece "Mesclar sem apagar nada". Nada sobe sem a sua escolha, e a oferta é recalculada a cada ciclo.
+- **Conflito.** Se o mesmo documento mudou aqui e no servidor, a versão do servidor fica em uso e a sua vira **cópia em conflito** com as duas ações ("Ficar com esta" / "Ficar com a do servidor"); a versão descartada continua guardada e sai em "Baixar cópias guardadas".
+- **Offline.** Edições entram numa fila durável (sobrevive a recarregar a página) e sobem quando a rede volta; a linha diz "sem conexão" enquanto isso.
+- **Anexos.** Os bytes sobem por hash (`sha256`) e voltam do servidor byte a byte; depois de confirmados, a cópia local é liberada e a referência continua no documento com nome, tipo e tamanho. Marcar "manter offline" mantém os bytes no navegador.
+- **Converter no servidor.** A vista Cursos envia um mapa e um catálogo para a área privada do servidor e o curso volta pelo documento canônico. Se o id já existir, o app avisa e oferece "Atualizar o curso existente", preservando o progresso local.
+- **Documento portátil.** O que viaja é o conteúdo (itens da fila; nome + itens das rotinas; progresso, lápides, intervalos, aula ativa e preferências do curso), nunca ids ou carimbos de tempo de um navegador específico — é isso que impede um documento de subir para sempre.
+
 ## Comandos de verificação
 
 ```sh

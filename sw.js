@@ -44,6 +44,12 @@ self.addEventListener('fetch', event => {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin || !url.href.startsWith(self.registration.scope)) return;
+  // A API do servidor pessoal NUNCA entra no cache: `health`, documentos,
+  // feed de mudanças, blobs (áudio/PDF com Range) e a área privada respondem
+  // com `private, no-store` e dependem da sessão autenticada. Guardar isso
+  // offline serviria conteúdo de curso para quem não está autenticado e faria
+  // o app mostrar dados velhos.
+  if (url.pathname.startsWith(new URL('api/', self.registration.scope).pathname)) return;
   // Updates always bypass this cache; imported media and blob URLs never enter it.
   if (url.pathname.endsWith('/offline-assets.json') || url.pathname.endsWith('/sw.js')) return;
   event.respondWith((async () => {

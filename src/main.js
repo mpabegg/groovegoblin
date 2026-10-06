@@ -7,7 +7,7 @@ import { createPracticeActivity } from './practice-activity.js';
 import { mountPlayground } from './playground.js';
 import { mountJourney } from './practice-view.js';
 import { mountRepertoire } from './repertoire-view.js';
-import { setupOffline } from './offline.js';
+import { mountAppServices, appImportNodes } from './app-services.js';
 import { mountTour } from './tour.js';
 import { mergeSession } from './studio-state.js';
 import { captureLegacyBackup, createExerciseLibrary } from './exercise-library.js';
@@ -476,7 +476,7 @@ function openExerciseHistory(id) {
   return libraryView.openHistory(target);
 }
 const libraryView = mountLibrary($('library-mount'), {
-  library, openExercise, notify: message, download, openExerciseHistory,
+  library, openExercise, notify: message, download, openExerciseHistory, serverImport: appImportNodes,
   // Composição da etapa 6: aba da Biblioteca, perfil da sessão e origem da aula.
   activateLibrary: () => studio.activate($('tab-library')),
   getInstrument: () => session.extensions?.studio?.instrument ?? null,
@@ -515,7 +515,7 @@ repertoire = mountRepertoire($('repertoire-mount'), { ...host, notify: takeNotic
 practice = mountPractice($('practice-mount'), host, { activity });
 playground = mountPlayground($('playground-mount'), { ...host, notify: takeNotices.notify });
 journey = mountJourney($('journey-mount'), { ...host, library });
-setupOffline({ isBusy: () => busy() || repertoire.isBusy(), canReload: () => sessionSaved, notify: message });
+mountAppServices({ document, library, notify: message, download, isBusy: () => busy() || repertoire.isBusy(), canReload: () => sessionSaved, onReady: () => libraryView.render() });
 history.push(session); playback.applyMixer(); renderAll();
 mountStudioPatterns({ getSession: () => session, isBusy: () => false, updateSession, notify: message, renderControls });
 studio.activate($(library.size() > 1 ? 'tab-library' : 'tab-studio'));

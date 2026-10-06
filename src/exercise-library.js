@@ -562,6 +562,47 @@ export function createExerciseLibrary({
         return entry ? clone(entry) : null;
       },
       records(id) { return find(id)?.metadata.records.map(clone) ?? []; },
+      // Entradas COMPLETAS (sessão + metadados) para a sincronização: a lista
+      // pública devolve resumos, e o documento remoto precisa do exercício
+      // inteiro. Nada é sanitizado aqui — o payload de sincronização é o
+      // snapshot autenticado do próprio usuário (etapa 8: cru, sempre).
+      entries() { return state.entries.map(clone); },
+      // Aplicação de documento remoto (etapa 7): o id de origem é PRESERVADO.
+      // Reimportar por conteúdo criaria uma cópia nova, e a cópia voltaria como
+      // um segundo exercício no outro navegador. Nada é apagado; sessão e
+      // metadados passam pela mesma validação da casa (a marca
+      // `metadata.courseContent` é preservada como veio).
+      applyRemoteEntry(entry) {
+        if (status === 'corrupt') throw new Error('Biblioteca corrompida; baixe os originais em Ajuda antes de sincronizar.');
+        if (!isObject(entry) || !isNonEmptyString(entry.id)) throw new TypeError('Documento remoto sem identificador.');
+        const session = parse(JSON.stringify(entry.session));
+        const next = {
+          id: entry.id,
+          createdAt: isString(entry.createdAt) ? entry.createdAt : now(),
+          updatedAt: isString(entry.updatedAt) ? entry.updatedAt : now(),
+          session,
+          metadata: normalizeMetadata(entry.metadata, session),
+        };
+        const index = state.entries.findIndex(candidate => candidate.id === next.id);
+        if (index >= 0) state.entries[index] = next; else state.entries.push(next);
+        if (!state.activeId) state.activeId = next.id;
+        persist();
+        emit();
+        return clone(next);
+      },
+      // Lápide remota: remove o exercício, mas NUNCA deixa a biblioteca vazia
+      // (a última entrada é protegida, como em deleteUndo).
+      removeRemoteEntry(id) {
+        if (status === 'corrupt') return false;
+        if (state.entries.length <= 1) return false;
+        const index = state.entries.findIndex(entry => entry.id === id);
+        if (index < 0) return false;
+        state.entries.splice(index, 1);
+        if (state.activeId === id) state.activeId = state.entries[Math.min(index, state.entries.length - 1)]?.id ?? null;
+        persist();
+        emit();
+        return true;
+      },
       // Limpeza EXPLÍCITA do histórico de treinos: sem id, limpa todos os
       // exercícios; com id, só o exercício indicado. Exercício, nome,
       // etiquetas, alvo e anotações são preservados; nenhum chamador

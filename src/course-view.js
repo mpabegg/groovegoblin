@@ -161,7 +161,11 @@ export function mountCourses(container, host) {
       if (file) void importFile(file);
     });
     button.disabled = !store.persistent || loadPending;
-    return [button, input];
+    // Com servidor, a mesma área aceita converter no servidor (mapa + catálogo
+    // direto para a área privada). Sem servidor, `host.serverImport` não existe
+    // e nada aparece.
+    const serverNodes = typeof host?.serverImport === 'function' ? host.serverImport() : [];
+    return [button, input, ...serverNodes];
   }
 
   // -------------------------------------------------------------- lista de cursos

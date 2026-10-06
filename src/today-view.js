@@ -14,7 +14,7 @@
 
 import { createEl, renderKeepingFocus } from './practice.js';
 import {
-  createTodayStore, suggestQueue, queueTotalMs, itemKind, itemMinutes,
+  sharedTodayStore, suggestQueue, queueTotalMs, itemKind, itemMinutes,
   DEFAULT_ITEM_MINUTES, MIN_ITEM_MINUTES, MAX_ITEM_MINUTES, MAX_LESSON_MINUTES,
   SUGGESTION_LIMIT, ITEM_KIND_LESSON,
 } from './today-store.js';
@@ -29,7 +29,9 @@ const INSTRUMENT_LABELS = Object.freeze({ guitar: 'Guitarra', bass: 'Baixo' });
 // Um controlador atende à Biblioteca e à tira; todos os modos usam o transporte do host.
 export function mountToday(panelContainer, trainerContainer, host) {
   const { library, notify } = host;
-  const store = createTodayStore();
+  // MESMA instância que a sincronização usa (natureza única do Hoje): duas
+  // instâncias gravariam a mesma chave e uma memória ficaria velha.
+  const store = sharedTodayStore();
   // A loja de cursos vem do host quando ele já a tem; senão é a instância
   // única do app. Falha de carregamento é avisada e o Hoje volta ao
   // comportamento anterior (fila de exercícios), sem backend fingido.
