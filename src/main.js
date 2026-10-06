@@ -116,11 +116,11 @@ function updateSession(patch, { notice = null, structural = false, drumDecision 
   if (applied && policy.live) { audio.updateSession(session); playback.applyMixer(); }
   return applied;
 }
-function replaceSession(value, { record = true, stopPlayback = true, notice = 'Sessão substituída.', resetEmpty = true } = {}) {
+function replaceSession(value, { record = true, stopPlayback = true, notice = 'Exercício substituído.', resetEmpty = true } = {}) {
   const checked = validateSession(withStudioChoices(value));
   if (!checked.ok) { message(`Alteração rejeitada: ${checked.error}`, true); renderControls(); return false; }
   if (stopPlayback) {
-    if (busy() && !notice?.includes('interrompido') && !notice?.includes('Reprodução parada')) notice = `Reprodução parada para substituir a sessão. ${notice ?? ''}`.trim();
+    if (busy() && !notice?.includes('interrompido') && !notice?.includes('Reprodução parada')) notice = `Reprodução parada para substituir o exercício. ${notice ?? ''}`.trim();
     stop();
   }
   session = checked.session;
@@ -411,30 +411,36 @@ trainingResult = mountTrainingResult({
 practiceTracks = mountPracticeTracks($('practice-audible-mount'), {
   getSession: () => executionSession ?? session, getMixer: playback.getMixer, toggleAudible: playback.toggleAudible,
 });
-window.addEventListener('blur', () => { if (busy()) stop('Sessão interrompida ao perder o foco.'); repertoire.stop(); });
+window.addEventListener('blur', () => { if (busy()) stop('Prática interrompida ao perder o foco.'); repertoire.stop(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { stop(); repertoire.stop(); } });
 
 function download(text, filename) {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
   const link = document.createElement('a'); link.href = url; link.download = filename; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-$('export').addEventListener('click', () => download(serializeSession(session), 'groovegoblin-sessao.json'));
+$('export').addEventListener('click', () => {
+  if (library.activeEntry()) download(library.exportExercise(library.active()), 'groovegoblin-exercicio.json');
+  else { download(serializeSession(session), 'groovegoblin-documento-atual.json'); message('Biblioteca indisponível: exportado só o documento musical atual, sem metadados. Baixe também os originais em Ajuda.', true); }
+});
 $('import').addEventListener('click', () => $('import-file').click());
 $('import-file').addEventListener('change', async event => {
   const file = event.target.files?.[0]; event.target.value = ''; if (!file) return;
   stop(); repertoire.stop(); const request = ++generation; pending = 'import'; renderControls();
   try {
     const text = await file.text(); if (request !== generation) return;
-    const imported = parseSession(text); if (request !== generation) return;
+    const before = new Set(library.list().map(entry => entry.id)), payload = JSON.parse(text);
+    const imported = payload?.kind === 'groovegoblin-exercise-library' ? library.importLibrary(text) : library.importExercise(text);
     pending = null;
-    replaceSession(imported, { notice: 'Sessão inteira importada.' });
-  } catch (error) { if (request === generation) message(`Importação rejeitada: ${error.message}. Sessão preservada.`, true); }
+    const added = library.list().find(entry => !before.has(entry.id));
+    if (added) openExercise(added.id); else studio.activate($('tab-library'));
+    message(`Importação concluída: ${imported.added} exercício(s) adicionado(s), ${imported.skipped} já presente(s), sem sobrescrever.`);
+  } catch (error) { if (request === generation) message(`Importação rejeitada: ${error.message}. Exercícios preservados.`, true); }
   finally { if (request === generation) { pending = null; renderControls(); } }
 });
 $('share').addEventListener('click', async () => {
   const url = `${location.origin}${location.pathname}${location.search}${encodeSessionLink(session)}`;
   $('share-url').value = url; $('share-output').hidden = false; $('share-url').focus(); $('share-url').select();
-  try { await navigator.clipboard.writeText(url); message('Link da sessão copiado, sem servidor.'); }
+  try { await navigator.clipboard.writeText(url); message('Link do exercício copiado, sem servidor.'); }
   catch { message('Copie o link selecionado.'); }
 });
 function previewShare() {
@@ -445,7 +451,7 @@ function previewShare() {
   renderControls();
 }
 function dismissShare() { sharedSession = null; $('share-preview').hidden = true; window.history.replaceState(null, '', `${location.pathname}${location.search}`); renderControls(); }
-$('apply-share').addEventListener('click', () => { if (sharedSession && replaceSession(sharedSession, { notice: 'Sessão recebida aplicada.' })) dismissShare(); });
+$('apply-share').addEventListener('click', () => { if (sharedSession && replaceSession(sharedSession, { notice: 'Exercício recebido aplicado.' })) dismissShare(); });
 $('dismiss-share').addEventListener('click', dismissShare); window.addEventListener('hashchange', previewShare);
 $('download-recovery').addEventListener('click', () => { if (recoveryRaw !== null) download(recoveryRaw, 'groovegoblin-originais.json'); });
 // Único caminho de troca de exercício: mantém session/history em sincronia com
@@ -456,7 +462,7 @@ function syncActive() {
   if (entry.id !== activeExerciseId) {
     activeExerciseId = entry.id; history.reset(entry.session);
     replaceSession(entry.session, { record: false, notice: `Exercício “${entry.metadata.name}” aberto.` });
-  } else if (session.name !== entry.metadata.name) { session = mergeSession(session, { name: entry.metadata.name }); persist(); }
+  } else if (session.name !== entry.metadata.name) updateSession({ name: entry.metadata.name });
   return entry;
 }
 function openExercise(id, { train = false } = {}) {

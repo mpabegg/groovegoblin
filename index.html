@@ -22,7 +22,7 @@
   <nav class="intentions" role="tablist" aria-label="O que você quer fazer?">
     <div class="primary-activities" role="presentation">
       <button id="tab-library" role="tab" aria-selected="false" aria-controls="panel-library" tabindex="-1"><span>Biblioteca</span><small>Seus exercícios, sempre salvos</small></button>
-      <button id="tab-studio" role="tab" aria-selected="true" aria-controls="panel-studio"><span>Estúdio</span><small>Edite e toque sua sessão</small></button>
+      <button id="tab-studio" role="tab" aria-selected="true" aria-controls="panel-studio"><span>Estúdio</span><small>Edite e toque seu exercício</small></button>
       <button id="tab-practice" role="tab" aria-selected="false" aria-controls="panel-practice" tabindex="-1"><span>Treinar</span><small>Toque e compare</small></button>
       <button id="tab-repertoire" role="tab" aria-selected="false" aria-controls="panel-repertoire" tabindex="-1"><span>Músicas</span><small>Importe e repita trechos</small></button>
     </div>
@@ -33,14 +33,14 @@
   </nav>
   <div id="studio-notices" class="studio-notices">
     <section id="recovery" class="notice" hidden><h3>Dados originais protegidos</h3><p>A biblioteca agora é a autoridade e os originais ficam preservados. Baixe-os antes de qualquer limpeza manual.</p><button id="download-recovery">Baixar originais</button></section>
-    <section id="share-preview" class="notice" hidden><h3>Sessão recebida por link</h3><p id="share-description"></p><p>Nada foi substituído. Aplicar permite desfazer depois.</p><button id="apply-share">Aplicar sessão recebida</button><button id="dismiss-share">Dispensar</button></section>
+    <section id="share-preview" class="notice" hidden><h3>Exercício recebido por link</h3><p id="share-description"></p><p>Nada foi substituído. Aplicar permite desfazer depois.</p><button id="apply-share">Aplicar exercício recebido</button><button id="dismiss-share">Dispensar</button></section>
   </div>
   <section id="panel-library" class="intention-panel" role="tabpanel" aria-labelledby="tab-library" hidden><div id="library-mount"></div><div id="today-mount"></div></section>
   <section id="panel-studio" class="intention-panel" role="tabpanel" aria-labelledby="tab-studio">
   <div id="session-workspace">
-  <section id="studio-transport" class="panel studio-transport" aria-label="Transporte da sessão">
+  <section id="studio-transport" class="panel studio-transport" aria-label="Transporte do exercício">
     <div class="transport-row">
-      <button id="play" type="button" class="primary" aria-label="Tocar sessão" title="Tocar / parar (Espaço)">Tocar</button>
+      <button id="play" type="button" class="primary" aria-label="Tocar exercício" title="Tocar / parar (Espaço)">Tocar</button>
       <label>BPM <input id="bpm" data-path="bpm" type="number" min="30" max="300" step="1" title="Semínimas por minuto"></label>
       <details id="tempo-options" class="transport-disclosure"><summary aria-label="Opções de andamento" title="Acelerador de andamento">▾</summary><div class="transport-popover"><div class="tool-row">
         <label class="toggle"><input id="accelerator-enabled" type="checkbox"> Acelerar a cada volta</label>
@@ -73,7 +73,7 @@
         <p class="tool-hint muted">Pulsos igualmente espaçados contra o compasso; o acento marca cada novo ciclo. Silêncios alternam com compassos audíveis, no mesmo relógio.</p>
       </div></details>
       <span id="position-text" class="position-text" role="status">Pronto</span>
-      <label class="session-name-label">Nome <input id="session-name" data-path="name" type="text" maxlength="80" aria-label="Nome da sessão"></label>
+      <label class="session-name-label">Nome <input id="session-name" data-path="name" type="text" maxlength="80" aria-label="Nome do exercício"></label>
       <details id="meter-options" class="transport-disclosure"><summary>Compasso</summary><div class="transport-popover"><div class="tool-row">
         <label>Tempos<input id="meter-beats" data-path="meter.beats" type="number" min="1" max="16" step="1" aria-label="Tempos por compasso"></label>
         <label>Unidade<select id="meter-unit" data-path="meter.unit" aria-label="Unidade do compasso"><option value="2">2</option><option value="4">4</option><option value="8">8</option><option value="16">16</option></select></label>
@@ -82,8 +82,8 @@
       </div></div></details>
       <label>Compassos <input id="bars" data-path="bars" type="number" min="1" max="16" step="1"></label>
       <button id="undo" type="button" aria-label="Desfazer" title="Desfazer (Ctrl+Z)">↶</button><button id="redo" type="button" aria-label="Refazer" title="Refazer (Ctrl+Shift+Z)">↷</button>
-    <details id="session-storage" class="transport-disclosure"><summary>Sessão</summary>
-    <section class="session-library transport-popover" aria-label="Arquivo da sessão e compartilhamento"><div class="tool-row"><button id="new-session" type="button">Novo</button><button id="duplicate-session" type="button">Duplicar</button><button id="export">Exportar sessão</button><button id="import">Importar sessão</button><button id="share">Compartilhar link</button><input id="import-file" type="file" accept=".json,application/json" hidden></div><div id="share-output" class="notice" hidden><label for="share-url">Link completo, sem servidor</label><input id="share-url" type="text" readonly><p>Quem recebe pode ler a sessão inteira, incluindo opções e mixer.</p></div></section>
+    <details id="session-storage" class="transport-disclosure"><summary>Exercício</summary>
+    <section class="session-library transport-popover" aria-label="Arquivo do exercício e compartilhamento"><div class="tool-row"><button id="new-session" type="button">Novo</button><button id="duplicate-session" type="button">Duplicar</button><button id="export">Exportar exercício</button><button id="import">Importar exercício</button><button id="share">Compartilhar link</button><input id="import-file" type="file" accept=".json,application/json" hidden></div><div id="share-output" class="notice" hidden><label for="share-url">Link completo, sem servidor</label><input id="share-url" type="text" readonly><p>Quem recebe pode ler a frase, opções e mixer. O link não inclui etiquetas, anotações nem histórico.</p></div></section>
     <span id="saved" class="saved" role="status"></span>
     </details>
     </div>
@@ -94,7 +94,7 @@
   </section>
   <div id="band-starters" class="empty-band-actions" hidden><button id="start-band" type="button">Ligar bateria e baixo</button><button id="start-full-band" type="button" title="Liga bateria e baixo padrão; cria acordes somente se a progressão estiver vazia">Ligar banda completa (bateria, baixo e acordes)</button><span class="muted">O acompanhamento é gerado; sua frase continua sendo sua.</span></div>
   <section id="studio-editor" class="panel studio-timeline" aria-labelledby="studio-timeline-title">
-    <h2 id="studio-timeline-title" class="sr-only">Linha do tempo da sessão</h2>
+    <h2 id="studio-timeline-title" class="sr-only">Linha do tempo do exercício</h2>
     <div id="studio-scroll" class="studio-scroll"><div id="studio-canvas" class="studio-canvas">
       <div id="studio-lanes" class="studio-lanes">
         <div class="studio-ruler"><div class="track-header ruler-heading"><label>Zoom <select id="timeline-zoom" aria-label="Compassos visíveis na linha do tempo"><option value="4">4 compassos visíveis</option><option value="2">2 compassos visíveis</option></select></label></div><div id="beat-labels" class="beat-labels"></div></div>
@@ -106,12 +106,12 @@
               <details id="harmony-options" class="track-disclosure"><summary>Progressões prontas</summary><div class="track-popover"><div class="tool-row"><label>Funções<select id="progression-function"><option value="cadence">Tônica → subdominante → dominante → tônica</option><option value="turnaround">Turnaround I–vi–ii–V</option><option value="random">Diatônica livre</option></select></label><button id="generate-progression">Gerar progressão</button></div><p class="tool-hint muted">Preenche exatamente a sessão, em tempos inteiros, sem mudar seus compassos. Para inserir com pausas, clique na faixa.</p></div></details>
               <div id="track-chords-sound" class="track-sound-controls"></div>
             </div>
-          </header><div id="chord-lane" class="track-lane chord-lane" role="listbox" tabindex="0" aria-label="Acordes da sessão" aria-describedby="harmony-help"></div>
+          </header><div id="chord-lane" class="track-lane chord-lane" role="listbox" tabindex="0" aria-label="Acordes do exercício" aria-describedby="harmony-help"></div>
         </section>
         <section id="track-phrase" class="studio-track" aria-label="Faixa de frase">
           <header class="track-header"><div class="phrase-view-heading"><strong class="track-name" id="editor-title">Frase</strong><select id="phrase-view" aria-label="Vista da minha parte"><option value="rhythm">Ritmo</option><option value="tab">Tablatura</option></select></div><div class="track-extra">
             <div id="creation-duration" class="creation-duration" role="group" aria-label="Duração ativa para criar notas"></div>
-            <button id="open-phrase-tools" type="button" aria-haspopup="dialog">Biblioteca</button>
+            <button id="open-phrase-tools" type="button" aria-haspopup="dialog">Padrões</button>
             <div id="track-phrase-sound" class="track-sound-controls"></div>
           </div><div id="tab-string-labels" class="tab-string-labels" aria-hidden="true"></div></header><div id="grid" class="track-lane grid" role="grid" tabindex="0" aria-label="Editor de frase"><div id="marks" class="marks" aria-hidden="true"></div><div id="tab-strings" aria-hidden="true"></div><div id="grid-cursor" aria-hidden="true"></div><div id="notes" class="notes" role="row"></div><div id="note-marquee" aria-hidden="true" hidden></div></div>
         </section>
@@ -132,7 +132,7 @@
     <details id="studio-score" class="studio-score"><summary>Partitura da frase</summary><p class="tool-hint muted">Ligaduras sustentam o mesmo ataque. Cifras, pauta e tablatura compartilham o cursor do áudio.</p><div id="rhythm-score" class="rhythm-score"></div></details>
     <span id="timeline-reading-help" class="sr-only">Clique escolhe o início; arraste define o loop; clique duplo restaura tudo. Setas/Home/End escolhem início; Shift+setas ajustam fim do loop; Shift+Home restaura tudo. Enter/Shift+F10 abre ações do compasso atual. Botão direito no número abre esse compasso. A régua tem uma única parada de Tab e revela a posição navegada. Zoom mostra 4 ou 2 compassos; compassos densos podem exigir rolagem.</span>
   </section>
-  <div id="harmony-context" class="harmony-context" hidden><span id="progression-status" role="status"></span><button id="fit-progression" type="button">Ajustar ao tamanho da sessão</button></div>
+  <div id="harmony-context" class="harmony-context" hidden><span id="progression-status" role="status"></span><button id="fit-progression" type="button">Ajustar ao tamanho do exercício</button></div>
   <section id="studio-inspector" class="panel studio-inspector" aria-label="Inspetor da seleção">
     <span id="selection-text"></span>
     <div id="phrase-actions" class="phrase-actions"><button id="open-pattern" type="button" aria-haspopup="dialog">Carregar padrão</button><button id="generate-phrase" type="button">Gerar frase</button><button id="clear" type="button">Limpar</button><details id="transpose-options"><summary>Transpor</summary><div class="inspector-popover"><label>Semitons <input id="transpose-semitones" type="number" min="-24" max="24" step="1" value="0"></label><button id="transpose-phrase" type="button">Transpor frase</button></div></details></div>
@@ -161,7 +161,7 @@
     <details id="form-panel" class="panel">
       <summary>Organizar uma música em seções</summary>
       <div class="tool-row"><label class="toggle"><input id="form-enabled" type="checkbox" aria-describedby="form-empty"> Tocar a forma</label><label class="toggle"><input id="form-loop" type="checkbox"> Repetir a forma (desmarque para terminar)</label><button id="add-section" type="button">Adicionar seção</button></div>
-      <p class="tool-hint muted">Cada seção toca um trecho da sessão em ordem. Os limites são inclusivos: 1–2 toca os compassos 1 e 2. Em Mais, BPM e compasso em branco herdam a sessão; outro compasso redimensiona posições e durações proporcionalmente. A densidade muda bateria, baixo e acordes habilitados. Alterações da forma param a reprodução automaticamente e são aplicadas.</p>
+      <p class="tool-hint muted">Cada seção toca um trecho do exercício em ordem. Os limites são inclusivos: 1–2 toca os compassos 1 e 2. Em Mais, BPM e compasso em branco herdam o exercício; outro compasso redimensiona posições e durações proporcionalmente. A densidade muda bateria, baixo e acordes habilitados. Alterações da forma param a reprodução automaticamente e são aplicadas.</p>
       <p id="form-empty" class="tool-hint muted">Adicione uma seção para habilitar Tocar a forma.</p>
       <table id="form-table" class="form-table" hidden>
         <caption class="sr-only">Seções da forma musical, na ordem de reprodução. Os compassos de início e fim são inclusivos.</caption>
@@ -173,10 +173,9 @@
   </div>
   </section>
   <section id="panel-practice" class="intention-panel" role="tabpanel" aria-labelledby="tab-practice" hidden>
-    <div id="today-trainer-mount"></div>
     <section class="panel" aria-labelledby="practice-session-title">
       <div class="section-heading"><div><div class="eyebrow">FRASE ATUAL · SOMENTE LEITURA</div><h2 id="practice-session-title">Sua frase</h2></div><span id="session-badge" class="badge"></span></div>
-      <div class="training-controls"><div class="training-primary"><button id="train" type="button" class="primary">Treinar esta frase</button><button id="listen-phrase" type="button" aria-pressed="false">Ouvir frase</button></div><button id="edit-in-studio" type="button">Editar no Estúdio</button></div>
+      <div class="training-controls"><div class="training-primary"><button id="train" type="button" class="primary">Treinar esta frase</button><button id="listen-phrase" type="button" aria-pressed="false">Ouvir frase</button></div><div id="today-trainer-mount"></div><button id="edit-in-studio" type="button">Editar no Estúdio</button></div>
       <div id="practice-rhythm-score" class="rhythm-score" aria-label="Partitura da frase: cifras, pauta e tablatura conforme o modo escolhido"></div>
       <div id="practice-audible-mount"></div>
       <section id="performance-input" class="practice-input" aria-label="Toque o ritmo">
@@ -214,11 +213,11 @@
 </dialog>
 <dialog id="shortcuts-dialog" class="shortcuts-dialog" aria-labelledby="shortcuts-title" aria-describedby="shortcuts-scope">
   <h2 id="shortcuts-title">Atalhos de teclado</h2>
-  <p id="shortcuts-scope">No Estúdio, fora de campos, diálogos e controles com ativação própria. Na entrada Teclado, durante contagem e treino, Espaço pressiona/solta o ritmo; Instrumento usa os ataques capturados. Ctrl equivale a ⌘ no macOS.</p>
+  <p id="shortcuts-scope">Atalhos de edição valem no Estúdio, fora de campos, diálogos e controles com ativação própria. Na entrada Teclado, durante contagem e treino, Espaço pressiona/solta o ritmo; Instrumento usa os ataques capturados. Atalhos do resultado valem em Treinar enquanto ele está aberto. Ctrl equivale a ⌘ no macOS.</p>
   <dl>
-    <dt><kbd>Espaço</kbd></dt><dd>Tocar / parar a sessão no Estúdio, inclusive com foco na Bateria; nunca adiciona/remove um ataque.</dd>
+    <dt><kbd>Espaço</kbd></dt><dd>Tocar / parar o exercício no Estúdio, inclusive com foco na Bateria; nunca adiciona/remove um ataque.</dd>
     <dt><kbd>Esc</kbd></dt><dd>Interromper todo o som, inclusive nos campos; fechar esta ajuda. Sem diálogo aberto, limpar seleção/inspetor no Estúdio. No tour, fechar e restaurar a vista anterior.</dd>
-    <dt><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Shift+Z</kbd> / <kbd>Ctrl+Y</kbd></dt><dd>Desfazer / refazer a sessão.</dd>
+    <dt><kbd>Ctrl+Z</kbd> / <kbd>Ctrl+Shift+Z</kbd> / <kbd>Ctrl+Y</kbd></dt><dd>Desfazer / refazer alterações no exercício atual, inclusive aplicação de um exercício gerado.</dd>
     <dt><kbd>Delete</kbd> / <kbd>Backspace</kbd></dt><dd>Excluir todas as notas ou acordes selecionados; na Bateria, remover o ataque na posição e voz navegadas.</dd>
     <dt><kbd>Shift+clique</kbd> / arrastar no fundo</dt><dd>Alternar seleção múltipla / selecionar por retângulo. Ctrl+A seleciona toda a faixa com foco.</dd>
     <dt><kbd>Ctrl+C</kbd> / <kbd>Ctrl+V</kbd> / <kbd>Ctrl+D</kbd></dt><dd>Na Frase ou nos acordes reais com foco, copiar internamente / colar no cursor da faixa / duplicar logo após a seleção. Não pede acesso à área de transferência. Conflitos recusam a operação inteira.</dd>
@@ -230,6 +229,8 @@
     <dt>Régua: clique / arrastar / clique duplo</dt><dd>Escolher início de reprodução / definir loop de compassos / restaurar loop completo. A régua tem um só foco de Tab: setas/Home/End escolhem início e revelam a posição; Shift+setas ajustam o fim (Shift+Home restaura tudo). Enter ou Shift+F10 abre ações do compasso atual; botão direito no número abre esse compasso.</dd>
     <dt>Visão geral: <kbd>←</kbd> <kbd>→</kbd> / <kbd>PageUp</kbd> <kbd>PageDown</kbd> / <kbd>Home</kbd> <kbd>End</kbd></dt><dd>Quando a frase exige rolagem, a miniatura sob a régua tem um único foco: rolar um compasso / uma janela / ir às extremidades. Clique leva ao trecho; não busca o áudio nem muda o loop.</dd>
     <dt>Faixas: M / S / volume</dt><dd>Silêncio manual / solo temporário (permite várias faixas) / volume. Desligar todos os solos restaura os silêncios e volumes guardados; o metrônomo não participa do solo.</dd>
+    <dt>Resultado: <kbd>Enter</kbd> / <kbd>L</kbd></dt><dd>Tentar de novo no mesmo BPM / selecionar o pior trecho e iniciar seu treino.</dd>
+    <dt>Resultado: <kbd>−</kbd> / <kbd>+</kbd></dt><dd>Treinar 10 BPM mais lento / 4 BPM mais rápido. A subida só fica disponível com pelo menos 90% de aproveitamento. Sugestões de andamento nunca são aplicadas automaticamente.</dd>
     <dt><kbd>?</kbd></dt><dd>Abrir esta ajuda. Clique no fundo para criar com a duração ativa lembrada no cabeçalho; na Tablatura a linha clicada escolhe a corda. Quatro figuras e Mais escolhem a duração e editam o grupo selecionado. Arraste o corpo da nota para mover ou a alça direita de 6 px para mudar a duração. Em notas menores que 12 px, use ↑/↓ em Ritmo ou Shift+↑/↓ em Tablatura. Criar/selecionar notas ou selecionar acordes oferece uma prévia curta só com áudio parado. Guitarra / Baixo (meu) é sua frase editável. A faixa de baixo gerada é acompanhamento: ajuste estilo/densidade e, em Guitarra, use “Estudar esta linha” para copiá-la após confirmação. Em Baixo (meu), “Gerar linha de baixo” escreve notas editáveis seguindo os acordes, com Desfazer.</dd>
   </dl>
   <button id="shortcuts-close" type="button" autofocus>Fechar atalhos</button>

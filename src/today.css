@@ -53,3 +53,10 @@
 .today-run-summary h3 { margin: 0; font-size: 14px; }
 .today-run-summary p { margin: 0; font-size: 12px; }
 .today-run-summary button { align-self: start; }
+
+/* A fila compartilha a linha do transporte, sem empurrar a partitura. */
+@media (min-width: 1100px) {
+  .training-controls #today-trainer-mount { flex: 1; min-width: 0; }
+  .training-controls .today-run { margin: 0; padding: 4px 6px; }
+  .training-controls .today-run-name { max-width: 16ch; }
+}

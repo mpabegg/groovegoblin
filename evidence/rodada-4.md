@@ -204,6 +204,37 @@ Capturas: [1440×900](rodada-4-treinador-parent-gerado-1440x900.png) e [1280×80
 
 - Suíte integrada: **690 aprovados, 1 fixture opcional ignorada, zero falhas**; **161 módulos**, zero falhas. `practice.js` foi reduzido de 1988 para **1048 linhas**; integração de Hoje extraída para `today-view.js`, mantendo `main.js` dentro do limite.
 
+## Etapa 8 — integração, documentação e offline
+
+- README, guia, tour e ajuda de teclado atualizados para exercício/biblioteca, seis combinações do treinador, resultado, Hoje, histórico, jogos deslocados e diagnóstico. O documento musical continua v5; o envelope de exercício inclui metadados separados.
+- Exportar pelo menu do Estúdio preservou etiquetas, alvo, anotações e um registro real; importar aumentou a biblioteca de quatro para cinco itens sem alterar os originais. Importar sessão legada a 77 BPM criou o sexto item. Renomear seguido de mudar BPM e Desfazer respeitou duas transações independentes, sem desfazer o nome junto do andamento.
+- Recuperação exercitada em perfil privado: JSON corrompido permaneceu byte a byte intacto enquanto a cópia recuperada em memória foi exportada. Com biblioteca explicitamente vazia, o menu baixou `groovegoblin-documento-atual.json`, documento musical v5, com aviso de que não contém metadados; nenhum dado ausente foi inventado.
+- Tour completo, **sete etapas**: Biblioteca → Instrumento → Edição → Harmonia/Braço → Treinador → Músicas → Atividades. Todos os cartões ficaram dentro de 1440×900. Fechar restaurou aba, painéis e menus; biblioteca permaneceu byte a byte igual e foco voltou a Como usar. Setas e Esc exercitados; ajuda de atalhos mostra Enter/L/−/+ e Esc fecha o diálogo.
+- Na integração final, Hoje acrescentava uma linha e levava Gerado/Rotina a **952 px**. A tira passou a compartilhar a linha do transporte, sem diminuir a partitura nem remover controles. Com Hoje ativo, as seis combinações mediram **900 px** e **27/27/28/29/29/30 controles na página inteira**, respectivamente Sessão Avaliado/Junto/Rotina e Gerado Avaliado/Junto/Rotina. Sem avisos transitórios ou painéis avançados abertos. Em 1280×800, Gerado/Rotina com Hoje mediu **874 px**, sem overflow horizontal.
+- Estúdio final, quatro faixas e Tab de seis cordas: **900 px**, **50 controles no painel / 56 na página** em 1440×900. Em 1280×800: **886 px**, sem overflow horizontal. Inspetor continua antes do Braço.
+
+### Offline em subdiretório
+
+`npm run build` e servidor do pacote em `/groovegoblin/`, não apenas servidor do código-fonte:
+
+1. Preparar uso offline instalou e ativou o service worker.
+2. Rede desativada no Chromium (`navigator.onLine === false`) e recarregamento: biblioteca com quatro exercícios preservada; referência gerada tocou em loop real; histórico exibiu os dois SVGs e o alvo de 150 BPM; guia abriu; Hoje contou 04:59, encerrou e mostrou resumo; jogo de ouvido gerou alternativas; Percurso mostrou os intervalos conhecidos.
+3. Uma nova compilação produziu atualização instalada/aguardando. Aplicar enquanto tocava foi recusado com **“Pare a reprodução ou o treino antes de aplicar a atualização.”** O transporte continuou em Parar, sem recarga.
+4. Após Esc, Aplicar ativou a versão final (`6ac1f9957e2b69aa3713785d`) e removeu o cache anterior. Novo recarregamento sem rede confirmou a tira integrada, **900 px / 30 controles**, sem perder a fila.
+
+### Verificação final e limites
+
+- Branch de fechamento: `npm test && npm run check && npm run build` — **690 aprovados, 1 ignorado, zero falhas**; **161 módulos**, zero falhas; distribuição estática gerada.
+- `main.js`: **531 linhas**, limite 533. `practice.js`: **1048 linhas**, abaixo das 1988 iniciais. Nenhuma dependência runtime adicionada.
+- Suítes anteriores continuam aprovadas, incluindo sessão/notação/perfis, áudio, entrada/calibração/afinação, banda, forma, repertório e proteção dos dados. Verificação visual integrada cobriu Estúdio, treinador, fila, histórico/Percurso, ouvido, tour e offline. O algoritmo de avaliação e o esquema v5 foram preservados; arquivos `repertoire*.js` não foram alterados.
+- **Limite físico:** não havia guitarra/baixo/interface reais disponíveis. Diagnóstico e alturas foram verificados com sinais sintéticos e dispositivo virtual; as tomadas temporizadas são identificadas como controladas. O teste opcional sem WAV continua explicitamente ignorado, e o ramo com fixture foi exercitado na etapa 7. Em 1280×800 pode haver rolagem vertical: o limite solicitado de 900 px é respeitado, sem alegar que todo conteúdo cabe em 800 px.
+
+Capturas finais:
+
+- Estúdio: [1440×900](rodada-4-final-estudio-1440x900.png), [1280×800](rodada-4-final-estudio-1280x800.png).
+- Hoje + Gerado/Rotina: [1440×900](rodada-4-final-hoje-treinador-1440x900.png), [1280×800](rodada-4-final-hoje-treinador-1280x800.png).
+- [Tour](rodada-4-tour-1440x900.png), [treinador offline](rodada-4-offline-treinador-1440x900.png), [Percurso offline](rodada-4-offline-percurso-1440x900.png).
+
 ## Critérios de aceitação
 
 | Nº | Critério | Estado observado |
@@ -216,7 +247,7 @@ Capturas: [1440×900](rodada-4-treinador-parent-gerado-1440x900.png) e [1280×80
 | 6 | Comparação com tentativa anterior | Aprovado na etapa 2 |
 | 7 | Sem timeline sobreposta; tabela recolhida | Aprovado na etapa 2 |
 | 8 | Treinador único, seis combinações | Aprovado na etapa 3; material transitório, rotina completa e loop real |
-| 9 | Treinador com até 30 controles e 900 px | Aprovado na etapa 3; 24–27 controles na página, seis combinações com 900 px |
+| 9 | Treinador com até 30 controles e 900 px | Aprovado nas etapas 3 e 8; seis combinações inclusive com Hoje ativo: 27–30 controles, 900 px |
 | 10 | Jogos de ouvido em Explorar | Aprovado na etapa 3; pergunta, prévia e resposta no navegador |
 | 11 | Migração integral, deduplicação e backup | Aprovado na etapa 4 |
 | 12 | Autosave, Novo e recarregamento | Aprovado na etapa 4 |
@@ -230,4 +261,4 @@ Capturas: [1440×900](rodada-4-treinador-parent-gerado-1440x900.png) e [1280×80
 | 20 | Cordas nomeadas e Drop D | Aprovado na etapa 1 |
 | 21 | Baixo sem convite redundante nem baixo gerado forçado | Aprovado na etapa 1 |
 | 22 | Diagnóstico JSON, WAV explícito e fixtures opcionais | Aprovado na etapa 7; áudio sintético, sem hardware físico |
-| 23 | Preservação das rodadas anteriores | Suítes aprovadas nas etapas 1, 2, 4, 5, 6 e 7; revisão final pendente |
+| 23 | Preservação das rodadas anteriores | Aprovado nas suítes completas e smoke integrado; limites físicos e de viewport explicitados acima |

@@ -19,6 +19,6 @@ export function readSessionLibrary(storage, parse) {
       if (!Array.isArray(entries) || entries.some(item => !item || typeof item.id !== 'string' || !item.id || typeof item.savedAt !== 'string' || !Number.isFinite(Date.parse(item.savedAt)) || !item.session)
         || new Set(entries.map(item => item.id)).size !== entries.length) throw new Error('Formato inválido');
       return { entries: entries.map(item => ({ ...item, session: parse(JSON.stringify(item.session)) })), warning: null, recoveryRaw: null };
-    } catch { return { entries: [], warning: 'Biblioteca de sessões corrompida: originais preservados; baixe-os antes de substituir.', recoveryRaw: raw }; }
-  } catch { return { entries: [], warning: 'Biblioteca indisponível neste navegador; exporte suas sessões.', recoveryRaw: null }; }
+    } catch { return { entries: [], warning: 'Biblioteca antiga corrompida: originais preservados; baixe-os antes de substituir.', recoveryRaw: raw }; }
+  } catch { return { entries: [], warning: 'Biblioteca indisponível neste navegador; exporte seus exercícios.', recoveryRaw: null }; }
 }

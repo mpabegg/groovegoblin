@@ -8,24 +8,29 @@ export const TOUR_STORAGE_KEY = 'groovegoblin:tour:v1';
 
 const STEPS = [
   {
+    tab: 'tab-library', target: '#library-mount .library-toolbar',
+    title: 'Sua biblioteca, sempre salva',
+    body: 'Cada exercício fica salvo automaticamente neste navegador. Novo preserva o anterior; Editar abre o Estúdio e Treinar abre sua frase. Etiquetas, alvo de BPM e anotações ajudam a organizar; Histórico reúne as tentativas e os gráficos de cada exercício. “Montar sessão de hoje” prepara uma fila com durações: quando o tempo chega a zero, você escolhe Próximo ou Encerrar. Salve uma rotina para recriar a fila. Exporte a biblioteca antes de limpar os dados do navegador.',
+  },
+  {
     tab: 'tab-studio', target: '#studio-instrument',
     title: 'Seu instrumento, sua parte',
-    body: 'A frase é sempre sua parte: Guitarra (6 cordas) ou Baixo (meu), com 4 ou 5 cordas. Configure afinação e nomes C D E ou Dó Ré Mi na seta ao lado; trocar instrumento com notas oferece transpor, manter alturas ou cancelar. O perfil acompanha a sessão salva. No metrônomo, escolha contagem de 0, 1 ou 2 compassos para Tocar e Ouvir frase. TAP ajusta o andamento; o acelerador no BPM sobe a cada número de voltas escolhido e, ao parar, volta ao BPM salvo.',
+    body: 'A frase é sempre sua parte: Guitarra (6 cordas) ou Baixo (meu), com 4 ou 5 cordas. Configure afinação e nomes C D E ou Dó Ré Mi na seta ao lado; trocar instrumento com notas oferece transpor, manter alturas ou cancelar. O perfil acompanha o exercício. No metrônomo, escolha contagem de 0, 1 ou 2 compassos. TAP ajusta o andamento; o acelerador sobe a cada número de voltas escolhido e, ao parar, volta ao BPM salvo.',
   },
   {
     tab: 'tab-studio', target: '#studio-editor',
     title: 'Editar, ler e estudar sua parte',
-    body: 'Escolha Ritmo ou Tablatura no cabeçalho. Clique para criar, arraste para mover e use a borda para duração; Shift+clique seleciona um grupo. Na Tab, digite casas 0–24 (dois dígitos em 600 ms): ↑/↓ mudam corda preservando altura quando possível, ←/→ movem no tempo e Shift+↑/↓ muda duração. Partituras mostram cifras, ritmo, Tab e cursor. Baixo (meu) é editável: “Gerar linha de baixo” segue os acordes; na faixa gerada, “Estudar esta linha” confirma a cópia e troca para Baixo. A Biblioteca reúne 11 padrões de Ritmo, 8 de Guitarra e 10 de Baixo. Régua define início/loop; miniatura revela trechos fora da vista. Veja “Atalhos” para detalhes.',
+    body: 'Escolha Ritmo ou Tablatura no cabeçalho. Clique para criar, arraste para mover e use a borda para duração; Shift+clique seleciona um grupo. Na Tab, digite casas 0–24: ↑/↓ mudam a corda quando as alturas cabem, ←/→ movem no tempo e Shift+↑/↓ muda duração. “Padrões” oferece frases prontas de ritmo, guitarra e baixo. “Gerar linha de baixo” escreve uma parte editável; “Estudar esta linha” copia o acompanhamento após confirmação. Régua define início e loop; a miniatura revela trechos fora da vista. Tudo pode ser desfeito.',
   },
   {
     tab: 'tab-studio', target: '#track-chords',
     title: 'Harmonia: acordes e Braço',
-    body: 'Escolha o tom e abra “Progressões prontas”: blues de 12 compassos, ii–V–I e outras sequências informam o tamanho e oferecem ajustar a sessão ou repetir/cortar. Selecione um acorde para inspecionar; na Guitarra, um desenho aparece quando há posição tocável. Abra “Braço” abaixo da linha do tempo: cordas e afinação seguem o perfil, com casas 0–12 ou 12–24 e funções T, 3, 5 e 7. Ele acompanha o acorde selecionado ou em reprodução; sem acorde, mostra a escala do tom.',
+    body: 'Escolha o tom e abra “Progressões prontas”: sequências como blues de 12 compassos e ii–V–I oferecem ajustar o exercício ou repetir/cortar. Selecione um acorde para inspecionar. O inspetor fica logo abaixo da linha do tempo; “Braço” vem depois, com afinação do perfil e funções T, 3, 5 e 7. Bateria e baixo gerado podem ficar recolhidos sem perder ligar/desligar, M, S e volume. Em Baixo (meu), o acompanhamento não liga outro baixo automaticamente.',
   },
   {
-    tab: 'tab-practice', target: '#performance-input',
-    title: 'Treinar: ataques, alturas e repetição',
-    body: '“Ouvir frase” toca sua parte; “Treinar esta frase” inicia a contagem. No Teclado, pressione Espaço no ataque e solte no final. Para Instrumento, use “Ativar instrumento” quando necessário; a escolha é lembrada, mas só reabre automaticamente ao entrar em Treinar com permissão já concedida. “Configurar” reúne entrada, canal, teste e calibração; use fones. O Afinador compartilha a captura e permite referência 430–450 Hz. Em “Ataques e alturas”, notas monofônicas são certas dentro de ±50 cents, erradas, de oitava diferente ou não identificadas. Não mede sustentações nem força física. Confira as faixas audíveis e o resultado; áudio é analisado localmente, sem gravação/envio. Abrir o app não inicia captura.',
+    tab: 'tab-practice', target: '#practice-mount',
+    title: 'Um treinador, duas fontes e três modos',
+    body: 'Use a frase atual ou um exercício gerado. Avaliado mostra o resultado; Tocar junto repete com acelerador opcional; Rotina combina ouvir, tocar, ler, memorizar e improvisar. BPM, transporte, partitura e entrada são compartilhados. Teclado usa Espaço; Instrumento usa os ataques capturados. “Configurar” reúne canal, teste, calibração e diagnóstico sem áudio. Somente “Salvar amostra · 10 s” grava um WAV por pedido explícito, sem envio. Ao terminar, a partitura mostra sinais e desvios: Enter repete, L treina o pior trecho, − reduz 10 BPM e + sobe 4 só com pelo menos 90%. Sugestões nunca mudam o BPM sozinhas.',
   },
   {
     tab: 'tab-repertoire', target: '#repertoire-mount',
@@ -35,7 +40,7 @@ const STEPS = [
   {
     tab: 'tab-studio', target: '#tab-explore',
     title: 'Escolha sua atividade',
-    body: 'Estúdio, Treinar e Músicas ficam no topo. Em “Mais opções”, Explorar reúne jogos e experiências; Percurso mostra seus treinos e revisões. O mesmo botão “Parar” continua acessível quando há som em outras áreas, e Esc interrompe todo o áudio, inclusive nesta ajuda. “Ajuda e app → Como usar” abre este tour opcional; “Atalhos” e “Offline” ficam no mesmo menu. Ao fechar a ajuda, sua atividade, painéis, menus, foco e rolagem voltam ao estado anterior.',
+    body: 'Biblioteca, Estúdio, Treinar e Músicas ficam no topo. Em “Mais opções”, Explorar inclui os jogos de ouvido; Percurso reúne tempo nos últimos 28 dias, instrumentos e evolução dos exercícios. Dados antigos sem vínculo continuam em Anteriores. Parar permanece acessível quando há som em outras áreas; Esc interrompe o áudio, inclusive nesta ajuda. Ao fechar o tour, sua atividade, painéis, menus, foco e rolagem voltam ao estado anterior.',
   },
 ];
 

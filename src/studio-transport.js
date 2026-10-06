@@ -35,8 +35,8 @@ export function mountStudioTransport(host) {
     play.hidden = !studio && !state.active;
     play.disabled = false; // Uma preparação pendente também pode ser interrompida.
     play.textContent = state.active ? 'Parar' : 'Tocar';
-    play.setAttribute('aria-label', state.active ? 'Parar todo o som' : 'Tocar sessão');
-    play.title = state.active ? 'Parar todo o som (Esc)' : 'Tocar sessão (Espaço)';
+    play.setAttribute('aria-label', state.active ? 'Parar todo o som' : 'Tocar exercício');
+    play.title = state.active ? 'Parar todo o som (Esc)' : 'Tocar exercício (Espaço)';
     play.classList.toggle('is-playing', state.active);
     $('undo').disabled = state.locked || !state.canUndo;
     $('redo').disabled = state.locked || !state.canRedo;
