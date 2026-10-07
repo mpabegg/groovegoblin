@@ -715,7 +715,10 @@ capturas e esta evidência. Auditoria privada desta etapa: **0 ocorrências**.
 
 Dono: `R6FinalPublish`. WT `/home/mat/code/groovegoblin-round6-final`, branch `feat/round6-finalise`,
 base da etapa 9 (`cf83473`). **Um** commit da etapa 10, fast-forward do `main`, checagens no `main`,
-push. Nada de emenda em commit empurrado, nada de force.
+push. Nada de emenda em commit empurrado, nada de force. Um **commit documental** posterior corrige o
+marcador `@@PI10@@` que ficou na evidência publicada, substituindo-o pela prova **observada** do
+serviço no Pi (seção "Serviço no Pi no commit final"); o hash dos dois commits está no artefato
+`local://round6-final-published.md`.
 
 ### Documentação reconciliada (sem seções duplicadas)
 
@@ -840,14 +843,21 @@ HTTPS. Abra o endereço HTTPS do Tailscale Serve." visível e persistente (mesma
 ### Auditoria de privacidade do histórico completo
 
 Varredura de **todo** o histórico da rodada (`b7c984a..HEAD`, todas as versões de arquivo tocadas em
-cada um dos commits, mais o índice preparado do commit da etapa 10) contra a lista privada de termos e
-contra os identificadores reais derivados de `local/deploy.env` (host, endereço da tailnet, usuário,
-pastas e binário), com casamento por limite de palavra nos termos curtos. Saída só com
-contagens e `arquivo:linha`, nunca o valor casado; imagens e áudio são pulados (a única exceção de
-mídia pública são os **três WAV CC0** de bateria, com caminho e `sha256` conferidos). Resultado:
-**0 ocorrências** — os 9 commits do histórico (`b7c984a..cf83473`) mais o índice preparado da etapa
-10, **259** versões de arquivo e **20** identificadores/termos privados derivados de `local/`, sem
-nenhum casamento.
+cada um dos **10** commits, mais as **mensagens de commit** e os **caminhos** de arquivo, mais o índice
+preparado da correção documental) contra **três** fontes de agulha derivadas de `local/` (nunca
+impressas): (1) os **11 termos explícitos** de `local/termos-privados.txt`, casados **literalmente**,
+sem afrouxamento por limite de palavra; (2) os **valores reais do mapa e do catálogo** do curso
+(`local/curso-mapa/*.json`, os campos `titulo`/`nome`/`autor`/`descricao`/`resumo`/`url`/`arquivo`/
+`faixa`/`anexo`/`id` em qualquer profundidade — **1063** valores distintos depois de descartar a
+vocabulário genérico que já existe na árvore pré-rodada); e (3) os identificadores de infraestrutura
+derivados de `local/deploy.env` (host, endereço da tailnet, usuário, pastas e binário), com casamento
+por limite de palavra nos tokens curtos para não confundir um usuário como "format" com a palavra
+"format". Saída só com contagens e `arquivo:linha`, nunca o valor casado; imagens e áudio são pulados
+(a única exceção de mídia pública são os **três WAV CC0** de bateria, com caminho e `sha256`
+conferidos; as capturas são de dados fictícios). Resultado: **0 ocorrências** — **10** commits e
+**10** mensagens, **235** versões de arquivo, **259** caminhos, **24** binários pulados e **1079**
+agulhas ativas (11 termos explícitos + 1063 do mapa/catálogo + 5 de infraestrutura), sem nenhum
+casamento.
 
 ### Verificação executada
 
@@ -860,7 +870,19 @@ nenhum casamento.
 
 ### Serviço no Pi no commit final
 
-@@PI10@@
+`local/private/r6-pi-update.sh --branch main` (usa o `deploy/update.sh` publicado: instantâneo de
+segurança obrigatório → `git fetch` + `--ff-only` → build → testes → reinício → health → rollback se
+falhar). Resultado **observado** depois do push da etapa 10:
+
+- `UPDATE_RC=0`; **HEAD do Pi = `1a38279`** (antes `cf83473`); unidade `groovegoblin.service`
+  **`active`** e **`enabled`**.
+- `/api/health` **200** pela **tailnet HTTPS** com `ssl_verify_result=0` (corpo `ok:true`,
+  `mode:tailscale`), e **200** também em loopback com identidade.
+- **`serve` preservado**: as portas `443` (de OUTRO serviço) e `8443` (nossa) continuam publicadas e
+  `AllowFunnel` está ausente — a 443 antiga saiu idêntica, nada foi removido.
+- Materiais existentes intactos (**412 arquivos, 2.166.067.067 bytes**); nada de conta/painel/ACL do
+  Tailscale tocado. Saída bruta só em `local/private/r6-stage9-update-*.log` (0600); o endereço real
+  fica **apenas** em `local/round6-deployment-result.json` (0600).
 
 ### Privacidade
 
