@@ -22,6 +22,7 @@ import { exerciseMaterialActions, exerciseOriginBadges, mountExerciseOrigins } f
 import { createStudyController } from './study-controller.js';
 import { bindCoursePrivacy, COURSE_EXPORT_NOTICE, isCourseContent } from './course-privacy.js';
 import { mountPrivateDownload } from './private-download.js';
+import { appPins } from './app-services.js';
 
 const INSTRUMENTS = Object.freeze([['all', 'Todos'], ['guitar', 'Guitarra'], ['bass', 'Baixo']]);
 const SORTS = Object.freeze([
@@ -156,6 +157,11 @@ export function mountLibrary(container, host) {
           openFretboard: typeof host.openFretboard === 'function' ? host.openFretboard : undefined,
           openMaterial: typeof host.openMaterial === 'function' ? host.openMaterial : undefined,
           serverImport: typeof host.serverImport === 'function' ? host.serverImport : undefined,
+          // "Manter offline" (B4): o usuário escolhe guardar os bytes do
+          // material do servidor no navegador; a marca vai para o motor de
+          // sincronização e a cópia fica na loja de anexos de sempre (sem
+          // segunda cópia e sem baixar nada enquanto o servidor transmite).
+          pins: appPins(),
         });
         return coursesView;
       } catch (error) {
@@ -228,6 +234,7 @@ export function mountLibrary(container, host) {
       content,
       panel: panelFor(),
       notify,
+      attachments: attachmentsPromise,
     });
   }).catch(() => { /* sem loja de cursos: sem linha de origem, sem mentira */ });
   container.append(switchBar, root, coursesMount);
@@ -483,7 +490,7 @@ export function mountLibrary(container, host) {
       // "Ver na apostila" do exercício gerado: o MESMO painel, no material
       // exato que o exercício guardou. Sem servidor não devolve nó nenhum.
       ...exerciseMaterialActions(courseStore, row.id, {
-        library, content, panel: panelFor(), notify,
+        library, content, panel: panelFor(), notify, attachments: attachmentsPromise,
       }),
       (() => {
         const menu = createEl('details', { className: 'library-menu' });

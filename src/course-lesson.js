@@ -46,6 +46,10 @@ import { exerciseMaterialTargets, suggestionMaterialChoices } from './course-les
 
 export const BASS_STRINGS = Object.freeze([4, 5]);
 
+// Identificador de um arquivo guardado endereçado por conteúdo: é o mesmo
+// prefixo da loja de anexos (`sha256:<hex>`).
+const SHA_FILE_PREFIX = 'sha256:';
+
 export const STATUS_LABELS = Object.freeze({
   [LESSON_STATUS.notStarted]: 'Não iniciada',
   [LESSON_STATUS.watched]: 'Assistida',
@@ -396,6 +400,9 @@ export function mountCourseLesson(container, host) {
   // página cai nos anexos manuais de sempre.
   const content = host?.content ?? null;
   const panel = host?.panel ?? null;
+  // "Manter offline" (B4): marca no motor de sincronização os bytes que o
+  // usuário guarda no navegador. Sem motor, a ação não aparece.
+  const pins = host?.pins ?? null;
   const library = host?.library ?? null;
   const notify = (text, error = false) => host.notify?.(text, error);
   const openExercise = typeof host.openExercise === 'function' ? host.openExercise : null;
@@ -872,6 +879,33 @@ export function mountCourseLesson(container, host) {
     return ref && typeof ref.sha256 === 'string' ? ref : null;
   }
 
+  // O hash de conteúdo de um arquivo guardado. Só o identificador `sha256:<hex>`
+  // tem hash: um arquivo grande demais para ser conferido fica com `local:...` e
+  // NÃO pode ser liberado (o servidor não teria como deduplicar os bytes).
+  function shaFromFileId(fileId) {
+    return typeof fileId === 'string' && fileId.startsWith(SHA_FILE_PREFIX)
+      && /^[0-9a-f]{64}$/.test(fileId.slice(SHA_FILE_PREFIX.length))
+      ? fileId.slice(SHA_FILE_PREFIX.length)
+      : null;
+  }
+
+  // Referência do SERVIDOR tirada da PRÓPRIA loja local: um material que já
+  // vive no servidor guarda a referência com o hash no `fileId` e nome, tamanho
+  // e tipo no próprio registro. É o que mantém a linha do servidor de pé quando
+  // a rede cai e a lista de vínculos ainda não foi lida nesta página.
+  function localServerRef(row) {
+    const entry = attachmentsReady() ? attachments.get(row.refKey) : null;
+    if (!entry || entry.present !== false) return null;
+    const sha256 = shaFromFileId(entry.fileId);
+    if (sha256 === null) return null;
+    return {
+      sha256,
+      size: Number.isFinite(entry.size) ? entry.size : null,
+      kind: entry.kind ?? CONTENT_KINDS.other,
+      name: entry.name ?? row.name ?? null,
+    };
+  }
+
   // Apostila da aula atual no servidor (a mesma que a sugestão usa), com a
   // página do exercício vinculado quando o catálogo a indica.
   function serverApostilaRef(page = null) {
@@ -1005,11 +1039,105 @@ export function mountCourseLesson(container, host) {
     render();
   }
 
+  // Materiais do SERVIDOR (B4b) que o usuário quer guardar: baixa os bytes UMA
+  // vez, na ação explícita, e grava na MESMA loja de anexos dos arquivos
+  // manuais (mesma referência, mesmo ciclo de URL `blob:`), marcando no motor
+  // de sincronização que estes bytes não podem ser liberados. Nada é copiado
+  // enquanto o servidor transmite — o caminho online continua com `Range`.
+  async function keepOffline(row, serverRef, button = null) {
+    if (!attachmentsReady()) { notify('O armazenamento de anexos não está disponível nesta página.', true); return; }
+    if (!content || typeof content.blobUrl !== 'function' || typeof globalThis.fetch !== 'function') { notify('Este navegador não permite guardar o material para uso offline.', true); return; }
+    const url = content.blobUrl(serverRef.sha256);
+    if (!url) { notify('O material não tem endereço no servidor.', true); return; }
+    if (button) button.disabled = true;
+    try {
+      const response = await globalThis.fetch(url);
+      if (!response.ok) throw new Error(`o servidor respondeu ${response.status}`);
+      const blob = await response.blob();
+      // O nome do ARQUIVO do servidor manda: é ele que o documento de
+      // sincronização carrega, e trocá-lo pelo rótulo do mapa faria o envio
+      // reescrever o nome do material nos outros navegadores.
+      const name = serverRef.name ?? row.name ?? 'material';
+      const result = await attachments.put({
+        courseId: view.courseId,
+        lessonId: row.ownerLessonId,
+        resourceId: row.resourceId,
+        name,
+        extension: extensionOfName(name),
+        role: row.role,
+        blob,
+        source: 'servidor',
+      });
+      // O carimbo do SERVIDOR manda na referência: sem isto a cópia nasce com o
+      // `addedAt` de agora, o documento de sincronização do curso sobe sem
+      // nenhuma mudança real de conteúdo e o outro navegador recebe um conflito
+      // por causa de um carimbo. A referência adotada mantém os MESMOS bytes
+      // (mesmo `fileId` de conteúdo), então nada é baixado nem liberado aqui.
+      if (typeof attachments.adoptRemoteRef === 'function') {
+        await attachments.adoptRemoteRef({
+          key: result.key,
+          sha256: serverRef.sha256,
+          size: result.size ?? blob.size ?? null,
+          kind: result.kind,
+          name,
+          addedAt: serverRef.addedAt ?? null,
+        });
+      }
+      pins?.pin?.(serverRef.sha256, { name, size: result.size ?? blob.size ?? null });
+      notify(`Cópia offline de “${name}” guardada neste navegador (${formatAttachmentSize(result.size ?? blob.size ?? 0)}); ela abre e toca sem servidor.`);
+    } catch (error) {
+      notify(`Não foi possível guardar a cópia offline: ${error.message}`, true);
+    }
+    render();
+  }
+
+  // Libera a CÓPIA LOCAL (os bytes do navegador) e a marca de "manter offline".
+  // A REFERÊNCIA não é tocada: nome, tipo, tamanho e vínculo continuam iguais, e
+  // o documento de sincronização do curso não muda — apagar a referência aqui
+  // apagaria o material no servidor no próximo envio, e o usuário só pediu para
+  // liberar espaço neste navegador. O sha vem do vínculo do servidor quando ele
+  // está disponível; sem rede vale o hash da própria cópia (o arquivo é
+  // chaveado por conteúdo), então liberar funciona com a conexão cortada.
+  async function releaseOffline(row, serverSha = null) {
+    if (!attachmentsReady()) return;
+    const entry = attachments.get(row.refKey);
+    if (!entry || entry.present === false) { notify('Este material não tinha cópia local guardada.', true); render(); return; }
+    const known = typeof serverSha === 'string' && /^[0-9a-f]{64}$/.test(serverSha) ? serverSha : null;
+    const sha = known ?? shaFromFileId(entry.fileId);
+    // Sem hash de conteúdo e sem o material no servidor, a cópia local pode ser
+    // a ÚNICA cópia (arquivo enviado à mão que ainda não subiu): liberar os
+    // bytes apagaria o material de vez. Nada é liberado nesse caso.
+    if (sha === null && entry.source !== 'servidor') {
+      notify('Este arquivo só existe neste navegador; liberar a cópia apagaria o material.', true);
+      return;
+    }
+    try {
+      const result = await attachments.dropBlob(entry.fileId);
+      if (sha) pins?.unpin?.(sha);
+      revokeRef(row.refKey);
+      if (!result.dropped) { notify('A cópia deste material já não ocupava espaço neste navegador.', true); render(); return; }
+      notify(`Cópia offline liberada (${formatAttachmentSize(result.freedBytes)} liberados); o material continua no servidor.`);
+    } catch (error) {
+      notify(`Não foi possível liberar a cópia offline: ${error.message}`, true);
+    }
+    render();
+  }
+
   async function removeAttachment(row) {
     if (!attachmentsReady()) return;
+    const entry = attachments.get(row.refKey);
+    // Material que vive no SERVIDOR: "Remover anexo" aqui só pode significar
+    // "liberar a cópia local" — apagar a referência apagaria o material do
+    // curso no servidor no próximo envio. Quem libera é `releaseOffline`.
+    if (entry && entry.source === 'servidor') { await releaseOffline(row, shaFromFileId(entry.fileId)); return; }
     try {
       const result = await attachments.remove(row.refKey);
       revokeRef(row.refKey);
+      // O material também vive no servidor: remover a cópia local é deixar de
+      // mantê-lo offline, então a marca sai junto (nada além disso muda).
+      const removedSha = serverRefFor(row.refKey)?.sha256
+        ?? (entry ? shaFromFileId(entry.fileId) : null);
+      if (removedSha) pins?.unpin?.(removedSha);
       if (!result.removed) { notify('Este material não tinha arquivo guardado.', true); return; }
       notify(result.fileDeleted
         ? `Anexo removido; ${formatAttachmentSize(result.freedBytes)} liberados.`
@@ -1112,7 +1240,12 @@ export function mountCourseLesson(container, host) {
   }
 
   function materialNode(row, index) {
-    const attachment = attachmentsReady() ? attachments.get(row.refKey) : null;
+    const stored = attachmentsReady() ? attachments.get(row.refKey) : null;
+    // Cópia LOCAL é só a que tem bytes: `present:false` é referência de um
+    // material que vive no servidor (adotada pela sincronização), e a linha
+    // dele é a linha do SERVIDOR — as ações locais abririam um arquivo que não
+    // está neste navegador.
+    const attachment = stored && stored.present !== false ? stored : null;
     const item = createEl('li', {
       className: 'lesson-material',
       dataset: { resourceId: row.resourceId, refKey: row.refKey, crossLesson: String(row.crossLesson) },
@@ -1132,14 +1265,40 @@ export function mountCourseLesson(container, host) {
     if (!attachment) {
       // Cópia no servidor (pasta de entrada casada): a apostila abre no painel
       // embutido da própria origem e a faixa toca do blob autenticado, com
-      // Range — sem anexar arquivo por arquivo.
-      const serverRef = row.missing ? null : serverRefFor(row.refKey);
-      if (serverRef) actions.append(...serverMaterialNodes({ panel, ref: serverRef, index, name }));
-      else actions.append(createEl('span', { className: 'lesson-material-none muted', text: attachmentsReady() ? 'sem arquivo aqui' : 'anexos indisponíveis neste navegador' }));
+      // Range — sem anexar arquivo por arquivo. Sem a lista de vínculos lida
+      // nesta página (rede cortada depois da recarga), a referência guardada no
+      // próprio navegador mantém a linha do servidor de pé.
+      const serverRef = row.missing ? null : (serverRefFor(row.refKey) ?? localServerRef(row));
+      if (serverRef) {
+        actions.append(...serverMaterialNodes({ panel, ref: serverRef, index, name }));
+        if (attachmentsReady() && writable() && pins && pins.available()) {
+          const keep = createEl('button', {
+            id: `lesson-material-keep-${index}`, type: 'button',
+            dataset: { action: 'keep-offline', refKey: row.refKey },
+            text: 'Manter offline',
+            title: 'Guarda uma cópia deste material neste navegador para abrir e ouvir sem servidor.',
+          });
+          keep.addEventListener('click', () => void keepOffline(row, serverRef, keep));
+          actions.append(keep);
+        }
+      } else actions.append(createEl('span', { className: 'lesson-material-none muted', text: attachmentsReady() ? 'sem arquivo aqui' : 'anexos indisponíveis neste navegador' }));
       if (attachmentsReady() && writable() && !row.missing) actions.append(...withUploader(row, index));
     } else {
       // O tipo salvo vem do CONTEÚDO conferido no envio: PDF e áudio aparecem
       // pela ação principal; o resto (e o que não pôde ser confirmado) baixa.
+      // O material também vive no servidor (B4b): o painel embutido continua
+      // disponível com a cópia guardada — ela é o caminho SEM servidor, não um
+      // substituto do painel da apostila.
+      const pinnedRef = serverRefFor(row.refKey) ?? localServerRef(row);
+      if (pinnedRef && attachment.kind === ATTACHMENT_KINDS.pdf) {
+        // Com cópia guardada, o painel abre dos BYTES LOCAIS (mesmo material,
+        // conferido por conteúdo): a ação do app não pode falhar por causa da
+        // rede — nem com o servidor fora do ar sem recarregar a página.
+        actions.append(...serverMaterialNodes({
+          panel, ref: pinnedRef, index, name,
+          localBlob: () => attachments.getBlob(row.refKey),
+        }));
+      }
       if (attachment.kind === ATTACHMENT_KINDS.pdf) {
         const open = createEl('button', {
           id: `lesson-material-open-${index}`, type: 'button', className: 'primary',
@@ -1178,13 +1337,35 @@ export function mountCourseLesson(container, host) {
       // envio substitui a referência e o arquivo antigo só sai do banco se
       // ninguém mais usar.
       actions.append(itemMore('Mais ações do material', () => {
-        const remove = createEl('button', {
-          id: `lesson-material-remove-${index}`, type: 'button',
-          dataset: { action: 'remove', refKey: row.refKey }, text: 'Remover anexo',
-        });
-        remove.disabled = !writable() || !attachmentsReady();
-        remove.addEventListener('click', () => void removeAttachment(row));
-        const more = [remove];
+        const more = [];
+        // Material que vive no SERVIDOR não tem "Remover anexo": o vínculo do
+        // curso é do servidor e apagá-lo apagaria o material para todos os
+        // navegadores. O que existe aqui é a cópia local, e quem libera é
+        // "Deixar de manter offline".
+        if (attachment.source !== 'servidor') {
+          const remove = createEl('button', {
+            id: `lesson-material-remove-${index}`, type: 'button',
+            dataset: { action: 'remove', refKey: row.refKey }, text: 'Remover anexo',
+          });
+          remove.disabled = !writable() || !attachmentsReady();
+          remove.addEventListener('click', () => void removeAttachment(row));
+          more.push(remove);
+        }
+        // Cópia offline: liberar os bytes locais sem tocar na referência do
+        // servidor. A marca de "manter offline" sai junto; o sha vem do vínculo
+        // do servidor ou, sem rede, do hash da própria cópia (nunca do
+        // identificador cru `sha256:...`, que não casa com a marca).
+        const offlineSha = serverRefFor(row.refKey)?.sha256 ?? shaFromFileId(attachment.fileId);
+        if ((offlineSha !== null || attachment.source === 'servidor') && pins && pins.available()) {
+          const release = createEl('button', {
+            id: `lesson-material-release-${index}`, type: 'button',
+            dataset: { action: 'release-offline', refKey: row.refKey },
+            text: 'Deixar de manter offline',
+            title: 'Libera os bytes guardados neste navegador; o material continua no servidor.',
+          });
+          release.addEventListener('click', () => void releaseOffline(row, offlineSha));
+          more.push(release);
+        }
         if (attachmentsReady() && writable() && !row.missing) more.push(...withUploader(row, index, 'Trocar arquivo'));
         return more;
       }, `lesson-material-more-${index}`));

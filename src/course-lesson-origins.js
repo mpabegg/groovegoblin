@@ -98,7 +98,7 @@ export function exerciseOriginBadges(origins, { onOpenLesson = null, label = 'Or
 // assinatura por linha).
 export function mountExerciseOrigins(container, {
   store, exerciseId, onOpenLesson = null, label = 'Origem',
-  library = null, content = null, panel = null, notify = null,
+  library = null, content = null, panel = null, notify = null, attachments = null,
 } = {}) {
   if (!container || typeof container.appendChild !== 'function') throw new TypeError('Informe um contêiner DOM para as origens.');
   if (!store || typeof store.originsOf !== 'function') throw new TypeError('Loja de cursos ausente para as origens.');
@@ -109,7 +109,7 @@ export function mountExerciseOrigins(container, {
 
   function render() {
     const origins = currentId ? store.originsOf(currentId) : [];
-    const materials = currentId ? exerciseMaterialActions(store, currentId, { library, content, panel, notify }) : [];
+    const materials = currentId ? exerciseMaterialActions(store, currentId, { library, content, panel, notify, attachments }) : [];
     root.replaceChildren();
     root.hidden = origins.length === 0 && materials.length === 0;
     root.dataset.exerciseId = String(currentId ?? '');
@@ -326,11 +326,51 @@ function variationParent(library, exerciseId) {
   }
 }
 
+// Cópia GUARDADA neste navegador para o refKey EXATO (a MESMA chave da loja de
+// anexos compartilhada do app). Não é um resolvedor novo nem um segundo cache:
+// é a loja de anexos que já existe, consultada pelo vínculo exato. Devolve
+// `null` quando não há bytes locais para esse material.
+async function localMaterialCopy(attachments, refKey) {
+  if (!attachments || typeof refKey !== 'string' || refKey === '') return null;
+  let store = attachments;
+  try { if (store && typeof store.then === 'function') store = await store; } catch { return null; }
+  if (!store || typeof store.getBlob !== 'function') return null;
+  let entry = null;
+  try { entry = typeof store.get === 'function' ? store.get(refKey) : null; } catch { entry = null; }
+  let blob = null;
+  try { blob = await store.getBlob(refKey); } catch { blob = null; }
+  if (!blob) return null;
+  const fileId = typeof entry?.fileId === 'string' ? entry.fileId : '';
+  const sha256 = fileId.startsWith('sha256:') && /^[0-9a-f]{64}$/.test(fileId.slice(7)) ? fileId.slice(7) : null;
+  const size = Number.isFinite(entry?.size) ? entry.size : (Number.isFinite(blob.size) ? blob.size : null);
+  return { blob, sha256, name: typeof entry?.name === 'string' ? entry.name : null, size };
+}
+
 // Abre o MESMO painel do app (instância única) no material exato: o sha vem do
 // cliente do conteúdo da própria origem e o painel nunca inventa endereço.
-async function openMaterialTarget(target, { content, panel, notify }) {
+// Quando existe cópia GUARDADA neste navegador para o mesmo refKey (marcada
+// "manter offline" ou restaurada de um backup), o painel abre dos BYTES LOCAIS
+// — o painel já prefere a cópia —, então a ação não falha com a rede fora nem
+// declara indisponível um arquivo que está aqui.
+async function openMaterialTarget(target, { content, panel, notify, attachments = null }) {
   const tell = text => { if (typeof notify === 'function') notify(text, true); };
   if (!panel) { tell('O painel do material não está disponível nesta página.'); return false; }
+  // Cópia GUARDADA primeiro: quando existe para o refKey exato, ela manda e a
+  // ação NÃO depende da rede (o painel prefere os bytes locais). Sem cópia, a
+  // referência do servidor é resolvida como antes.
+  const copy = await localMaterialCopy(attachments, target.refKey);
+  if (copy) {
+    const opened = panel.open({
+      sha256: copy.sha256 ?? '',
+      kind: CONTENT_KINDS.pdf,
+      name: copy.name ?? target.name,
+      size: copy.size,
+      page: target.page,
+      refKey: target.refKey,
+      localBlob: copy.blob,
+    });
+    if (opened) return true;
+  }
   let ref = null;
   try {
     if (content && typeof content.loadRefs === 'function') await content.loadRefs(target.courseId);
@@ -354,7 +394,7 @@ async function openMaterialTarget(target, { content, panel, notify }) {
   return opened;
 }
 
-function materialButton(target, { content, panel, notify }) {
+function materialButton(target, { content, panel, notify, attachments = null }) {
   const button = createEl('button', {
     type: 'button',
     className: 'course-origin-material',
@@ -371,7 +411,7 @@ function materialButton(target, { content, panel, notify }) {
       : `Abre a apostila da aula de origem no painel do app, na página ${target.page}.`,
     text: target.page === null ? 'Ver na apostila' : `Ver na apostila (página ${target.page})`,
   });
-  button.addEventListener('click', () => { void openMaterialTarget(target, { content, panel, notify }); });
+  button.addEventListener('click', () => { void openMaterialTarget(target, { content, panel, notify, attachments }); });
   return button;
 }
 
@@ -401,15 +441,15 @@ function serverReadiness(content) {
 // do servidor e não aparece fingindo funcionar. O total de controles no repouso
 // continua 1 (o botão) para qualquer número de aulas.
 export function exerciseMaterialActions(store, exerciseId, {
-  library = null, material = null, content = null, panel = null, notify = null,
+  library = null, material = null, content = null, panel = null, notify = null, attachments = null,
 } = {}) {
   if (!panel || !content) return [];
   const targets = exerciseMaterialTargets(store, exerciseId, { library, material });
   if (targets.length === 0) return [];
   const server = serverReadiness(content);
   const nodes = targets.length === 1
-    ? [materialButton(targets[0], { content, panel, notify })]
-    : [materialPicker(targets, { content, panel, notify })];
+    ? [materialButton(targets[0], { content, panel, notify, attachments })]
+    : [materialPicker(targets, { content, panel, notify, attachments })];
   for (const node of nodes) {
     node.hidden = !server.ready();
     if (!node.hidden) continue;
@@ -418,7 +458,7 @@ export function exerciseMaterialActions(store, exerciseId, {
   return nodes;
 }
 
-function materialPicker(targets, { content, panel, notify }) {
+function materialPicker(targets, { content, panel, notify, attachments = null }) {
   const details = createEl('details', {
     className: 'course-origin-material-more',
     dataset: { disclosure: 'course-origin-material-more' },
@@ -426,7 +466,7 @@ function materialPicker(targets, { content, panel, notify }) {
   details.append(createEl('summary', { text: `Apostila (${targets.length} aulas)` }));
   const list = createEl('ul', { className: 'course-origin-material-list' });
   for (const target of targets) {
-    list.append(createEl('li', { className: 'course-origin-material-item' }, [materialButton(target, { content, panel, notify })]));
+    list.append(createEl('li', { className: 'course-origin-material-item' }, [materialButton(target, { content, panel, notify, attachments })]));
   }
   details.append(list);
   return details;

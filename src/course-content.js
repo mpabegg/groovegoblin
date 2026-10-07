@@ -21,6 +21,10 @@
 // precise de uma linha só (ver o patch de integração).
 
 import { createEl } from './practice.js';
+// Mesma detecção de servidor da sincronização: o marcador
+// `data-groove-server` no `<html>`. Página estática tem `off` e nada aqui
+// toca a rede.
+import { serverMarkerSays } from './sync-engine.js';
 
 const DOCS_PREFIX = 'api/docs/courseAttachments';
 const MATERIALS_PREFIX = 'api/courses';
@@ -126,9 +130,15 @@ export function createCourseContentClient({
   uploadTimeoutMs = CONTENT_UPLOAD_TIMEOUT_MS,
   onChange = null,
   fetchRef = typeof fetch === 'function' ? fetch : null,
+  documentRef = null,
+  // Explícito para testes: `true`/`false` força a decisão; `null` (padrão) lê o
+  // marcador da página.
+  serverDeclaredOverride = null,
 } = {}) {
   const root = basePath instanceof URL ? basePath : new URL(String(basePath), DEFAULT_BASE);
   const fetcher = fetchImpl ?? fetchRef;
+  const doc = documentRef ?? globalThis.document ?? null;
+  const markerOverride = serverDeclaredOverride;
   const refsCache = new Map();
   let status = CONTENT_STATUS.unknown;
   let starting = null;
@@ -170,7 +180,21 @@ export function createCourseContentClient({
     }
   }
 
+  // Sondagem: só acontece com o servidor declarado no marcador da página
+  // (`data-groove-server="on"`, o MESMO padrão de detecção da sincronização).
+  // Página estática (GitHub Pages, servidor comum, HTTP por IP) tem o marcador
+  // `off` e NÃO faz nenhuma requisição a `/api` — nem a sonda de saúde.
+  function serverDeclared() {
+    if (markerOverride !== null) return markerOverride === true;
+    return serverMarkerSays(doc) === true;
+  }
+
   async function probe() {
+    if (!serverDeclared()) {
+      status = CONTENT_STATUS.local;
+      starting = Promise.resolve(status);
+      return status;
+    }
     const response = await request(HEALTH_PATH);
     const body = response?.ok ? await json(response) : null;
     const ready = Boolean(body && body.ok === true && body.service === 'groovegoblin');

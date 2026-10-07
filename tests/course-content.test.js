@@ -51,8 +51,34 @@ function reportFixture() {
   };
 }
 
+test('conteúdo: página estática (marcador off) não faz NENHUMA requisição a /api', async () => {
+  // O contrato da etapa 7 vale também para o cliente de conteúdo: site estático
+  // (GitHub Pages, servidor comum, HTTP por IP) sai com `data-groove-server="off"`
+  // e nada aqui toca a rede — nem a sonda de saúde. Sem documento no escopo
+  // (Node), a decisão é a mesma: sem servidor declarado, sem requisição.
+  const off = { documentElement: { getAttribute: name => (name === 'data-groove-server' ? 'off' : null) } };
+  const marcado = makeFetch([]);
+  const client = createCourseContentClient({ basePath: BASE, fetchImpl: marcado, documentRef: off });
+  assert.equal(await client.start(), CONTENT_STATUS.local);
+  assert.equal(await client.report(COURSE_ID), null);
+  assert.equal(await client.scan(COURSE_ID), null);
+  assert.equal(marcado.calls.length, 0, 'nenhuma requisição com o marcador off');
+
+  const semDocumento = makeFetch([]);
+  const outro = createCourseContentClient({ basePath: BASE, fetchImpl: semDocumento, documentRef: null });
+  assert.equal(await outro.start(), CONTENT_STATUS.local);
+  assert.equal(semDocumento.calls.length, 0, 'nenhuma requisição sem servidor declarado');
+
+  // Marcador `on` (servidor com data dir): a sonda acontece normalmente.
+  const on = { documentElement: { getAttribute: name => (name === 'data-groove-server' ? 'on' : null) } };
+  const ligado = makeFetch([HEALTH_OK]);
+  const comServidor = createCourseContentClient({ basePath: BASE, fetchImpl: ligado, documentRef: on });
+  assert.equal(await comServidor.start(), CONTENT_STATUS.ready);
+  assert.equal(ligado.calls.length, 1);
+});
+
 test('conteúdo: sem servidor fica quieto em modo local', async () => {
-  const client = createCourseContentClient({ basePath: BASE, fetchImpl: makeFetch([]) });
+  const client = createCourseContentClient({ serverDeclaredOverride: true, basePath: BASE, fetchImpl: makeFetch([]) });
   assert.equal(client.status, CONTENT_STATUS.unknown);
   assert.equal(client.available(), false);
   assert.equal(await client.start(), CONTENT_STATUS.local);
@@ -66,11 +92,11 @@ test('conteúdo: sonda aceita só a resposta do próprio servidor e avisa quem o
   const payloads = [
     ['/api/health', () => jsonResponse(200, { ok: true, service: 'outro servico' })],
   ];
-  const estranho = createCourseContentClient({ basePath: BASE, fetchImpl: makeFetch(payloads) });
+  const estranho = createCourseContentClient({ serverDeclaredOverride: true, basePath: BASE, fetchImpl: makeFetch(payloads) });
   assert.equal(await estranho.start(), CONTENT_STATUS.local);
 
   const events = [];
-  const client = createCourseContentClient({ basePath: BASE, fetchImpl: makeFetch([HEALTH_OK]), onChange: (id) => events.push(id) });
+  const client = createCourseContentClient({ serverDeclaredOverride: true, basePath: BASE, fetchImpl: makeFetch([HEALTH_OK]), onChange: (id) => events.push(id) });
   assert.equal(await client.start(), CONTENT_STATUS.ready);
   assert.equal(client.available(), true);
   assert.deepEqual(events, [null]);
@@ -90,7 +116,7 @@ test('conteúdo: relatório e vínculos vêm da API autenticada da própria orig
       },
     })],
   ]);
-  const client = createCourseContentClient({ basePath: BASE, fetchImpl });
+  const client = createCourseContentClient({ serverDeclaredOverride: true, basePath: BASE, fetchImpl });
   await client.start();
 
   const report = await client.report(COURSE_ID);
@@ -119,7 +145,7 @@ test('conteúdo: importar a pasta de entrada vai por POST e o relatório continu
     [`/api/courses/${COURSE_ID}/materials/scan`, (call) => (call.method === 'POST' ? jsonResponse(200, reportFixture()) : jsonResponse(405, { error: 'method_not_allowed' }))],
     [`/api/courses/${COURSE_ID}/materials`, () => jsonResponse(200, reportFixture())],
   ]);
-  const client = createCourseContentClient({ basePath: BASE, fetchImpl });
+  const client = createCourseContentClient({ serverDeclaredOverride: true, basePath: BASE, fetchImpl });
   await client.start();
 
   const applied = await client.scan(COURSE_ID);
@@ -137,6 +163,7 @@ test('conteúdo: importar a pasta de entrada vai por POST e o relatório continu
 
 test('conteúdo: curso sem vínculos no servidor devolve mapa vazio em vez de erro', async () => {
   const client = createCourseContentClient({
+    serverDeclaredOverride: true,
     basePath: BASE,
     fetchImpl: makeFetch([HEALTH_OK, ['/api/docs/courseAttachments/', () => jsonResponse(404, { error: 'not_found' })]]),
   });
@@ -153,7 +180,7 @@ test('conteúdo: envio manda o nome percent-encoded e vários arquivos em fila',
       : jsonResponse(200, reportFixture()))],
     ['/api/docs/courseAttachments/', () => jsonResponse(200, { refs: {} })],
   ]);
-  const client = createCourseContentClient({ basePath: BASE, fetchImpl });
+  const client = createCourseContentClient({ serverDeclaredOverride: true, basePath: BASE, fetchImpl });
   await client.start();
   await client.loadRefs(COURSE_ID);
 
@@ -185,7 +212,7 @@ test('conteúdo: vínculo manual manda refKey e id em JSON e respeita o erro do 
       ? jsonResponse(400, { error: 'six_strings', message: 'de 6 cordas' })
       : jsonResponse(200, { ok: true, ref: { refKey: 'ref-1', sha256: SHA_B, size: 3, kind: 'pdf', name: 'x.pdf' } }))],
   ]);
-  const client = createCourseContentClient({ basePath: BASE, fetchImpl });
+  const client = createCourseContentClient({ serverDeclaredOverride: true, basePath: BASE, fetchImpl });
   await client.start();
   const bound = await client.bind(COURSE_ID, { refKey: 'ref-1', id: 'Apostila.pdf' });
   assert.equal(bound.ok, true);
@@ -218,7 +245,7 @@ test('conteúdo: tipo pelo nome aceita só o que a pasta de entrada recebe', () 
 test('conteúdo: sem servidor, nada de material do servidor é montado na página do curso', async (t) => {
   const release = installDom();
   const root = makeRoot();
-  const client = createCourseContentClient({ basePath: BASE, fetchImpl: makeFetch([]) });
+  const client = createCourseContentClient({ serverDeclaredOverride: true, basePath: BASE, fetchImpl: makeFetch([]) });
   t.after(() => { resetSharedCourseMaterials(); release(); });
   await client.start();
   assert.equal(sharedCourseMaterials({ content: client, courseId: COURSE_ID }), null);

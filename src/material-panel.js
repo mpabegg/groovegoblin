@@ -45,6 +45,25 @@ export function mountMaterialPanel(container, { content = null, notify = null, d
   let bound = content;
   let current = null;
   let opener = null;
+  // Cópia guardada no navegador: o painel cria a URL de objeto e é o DONO da
+  // licença — ela é revogada ao fechar, ao trocar de material e ao destruir.
+  let localUrl = null;
+
+  function revokeLocal() {
+    if (localUrl === null) return;
+    try { URL.revokeObjectURL(localUrl); } catch { /* sem URL de objeto: nada a revogar */ }
+    localUrl = null;
+  }
+
+  // Cópia local manda quando existe: os bytes são os MESMOS (conferidos por
+  // conteúdo no envio) e o painel passa a funcionar com o servidor fora do ar.
+  function localUrlFor(target) {
+    const blob = target?.localBlob ?? null;
+    if (!blob || typeof URL === 'undefined' || URL === null || typeof URL.createObjectURL !== 'function') return null;
+    revokeLocal();
+    try { localUrl = URL.createObjectURL(blob); } catch { localUrl = null; }
+    return localUrl;
+  }
 
   function closeNodes() {
     // Áudio para de tocar quando o painel fecha ou troca de faixa.
@@ -52,6 +71,7 @@ export function mountMaterialPanel(container, { content = null, notify = null, d
     if (audio && typeof audio.pause === 'function') audio.pause();
     const frame = root.querySelector?.('iframe');
     if (frame && 'src' in frame) frame.src = '';
+    revokeLocal();
   }
 
   function bodyNode(target, url) {
@@ -67,7 +87,12 @@ export function mountMaterialPanel(container, { content = null, notify = null, d
       frame.src = target.page ? `${url}#page=${Number(target.page)}` : url;
       return createEl('div', { className: 'material-panel-frame-wrap' }, [
         frame,
-        createEl('p', { className: 'material-panel-note muted', text: target.page ? `Abrindo na página ${Number(target.page)} do material, direto do servidor.` : 'Abrindo o material direto do servidor.' }),
+        createEl('p', {
+          className: 'material-panel-note muted',
+          text: target.local
+            ? (target.page ? `Abrindo na página ${Number(target.page)} da cópia guardada neste navegador (funciona sem servidor).` : 'Abrindo a cópia guardada neste navegador (funciona sem servidor).')
+            : (target.page ? `Abrindo na página ${Number(target.page)} do material, direto do servidor.` : 'Abrindo o material direto do servidor.'),
+        }),
       ]);
     }
     if (kind === CONTENT_KINDS.audio) {
@@ -93,7 +118,7 @@ export function mountMaterialPanel(container, { content = null, notify = null, d
   function render() {
     root.replaceChildren();
     if (!current) return;
-    const url = materialPanelUrl(bound, current.sha256);
+    const url = current.url ?? materialPanelUrl(bound, current.sha256);
     if (url === null) { current = null; root.hidden = true; return; }
     const title = createEl('h2', { className: 'material-panel-title', text: materialRefLabel(current) });
     const bits = [];
@@ -113,8 +138,20 @@ export function mountMaterialPanel(container, { content = null, notify = null, d
   }
 
   function open(target) {
-    if (!target || typeof target.sha256 !== 'string' || materialPanelUrl(bound, target.sha256) === null) return false;
-    if (current && current.sha256 === target.sha256 && current.page === (target.page ?? null)) { root.hidden = false; return true; }
+    if (!target || typeof target.sha256 !== 'string') return false;
+    const serverUrl = materialPanelUrl(bound, target.sha256);
+    if (serverUrl === null && target.localBlob == null) return false;
+    if (current && current.sha256 === target.sha256 && current.page === (target.page ?? null)) {
+      // Mesmo material já aberto: se agora existe cópia guardada e o painel está
+      // no endereço do servidor, ele troca para os BYTES LOCAIS — é o caso da
+      // rede cair com o painel aberto, e a ação não pode ficar quebrada.
+      if (target.localBlob != null && current.local !== true) {
+        const local = localUrlFor(target);
+        if (local !== null) { current.url = local; current.local = true; render(); }
+      }
+      root.hidden = false;
+      return true;
+    }
     closeNodes();
     const active = documentRef?.activeElement ?? globalThis.document?.activeElement ?? null;
     if (active && typeof active.focus === 'function' && !root.contains?.(active)) opener = active;
@@ -125,6 +162,8 @@ export function mountMaterialPanel(container, { content = null, notify = null, d
       size: Number.isFinite(target.size) ? target.size : null,
       page: Number.isInteger(target.page) && target.page > 0 ? target.page : null,
       refKey: typeof target.refKey === 'string' ? target.refKey : null,
+      url: localUrlFor(target) ?? serverUrl,
+      local: localUrl !== null,
     };
     root.hidden = false;
     render();
@@ -171,9 +210,20 @@ function fallbackName(ref, name) {
   return typeof name === 'string' && name.trim() !== '' ? name : materialRefLabel(ref);
 }
 
+// Abre o painel preferindo a CÓPIA GUARDADA no navegador, quando existe: os
+// bytes são os mesmos (conferidos por conteúdo no envio) e o painel funciona
+// com o servidor fora do ar. Sem cópia, abre pelo blob autenticado, como sempre.
+async function openMaterialInPanel(panel, target, localBlob) {
+  let blob = null;
+  if (typeof localBlob === 'function') {
+    try { blob = await localBlob(); } catch { blob = null; }
+  } else if (localBlob) blob = localBlob;
+  return panel.open(blob ? { ...target, localBlob: blob } : target);
+}
+
 // Ações do material do servidor para uma linha de material da aula. Devolve
 // lista vazia quando não há cópia no servidor (aí vale o anexo local de hoje).
-export function serverMaterialNodes({ panel, ref, index = 0, name = null, page = null } = {}) {
+export function serverMaterialNodes({ panel, ref, index = 0, name = null, page = null, localBlob = null } = {}) {
   if (!panel || !ref || typeof ref.sha256 !== 'string') return [];
   const kind = materialRefKind(ref);
   const label = fallbackName(ref, name);
@@ -183,7 +233,9 @@ export function serverMaterialNodes({ panel, ref, index = 0, name = null, page =
       dataset: { action: 'open-apostila', refKey: ref.refKey ?? '' },
       text: page ? `Abrir na apostila (página ${Number(page)})` : 'Abrir na apostila',
     });
-    button.addEventListener('click', () => panel.open({ sha256: ref.sha256, kind, name: label, size: ref.size, page }));
+    button.addEventListener('click', () => {
+      void openMaterialInPanel(panel, { sha256: ref.sha256, kind, name: label, size: ref.size, page, refKey: ref.refKey ?? null }, localBlob);
+    });
     return [button];
   }
   if (kind === CONTENT_KINDS.audio) {

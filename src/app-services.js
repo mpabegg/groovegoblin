@@ -30,6 +30,23 @@ export function appImportNodes() {
   return current?.convert ? current.convert.nodes : [];
 }
 
+// Marcação "manter offline" (B4, item 226): o app marca no motor de
+// sincronização os bytes que o usuário escolheu guardar no navegador, e é isso
+// que impede a liberação automática dos bytes depois de confirmados no
+// servidor. O objeto é estável e resolve o motor na hora do uso: a montagem da
+// sincronização é assíncrona, e um `null` capturado cedo desligaria a ação para
+// sempre. Sem servidor, `available()` é falso e nenhum controle aparece.
+export function appPins() {
+  const engine = () => (current && typeof current.engine?.pinAttachment === 'function' ? current.engine : null);
+  return {
+    available: () => engine() !== null,
+    has: sha256 => Boolean(engine() && typeof sha256 === 'string'
+      && current.engine.pinned().some(entry => entry.sha256 === sha256)),
+    pin(sha256, meta = {}) { const target = engine(); return target ? target.pinAttachment(sha256, meta) : false; },
+    unpin(sha256) { const target = engine(); return target ? target.unpinAttachment(sha256) : false; },
+  };
+}
+
 export function mountAppServices({
   document: doc = globalThis.document ?? null,
   isBusy = () => false,

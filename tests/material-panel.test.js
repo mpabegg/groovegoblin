@@ -167,3 +167,41 @@ test('painel: uma instância só para o app inteiro', (t) => {
   assert.equal(noBody.element.parentNode, root, 'o painel é pendurado no contêiner informado');
   assert.equal(noBody.content, content);
 });
+
+test('painel: cópia guardada abre dos BYTES LOCAIS e a licença da URL é revogada', (t) => {
+  const release = installDom();
+  const root = makeRoot();
+  const created = [];
+  const revoked = [];
+  const previous = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
+  URL.createObjectURL = blob => { created.push(blob); return `blob:groovegoblin/${created.length}`; };
+  URL.revokeObjectURL = url => { revoked.push(url); };
+  t.after(() => { URL.createObjectURL = previous.create; URL.revokeObjectURL = previous.revoke; release(); });
+  const panel = mountMaterialPanel(root, { content: contentStub() });
+  const bytes = new Blob(['%PDF-1.7\n%%EOF\n'], { type: 'application/pdf' });
+
+  // Sem cópia guardada, o painel abre pelo blob autenticado do servidor.
+  assert.equal(panel.open({ sha256: SHA, kind: 'pdf', name: 'Apostila Interna Exemplo.pdf', page: 3 }), true);
+  assert.equal(root.querySelector('#material-panel-frame').src, `${BASE}api/blobs/${SHA}#page=3`);
+
+  // Com cópia guardada, os MESMOS bytes locais mandam (a rede pode estar fora):
+  // o mesmo material, aberto de novo, troca para a URL de objeto na mesma página.
+  assert.equal(panel.open({ sha256: SHA, kind: 'pdf', name: 'Apostila Interna Exemplo.pdf', page: 3, localBlob: bytes }), true);
+  assert.equal(root.querySelector('#material-panel-frame').src, 'blob:groovegoblin/1#page=3');
+  assert.equal(created.length, 1);
+  assert.equal(panel.current.local, true);
+  assert.match(root.querySelector('.material-panel-note').textContent, /cópia guardada neste navegador/);
+
+  // Fechar o painel revoga a licença da URL de objeto; nada fica pendurado.
+  panel.close();
+  assert.deepEqual(revoked, ['blob:groovegoblin/1']);
+  assert.equal(panel.isOpen, false);
+
+  // Trocar de material também revoga antes de criar a próxima.
+  assert.equal(panel.open({ sha256: SHA, kind: 'pdf', name: 'Outro.pdf', page: 1, localBlob: bytes }), true);
+  assert.equal(panel.open({ sha256: 'd'.repeat(64), kind: 'pdf', name: 'Outro 2.pdf', page: 1, localBlob: bytes }), true);
+  assert.deepEqual(revoked, ['blob:groovegoblin/1', 'blob:groovegoblin/2']);
+  assert.equal(panel.current.local, true);
+  panel.destroy();
+  assert.deepEqual(revoked, ['blob:groovegoblin/1', 'blob:groovegoblin/2', 'blob:groovegoblin/3']);
+});

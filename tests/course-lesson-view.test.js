@@ -16,8 +16,14 @@ import { createCourseStore } from '../src/course-store.js';
 import { attachmentRefKey, createAttachmentStore } from '../src/course-attachments.js';
 import { mountCourseLesson } from '../src/course-lesson.js';
 import { exerciseOriginBadges, mountExerciseOrigins } from '../src/course-lesson-origins.js';
+import { createServerClient } from '../src/server-client.js';
+import { createSyncEngine } from '../src/sync-engine.js';
+import { createSyncOutbox } from '../src/sync-outbox.js';
+import { createSyncState } from '../src/sync-store.js';
+import { createAttachmentAdapter } from '../src/sync-adapters.js';
 import { makeRoot, installDom, dispatchWindow, document as fakeDocument, makeEvent } from './course-lesson-dom.js';
 import { courseDocument, lesson, memoryBackend, section } from './course-lesson-fixtures.js';
+import { startContractServer, createMemoryStorage, createFakeTimers, sha256Hex } from './sync-harness.js';
 
 const NOW = () => '2026-01-02T03:04:05.000Z';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -380,6 +386,87 @@ test('origem: "Ver na apostila" do exercício gerado abre o painel no material g
   t.after(() => withoutServer.destroy());
   assert.equal(offline.querySelector('.course-origin-material'), null);
   assert.equal(offline.querySelector('.course-origin').textContent.includes('Aula aula-1'), true, 'a origem continua lá');
+});
+
+test('origem: "Ver na apostila" abre da CÓPIA GUARDADA quando o servidor não tem a referência', async t => {
+  const release = installDom();
+  const store = createCourseStore({ backend: memoryBackend(), now: NOW, uuid: () => 'estado' });
+  await store.ready();
+  const document = courseDocument();
+  document.course.sections[0].lessons[0].resources = [
+    { id: 'material-1', name: 'Apostila Primeira.pdf', extension: 'pdf', role: 'apostila' },
+    { id: 'material-2', name: 'Apostila Segunda.pdf', extension: 'pdf', role: 'apostila' },
+  ];
+  const imported = await store.importText(JSON.stringify(document), { source: 'teste' });
+  assert.equal(imported.ok, true, imported.error);
+  const courseId = imported.courseId;
+  const library = fakeLibrary();
+  library.register({
+    id: 'exercicio-gerado',
+    metadata: {
+      name: 'Estudo de Exemplo',
+      study: {
+        version: 1,
+        recipe: { version: 1, family: 'arpejo_triade_forma_unica' },
+        origin: { id: 'aula-1', name: 'Aula aula-1', kind: 'course', private: true,
+          material: { name: 'Apostila Segunda.pdf', lessonId: 'aula-1', resourceId: 'material-2', page: 3 } },
+      },
+    },
+  });
+  await store.linkExercise(courseId, 'aula-1', 'exercicio-gerado');
+
+  // Cópia GUARDADA neste navegador (restaurada de um backup), SEM referência no
+  // servidor para esse material — o caso real em que a ação dizia "não está no
+  // servidor" e descartava um arquivo que está aqui.
+  const refKey = attachmentRefKey(courseId, 'aula-1', 'material-2');
+  const attachments = createAttachmentStore({ backend: memoryBackend({ keyPaths: { files: 'id', refs: 'key' } }), now: NOW, uuid: () => 'anexo' });
+  await attachments.ready();
+  const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x25, 0xe2, 0xe3, 0xcf, 0xd3]);
+  await attachments.put({ courseId, lessonId: 'aula-1', resourceId: 'material-2', name: 'Apostila Segunda.pdf', blob: new Blob([pdfBytes], { type: 'application/pdf' }) });
+  const storedSha = attachments.get(refKey).fileId.slice('sha256:'.length);
+  assert.equal(storedSha, sha256Hex(pdfBytes), 'a cópia local tem o hash do conteúdo');
+
+  const messages = [];
+  const opened = [];
+  const content = { available: () => true, loadRefs: async () => ({}), refFor: () => null };
+  const panel = { open: target => { opened.push(target); return true; } };
+  const container = makeRoot();
+  const origins = mountExerciseOrigins(container, {
+    store, library, exerciseId: 'exercicio-gerado', onOpenLesson: () => {},
+    content, panel, notify: text => messages.push(text), attachments,
+  });
+  t.after(() => { origins.destroy(); release(); });
+
+  const ver = container.querySelector('.course-origin-material');
+  assert.ok(ver, 'a ação aparece com servidor');
+  ver.click();
+  await sleep(20);
+  assert.equal(opened.length, 1, 'o painel abriu');
+  const target = opened[0];
+  assert.equal(target.refKey, refKey);
+  assert.equal(target.page, 3);
+  assert.equal(target.name, 'Apostila Segunda.pdf');
+  assert.equal(target.sha256, storedSha);
+  assert.ok(target.localBlob instanceof Blob, 'abriu dos BYTES LOCAIS, não do servidor');
+  assert.equal(await target.localBlob.arrayBuffer().then(buffer => sha256Hex(new Uint8Array(buffer))), storedSha, 'os bytes são os da cópia guardada');
+  assert.deepEqual(messages, [], 'não declara indisponível um arquivo que está aqui');
+
+  // Sem cópia local E sem referência no servidor, aí sim o aviso honesto.
+  const emptyAttachments = createAttachmentStore({ backend: memoryBackend({ keyPaths: { files: 'id', refs: 'key' } }), now: NOW, uuid: () => 'anexo' });
+  await emptyAttachments.ready();
+  const messages2 = [];
+  const opened2 = [];
+  const container2 = makeRoot();
+  const origins2 = mountExerciseOrigins(container2, {
+    store, library, exerciseId: 'exercicio-gerado', onOpenLesson: () => {},
+    content, panel: { open: target => { opened2.push(target); return true; } }, notify: text => messages2.push(text), attachments: emptyAttachments,
+  });
+  t.after(() => { origins2.destroy(); });
+  container2.querySelector('.course-origin-material').click();
+  await sleep(20);
+  assert.equal(opened2.length, 0, 'sem cópia e sem servidor, nada abre');
+  assert.equal(messages2.length, 1, 'avisa uma vez');
+  assert.match(messages2[0], /não está no servidor/, 'o aviso é o mesmo de antes');
 });
 
 test('aula: anexo de PDF real sem extensão no mapa abre em nova aba (magia do conteúdo)', async t => {
@@ -852,4 +939,104 @@ test('aula: a linha do exercício vinculado abre o MESMO material guardado, na M
   await sleep(10);
   assert.deepEqual(opened, [{ sha256: sha, kind: 'pdf', name: 'Apostila Segunda.pdf', size: 1024, page: 3 }],
     'abre o material guardado na página 3, não a primeira apostila');
+});
+
+// ── "manter offline" do material do servidor (rodada 6 · B4) ────────────────
+// A cópia offline é escolha do usuário; liberá-la NÃO pode apagar o material:
+// a referência do curso (nome, tipo, tamanho e vínculo) é do servidor, e o
+// documento de sincronização do curso é o conjunto de referências — apagar a
+// referência aqui apagaria o material para todos os navegadores no próximo
+// envio. O teste usa a loja de anexos REAL e o motor REAL contra o servidor de
+// contrato, pelo caminho do consumidor (clique nos botões da linha).
+test('liberar a cópia offline preserva a referência do material e não apaga nada no servidor', async t => {
+  const PDF_BYTES = new TextEncoder().encode('%PDF-1.7\n1 0 obj\n<<>>\nendobj\ntrailer\n%%EOF\n');
+  const sha = sha256Hex(PDF_BYTES);
+  const backend = memoryBackend({ keyPaths: { files: 'id', refs: 'key' } });
+  const attachments = createAttachmentStore({
+    backend, now: NOW, uuid: (() => { let n = 0; return () => `att-${(n += 1)}`; })(), digest: globalThis.crypto.subtle,
+  });
+  await attachments.ready();
+
+  const server = await startContractServer();
+  t.after(() => server.close());
+  const storage = createMemoryStorage();
+  const state = createSyncState({ storage });
+  const engine = createSyncEngine({
+    client: createServerClient({ base: server.base, requestOrigin: server.origin }),
+    ports: [createAttachmentAdapter(attachments)],
+    outbox: createSyncOutbox({ storage }), state,
+    shouldProbe: () => true, timers: createFakeTimers(),
+  });
+  t.after(() => engine.stop());
+
+  const courseId = 'curso-exemplo';
+  const refKey = attachmentRefKey(courseId, 'aula-1', 'material-1');
+  const serverRef = { sha256: sha, size: PDF_BYTES.length, kind: 'pdf', name: 'Apostila de Exemplo.pdf', addedAt: NOW() };
+  server.seedBlob(PDF_BYTES);
+  server.seed('courseAttachments', courseId, { refs: { [refKey]: { ...serverRef } } });
+  await engine.start();
+  assert.equal(attachments.get(refKey)?.present, false, 'a referência do servidor entra sem bytes');
+
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, status: 200, blob: async () => new Blob([PDF_BYTES], { type: 'application/pdf' }) });
+  t.after(() => { if (previousFetch === undefined) delete globalThis.fetch; else globalThis.fetch = previousFetch; });
+
+  const content = {
+    available: () => true,
+    start: () => Promise.resolve('ready'),
+    loadRefs: async () => ({ [refKey]: { ...serverRef } }),
+    refFor: (id, key) => (key === refKey ? { ...serverRef } : null),
+    blobUrl: value => `https://example.invalid/api/blobs/${value}`,
+  };
+  const pins = {
+    available: () => true,
+    has: value => engine.pinned().some(entry => entry.sha256 === value),
+    pin: (value, meta) => engine.pinAttachment(value, meta),
+    unpin: value => engine.unpinAttachment(value),
+  };
+  const context = await setup({ attachments, host: { content, pins } });
+  t.after(() => context.cleanup());
+  const { container, lesson } = context;
+  await lesson.show(courseId, 'aula-1');
+
+  const keep = container.querySelector('#lesson-material-keep-0');
+  assert.ok(keep, 'a linha do material do servidor tem "Manter offline"');
+  keep.click();
+  await sleep(30);
+  const stored = attachments.get(refKey);
+  assert.equal(stored.present, true, 'os bytes vieram para o navegador');
+  assert.equal(await attachments.getBlob(refKey).then(blob => blob.size), PDF_BYTES.length);
+  assert.equal(engine.pinned().length, 1, 'a marca de "manter offline" entrou');
+
+  // Liberar com a rede cortada: sem lista de vínculos lida nesta página.
+  content.refFor = () => null;
+  const more = container.querySelector('.lesson-item-more');
+  more.open = true;
+  more.dispatchEvent(makeEvent('toggle'));
+  const release = container.querySelector('#lesson-material-release-0');
+  assert.ok(release, 'a cópia guardada tem "Deixar de manter offline"');
+  release.click();
+  await sleep(30);
+
+  const after = attachments.get(refKey);
+  assert.ok(after, 'a referência do material continua (nada é apagado)');
+  assert.equal(after.name, 'Apostila de Exemplo.pdf', 'o nome continua');
+  assert.equal(after.kind, 'pdf', 'o tipo continua');
+  assert.equal(after.size, PDF_BYTES.length, 'o tamanho continua');
+  assert.equal(after.source, 'servidor', 'a referência continua sendo do servidor');
+  assert.equal(after.present, false, 'os bytes locais saíram');
+  assert.equal(await attachments.getBlob(refKey), null, 'não há mais cópia local');
+  assert.equal(engine.pinned().length, 0, 'a marca de "manter offline" saiu');
+  assert.deepEqual((await createAttachmentAdapter(attachments).list())[0].body, { refs: { [refKey]: { ...serverRef } } },
+    'o documento de sincronização do curso não mudou');
+
+  // A linha volta a ser a do SERVIDOR: "Manter offline" de novo, sem ação local.
+  assert.ok(container.querySelector('#lesson-material-keep-0'), 'a linha do servidor voltou');
+  assert.equal(container.querySelector('[data-action="open-pdf"]'), null, 'não oferece abrir um arquivo que não está aqui');
+
+  await engine.sendAll();
+  const pushed = server.docs('courseAttachments').get(courseId).body;
+  assert.equal(pushed.refs[refKey]?.sha256, sha, 'o envio não apaga a referência do servidor');
+  assert.equal(pushed.refs[refKey]?.name, 'Apostila de Exemplo.pdf');
+  assert.equal(pushed.refs[refKey]?.kind, 'pdf');
 });

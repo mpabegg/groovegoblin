@@ -17,9 +17,52 @@ depois de cada merge e push.
 | 4 — interface do gerador e variações | `50f75b0` | 1027 (1026 passam, 1 ignorado) | 209 módulos |
 | 5 — catálogo no curso, aula e sessão de hoje | `1903c21` | 1088 (1087 passam, 1 ignorado) | 214 módulos |
 | 6 — servidor e segurança | `c302592` | 1146 (1145 passam, 1 ignorado) | 234 módulos |
-| 7 — sincronização no app | (esta etapa) | 1222 (1220 passam, 2 ignorados) | 253 módulos |
+| 7 — sincronização no app | `d2e42f3` | 1222 (1220 passam, 2 ignorados) | 253 módulos |
+| 8 — conteúdo do curso no app e barreiras | `580223d` | 1347 (1345 passam, 2 ignorados) | 276 módulos |
+| 9 — deploy no Pi, HTTPS e contexto seguro | `cf83473` | 1355 (1353 passam, 2 ignorados) | 277 módulos |
+| 10 — integração final, UI nativa, auditoria e publicação | (esta etapa) | 1359 (1357 passam, 2 ignorados) | 277 módulos |
 
 O teste ignorado é o de amostra física da rodada 1 (`physical sample`), ignorado por desenho.
+
+### Critérios das etapas 1–3 (Trilha A) — provas preservadas
+
+Observadas nas etapas 1–3 e ainda válidas na pilha final (nenhuma etapa posterior mudou o motor,
+os limites nem o conversor nesses pontos).
+
+- **Critério 1 — sessão de 128 compassos (criar, editar, tocar, treinar, exportar e reimportar).**
+  A fixture pública `tests/fixtures/session-128-bars.json` (128 compassos, 128 acordes C/Am/F/G)
+  abre, edita, exporta e reimporta pelo arquivo e pelo link. Tocar a sessão inteira levou **101,8 s**
+  e treiná-la **102,9 s** no navegador próprio, sem perder nota nem compasso. `MAX_BARS` e
+  `MAX_CHORDS` passaram a 128 (`src/model.js`, `src/session.js`); 129 compassos são recusados
+  ("1 a 128 compassos"). O teto aparece no Estúdio, na partitura (32 sistemas), no treino, no
+  resultado, na exportação e no link.
+- **Critério 2 — arpejo T-3-5 pelo ciclo de quartas, tríades maiores, 2 compassos por acorde, com
+  acorde final.** **25 compassos**, **37 notas**; ritmo "semínima, semínima, mínima | mínima ligada,
+  pausa de mínima" (o padrão `q q h | h(lig) pausa_h`) e cada acorde na posição mais grave em que
+  a forma cabe nas casas 1–12.
+- **Critério 3 — linha contínua de 4 notas na região 1–5, ciclo de quartas, 1 compasso por acorde.**
+  **13 compassos**, **49 notas**; toda transição obedece à regra da próxima nota do acorde vigente
+  na direção do movimento, com inversão na borda da região (2.208 de 2.208 transições conferidas no
+  catálogo real).
+- **Critério 5 — "até fechar o período".** Termina quando o estado (nota inicial e direção) se
+  repete no começo de uma volta. Uma volta inteira cabe no teto: **120 compassos e 480 notas**;
+  o que passaria de 128 vira aviso em vez de truncar (`shortTotal = !capped && …` em
+  `src/study-generator.js`).
+- **Critério 6 — a mesma receita em 5 cordas.** A corda **Si** entra como a mais grave, a região é
+  mantida e o autor aumenta os compassos por acorde em vez de truncar (exercícios de até 97
+  compassos nas versões de 5 cordas).
+- **Critério 7 — formas.** Criar uma forma no Braço (qualidade, ordem dos graus, notas clicadas,
+  nome), usá-la no gerador e vê-la no painel "Braço" sobre o acorde atual; uma forma de 4 cordas
+  reaparece no baixo de 5, deslocada para a corda Si quando cabe. "Gerar variação" cria um
+  exercício **novo** ligado ao original e o original fica **byte a byte igual**; "Nas 12
+  tonalidades" cria as outras 11 agrupadas. As três formas de exemplo (maior, menor, oitava) são
+  genéricas, sem associação a curso.
+- **Critério 13 — conferência privada do catálogo real.** `scripts/check-study-generator.js` sobre
+  o catálogo real (`local/`): **321 de 335** receitas são geráveis e **14** ficam manuais — 8 por
+  cifra provisória (placeholder) e 6 por regra ausente. O conferidor cobre os **335**: **216
+  limpos**, **113 divergentes** e **6 inverificáveis**; **204** comparações de grau ficam como
+  informação (a forma única não alega casas/cordas sem uma forma vinculada). A evidência guarda só
+  contagens por família e motivo, nunca títulos nem nomes de arquivo.
 
 ## Etapa 4 — interface do gerador (A4)
 
@@ -146,22 +189,48 @@ Curso fictício importado pela própria vista Cursos; a aula `0` mostrou 3 suges
    private: true }`) e **marcado** como conteúdo de curso (`metadata.courseContent === true`);
 3. o vínculo lembrado dispensou o diálogo na segunda vez (mesmo rótulo) — a escolha é reaproveitada.
 
-### Critério 14 — Praticar e Assistir independentes
+### Critério 14 — Praticar e Assistir independentes (navegador próprio, 1440×900) — etapa 10
 
-Coberto pelos testes dos módulos (`tests/today-courses.test.js`, `tests/today-store.test.js`,
-`tests/today-view.test.js`): a fila de prática sai das aulas **assistidas** (mais antigas primeiro)
-e a lista de "Assistir" é calculada pelo tempo indicado, recolhida por padrão; assistir três aulas
-hoje só aumenta a fila de prática dos dias seguintes. A verificação no navegador desta etapa ficou
-para a etapa 10 (prova final de todos os critérios).
+Prova de UI feita na etapa 10 (preparação) sobre a prévia estática da etapa 5, aba própria no
+Chromium do pai (CDP 9532, `127.0.0.1:5404`), curso fictício `Curso de Reparos`:
 
-### Critério 11 — reimportação com ids novos
+- **antes de assistir**: `Praticar` com `1 item(ns) · ≈ 0 min de 20 min orçados · 1 avulso(s) na
+  folga` (nenhum exercício de curso) e `Assistir (opcional)` com `3 aula(s) cabem em 20 min` e as três
+  aulas listadas — duas partes na mesma tela, com orçamentos e ações separados;
+- **assistindo três aulas** pela própria tela (caixa **Assistida** nas aulas `0`, `25` e `26`):
+  `Praticar` passou a `3 item(ns)` (os dois vínculos da aula `0` + o avulso) com as ofertas
+  `Gerar os 2 sugeridos de “Aula com identificador zero”` / `… vinte e cinco`, e `Assistir` ficou em
+  `Nenhuma aula pendente cabe neste tempo.`;
+- **fila do dia**: `Usar a prática na fila` → `Fila de hoje: 3 item(ns) · meta 15 min`;
+- **dia seguinte** (relógio da página em 2026-10-07, data real 2026-10-06, conferido por
+  `CDP Runtime.evaluate`): a fila continuou e `Praticar` passou a `4 item(ns)`, incluindo o exercício
+  gerado a partir de uma das aulas assistidas no dia anterior (`Movimento grave–agudo–grave · C
+  maior`), confirmando que assistir alimenta a prática dos dias seguintes.
 
-Coberto pelos testes de `course-store` (reconciliação por URL, senão seção+título; lápides que
-ressuscitam com id novo) e pela prova de estado no navegador: antes da reimportação, a aula `0`
-tinha `watched: true`, a anotação fictícia e os vínculos (`linkedExerciseIds`, 
-`generatedSuggestionIds`). A reimportação do MESMO curso com ids derivados do título (variante
-`mapa → ids string`, mesmos URLs) ficou pendente de confirmação no navegador nesta etapa — os
-testes de módulo provam a reconciliação; a prova de UI entra na etapa 10.
+Detalhes, comandos e limites: `local://round6-final-A-proof.md` §4.
+
+### Critério 11 — reimportação com ids novos (navegador próprio, 1440×900) — etapa 10
+
+Prova de UI feita na etapa 10 (preparação), mesmo ambiente do critério 14, com a saída **real** do
+conversor (`tests/fixtures/course/map-repairs.json` + `catalog-example.json`) e uma variante de ids
+derivados do título do mesmo curso. Antes da reimportação a aula `0` tinha `watched: true`, a
+anotação fictícia, dois vínculos, a sugestão gerada (`generatedSuggestionIds: ["cat-exemplo-1"]`) e um
+anexo criado pela própria tela (PDF fictício de 614 B na linha `apostila-reparos-4-cordas.pdf`).
+
+- reimportar com **ids antigos** e voltar aos **ids numéricos** preservou tudo nas duas direções —
+  estado por aula, anotação, os mesmos ids de vínculo, a sugestão já gerada e a referência do anexo
+  (mesma chave de arquivo, mesmo `sha256` e mesmo tamanho), com o aviso
+  `2 aula(s) com estado preservado … 1 anexo(s) realinhado(s)`;
+- a aula com `url` foi reconhecida **pela URL**: com o título trocado na variante antiga, o estado
+  dela seguiu mesmo assim;
+- **sugestões geradas**: o id da sugestão vem do id da entrada do catálogo
+  (`slug(catalogId)`, único dentro da aula) e não do id da aula; o conversor real produziu ids
+  idênticos em duas execuções e a tela continuou mostrando `já gerado` e `Gerar todos (2)` depois de
+  reimportar com ids de aula diferentes — nenhuma sugestão já gerada voltou como nova.
+
+Detalhes, tabelas de estado e o único limite observado (o marcador é por id de sugestão; trocar o
+**arquivo de catálogo** troca o id e o `catalog.id` do curso): `local://round6-final-A-proof.md` §2.
+Nenhum defeito foi encontrado: nenhuma fonte foi alterada nesta prova.
 
 ### Consertos de integração desta etapa
 
@@ -641,4 +710,204 @@ tailnet): os exemplos do `deploy/` são fictícios (`example.invalid`,
 `exemplo.ts.net`, `usuario@example.org`) e a evidência usa IP reservado e
 `localhost`. O arnês de prova ficou **fora** do repositório: o commit guarda só as
 capturas e esta evidência. Auditoria privada desta etapa: **0 ocorrências**.
+
+## Etapa 10 — integração final, UI nativa, auditoria e publicação
+
+Dono: `R6FinalPublish`. WT `/home/mat/code/groovegoblin-round6-final`, branch `feat/round6-finalise`,
+base da etapa 9 (`cf83473`). **Um** commit da etapa 10, fast-forward do `main`, checagens no `main`,
+push. Nada de emenda em commit empurrado, nada de force.
+
+### Documentação reconciliada (sem seções duplicadas)
+
+`README.md`, `guide.html` e `src/tour.js` foram integrados sobre a pilha final. No README, as **duas**
+seções "Servidor pessoal (opcional)" (o panorama preparado e a técnica das etapas 6–8) viraram
+**uma**: o panorama abre a seção e o detalhe técnico (Modos/Rotas/Cabeçalhos/Limites/HTTPS/Cópia de
+segurança/Privado por desenho) mais as subseções (Sincronização, Conteúdo do curso, Barreiras)
+seguem; o título "Dados, privacidade e mídia", que a preparação havia substituído por engano, foi
+**restaurado** antes do seu corpo. O guia traz as seções novas `#study` e `#server` e o índice com os
+dois itens; o tour cita "Novo estudo"/"Gerar variação" e "Gerar"/Praticar+Assistir, sem passo novo.
+**Nenhum atalho de teclado novo** (varredura de `keydown` nas telas novas não achou nenhum; a folha de
+atalhos fica como está). `src/main.js` segue com **528 linhas** (≤ 530), a Sessão continua **v5**,
+`src/feedback.js` **intocado** na rodada; `src/repertoire*.js` só teve as exceções mínimas de
+privacidade de saída da etapa 8 (`repertoire-package.js` +8/−3, `repertoire-view.js` +30/−4), nada além.
+
+### Reparação offline/privacidade integrada (fonte)
+
+Os arquivos deixados sem commit pela etapa 8 (WT privado) entraram nesta pilha: `src/app-services.js`
+(adaptador `appPins()` para o motor), `src/library-view.js` (passa `pins`), `src/course-lesson.js`
+("Manter offline"/"Deixar de manter offline" na linha do material, correções de perda de referência e
+do painel B4b com cópia), `src/course-content.js` (a sonda de `/api/health` respeita o marcador
+`data-groove-server`) e os testes `tests/course-content.test.js` + `tests/course-lesson-view.test.js`.
+Nenhuma segunda cópia de bytes: o painel/`<audio>` do servidor continua transmitindo com `Range`; a
+cópia local só existe quando o usuário marca "Manter offline". As provas nativas desta fatia (pins de
+PDF e áudio vindos do servidor com sha local = sha do servidor, PDF/áudio offline por `blob:` com zero
+`/api/blob`, unpin nativo **com a rede cortada** preservando nome/tipo/tamanho e a referência do
+servidor, reconexão sem exclusão destrutiva) estão em `local://round6-final-media-privacy-proof.md`.
+
+### Provas nativas das fatias externas (mídia, backup e link)
+
+- **Mídia do servidor offline** (`local://round6-final-media-privacy-proof.md`): pins de PDF **e** de
+  áudio vindos do servidor (`/api/blobs/<sha>`; sha local = sha do servidor = sha do arquivo em disco),
+  painel embutido abrindo dos **bytes locais** (`blob:`) quando a rede cai **sem recarregar** (zero
+  `/api`, URL de objeto revogada ao fechar/trocar), PDF e áudio offline por `blob:` após recarga (zero
+  `/api/blob`), unpin nativo **com a rede cortada** preservando nome/tipo/tamanho e a referência do
+  servidor, reconexão sem exclusão destrutiva. **ZIP pela UI**: conversor → intake do ZIP pela UI →
+  relatório "2 de 3 disponíveis / Faltando (1) / Não casaram (1)" → aula abrindo o PDF de DENTRO do
+  pacote e exercício gerado abrindo o **segundo** PDF na **página 3** no painel (visual de PDF nativo).
+  Defeito real corrigido no painel (usava sempre `/api/blobs/<sha>`, ignorando a cópia local).
+- **Backup privado + link público** (`local://round6-backup-share-native-proof.md`): exportação padrão
+  (download real) **sem** nenhum canário de curso, sem cursos/anexos/vínculos de rótulo (exercício
+  utilizável com notas/BPM/compassos intactos e nome redigido); opt-in privado com diálogo nativo —
+  **cancelar ⇒ 0 arquivos**, confirmar ⇒ nome com **PRIVADO** e payload completo; anexos em opt-in
+  independente (desmarcados = só totais; marcados = `dataBase64` com sha conferido); restauração pela
+  UI em **outro perfil novo** preservando curso, progresso+anotação, vínculo remapeado, forma, vínculo
+  de rótulo, anexo (sha igual) e exercício, com a 2ª importação idempotente. Link de exercício
+  vinculado: `#share` nativo → URL copiada (clipboard real) → decodificada pelo codec existente: notas
+  e parâmetros musicais exatos, bloco `study` ausente e **zero** canários no payload e na URL.
+  Observações registradas (não são regressão): o bloco `shapes` (formas **autorais**) não é gated no
+  backup público — só o catálogo de curso é omitido; e "Ver na apostila" do card da Biblioteca resolve
+  material pelo servidor, avisando para importar os arquivos quando o anexo existe só localmente.
+
+### Correção de consumidor: "Ver na apostila" com a cópia guardada
+
+  A observação da fatia de backup/link foi tratada como **defeito real**: com servidor configurado, o
+  botão "Ver na apostila" do card da Biblioteca (e a ação do Estúdio) resolvia o material **só** pelo
+  servidor e, para um anexo que existe **apenas** localmente (restaurado de um backup ou marcado
+  "manter offline" com a rede fora), respondia "não está no servidor" — descartando bytes disponíveis.
+  `src/course-lesson-origins.js` agora consulta a **cópia guardada** para o `refKey` EXATO (a mesma loja
+  de anexos compartilhada do app, sem segundo cache nem resolução por semelhança) **antes** da rede e,
+  quando existe, abre o painel dos bytes locais (o painel já prefere a cópia). Sem cópia local, o
+  caminho do servidor continua igual. A marca estática `off` continua escondendo a ação (contrato do
+  B4b). Regressão permanente em `tests/course-lesson-view.test.js` ("abre da CÓPIA GUARDADA quando o
+  servidor não tem a referência"), com prova **nativa**: curso e exercício fictícios criados pela UI,
+  anexo local no `refKey` exato, `/api` **bloqueado** depois da carga e clique real no botão do card →
+  `#material-panel` aberto com o `iframe` em **`blob:`** e o aviso "Abrindo a cópia guardada neste
+  navegador (funciona sem servidor)." — captura
+  `evidence/rodada-6/stage10-apostila-copia-local.png`.
+
+### Medições de UI na pilha final (dados fictícios)
+
+Chromium próprio (CDP 9546, perfil novo), app servido pelo `dist/` do build real em `127.0.0.1:5480`.
+Contagem de controles pelo método das rodadas 4/5 (página inteira, `button,input,select,summary`
+visíveis, inclusive desabilitados, excluindo o miolo de `details` fechado; âncoras e caixas de texto à
+parte). Curso fictício de 200 aulas e sessão fictícia de 128 compassos importados **pela própria UI**.
+
+| Cena (repouso) | 1440×900 | 1280×800 | Teto |
+| --- | --- | --- | --- |
+| Estúdio (sessão padrão) | **31** controles · 900 px · sem rolagem | **31** · 800 px | 58 |
+| Estúdio (sessão de 128 compassos) | **40** · 900 px · sem rolagem | **40** · 809 px | 58 |
+| Treinar | **20** · 900 px · sem rolagem | **20** · 831 px | 30 |
+| Biblioteca (com exercícios, paginada) | **17** · 900 px · sem rolagem | **17** · 800 px | 22 |
+| Cursos (lista) | **4** fora das linhas de aula | **4** | 30 |
+| Página do curso (200 aulas) | **8** fora das linhas (19 linhas montadas) | **8** (19) | 30 |
+| Novo estudo (repouso / progressão / figura / forma / região / duração) | **7 / 9 / 9 / 6 / 7 / 9** | idem | 14 |
+
+Em **1440×900** nenhuma cena tem rolagem vertical de página nem transbordamento horizontal; em
+**1280×800** só o Estúdio (809 px) e o Treinar (831 px) passam de 800 px — rolagem vertical permitida
+nessa largura (o limite de 900 px vale para 1440×900), sempre sem transbordamento horizontal. O
+diálogo do gerador tem no máximo **9** controles visíveis nas cenas medidas (o pior caso documentado
+na etapa 4, com avisos acionáveis, chega a 14 — dentro do teto). Capturas em `evidence/rodada-6/`:
+`stage10-estudio-1440x900.png`, `stage10-estudio-128-1440x900.png`, `stage10-treinar-1440x900.png`,
+`stage10-biblioteca-1440x900.png`, `stage10-cursos-1440x900.png`, `stage10-curso-pagina-1440x900.png`,
+`stage10-novo-estudo-1440x900.png` e as variantes 1280×800.
+
+### Site estático (marcador `off`)
+
+App servido pelo `dist/` sem diretório de dados (marcador `data-groove-server="off"`), navegando por
+Biblioteca/Treinar/Estúdio/Biblioteca: **0** requisições a `/api`, **0** mensagens de console e **0**
+exceções. Antes da correção de `src/course-content.js` o mesmo teste mostrava **1** sonda
+`/api/health` → 404 e **1** erro de console; o teste de unidade
+("página estática (marcador off) não faz NENHUMA requisição a /api") trava o comportamento.
+
+### Contexto seguro (23a) na pilha final
+
+HTTPS com certificado de teste confiado de verdade (CA própria no NSS do perfil, sem
+`--ignore-certificate-errors`), `https://localhost:5482/` pelo servidor em modo `tailscale` com o
+proxy TLS injetando a identidade: `isSecureContext === true`, `mediaDevices`/`AudioWorkletNode`/
+`crypto.subtle` presentes, **sem** interstitial; service worker **ativo** (160 recursos em cache) pelo
+clique real em "Preparar uso offline"; o botão nativo "Ativar instrumento" abre `getUserMedia` real
+(dispositivo **falso** do Chrome, `label` "Fake Default Audio Input", faixa `live`; RMS ≈ 0,32 no
+analisador e medidor do app em 30–34%). **Não há medição de guitarra ou baixo físicos** — é o
+dispositivo simulado do navegador alimentado por um WAV do repositório. Aviso de contexto inseguro
+**ausente** sob HTTPS. Captura:
+`evidence/rodada-6/secure-context-final-https-instrumento.png`. Em **HTTP por IP reservado**
+(TEST-NET-1 mapeado para loopback, `remoteIP=127.0.0.1`), `isSecureContext === false`,
+`mediaDevices`/`serviceWorker`/`crypto.subtle` ausentes, o aviso "Instrumento e uso offline exigem
+HTTPS. Abra o endereço HTTPS do Tailscale Serve." visível e persistente (mesma frase no menu
+"Ajuda e app → Offline", botão de preparação escondido), sem exceções — captura
+`evidence/rodada-6/stage10-http-ip-aviso.png`.
+
+### Auditoria de privacidade do histórico completo
+
+Varredura de **todo** o histórico da rodada (`b7c984a..HEAD`, todas as versões de arquivo tocadas em
+cada um dos commits, mais o índice preparado do commit da etapa 10) contra a lista privada de termos e
+contra os identificadores reais derivados de `local/deploy.env` (host, endereço da tailnet, usuário,
+pastas e binário), com casamento por limite de palavra nos termos curtos. Saída só com
+contagens e `arquivo:linha`, nunca o valor casado; imagens e áudio são pulados (a única exceção de
+mídia pública são os **três WAV CC0** de bateria, com caminho e `sha256` conferidos). Resultado:
+**0 ocorrências** — os 9 commits do histórico (`b7c984a..cf83473`) mais o índice preparado da etapa
+10, **259** versões de arquivo e **20** identificadores/termos privados derivados de `local/`, sem
+nenhum casamento.
+
+### Verificação executada
+
+- `npm test`: **1359 testes, 1357 passam, 0 falham, 2 ignorados** (amostra física e o teste contra o
+  servidor real, que roda por flag).
+- `npm run check`: **277 módulos, 0 falhas**.
+- `npm run build`: **ok** — `dist/` gerado e a fronteira de conteúdo verificada (a única exceção de
+  mídia são os três WAV CC0 de bateria, com caminho e `sha256` conferidos).
+- Provas de UI e de contexto seguro acima, no Chromium próprio (CDP 9546/9548/9550).
+
+### Serviço no Pi no commit final
+
+@@PI10@@
+
+### Privacidade
+
+Tudo fictício (`example.invalid`, `usuario@example.org`, IP reservado TEST-NET-1, dispositivo de
+mídia falso do Chrome, curso/sessão/mídia inventados). Nenhum valor real de curso ou de
+infraestrutura entrou em arquivo, teste, captura ou nesta evidência. O arnês de prova (scripts CDP,
+proxy TLS, relatórios) ficou **fora** do repositório; o commit guarda só as capturas e a evidência
+escrita.
+
+## Critérios de aceitação — resultado final
+
+Legenda: **ok** = prova observada; a coluna "onde" aponta a seção desta evidência (ou a etapa que a
+provou). Nenhum critério fica sem prova.
+
+| # | Critério | Resultado | Onde |
+| --- | --- | --- | --- |
+| 1 | Sessão de 128 compassos (criar, editar, tocar, treinar, exportar, reimportar) | ok — 101,8 s de toque, 102,9 s de treino | Critérios das etapas 1–3 |
+| 2 | Arpejo T-3-5 quartas, 25 compassos, ritmo e posição | ok — 25 compassos / 37 notas | Critérios das etapas 1–3 |
+| 3 | Linha contínua 1–5, 13 compassos, inversão na borda | ok — 13 compassos / 49 notas | Critérios das etapas 1–3 |
+| 4 | Aviso do percurso com o mínimo e ação que resolve | ok | Etapa 4 · Critério 4 |
+| 5 | "Até fechar o período" para no estado inicial e avisa | ok — 120 compassos / 480 notas | Critérios das etapas 1–3 |
+| 6 | Mesma receita em 5 cordas usa a corda Si e mantém a região | ok | Critérios das etapas 1–3 |
+| 7 | Criar forma no braço, usar no gerador e ver no Braço | ok | Critérios das etapas 1–3 · Etapa 3 |
+| 8 | Diálogo ≤ 14 controles, prévia ao vivo, avisos com ação | ok — ≤ 9 nas cenas medidas (pior caso 14) | Etapa 4 · Critério 8 · Etapa 10 UI |
+| 9 | Variação nova ligada; original nunca sobrescrito; 12 tonalidades | ok | Etapa 4 · Critério 9 |
+| 10 | Conversor no mapa fictício (ids, progresso, material, 6 cordas, avisos) | ok | Etapa 5 · Critério 10 |
+| 11 | Reimportar com ids novos sem perder nada | ok — UI na pilha final | Etapa 5 · Critério 11 |
+| 12 | `--catalogo` na aula e "Gerar" | ok | Etapa 5 · Critério 12 |
+| 13 | Conferência privada do catálogo real (contagens por família) | ok — 321/335 geráveis; conferidor 216/113/6 | Critérios das etapas 1–3 |
+| 14 | Praticar/Assistir independentes; assistir 3 aulas alimenta a prática de amanhã | ok — UI na pilha final | Etapa 5 · Critério 14 |
+| 15 | Sem servidor: app como antes, sem erros no console | ok — 0 `/api`, 0 console | Etapa 7 · Critério 15 · Etapa 10 |
+| 16 | Recusas de subida/identidade e escrita de outra origem | ok | Etapa 6 · Critério 16 |
+| 17 | Escrita condicional 412 + cópia em conflito | ok | Etapas 6/7 · Critérios 17 e 20 |
+| 18 | Primeira conexão (enviar/mesclar) com segundo perfil | ok | Etapa 7 · Critério 18 |
+| 19 | Rede cortada: fila e volta sem perder nada | ok | Etapa 7 · Critério 19 |
+| 20 | Anexo byte a byte, áudio com `Range`, remoção libera espaço | ok | Etapas 6/7/8 · Critérios 17 e 20 |
+| 21 | "Converter no servidor" com mapa e catálogo fictícios | ok | Etapa 7 · Critério 21 |
+| 22 | Instantâneo diário, rotação 14, restauração executada | ok | Etapa 6 · Critério 22 |
+| 23 | `deploy/` com serviço, exemplos, scripts e guia; implantação no Pi | ok | Etapa 9 · `deploy/` · Etapa 10 · Pi |
+| 23a | HTTPS (mediaDevices, service worker, instrumento) e aviso em HTTP por IP | ok | Etapa 9 · Critério 23a · Etapa 10 contexto seguro |
+| 23b | Pasta de entrada: casamento por nome, guardar uma vez, relatório | ok | Etapa 8 · Critério 23b |
+| 23c | Apostila embutida na página e faixa tocando; "Ver na apostila"; nenhum vídeo | ok — inclui ZIP e PDF de dentro pela UI | Etapa 8 · Critério 23c · provas nativas |
+| 23d | Link/exportação sem conteúdo de curso; biblioteca privada com confirmação | ok — backup privado e link decodificado nativos | Etapa 8 · Critério 23d · provas nativas |
+| 23e | Blob de curso só com identidade; `npm run build` falha com PDF/áudio em `dist/` | ok | Etapa 8 · Critério 23e |
+| 23f | Gancho de pre-commit recusa PDF, `local/` e termo privado sem imprimir o termo | ok | Etapa 8 · Critério 23f |
+| 24 | Auditoria de privacidade de todos os commits da rodada | ok | Etapa 10 · Auditoria |
+| 25 | Limites de controles/altura e "O que já funciona" sem regressão | ok | Etapa 10 · Medições de UI |
+
+
 

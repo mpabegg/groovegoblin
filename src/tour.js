@@ -11,12 +11,12 @@ const STEPS = [
   {
     tab: 'tab-library', mode: 'exercises', target: '#library-mount .library-toolbar',
     title: 'Sua biblioteca, sempre salva',
-    body: 'Cada exercício fica salvo automaticamente neste navegador. Novo preserva o anterior; Editar abre o Estúdio e Treinar abre sua frase. Etiquetas, alvo de BPM e anotações ajudam a organizar; Histórico reúne as tentativas e os gráficos de cada exercício. “Montar sessão de hoje” prepara uma fila com durações: quando o tempo chega a zero, você escolhe Próximo ou Encerrar. Salve uma rotina para recriar a fila. Exporte a biblioteca antes de limpar os dados do navegador.',
+    body: 'Cada exercício fica salvo automaticamente neste navegador. Novo preserva o anterior; Editar abre o Estúdio e Treinar abre sua frase. Etiquetas, alvo de BPM e anotações ajudam a organizar; Histórico reúne as tentativas e os gráficos de cada exercício. “Novo estudo” gera um exercício a partir de uma receita, com prévia ao vivo; “Gerar variação” cria um novo ligado ao original. “Montar sessão de hoje” prepara a fila com durações: quando o tempo chega a zero, você escolhe Próximo ou Encerrar. Salve uma rotina para recriar a fila. Exporte a biblioteca antes de limpar os dados do navegador.',
   },
   {
     tab: 'tab-library', mode: 'courses', target: '#library-mode',
     title: 'Cursos na mesma biblioteca',
-    body: 'Em Conteúdo, escolha Cursos e use Importar curso para ler um mapa JSON do seu computador: nada é baixado nem enviado, e sua biblioteca de exercícios não muda. O mapa traz seções e aulas; cada aula mostra tipo, duração, estado e sugestões, e os exercícios sugeridos só passam a existir quando você cria ou vincula um exercício seu do Estúdio — a importação não cria exercícios sozinha. PDFs e áudios de apoio são anexados manualmente e ficam neste navegador; o app não baixa nem incorpora vídeo ou prévia de link. Reimportar o mesmo curso atualiza a estrutura e preserva progresso, anotações e vínculos.',
+    body: 'Em Conteúdo, escolha Cursos e use Importar curso para ler um mapa JSON do seu computador: nada é baixado nem enviado, e sua biblioteca de exercícios não muda. O mapa traz seções e aulas; cada aula mostra tipo, duração, estado e sugestões. Uma sugestão com receita ganha “Gerar” (o exercício nasce com notas e vinculado à aula); as sem receita continuam em “Criar no Estúdio”. PDFs e áudios de apoio são anexados manualmente e ficam neste navegador; o app não baixa nem incorpora vídeo ou prévia de link. Reimportar o mesmo curso atualiza a estrutura e preserva progresso, anotações, vínculos e sugestões já geradas — a aula é reconhecida pela URL mesmo com id novo. Com cursos, a sessão de hoje passa a ter “Praticar” (exercícios das aulas já assistidas) e “Assistir (opcional)” como partes independentes.',
   },
   {
     tab: 'tab-studio', target: '#studio-instrument',
