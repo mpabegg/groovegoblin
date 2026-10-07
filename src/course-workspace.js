@@ -34,8 +34,11 @@ export function mountCourseWorkspace(container, host) {
     courseMount.hidden = true;
     lessonMount.hidden = false;
     await lesson.show(courseId, lessonId);
+    // Navegação explícita (abrir, próxima, pendente): o cabeçalho da aula vai ao
+    // topo da janela. A volta à aba (syncVisibility) não rola.
     if (route?.courseId === courseId && route.lessonId === lessonId && !destroyed) {
       lessonMount.querySelector('#lesson-back')?.focus({ preventScroll: true });
+      lessonMount.querySelector('.lesson-head')?.scrollIntoView?.({ block: 'start' });
     }
     return true;
   }
@@ -47,12 +50,7 @@ export function mountCourseWorkspace(container, host) {
     lesson.hide();
     lessonMount.hidden = true;
     courseMount.hidden = false;
-    courses.openCourse(courseId);
-    if (lessonId) {
-      const row = [...courseMount.querySelectorAll('[data-lesson-id]')]
-        .find(node => node.dataset.lessonId === lessonId);
-      row?.focus({ preventScroll: true });
-    }
+    courses.openCourse(courseId, lessonId);
   }
 
   function visible() { return !container.closest('[hidden]'); }

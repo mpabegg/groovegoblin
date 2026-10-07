@@ -241,7 +241,12 @@ export function mountTodayPanel(container, host) {
     button.addEventListener('click', () => {
       view.open = !view.open;
       render();
-      if (view.open) root.querySelector('#today-build')?.focus({ preventScroll: true });
+      // Abrir a montagem é navegação explícita: o cabeçalho do Hoje vai ao topo
+      // da janela e a montagem segue abaixo, rolando com o documento.
+      if (view.open) {
+        root.querySelector('#today-build')?.focus({ preventScroll: true });
+        root.scrollIntoView?.({ block: 'start' });
+      }
     });
     const lessons = items.filter(item => itemKind(item) === ITEM_KIND_LESSON).length;
     const courses = courseSnapshots().length;
@@ -369,7 +374,7 @@ export function mountTodayPanel(container, host) {
     if (plan.items.length > 0) {
       const items = createEl('ol', { className: 'today-plan-list' });
       const rows = rowsById();
-      for (const item of plan.items.slice(0, 12)) {
+      for (const item of plan.items) {
         const row = item.exerciseId ? rows.get(item.exerciseId) ?? null : null;
         items.append(createEl('li', {
           className: 'today-plan-item',
@@ -726,8 +731,6 @@ export function mountTodayPanel(container, host) {
     const state = session.snapshot();
     const visible = state.active && state.lesson;
     stripHost.hidden = !visible;
-    // Tira de aula visível na Biblioteca também divide a janela com a lista.
-    setPanelOpen(view.open || visible);
     if (!visible) return;
     const running = state.studyRunning;
     const toggle = createEl('button', { id: 'today-study-toggle', type: 'button', text: running ? 'Parar de contar' : 'Contar tempo' });
@@ -755,32 +758,13 @@ export function mountTodayPanel(container, host) {
     ]));
   }
 
-  // A Biblioteca em repouso fica exatamente como está; com a montagem aberta,
-  // o painel divide a janela com o Hoje (a lista rola por dentro) e a
-  // divulgação do Hoje se ajusta ao espaço que sobrou. Sem funções a menos.
-  function setPanelOpen(open) {
-    const panel = root.closest('#panel-library');
-    panel?.classList.toggle('today-open', open);
-  }
-
-  function fitDisclosure() {
-    const disclosure = root.querySelector('.today-disclosure');
-    if (!disclosure) return;
-    const top = disclosure.getBoundingClientRect().top;
-    if (top <= 0) return;
-    // 28 px de folga cobrem margens/rodapé: a página inteira continua ≤ janela.
-    const available = Math.max(200, window.innerHeight - top - 34);
-    disclosure.style.maxHeight = `${Math.round(available)}px`;
-  }
-
   function renderAll() {
     root.replaceChildren();
     const rows = rowsById();
     root.append(stripHost, renderHeader(), renderWarnings());
     if (view.open) {
-      // A divulgação do Hoje (montagem + resumo + avisos) rola por dentro: com
-      // fila longa ela não estica a página além da janela (o repouso da
-      // Biblioteca continua com um controle só).
+      // A divulgação do Hoje (montagem + resumo + avisos) rola com o documento;
+      // o repouso da Biblioteca continua com um controle só.
       const disclosure = createEl('div', { className: 'today-disclosure' });
       disclosure.append(renderBuilder(rows));
       const summary = renderSummary();
@@ -794,8 +778,6 @@ export function mountTodayPanel(container, host) {
       for (const note of journalNote) disclosure.append(createEl('p', { className: 'today-warning', role: 'alert', text: note }));
       root.append(disclosure);
     }
-    setPanelOpen(view.open);
-    fitDisclosure();
     renderStrip();
   }
 
@@ -810,7 +792,6 @@ export function mountTodayPanel(container, host) {
   // o ponteiro pressionado. O construtor e seus campos não são reconstruídos.
   function tick() {
     if (root.closest('[hidden]')) return;
-    fitDisclosure();
     const clock = stripHost.querySelector('.today-run-timer');
     if (!clock) return;
     const text = studyClock(session.snapshot());
@@ -832,8 +813,6 @@ export function mountTodayPanel(container, host) {
     else render();
   });
   if (panel) observer.observe(panel, { attributes: true, attributeFilter: ['hidden'] });
-  const onResize = () => fitDisclosure();
-  window.addEventListener('resize', onResize);
   render();
   return {
     render,
@@ -841,8 +820,6 @@ export function mountTodayPanel(container, host) {
     destroy() {
       unsubscribeStore?.(); unsubscribeLibrary?.(); unsubscribeCourses?.();
       observer.disconnect();
-      window.removeEventListener('resize', onResize);
-      setPanelOpen(false);
       privateFiles.destroy();
       root.remove();
     },

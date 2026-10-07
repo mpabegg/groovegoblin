@@ -31,8 +31,8 @@ const SORTS = Object.freeze([
   ['name', 'Nome (A–Z)'],
 ]);
 const INSTRUMENT_LABELS = Object.freeze({ guitar: 'Guitarra', bass: 'Baixo' });
-// A lista em repouso mostra poucas linhas por página: mantém a janela sem
-// rolagem e o número de controles estável, sem esconder nenhuma ação.
+// A lista em repouso mostra poucas linhas por página: o número de controles
+// fica estável, sem esconder nenhuma ação.
 const LIST_PAGE_SIZE = 2;
 
 function relativeFromNow(iso, now = Date.now()) {
@@ -519,9 +519,8 @@ export function mountLibrary(container, host) {
     root.replaceChildren();
     const all = rows();
     const total = library.size();
-    // Paginação curta: a página em repouso não estica a janela nem multiplica
-    // controles por causa de muitos exercícios. O seletor de página só aparece
-    // quando existe mais de uma página.
+    // Paginação curta: muitos exercícios não multiplicam controles em repouso.
+    // O seletor de página só aparece quando existe mais de uma página.
     const pages = Math.max(1, Math.ceil(all.length / LIST_PAGE_SIZE));
     if (editing?.id) {
       const index = all.findIndex(row => row.id === editing.id);

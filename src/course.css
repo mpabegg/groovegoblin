@@ -1,6 +1,7 @@
 /* Cursos na Biblioteca (rodada 5, etapa 5): lista de cursos, página do curso,
    aulas, filtros e o grupo de removidas. Desktop 1280–1440; nada depende de
-   toque. A lista de aulas tem rolagem interna para 200 aulas caberem na tela. */
+   toque. A página rola com o documento: as seções são acordeões nativos e só
+   a seção da próxima aula (ou com resultado de filtro) vem aberta. */
 
 .courses-root { display: flex; flex-direction: column; gap: 12px; }
 .courses-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #111b20; }
@@ -13,7 +14,8 @@
 
 .course-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .course-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #101a1f; }
-.course-card-main h3 { margin: 0 0 4px; font-size: 16px; }
+.course-card-main { min-width: 0; }
+.course-card-main h3 { margin: 0 0 4px; font-size: 16px; overflow-wrap: anywhere; }
 .course-meta { margin: 0 0 4px; font-size: 13px; }
 .course-progress-text { margin: 0 0 6px; font-size: 12px; }
 .course-next { margin: 0 0 4px; font-size: 13px; }
@@ -21,9 +23,9 @@
 .course-card-actions { display: flex; flex-wrap: wrap; align-items: start; gap: 6px; }
 .course-card-actions > button { min-height: 34px; }
 
-.course-page-head { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #111b20; }
+.course-page-head { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #111b20; scroll-margin-top: 12px; }
 .course-page-head #course-back { align-self: flex-start; margin-bottom: 6px; }
-.course-page-head h2 { margin: 0; font-size: 20px; letter-spacing: -.4px; }
+.course-page-head h2 { margin: 0; font-size: 20px; letter-spacing: -.4px; overflow-wrap: anywhere; }
 .course-page-head .library-progress { max-width: 420px; }
 
 .course-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #16232a; }
@@ -31,10 +33,8 @@
 .course-filters input[type=search], .course-filters select { min-width: 150px; }
 .course-filter-summary { margin: 0; font-size: 12px; }
 
-/* A página do curso cabe na janela: a lista de aulas rola por dentro, então 200
-   aulas não esticam a página do app (1440x900 sem rolagem de página). */
-.course-page { display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 320px); min-height: 0; }
-.course-sections { flex: 1 1 auto; min-height: 120px; display: flex; flex-direction: column; gap: 8px; overflow: auto; padding-right: 4px; }
+.course-page { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.course-sections { display: flex; flex-direction: column; gap: 8px; }
 .course-section { border: 1px solid var(--line); border-radius: 10px; background: #101a1f; padding: 8px 12px; }
 .course-section > summary { cursor: pointer; min-height: 28px; display: flex; align-items: center; }
 .course-section-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
@@ -50,7 +50,7 @@
 .course-lesson:hover { border-color: var(--blue); }
 .course-lesson[data-next="true"] { border-color: var(--blue); box-shadow: 0 0 0 1px #8bcced44; }
 .course-lesson-type { grid-column: 1; font-size: 11px; color: var(--accent); padding-top: 2px; }
-.course-lesson-title { grid-column: 2; font-weight: 600; font-size: 14px; }
+.course-lesson-title { grid-column: 2; font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
 .course-lesson-summary, .course-lesson-pending { grid-column: 2; font-size: 12px; }
 .course-lesson-status { grid-column: 1; grid-row: 2; font-size: 11px; align-self: start; }
 .course-lesson[data-status="done"] { border-left-color: var(--accent); }
@@ -67,7 +67,6 @@
 
 @media(max-width: 740px) {
   .course-card, .course-lesson { grid-template-columns: minmax(0, 1fr); }
-  .course-sections { max-height: none; }
 }
 
 /* Confirmação de remoção no próprio painel (sem diálogo nativo). */

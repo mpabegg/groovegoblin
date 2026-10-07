@@ -1,14 +1,14 @@
 /* Página da aula (rodada 5, etapa 6): cabeçalho, materiais com anexo,
-   anotações, exercícios sugeridos e vínculos. Desktop 1280–1440; a página cabe
-   na janela (a área interna rola) e nada depende de toque. Também traz as
-   etiquetas de origem do exercício usadas pela Biblioteca e pelo Estúdio. */
+   anotações, exercícios sugeridos e vínculos. Desktop 1280–1440; a página rola
+   com o documento e nada depende de toque. Também traz as etiquetas de origem
+   do exercício usadas pela Biblioteca e pelo Estúdio. */
 
-.lesson-root { display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 320px); }
+.lesson-root { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .lesson-root[hidden] { display: none; }
 
-.lesson-head { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #111b20; }
+.lesson-head { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #111b20; scroll-margin-top: 12px; }
 .lesson-head #lesson-back { align-self: flex-start; margin-bottom: 4px; }
-.lesson-head h2 { margin: 0; font-size: 20px; letter-spacing: -.4px; }
+.lesson-head h2 { margin: 0; font-size: 20px; letter-spacing: -.4px; overflow-wrap: anywhere; }
 .lesson-head[data-mode="removed"] { border-style: dashed; }
 .lesson-meta { margin: 0; font-size: 12px; }
 .lesson-site-row { margin: 2px 0 4px; font-size: 13px; }
@@ -22,9 +22,7 @@
 .lesson-summary, .lesson-instruction { margin: 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: #101a1f; font-size: 13px; }
 .lesson-instruction { border-left: 3px solid var(--blue); }
 
-/* A área interna rola: a página do app continua sem rolagem em 1440x900 e em
-   1280x800 mesmo com muitos materiais, sugestões e vínculos. */
-.lesson-body { flex: 1 1 auto; min-height: 160px; overflow: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 8px; }
+.lesson-body { display: flex; flex-direction: column; gap: 8px; }
 
 .lesson-group { border: 1px solid var(--line); border-radius: 10px; background: #101a1f; padding: 8px 12px; }
 .lesson-group > summary { cursor: pointer; min-height: 28px; display: flex; align-items: center; font-weight: 600; }
@@ -39,6 +37,7 @@
 
 .lesson-material-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .lesson-material { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 8px 10px; border: 1px solid #223037; border-radius: 8px; background: #0d1519; }
+.lesson-material-name, .lesson-suggestion-title, .lesson-link-name { overflow-wrap: anywhere; }
 .lesson-material-name { font-weight: 600; font-size: 14px; }
 .lesson-material-ext { font-size: 12px; }
 .lesson-material-meta, .lesson-material-missing, .lesson-material-none { grid-column: 1; font-size: 12px; }
@@ -105,7 +104,6 @@
 @media(max-width: 740px) {
   .lesson-material, .lesson-suggestion, .lesson-link { grid-template-columns: minmax(0, 1fr); }
   .lesson-material-actions, .lesson-suggestion > button, .lesson-link-actions { grid-column: 1; grid-row: auto; align-items: flex-start; }
-  .lesson-root { max-height: none; }
 }
 
 /* Receita de estudo do catálogo na sugestão da aula (etapa 5/A5): o resumo fica

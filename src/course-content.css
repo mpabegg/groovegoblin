@@ -8,10 +8,10 @@
 .course-content-group > summary { cursor: pointer; min-height: 28px; display: flex; align-items: center; font-size: 13px; }
 .course-content-body { display: flex; flex-direction: column; gap: 8px; padding-top: 6px; }
 .course-content-count { margin: 0; font-size: 13px; color: var(--blue); font-weight: 600; }
-.course-content-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow: auto; }
+.course-content-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .course-content-item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 8px; border: 1px solid #223037; border-radius: 8px; background: #0d1519; font-size: 12px; }
-.course-content-name { font-weight: 600; }
-.course-content-item select { min-width: 180px; }
+.course-content-name { font-weight: 600; overflow-wrap: anywhere; }
+.course-content-item select { min-width: 180px; max-width: 100%; }
 
 .course-intake-drop { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border: 1px dashed #3a4d55; border-radius: 10px; background: #0d1519; }
 .course-intake-drop[data-dragging="true"] { border-color: var(--blue); background: #16232a; }

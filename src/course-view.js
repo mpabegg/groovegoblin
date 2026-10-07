@@ -412,11 +412,15 @@ export function mountCourses(container, host) {
     if (!found) { view.courseId = null; renderList(); return; }
     const summary = summaryOf(view.courseId);
     const percent = summary.total ? Math.round((summary.done / summary.total) * 100) : 0;
-    // A página do curso é limitada pelo espaço da janela: a lista de aulas rola
-    // por dentro, então 200 aulas não esticam a página do app.
+    // A página do curso rola com o documento; as seções são acordeões nativos.
     const page = createEl('div', { className: 'course-page' });
     const back = createEl('button', { id: 'course-back', type: 'button', text: 'Voltar para cursos' });
-    back.addEventListener('click', () => { view.courseId = null; render(); panelFocus('#courses-import'); });
+    back.addEventListener('click', () => {
+      view.courseId = null;
+      render();
+      root.querySelector('#courses-import')?.focus({ preventScroll: true });
+      root.scrollIntoView?.({ block: 'start' });
+    });
     const head = createEl('header', { className: 'course-page-head' }, [
       back,
       createEl('h2', { text: found.course.title }),
@@ -457,8 +461,7 @@ export function mountCourses(container, host) {
       renderedSections += 1;
     }
     if (renderedSections === 0) sections.append(createEl('p', { className: 'courses-empty muted', text: 'Nenhuma aula corresponde aos filtros.' }));
-    // O grupo de removidas fica DENTRO da área que rola por dentro: abrir o
-    // grupo não estica a página do app, mesmo com centenas de tombstones.
+    // O grupo de removidas fecha por padrão: abrir não muda nada acima dele.
     if (summary.removed.length > 0) sections.append(removedNode(summary));
     page.append(sections);
     root.append(page);
@@ -511,15 +514,29 @@ export function mountCourses(container, host) {
     });
   }
 
-  function openCourse(courseId) {
+  // Abrir o curso (ou voltar da aula) é navegação explícita: o cabeçalho do
+  // curso vai ao topo e o foco cai na aula de origem ou na próxima; o foco só
+  // rola de novo se essa aula estiver fora da janela. Re-renderizações de
+  // sincronização não passam por aqui e não mexem na rolagem.
+  function openCourse(courseId, focusLessonId = null) {
     view.courseId = courseId;
     const summary = summaryOf(courseId);
     view.open.clear();
     if (summary?.next) view.open.add(summary.next.lesson.sectionId);
+    if (focusLessonId) {
+      const origin = summary?.rows.find(row => row.lesson.id === focusLessonId);
+      if (origin) view.open.add(origin.lesson.sectionId);
+    }
     render();
-    const next = root.querySelector('[data-next="true"]');
-    if (next) { next.tabIndex = 0; next.focus({ preventScroll: false }); next.scrollIntoView({ block: 'center' }); }
-    else root.querySelector('#course-back')?.focus();
+    root.querySelector('.course-page-head')?.scrollIntoView?.({ block: 'start' });
+    const rows = [...root.querySelectorAll('[data-lesson-id]')].filter(node => !node.closest('details:not([open])'));
+    const target = (focusLessonId ? rows.find(node => node.dataset.lessonId === focusLessonId) : null)
+      ?? root.querySelector('[data-next="true"]');
+    if (target) {
+      for (const node of rows) node.tabIndex = -1;
+      target.tabIndex = 0;
+      target.focus();
+    } else root.querySelector('#course-back')?.focus({ preventScroll: true });
   }
 
   const unsubscribe = store.subscribe(render);
