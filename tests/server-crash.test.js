@@ -33,13 +33,15 @@ async function snapshotTree(root) {
   return files;
 }
 
-test('SIGKILL no meio de escritas: tudo confirmado sobrevive, doc e feed consistentes, lock retomado', async (t) => {
+test('SIGKILL no meio de escritas: tudo confirmado sobrevive, doc e feed consistentes, lock retomado', { timeout: 30000 }, async (t) => {
   const dir = await tempDir(t);
   const dataDir = join(dir, 'dados');
   const first = spawnServer({ GROOVE_DATA_DIR: dataDir });
   t.after(() => first.child.kill('SIGKILL'));
   const client = createClient(await first.ready, 'dev');
   const acked = new Map();
+  let confirmUpdates;
+  const updatesConfirmed = new Promise((resolve) => { confirmUpdates = resolve; });
   let stop = false;
   const worker = async (index) => {
     const id = `w-${index}`;
@@ -51,6 +53,8 @@ test('SIGKILL no meio de escritas: tudo confirmado sobrevive, doc e feed consist
         if (response.status !== 200 && response.status !== 201) break;
         rev = response.json().rev;
         acked.set(id, { rev, body });
+        // Barreia por ACKs de atualizações reais, não pela velocidade do disco.
+        if (acked.size === 6 && [...acked.values()].every((item) => item.body.step >= 1)) confirmUpdates();
       } catch {
         break; // conexão cortada pelo SIGKILL
       }
@@ -62,13 +66,12 @@ test('SIGKILL no meio de escritas: tudo confirmado sobrevive, doc e feed consist
     headers: { 'Content-Type': 'application/octet-stream', 'Transfer-Encoding': 'chunked' },
   }).catch(() => null);
   const workers = Array.from({ length: 6 }, (_, index) => worker(index));
-  await new Promise((resolve) => setTimeout(resolve, 400));
+  await updatesConfirmed;
   first.child.kill('SIGKILL');
   stop = true;
   await Promise.all(workers);
   await blobUpload;
   assert.equal((await first.exited).signal, 'SIGKILL');
-  assert.ok(acked.size > 0 && [...acked.values()].some((item) => Number(item.rev) > 6), 'houve escrita de verdade antes da queda');
 
   const second = spawnServer({ GROOVE_DATA_DIR: dataDir });
   t.after(() => second.child.kill('SIGKILL'));
