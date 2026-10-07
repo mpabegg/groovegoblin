@@ -346,6 +346,10 @@ marcada a cada rodada com `includeProgress: true`. Para não trazer mais o
 progresso do mapa, use `includeProgress: false` — o que o servidor já tem
 continua.
 
+Sem aulas assistidas, o importador omite o campo `progress`, como a exportação
+normal do app. Assim, sincronizar um curso sem marcações e reimportá-lo (mesmo
+com `includeProgress: true`) não provoca reconversão nem revisão nova.
+
 Se a rodada falhar entre a conversão e a reposição (raro: o app gravou o curso
 quatro vezes seguidas, ou a conexão caiu), o resultado traz `watchedBefore` com
 as aulas de antes, e elas estão no instantâneo e na cópia dele.

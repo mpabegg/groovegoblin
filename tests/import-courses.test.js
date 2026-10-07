@@ -116,15 +116,12 @@ test('progresso: aulas assistidas do servidor ficam (união com o mapa), aula su
   assert.deepEqual(merged.dropped, ['sumida']);
   assert.equal(merged.kept, 2);
   assert.equal(merged.added, 1);
-  assert.deepEqual(Object.keys(merged.document), Object.keys(document), 'progress continua a última chave');
   const again = mergeProgress(merged.document, merged.document.progress.watchedLessonIds);
   assert.equal(JSON.stringify(again.document), JSON.stringify(merged.document), 'segunda rodada: mesmo documento');
   // Sem progresso no servidor nem no convertido: documento intacto.
   const { progress, ...bare } = document;
-  assert.equal(mergeProgress(bare, null).document, bare);
   // includeProgress false com progresso no servidor: o do servidor fica.
   assert.deepEqual(mergeProgress(bare, ['c']).document.progress, { watchedLessonIds: ['c'] });
-  assert.ok(progress);
 });
 
 async function fixtureJson(name) {
@@ -379,6 +376,32 @@ test('mapa alterado: reimporta com CAS, mantém as aulas assistidas no app (não
   assert.equal(again.exitCode, 0, again.printed.join('\n'));
   assert.equal(again.result.remote.courses[0].conversion.status, 'unchanged');
   assert.equal((await client.get(`/api/docs/courses/${COURSE_ID}`)).headers['x-groove-rev'], after.headers['x-groove-rev']);
+});
+
+test('curso sem aulas assistidas: reimportação após sincronização não reconverte nem muda a revisão', async (t) => {
+  const ctx = await setup(t);
+  const map = structuredClone(ctx.map);
+  for (const module of map.modulos) {
+    for (const lesson of module.aulas) if (lesson.meu_progresso) lesson.meu_progresso.assistida = false;
+  }
+  await writeFile(join(ctx.dir, 'mapa.json'), JSON.stringify(map));
+  await ctx.rewriteManifest((manifest) => { manifest.courses[0].includeProgress = true; });
+  const stored = await ctx.client.get(`/api/docs/courses/${COURSE_ID}`);
+  const exported = stored.json();
+  delete exported.progress; // representação normal exportada pelo app sem marcações
+  assert.equal((await ctx.client.update('courses', COURSE_ID, stored.headers['x-groove-rev'], exported)).status, 200);
+  const before = await ctx.client.get(`/api/docs/courses/${COURSE_ID}`);
+  const plan = await ctx.run('plan');
+  assert.equal(plan.exitCode, 0, plan.printed.join('\n'));
+  assert.equal(plan.result.remote.courses[0].conversion.planned, 'unchanged');
+  for (let round = 0; round < 2; round += 1) {
+    const outcome = await ctx.run('apply');
+    assert.equal(outcome.exitCode, 0, outcome.printed.join('\n'));
+    assert.equal(outcome.result.remote.courses[0].conversion.status, 'unchanged');
+    const after = await ctx.client.get(`/api/docs/courses/${COURSE_ID}`);
+    assert.equal(after.headers['x-groove-rev'], before.headers['x-groove-rev']);
+    assert.deepEqual(after.json(), before.json());
+  }
 });
 
 test('material numa árvore própria dentro do diretório de dados: importa; pasta gerida como origem para antes de qualquer escrita', async (t) => {

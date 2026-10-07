@@ -225,6 +225,14 @@ export function mergeProgress(document, currentWatched) {
     seen.add(id);
     watched.push(id);
   }
+  // O app exporta cursos sem marcações sem o campo progress. Use a mesma
+  // representação para a sincronização não provocar reconversões a cada rodada.
+  if (watched.length === 0) {
+    if (converted === null) return { document, kept, added: 0, dropped };
+    const withoutProgress = { ...document };
+    delete withoutProgress.progress;
+    return { document: withoutProgress, kept, added: 0, dropped };
+  }
   // `progress` é a última chave do envelope canônico: o spread a mantém no lugar.
   return { document: { ...document, progress: { watchedLessonIds: watched } }, kept, added: watched.length - kept, dropped };
 }
