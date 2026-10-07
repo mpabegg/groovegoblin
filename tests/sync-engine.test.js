@@ -10,9 +10,12 @@ import { createSyncState } from '../src/sync-store.js';
 import { createSyncEngine, serverMarkerSays } from '../src/sync-engine.js';
 import {
   createExerciseAdapter, createAttachmentAdapter, createShapesAdapter, createShapeBindingsAdapter,
-  createTodayQueueAdapter, createRoutinesAdapter,
+  createTodayQueueAdapter, createRoutinesAdapter, createCourseAdapter, createCourseStateAdapter,
 } from '../src/sync-adapters.js';
 import { createTodayStore } from '../src/today-store.js';
+import { createCourseStore } from '../src/course-store.js';
+import { courseDocument, memoryBackend } from './course-fixtures.js';
+import { RECOVERED_LIMIT } from '../src/sync-store.js';
 import {
   startContractServer, createMemoryStorage, createFakeTimers, createFakeLibrary, createFakeAttachmentStore,
   createFakeShapeStore, createFakeBindingStore, createMemoryPort, fakeDocument, sha256Hex,
@@ -149,7 +152,7 @@ test('apagar o ÚLTIMO documento de uma loja boa sobe como lápide', async t => 
   const port = createMemoryPort({ collection: 'exercises', id: 'unico', body: { v: 1 } });
   const { server, engine, state } = await makeEngine(t, { ports: [port] });
   await engine.start();
-  await engine.sendAll();
+  await engine.syncNow();
   assert.equal(server.docs('exercises').get('unico').deleted, false);
 
   // A loja continua DISPONÍVEL e agora está vazia: isso é remoção, não falha.
@@ -165,7 +168,7 @@ test('loja indisponível fica de fora inteira: nem envia, nem apaga, e diz por q
   const port = createMemoryPort({ collection: 'exercises', id: 'unico', body: { v: 1 } });
   const { server, engine, state } = await makeEngine(t, { ports: [port] });
   await engine.start();
-  await engine.sendAll();
+  await engine.syncNow();
 
   port.setAvailable(false);
   port.docs.clear();
@@ -192,7 +195,7 @@ test('formas e vínculos sincronizam pelos dois documentos da coleção `forms`'
 
   const { server, engine } = await makeEngine(t, { ports: [createShapesAdapter(shapes), createShapeBindingsAdapter(bindings)] });
   await engine.start();
-  await engine.sendAll();
+  await engine.syncNow();
 
   assert.deepEqual([...server.docs('forms').keys()].sort(), ['bindings', 'shapes']);
   assert.equal(server.docs('forms').get('shapes').body.instruments.bass4[0].id, 'bass4-1');
@@ -212,7 +215,7 @@ test('varredura normal não apaga o documento vizinho da MESMA coleção (`forms
 
   const { server, engine } = await makeEngine(t, { ports: [createShapesAdapter(shapes), createShapeBindingsAdapter(bindings)] });
   await engine.start();
-  await engine.sendAll();
+  await engine.syncNow();
   assert.deepEqual([...server.docs('forms').keys()].sort(), ['bindings', 'shapes']);
 
   // Ciclo normal (varredura → envio → trazer → varredura): nada pode ser
@@ -234,9 +237,7 @@ test('formas do servidor entram em UNIÃO e a união volta para o servidor', asy
   const { server, engine } = await makeEngine(t, { ports: [createShapesAdapter(shapes)] });
   server.seed('forms', 'shapes', { version: 1, instruments: { bass4: [other] } });
 
-  const started = await engine.start();
-  assert.equal(started.firstConnect, 'merge');
-  await engine.mergeBoth();
+  await engine.start();
 
   const saved = server.docs('forms').get('shapes').body;
   assert.deepEqual(saved.instruments.bass4.map(item => item.id).sort(), ['bass4-local', 'bass4-outro']);
@@ -254,14 +255,14 @@ test('outra vez: formas e vínculos não se atropelam quando uma das lojas está
 
   const { server, engine } = await makeEngine(t, { ports: [createShapesAdapter(shapes), createShapeBindingsAdapter(bindings)] });
   await engine.start();
-  await engine.sendAll();
+  await engine.syncNow();
 
   assert.deepEqual([...server.docs('forms').keys()], ['shapes'], 'os vínculos ilegíveis não vão para o servidor');
   assert.deepEqual(engine.snapshot().degraded, ['forms (bindings)']);
   assert.equal(server.docs('forms').get('shapes').body.instruments.bass4.length, 1);
 });
 
-test('primeira conexão com servidor vazio oferece envio e envia tudo', async t => {
+test('primeira conexão com servidor vazio envia tudo sozinha, sem escolha', async t => {
   const library = createFakeLibrary();
   library.add({ id: 'ex-1', session: { name: 'Um', notes: [] }, metadata: { name: 'Um' } });
   library.add({ id: 'ex-2', session: { name: 'Dois', notes: [] }, metadata: { name: 'Dois' } });
@@ -269,39 +270,32 @@ test('primeira conexão com servidor vazio oferece envio e envia tudo', async t 
 
   const started = await engine.start();
   assert.equal(started.mode, 'connected');
-  assert.equal(started.firstConnect, 'upload');
-  assert.equal(server.docs('exercises').size, 0);
-  assert.equal(outbox.count(), 0);
-
-  const sent = await engine.sendAll();
-  assert.equal(sent.sent, 2);
   assert.equal(state.firstSyncDone, true);
-  assert.equal(engine.snapshot().firstConnect, null);
   assert.equal(outbox.count(), 0);
   assert.deepEqual([...server.docs('exercises').keys()].sort(), ['ex-1', 'ex-2']);
   assert.equal(server.docs('exercises').get('ex-1').body.session.name, 'Um');
 });
 
-test('a oferta de primeira conexão é recalculada quando o servidor ganha dados', async t => {
-  // Cenário: este navegador abriu com o servidor vazio (oferta = enviar). Outro
-  // navegador subiu dados depois disso. O ciclo seguinte precisa perceber e
-  // passar a oferecer a mesclagem, em vez de mandar o usuário "enviar" com
-  // dados dos dois lados.
+test('primeira conexão interrompida não conta como feita e mescla no ciclo seguinte', async t => {
   const library = createFakeLibrary();
   library.add({ id: 'local-1', session: { name: 'Só aqui', notes: [] }, metadata: { name: 'Só aqui' } });
-  const { server, engine } = await makeEngine(t, { ports: [createExerciseAdapter(library)] });
-
-  const started = await engine.start();
-  assert.equal(started.firstConnect, 'upload');
-
+  let cut = null;
+  const { server, state, engine } = await makeEngine(t, {
+    ports: [createExerciseAdapter(library)],
+    clientFactory: real => (cut = controllables(real)),
+  });
   server.seed('exercises', 'server-1', exerciseBody('server-1', 'Só no servidor'));
-  const cycle = await engine.syncNow();
-  assert.equal(cycle.ok, false);
-  assert.equal(cycle.code, 'first-connect');
-  assert.equal(cycle.firstConnect, 'merge');
-  assert.equal(engine.snapshot().firstConnect, 'merge');
-  assert.equal(server.docs('exercises').size, 1, 'nada foi enviado antes de o usuário escolher');
-  assert.equal(library.list().length, 1, 'nada foi trazido antes de o usuário escolher');
+  assert.equal((await engine.probe()).ok, true);
+  cut.flags.offline = true;
+  await engine.syncNow();
+  assert.equal(state.firstSyncDone, false);
+  assert.equal(server.docs('exercises').has('local-1'), false);
+
+  cut.flags.offline = false;
+  await engine.syncNow();
+  assert.equal(state.firstSyncDone, true);
+  assert.equal(library.get('server-1').session.name, 'Só no servidor');
+  assert.equal(server.docs('exercises').get('local-1').body.session.name, 'Só aqui');
 });
 
 test('dois navegadores convergem: fila e rotinas não sobem de novo a cada ciclo', async t => {
@@ -332,10 +326,8 @@ test('dois navegadores convergem: fila e rotinas não sobem de novo a cada ciclo
   a.today.addItem({ exerciseId: 'ex-1', durationMin: 12, name: 'Sessão sem título' });
   a.today.saveRoutine('Rotina sincronizada', a.today.items());
 
-  assert.equal((await a.engine.start()).firstConnect, 'upload');
-  await a.engine.sendAll();
-  assert.equal((await b.engine.start()).firstConnect, 'merge');
-  await b.engine.mergeBoth();
+  await a.engine.start();
+  await b.engine.start();
 
   const revisions = () => ['todayQueues', 'routines']
     .map(collection => [...server.docs(collection).entries()].map(([id, doc]) => `${id}:${doc.rev}${doc.deleted ? ' (lápide)' : ''}`).join(','))
@@ -363,7 +355,6 @@ test('trazer o servidor para uma loja vazia preserva o id do documento', async t
 
   const snapshot = await engine.start();
   assert.equal(snapshot.mode, 'connected');
-  assert.equal(snapshot.firstConnect, null);
   const entry = library.get('ex-9');
   assert.equal(entry.session.name, 'Do servidor');
   assert.equal(engine.snapshot().pending, 0);
@@ -375,11 +366,8 @@ test('os dois lados têm dados: a mesclagem não apaga nada e converge', async t
   const { server, engine, state } = await makeEngine(t, { ports: [createExerciseAdapter(library)] });
   server.seed('exercises', 'server-1', exerciseBody('server-1', 'Só no servidor'));
 
-  const snapshot = await engine.start();
-  assert.equal(snapshot.firstConnect, 'merge');
-
-  const merged = await engine.mergeBoth();
-  assert.equal(merged.kind, 'merge');
+  await engine.start();
+  assert.equal(engine.snapshot().summary.kind, 'merge');
   assert.equal(library.get('server-1').session.name, 'Só no servidor');
   assert.equal(server.docs('exercises').get('local-1').body.session.name, 'Só aqui');
   assert.equal(library.get('local-1').session.name, 'Só aqui');
@@ -393,7 +381,7 @@ test('alteração local sobe em segundo plano, sem repetir o documento', async t
   library.add({ id: 'ex-1', session: { name: 'Um', notes: [] }, metadata: { name: 'Um' } });
   const { server, engine, outbox } = await makeEngine(t, { ports: [createExerciseAdapter(library)] });
   await engine.start();
-  await engine.sendAll();
+  await engine.syncNow();
 
   library.update('ex-1', { updatedAt: '2026-03-03T00:00:00.000Z', session: { name: 'Um editado', notes: [] } });
   engine.refreshLocalChanges();
@@ -410,7 +398,7 @@ test('revisão velha vira cópia em conflito: o servidor fica e a cópia local n
   library.add({ id: 'ex-1', session: { name: 'Original', notes: [] }, metadata: { name: 'Original' } });
   const { server, engine, state } = await makeEngine(t, { ports: [createExerciseAdapter(library)] });
   await engine.start();
-  await engine.sendAll();
+  await engine.syncNow();
 
   // Os dois lados mudam: o servidor pelo outro navegador, o local pelo editor.
   server.seed('exercises', 'ex-1', exerciseBody('ex-1', 'Do servidor', '2026-04-04T00:00:00.000Z'));
@@ -441,7 +429,7 @@ test('"ficar com a outra" guarda a versão local e mantém a do servidor', async
   library.add({ id: 'ex-1', session: { name: 'Original', notes: [] }, metadata: { name: 'Original' } });
   const { server, engine, state } = await makeEngine(t, { ports: [createExerciseAdapter(library)] });
   await engine.start();
-  await engine.sendAll();
+  await engine.syncNow();
   server.seed('exercises', 'ex-1', exerciseBody('ex-1', 'Do servidor', '2026-05-05T00:00:00.000Z'));
   library.update('ex-1', { updatedAt: '2026-05-06T00:00:00.000Z', session: { name: 'Minha edição', notes: [] } });
   await engine.syncNow();
@@ -468,7 +456,7 @@ test('rede cortada de verdade: fila guarda, recarregar não perde e a volta envi
     },
   });
   await engine.start();
-  await engine.sendAll();
+  await engine.syncNow();
   assert.equal(server.docs('exercises').get('ex-1').body.session.name, 'Um');
 
   controls.flags.offline = true;
@@ -501,7 +489,7 @@ test('envio já aplicado no servidor (resposta perdida) não vira conflito', asy
   library.add({ id: 'ex-1', session: { name: 'Um', notes: [] }, metadata: { name: 'Um' } });
   const { server, engine, outbox, state } = await makeEngine(t, { ports: [createExerciseAdapter(library)] });
   await engine.start();
-  await engine.sendAll();
+  await engine.syncNow();
   const body = server.docs('exercises').get('ex-1').body;
 
   // A fila ainda tem a criação que o servidor já recebeu.
@@ -519,7 +507,7 @@ test('remoção local sobe como lápide e o documento some do servidor', async t
   library.add({ id: 'ex-2', session: { name: 'Dois', notes: [] }, metadata: { name: 'Dois' } });
   const { server, engine, state } = await makeEngine(t, { ports: [createExerciseAdapter(library)] });
   await engine.start();
-  await engine.sendAll();
+  await engine.syncNow();
 
   library.remove('ex-1');
   await engine.syncNow();
@@ -536,7 +524,7 @@ test('lápide do servidor remove localmente, sem apagar o último exercício', a
   library.add({ id: 'ex-2', session: { name: 'Dois', notes: [] }, metadata: { name: 'Dois' } });
   const { server, engine } = await makeEngine(t, { ports: [createExerciseAdapter(library)] });
   await engine.start();
-  await engine.sendAll();
+  await engine.syncNow();
 
   server.seed('exercises', 'ex-1', null, { deleted: true });
   await engine.pull();
@@ -574,7 +562,7 @@ test('anexos: bytes sobem pelo hash, só são liberados depois de confirmados e 
 
   const { server, engine, state } = await makeEngine(t, { ports: [createAttachmentAdapter(attachments)] });
   await engine.start();
-  await engine.sendAll();
+  await engine.syncNow();
 
   const refsDoc = server.docs('courseAttachments').get('curso-1').body;
   assert.equal(refsDoc.refs[key].sha256, sha);
@@ -611,4 +599,69 @@ test('referência remota entra sem bytes e o material passa a vir do servidor', 
   assert.equal(attachments.files.size, 0, 'nada é baixado sem o usuário pedir');
   assert.equal(engine.snapshot().pending, 0, 'o documento trazido do servidor não gera envio de volta');
   assert.equal(engine.snapshot().conflicts, 0);
+});
+
+test('primeira conexão sem clique: cursos do servidor chegam, dados locais sobem e o original local fica guardado', async t => {
+  const library = createFakeLibrary();
+  library.add({ id: 'local-1', session: { name: 'Só aqui', notes: [] }, metadata: { name: 'Só aqui' } });
+  const store = createCourseStore({ backend: memoryBackend() });
+  await store.ready();
+  await store.importText(JSON.stringify(courseDocument()), { source: 'teste' });
+  await store.setLessonState('curso-exemplo', 'aula-1', { watched: true, notes: 'anotação local' });
+  const { server, state, engine } = await makeEngine(t, {
+    ports: [createExerciseAdapter(library), createCourseAdapter(store), createCourseStateAdapter(store)],
+  });
+  // Estado criado em outro navegador para o MESMO curso.
+  const other = createCourseStore({ backend: memoryBackend() });
+  await other.ready();
+  const revised = courseDocument({ title: 'Curso de Exemplo (revisto)' });
+  await other.importText(JSON.stringify(revised), { source: 'teste' });
+  await other.setLessonState('curso-exemplo', 'aula-2', { watched: true });
+  server.seed('courses', 'curso-exemplo', revised);
+  server.seed('courseStates', 'curso-exemplo', (await createCourseStateAdapter(other).get('curso-exemplo')).body);
+  for (const id of ['curso-b', 'curso-c', 'curso-d']) server.seed('courses', id, courseDocument({ id, title: `Curso ${id}` }));
+  server.seed('exercises', 'server-1', exerciseBody('server-1', 'Só no servidor'));
+
+  await engine.start();
+  assert.deepEqual(store.list().map(record => record.id).sort(), ['curso-b', 'curso-c', 'curso-d', 'curso-exemplo']);
+  assert.equal(store.lessonState('curso-exemplo', 'aula-1').notes, 'anotação local', 'a anotação local fica');
+  assert.equal(store.lessonState('curso-exemplo', 'aula-1').watched, true);
+  assert.equal(store.lessonState('curso-exemplo', 'aula-2').watched, true, 'o progresso do servidor entra em união');
+  const copies = state.recovered.filter(entry => entry.docId === 'curso-exemplo' && entry.side === 'local');
+  assert.ok(copies.some(entry => entry.collection === 'courseStates' && entry.body.lessons['aula-1'].notes === 'anotação local'), 'o original local ficou baixável');
+  assert.equal(library.get('server-1').session.name, 'Só no servidor');
+  assert.equal(server.docs('exercises').get('local-1').body.session.name, 'Só aqui');
+  assert.equal(server.docs('courseStates').get('curso-exemplo').body.lessons['aula-1'].notes, 'anotação local', 'a união subiu');
+  assert.equal(state.firstSyncDone, true);
+
+  // Curso novo depois: o ciclo periódico normal traz.
+  server.seed('courses', 'curso-e', courseDocument({ id: 'curso-e', title: 'Curso E' }));
+  await engine.syncNow();
+  assert.ok(store.list().some(record => record.id === 'curso-e'));
+});
+
+test('sem espaço para a cópia local, a primeira mesclagem para sem sobrescrever nada', async t => {
+  const port = createMemoryPort({ collection: 'preferences', id: 'default', body: { v: 'local' } });
+  const { server, state, engine, outbox } = await makeEngine(t, { ports: [port] });
+  server.seed('preferences', 'default', { v: 'servidor' });
+  for (let index = 0; index < RECOVERED_LIMIT; index += 1) {
+    state.addRecovered({ id: `antiga-${index}`, collection: 'exercises', docId: `x-${index}`, side: 'local', body: { index }, rev: null, deleted: false });
+  }
+  const serverRev = server.docs('preferences').get('default').rev;
+
+  await engine.start();
+  assert.deepEqual(port.docs.get('default'), { v: 'local' }, 'o original local não foi sobrescrito');
+  assert.deepEqual(server.docs('preferences').get('default').body, { v: 'servidor' });
+  assert.equal(server.docs('preferences').get('default').rev, serverRev, 'nada subiu');
+  assert.equal(state.firstSyncDone, false);
+  assert.equal(state.cursor, null);
+  assert.equal(state.revision('preferences', 'default'), null);
+  assert.equal(outbox.count(), 0);
+  assert.ok(engine.snapshot().warnings.length > 0, 'o aviso de cópias cheias aparece');
+
+  state.clearRecovered();
+  await engine.syncNow();
+  assert.equal(state.firstSyncDone, true);
+  assert.ok(state.recovered.some(entry => entry.docId === 'default' && entry.side === 'local' && entry.body.v === 'local'), 'o original local ficou baixável');
+  assert.equal(engine.snapshot().pending, 0);
 });

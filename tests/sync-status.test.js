@@ -49,8 +49,6 @@ function createFakeEngine(initial) {
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     async syncNow() { calls.push(['syncNow']); return { sent: 2 }; },
     async probe() { calls.push(['probe']); return { ok: true }; },
-    async sendAll() { calls.push(['sendAll']); return { sent: 3 }; },
-    async mergeBoth() { calls.push(['mergeBoth']); return { sent: 1, applied: 2, conflicts: 0 }; },
     async resolveConflict(id, side) { calls.push(['resolveConflict', id, side]); return { ok: true, side }; },
     conflicts: () => snapshot.conflicts > 0 ? [{ id: 'exercises|ex-1', collection: 'exercises', docId: 'ex-1', intent: 'put' }] : [],
     pinned: () => snapshot.pinned > 0 ? [{ sha256: 'a'.repeat(64), name: 'apostila.pdf' }] : [],
@@ -60,9 +58,9 @@ function createFakeEngine(initial) {
 }
 
 const baseSnapshot = {
-  mode: 'local', connected: false, online: true, firstConnect: null, busy: null,
+  mode: 'local', connected: false, online: true, busy: null,
   lastSyncAt: null, pending: 0, conflicts: 0, recovered: 0, pinned: 0,
-  health: null, serverEmpty: null, summary: null, warnings: [],
+  health: null, summary: null, warnings: [],
 };
 
 test('a linha cobre os quatro estados do contrato', () => {
@@ -96,13 +94,12 @@ test('o painel mostra a linha, esconde o indicador sem problema e reage a confli
 
   const details = help.children[0];
   const panel = details.children[1];
-  const [line, detail, first, actions, conflictsBox, pinnedBox] = panel.children;
+  const [line, detail, actions, conflictsBox, pinnedBox] = panel.children;
   const indicator = header.children[0];
   assert.equal(line.textContent, 'Sem servidor (dados só neste navegador)');
   assert.equal(indicator.hidden, true);
   assert.equal(conflictsBox.children.length, 0);
   assert.equal(pinnedBox.children.length, 0);
-  assert.equal(first.hidden, true);
 
   engine.setSnapshot({ ...baseSnapshot, mode: 'connected', lastSyncAt: '2026-01-01T00:00:00.000Z', pending: 2 });
   assert.equal(line.textContent, 'Servidor: 2 alterações na fila');
@@ -140,28 +137,13 @@ test('o painel mostra a linha, esconde o indicador sem problema e reage a confli
   assert.equal(header.children.length, 0);
 });
 
-test('primeira conexão oferece enviar ou mesclar, e "agora não" recolhe', async () => {
-  const engine = createFakeEngine({ ...baseSnapshot, mode: 'connected', firstConnect: 'merge' });
+test('sem escolha de primeira conexão: "procurar servidor agora" já sincroniza', async () => {
+  const engine = createFakeEngine({ ...baseSnapshot });
   const help = new El('div');
   const view = mountSyncStatus({ engine, helpContainer: help, document: doc });
-  const panel = help.children[0].children[1];
-  const [, , first, actions] = panel.children;
-  const spinning = actions.children[0];
-  assert.equal(spinning.hidden, true, 'com primeira conexão pendente, "sincronizar agora" não aparece');
-  assert.equal(first.hidden, false);
-
-  const [upload, merge, later] = first.children;
-  assert.equal(upload.hidden, false);
-  assert.equal(merge.hidden, false);
-  upload.click();
+  const [, , actions] = help.children[0].children[1].children;
+  actions.children[1].click();
   await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(engine.calls.at(-1), ['sendAll']);
-
-  merge.click();
-  await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(engine.calls.at(-1), ['mergeBoth']);
-
-  later.click();
-  assert.equal(first.hidden, true);
+  assert.deepEqual(engine.calls, [['probe'], ['syncNow']]);
   view.destroy();
 });

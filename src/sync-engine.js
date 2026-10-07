@@ -82,7 +82,6 @@ export function createSyncEngine({
   const degraded = new Set();
   let mode = 'unknown';
   let health = null;
-  let firstConnect = null;
   let busy = null;
   let summary = null;
   let timer = null;
@@ -130,7 +129,6 @@ export function createSyncEngine({
       mode,
       connected: mode === 'connected',
       online: online(),
-      firstConnect,
       busy,
       lastSyncAt: state.lastSyncAt,
       pending: outbox.count(),
@@ -138,7 +136,6 @@ export function createSyncEngine({
       recovered: state.recovered.length,
       pinned: state.pinned.length,
       health: health ? { mode: health.mode ?? null, version: health.version ?? null, dataId: health.dataId ?? null, storage: health.storage ?? null } : null,
-      serverEmpty: health ? isServerEmpty(health) : null,
       summary,
       // Coleções que a última varredura não conseguiu ler (armazenamento
       // indisponível/ilegível). Não é erro de servidor: nada é enviado nem
@@ -148,18 +145,6 @@ export function createSyncEngine({
     };
   }
 
-  function isServerEmpty(value) {
-    const storage = value?.storage ?? {};
-    return (storage.docs ?? 0) + (storage.tombstones ?? 0) === 0;
-  }
-
-  async function localHasData() {
-    for (const port of supportedPorts()) {
-      const documents = await port.list();
-      if (documents.length > 0) return true;
-    }
-    return false;
-  }
 
   // --------------------------------------------------------------- descoberta
   async function probe({ force = false } = {}) {
@@ -168,7 +153,6 @@ export function createSyncEngine({
       // erro de console. O modo local é o comportamento normal (critério 15).
       health = null;
       mode = 'local';
-      firstConnect = null;
       emit();
       return { ok: false, mode: 'local', code: 'skipped', message: 'Sem servidor nesta origem.' };
     }
@@ -177,22 +161,14 @@ export function createSyncEngine({
       health = null;
       mode = result.mode === 'identity' ? 'identity' : online() ? 'local' : 'offline';
       if (result.mode === 'identity') warn('O servidor recusou este dispositivo: identidade do Tailscale ausente ou fora da lista permitida.');
-      firstConnect = null;
       emit();
       return result;
     }
     health = result.health;
     mode = 'connected';
     state.setServer({ dataId: health.dataId ?? null, cursor: state.cursor });
-    const empty = isServerEmpty(health);
-    if (!state.firstSyncDone) {
-      const hasLocal = await localHasData();
-      firstConnect = hasLocal && empty ? 'upload' : hasLocal ? 'merge' : null;
-    } else {
-      firstConnect = null;
-    }
     emit();
-    return { ok: true, mode: 'connected', health, firstConnect };
+    return { ok: true, mode: 'connected', health };
   }
 
   // ------------------------------------------------------------------ varredura
@@ -490,6 +466,26 @@ export function createSyncEngine({
             notify(`Conflito no servidor em “${change.id}”: a versão do servidor ficou e a sua virou cópia em conflito.`);
           }
         }
+        // Primeiro encontro (nunca sincronizado aqui) com o mesmo id e corpo
+        // diferente: o original local vai para as cópias baixáveis ANTES de
+        // qualquer escrita. Sem espaço para a cópia, o pull para aqui: nada é
+        // aplicado, o cursor não anda e a primeira mesclagem não conta como
+        // feita (o aviso da loja de estado já diz o que fazer).
+        if (local !== null && storedDigest === null && canonicalText(local.body) !== canonicalText(remote.body)) {
+          const kept = state.addRecovered({
+            id: `${change.collection}|${change.id}|local|${now()}`,
+            collection: change.collection,
+            docId: change.id,
+            side: 'local',
+            body: local.body,
+            rev: null,
+            deleted: false,
+          });
+          if (!kept.ok) {
+            emit();
+            return { ok: false, code: kept.code === 'full' ? 'recovered-full' : 'recovered-failed', message: 'Não há espaço para guardar a cópia local antes de trazer a versão do servidor; baixe e limpe as cópias guardadas.', ...counts };
+          }
+        }
         await applyRemote(port, { id: change.id, body: remote.body }, remote.rev ?? change.rev);
         counts.applied += 1;
       }
@@ -503,41 +499,21 @@ export function createSyncEngine({
   }
 
   // ------------------------------------------------------------- primeiros passos
-  // "Enviar meus dados para o servidor": tudo que existe localmente vira
-  // criação no servidor (nada é sobrescrito sem revisão conhecida).
-  async function sendAll() {
-    if (mode !== 'connected') return { ok: false, code: mode };
-    busy = 'send';
-    emit();
-    try {
-      const scanned = await scan();
-      const result = await flush();
-      const blobs = await releaseLocalBytes();
-      state.markFirstSyncDone();
-      firstConnect = null;
-      summary = { kind: 'send', ...scanned, sent: result.sent ?? 0, pending: outbox.count(), blobsReleased: blobs.released };
-      emit();
-      return { ok: true, ...summary };
-    } finally {
-      busy = null;
-      emit();
-    }
-  }
-
-  // "Mesclar": traz o servidor (fusão), depois sobe o que é só local. Nenhum
-  // lado perde nada — a fusão é união e o conflito guarda cópia.
+  // Primeira conexão saudável: mescla automática. Traz o servidor inteiro
+  // (fusão), depois sobe o que é só local. Nenhum lado perde nada — a fusão é
+  // união, o conflito guarda cópia e o estado de curso só cresce.
   async function mergeBoth() {
-    if (mode !== 'connected') return { ok: false, code: mode };
     busy = 'merge';
     emit();
     try {
       const pulled = await pull({ full: true });
+      if (!pulled.ok) return pulled;
       const scanned = await scan();
       const result = await flush();
+      if (!result.ok) return result;
       await releaseLocalBytes();
       state.markFirstSyncDone();
-      firstConnect = null;
-      summary = { kind: 'merge', pulled, ...scanned, sent: result.sent ?? 0, conflicts: (pulled.conflicts ?? 0) + (result.conflicts ?? 0), pending: outbox.count() };
+      summary = { kind: 'merge', pulled, ...scanned, sent: result.sent ?? 0, applied: pulled.applied ?? 0, conflicts: (pulled.conflicts ?? 0) + (result.conflicts ?? 0), pending: outbox.count() };
       emit();
       return { ok: true, ...summary };
     } finally {
@@ -571,15 +547,7 @@ export function createSyncEngine({
       const probed = await probe();
       if (!probed.ok) return { ok: false, code: probed.mode ?? 'offline' };
     }
-    if (firstConnect) {
-      // A oferta de primeira conexão é recalculada a cada ciclo: o servidor
-      // pode ter recebido dados de outro navegador depois da sondagem da
-      // abertura, e "enviar meus dados" com dados dos dois lados não é a mesma
-      // coisa que "mesclar sem apagar nada". A sondagem é uma requisição de
-      // saúde; a decisão continua sendo do usuário.
-      await probe();
-      if (firstConnect) return { ok: false, code: 'first-connect', firstConnect };
-    }
+    if (!state.firstSyncDone) return mergeBoth();
     busy = 'sync';
     emit();
     try {
@@ -605,7 +573,7 @@ export function createSyncEngine({
   }
 
   function refreshLocalChanges() {
-    if (mode !== 'connected' || firstConnect) return;
+    if (mode !== 'connected' || !state.firstSyncDone) return;
     void enqueue(async () => {
       await scan();
       await flush();
@@ -630,7 +598,7 @@ export function createSyncEngine({
       if (typeof unsubscribe === 'function') unsubscribes.push(unsubscribe);
     }
     const probed = await probe();
-    if (probed.ok && !firstConnect) await syncNow();
+    if (probed.ok) await syncNow();
     if (timer === null) {
       timer = timers.setInterval(() => { void enqueue(() => syncNow()); }, intervalMs);
     }
@@ -651,7 +619,6 @@ export function createSyncEngine({
 
   return {
     get mode() { return mode; },
-    get firstConnect() { return firstConnect; },
     snapshot,
     subscribe(listener) {
       if (typeof listener !== 'function') throw new TypeError('Assinante inválido.');
@@ -666,8 +633,6 @@ export function createSyncEngine({
     pull: options => enqueue(() => pull(options)),
     flush: () => enqueue(flush),
     scan: () => enqueue(scan),
-    sendAll: () => enqueue(sendAll),
-    mergeBoth: () => enqueue(mergeBoth),
 
     // Remoção local explícita (a interface chama quando o usuário apaga algo):
     // manda a lápide com a revisão conhecida e some com o documento no servidor.

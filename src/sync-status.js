@@ -6,17 +6,14 @@
 //   identidade recusada, fila que não grava, aviso do motor).
 //
 // O painel também concentra as ações raras: sincronizar agora, procurar o
-// servidor, enviar/mesclar na primeira conexão, resolver conflitos e baixar as
-// cópias guardadas. Nada disso aparece na vista padrão.
+// servidor, resolver conflitos e baixar as cópias guardadas. A primeira
+// conexão mescla sozinha; nada disso aparece na vista padrão.
 
 import { mountPrivateDownload } from './private-download.js';
 
 const BUTTON_LABELS = {
   sync: 'Sincronizar agora',
   find: 'Procurar servidor agora',
-  upload: 'Enviar meus dados para o servidor',
-  merge: 'Mesclar sem apagar nada',
-  later: 'Agora não',
   recovered: 'Baixar cópias guardadas',
   server: 'Ficar com a do servidor',
   mine: 'Ficar com esta',
@@ -133,10 +130,9 @@ export function mountSyncStatus({
   const line = el('p', { id: 'sync-status', className: 'sync-status', role: 'status', 'aria-live': 'polite' });
   const detail = el('div', { className: 'sync-detail muted' });
   const actions = el('div', { className: 'sync-actions' });
-  const first = el('div', { className: 'sync-first', hidden: true });
   const conflictsBox = el('div', { className: 'sync-conflicts' });
   const pinnedBox = el('div', { className: 'sync-pinned' });
-  panel.append(line, detail, first, actions, conflictsBox, pinnedBox);
+  panel.append(line, detail, actions, conflictsBox, pinnedBox);
 
   const button = (label, onClick, props = {}) => {
     const node = el('button', { type: 'button', text: label, ...props });
@@ -145,15 +141,13 @@ export function mountSyncStatus({
   };
 
   const syncButton = button(BUTTON_LABELS.sync, () => engine.syncNow());
+  // Achar o servidor já sincroniza: nenhum outro clique é preciso.
   const findButton = button(BUTTON_LABELS.find, () => engine.probe({ force: true }).then(result => {
-    if (result?.ok) notify('Servidor encontrado nesta origem.');
-    else notify('Nenhum servidor respondeu nesta origem.', true);
+    if (!result?.ok) { notify('Nenhum servidor respondeu nesta origem.', true); return null; }
+    notify('Servidor encontrado nesta origem.');
+    return engine.syncNow();
   }));
-  const uploadButton = button(BUTTON_LABELS.upload, () => engine.sendAll().then(result => notify(`Envio concluído: ${result.sent ?? 0} documento(s).`)));
-  const mergeButton = button(BUTTON_LABELS.merge, () => engine.mergeBoth().then(result => notify(`Mesclagem concluída: ${result.sent ?? 0} enviado(s), ${result.applied ?? 0} trazido(s), ${result.conflicts ?? 0} conflito(s).`)));
-  const laterButton = button(BUTTON_LABELS.later, () => { first.hidden = true; });
   const recoveredButton = button(BUTTON_LABELS.recovered, () => privateFiles.download(engine.exportRecovered(), 'groovegoblin-sincronizacao-copias.json'));
-  first.append(uploadButton, mergeButton, laterButton);
   actions.append(syncButton, findButton, recoveredButton);
 
   let indicator = null;
@@ -214,17 +208,10 @@ export function mountSyncStatus({
     detail.replaceChildren();
     for (const text of detailLines(snapshot)) detail.appendChild(el('p', { className: 'muted', text }));
     const connected = snapshot.mode === 'connected';
-    syncButton.hidden = !connected || Boolean(snapshot.firstConnect);
+    syncButton.hidden = !connected;
     syncButton.disabled = Boolean(snapshot.busy);
     findButton.hidden = connected;
     recoveredButton.hidden = (snapshot.recovered ?? 0) === 0 && (snapshot.conflicts ?? 0) === 0;
-    if (snapshot.firstConnect) {
-      first.hidden = false;
-      uploadButton.hidden = snapshot.firstConnect !== 'upload' && snapshot.firstConnect !== 'merge';
-      mergeButton.hidden = snapshot.firstConnect !== 'merge';
-    } else if (first.hidden === false) {
-      first.hidden = true;
-    }
     renderConflicts(snapshot);
     renderOfflineList();
     const problem = problemOf(snapshot);

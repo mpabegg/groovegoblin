@@ -375,7 +375,7 @@ test('cópias cruas de conflito da sincronização só saem PRIVADAS, confirmada
     });
     try {
       assert.equal((await engine.probe()).ok, true);
-      await engine.sendAll();
+      await engine.syncNow();
       assert.ok(state.revision('exercises', created.id), 'o documento subiu');
 
       // OUTRO navegador, versão ANTIGA (sem a marca) muda o mesmo documento.

@@ -1034,7 +1034,7 @@ test('liberar a cópia offline preserva a referência do material e não apaga n
   assert.ok(container.querySelector('#lesson-material-keep-0'), 'a linha do servidor voltou');
   assert.equal(container.querySelector('[data-action="open-pdf"]'), null, 'não oferece abrir um arquivo que não está aqui');
 
-  await engine.sendAll();
+  await engine.syncNow();
   const pushed = server.docs('courseAttachments').get(courseId).body;
   assert.equal(pushed.refs[refKey]?.sha256, sha, 'o envio não apaga a referência do servidor');
   assert.equal(pushed.refs[refKey]?.name, 'Apostila de Exemplo.pdf');

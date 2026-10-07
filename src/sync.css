@@ -24,8 +24,7 @@
   margin: 2px 0;
   font-size: 12px;
 }
-.sync-actions,
-.sync-first {
+.sync-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -36,9 +35,6 @@
   font-size: 12px;
 }
 #sync-panel button[hidden] {
-  display: none;
-}
-.sync-first[hidden] {
   display: none;
 }
 .sync-conflict-list,
