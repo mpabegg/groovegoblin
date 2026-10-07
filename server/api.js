@@ -10,7 +10,7 @@ import { blobCsp, blobDisposition, parseRange, receiveBlob, sniffBlob, SNIFF_BYT
 import { backupBytes, createDailyBackup, dailyName, downloadName, listBackups, MAX_RECORD_BYTES } from './backup.js';
 import { StorageError, openRead, removeQuiet } from './fsutil.js';
 import { HttpError, apiHeaders, readJson, requireContentType, sendError, sendJson } from './http.js';
-import { createIntakeService, intakeHttpStatus, isIntakeError } from './intake.js';
+import { INTAKE_LIMITS, createIntakeService, intakeHttpStatus, isIntakeError } from './intake.js';
 import { COLLECTIONS, PRIVATE_NAMES, PreconditionError, SHA256_PATTERN, isValidId } from './store.js';
 
 export const API_VERSION = 1;
@@ -81,7 +81,7 @@ function preconditionFailed(error) {
 
 // convertMap: o conversor do repositório; parâmetro só para os testes poderem
 // observar o que chega a ele (nunca um parser alternativo).
-export function createApiHandler({ store, auth, basePath, maxBlobBytes, backupKeep, mode, version, log, convertMap = convertCourseMap }) {
+export function createApiHandler({ store, auth, basePath, maxBlobBytes, backupKeep, mode, version, log, convertMap = convertCourseMap, intakeLimits = INTAKE_LIMITS }) {
   const prefix = `${basePath}api`;
   const context = { hsts: mode === 'tailscale' };
 
@@ -89,7 +89,7 @@ export function createApiHandler({ store, auth, basePath, maxBlobBytes, backupKe
   // rotas de material falham — o resto da API continua de pé.
   let intake = null;
   function intakeService() {
-    if (intake === null) intake = createIntakeService({ store, root: store.intakeDir, now: () => store.now() });
+    if (intake === null) intake = createIntakeService({ store, root: store.intakeDir, limits: intakeLimits, now: () => store.now() });
     return intake;
   }
 

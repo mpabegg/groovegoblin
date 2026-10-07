@@ -47,6 +47,36 @@ export const INTAKE_LIMITS = Object.freeze({
   maxNameBytes: 240,
 });
 
+// Só estes cinco limites do curso podem ser ajustados (ambiente ou
+// `<dataDir>/intake-limits.json`), sempre dentro destes intervalos. O teto por
+// arquivo, o de blob e os limites de cada ZIP (membros, razão, tamanho por
+// membro) NÃO são configuráveis. O pacote nunca passa do teto por arquivo: um
+// ZIP maior que ele já sai como "grande demais" antes de ser aberto.
+export const INTAKE_LIMITS_FILE = 'intake-limits.json';
+export const INTAKE_LIMIT_BOUNDS = Object.freeze({
+  maxEntries: Object.freeze({ min: 1, max: 5000 }),
+  maxZipBytes: Object.freeze({ min: MIB, max: INTAKE_LIMITS.maxEntryBytes }),
+  maxZipPdfMembers: Object.freeze({ min: 1, max: 10000 }),
+  maxZipPdfBytes: Object.freeze({ min: MIB, max: 2 * GIB }),
+  maxCourseBytes: Object.freeze({ min: MIB, max: 64 * GIB }),
+});
+
+// Aplica ajustes por cima dos padrões. Chave desconhecida, valor que não é
+// inteiro ou fora do intervalo lança RangeError (a mensagem cita só a chave).
+export function resolveIntakeLimits(overrides = {}) {
+  if (overrides === null || typeof overrides !== 'object' || Array.isArray(overrides)) throw new RangeError('Os limites da pasta de entrada precisam ser um objeto.');
+  const resolved = { ...INTAKE_LIMITS };
+  for (const [key, value] of Object.entries(overrides)) {
+    const bounds = INTAKE_LIMIT_BOUNDS[key];
+    if (!bounds) throw new RangeError(`Limite da pasta de entrada desconhecido ou não ajustável: ${key}.`);
+    if (!Number.isSafeInteger(value) || value < bounds.min || value > bounds.max) {
+      throw new RangeError(`${key} fora do intervalo permitido (${bounds.min}..${bounds.max}).`);
+    }
+    resolved[key] = value;
+  }
+  return Object.freeze(resolved);
+}
+
 const COURSE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
 const CONTROL = /[\u0000-\u001f\u007f]/;
@@ -389,7 +419,9 @@ export function createIntakeService({ store, root, limits = INTAKE_LIMITS, now =
       if (member.invalid || !member.data) { unmatched.push(unmatchedEntry(id, member.name, 0, 'invalid', zipName, 'not-pdf')); continue; }
       zipStats.pdfMembers += 1;
       zipStats.bytes += member.data.length;
-      const matches = index.match(member.name);
+      // Membro em subpasta ("Pacote/Aula 1/Apostila.pdf") casa pelo nome do
+      // arquivo; o caminho inteiro continua no id do membro, para o vínculo.
+      const matches = index.match(member.name.slice(member.name.lastIndexOf('/') + 1));
       if (matches.length === 0) { unmatched.push(unmatchedEntry(id, member.name, member.data.length, 'no-material', zipName)); continue; }
       matched[id] = matches.map((material) => material.refKey);
       bound += 1;

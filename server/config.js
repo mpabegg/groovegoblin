@@ -4,7 +4,9 @@
 // exata do Serve, só atrás de 127.0.0.1). Qualquer combinação ambígua recusa a
 // subida: mensagens nunca citam caminhos, logins nem hosts reais.
 
-import { isAbsolute, resolve } from 'node:path';
+import { lstat, readFile } from 'node:fs/promises';
+import { isAbsolute, join, resolve } from 'node:path';
+import { INTAKE_LIMITS_FILE, resolveIntakeLimits } from './intake.js';
 
 export const DEFAULT_PORT = 5173;
 export const DEFAULT_MAX_BLOB_BYTES = 200 * 1024 * 1024;
@@ -13,6 +15,14 @@ export const DEFAULT_BACKUP_KEEP = 14;
 const MIB = 1024 * 1024;
 const LOOPBACK_HOSTS = { dev: ['127.0.0.1', '::1'], tailscale: ['127.0.0.1'], static: ['127.0.0.1', '::1'] };
 const LOGIN_PATTERN = /^[\x21-\x2b\x2d-\x7e]{1,254}$/; // ASCII visível, sem vírgula nem espaço
+// Ajustes dos limites da pasta de entrada por curso (bounds em server/intake.js).
+export const INTAKE_LIMIT_ENV = Object.freeze({
+  maxEntries: 'GROOVE_INTAKE_MAX_ENTRIES',
+  maxZipBytes: 'GROOVE_INTAKE_MAX_ZIP_BYTES',
+  maxZipPdfMembers: 'GROOVE_INTAKE_MAX_ZIP_PDF_MEMBERS',
+  maxZipPdfBytes: 'GROOVE_INTAKE_MAX_ZIP_PDF_BYTES',
+  maxCourseBytes: 'GROOVE_INTAKE_MAX_COURSE_BYTES',
+});
 
 export class ConfigError extends Error {
   constructor(message) {
@@ -66,7 +76,7 @@ export function loadConfig(env, { projectRoot }) {
   const basePath = normalizeBasePath(env.BASE_PATH || '/');
   const host = env.GROOVE_HOST || '127.0.0.1';
   const dataDir = env.GROOVE_DATA_DIR || '';
-  const apiOnlyVars = ['GROOVE_AUTH', 'GROOVE_ALLOWED_LOGINS', 'GROOVE_PUBLIC_ORIGIN', 'GROOVE_MAX_BLOB_BYTES', 'GROOVE_MIN_FREE_BYTES', 'GROOVE_BACKUP_KEEP'];
+  const apiOnlyVars = ['GROOVE_AUTH', 'GROOVE_ALLOWED_LOGINS', 'GROOVE_PUBLIC_ORIGIN', 'GROOVE_MAX_BLOB_BYTES', 'GROOVE_MIN_FREE_BYTES', 'GROOVE_BACKUP_KEEP', ...Object.values(INTAKE_LIMIT_ENV)];
 
   if (!dataDir) {
     const stray = apiOnlyVars.filter((name) => env[name] !== undefined && env[name] !== '');
@@ -93,6 +103,18 @@ export function loadConfig(env, { projectRoot }) {
     if (env.GROOVE_ALLOWED_LOGINS) throw new ConfigError('GROOVE_ALLOWED_LOGINS só vale com GROOVE_AUTH=tailscale.');
     if (env.GROOVE_PUBLIC_ORIGIN) throw new ConfigError('GROOVE_PUBLIC_ORIGIN só vale com GROOVE_AUTH=tailscale.');
   }
+  // Só o que veio do ambiente; padrões, `<dataDir>/intake-limits.json` e os
+  // intervalos de cada chave são aplicados na subida (server/app.js).
+  const intakeLimits = {};
+  for (const [key, name] of Object.entries(INTAKE_LIMIT_ENV)) {
+    const value = readInteger(env, name, null, 1, Number.MAX_SAFE_INTEGER);
+    if (value !== null) intakeLimits[key] = value;
+  }
+  try {
+    resolveIntakeLimits(intakeLimits);
+  } catch (error) {
+    throw new ConfigError(error.message.replace(/^max\w+/, (key) => INTAKE_LIMIT_ENV[key] ?? key));
+  }
   return {
     port,
     host,
@@ -107,6 +129,37 @@ export function loadConfig(env, { projectRoot }) {
       maxBlobBytes: readInteger(env, 'GROOVE_MAX_BLOB_BYTES', DEFAULT_MAX_BLOB_BYTES, MIB, 4096 * MIB),
       minFreeBytes: readInteger(env, 'GROOVE_MIN_FREE_BYTES', DEFAULT_MIN_FREE_BYTES, 0, 1024 * 1024 * MIB),
       backupKeep: readInteger(env, 'GROOVE_BACKUP_KEEP', DEFAULT_BACKUP_KEEP, 1, 60),
+      intakeLimits,
     },
   };
+}
+
+// Limites efetivos da pasta de entrada: padrões < `<dataDir>/intake-limits.json`
+// < ambiente. O arquivo é opcional, lido uma vez na subida, nunca link
+// simbólico; JSON ilegível, chave desconhecida ou valor fora do intervalo
+// recusam a subida sem citar caminho.
+export async function loadIntakeLimits(dataDir, envOverrides = {}) {
+  const path = join(dataDir, INTAKE_LIMITS_FILE);
+  let fromFile = {};
+  let info = null;
+  try {
+    info = await lstat(path);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw new ConfigError(`${INTAKE_LIMITS_FILE} não pôde ser lido.`);
+  }
+  if (info) {
+    if (!info.isFile() || info.size > 4096) throw new ConfigError(`${INTAKE_LIMITS_FILE} precisa ser um arquivo comum pequeno (sem link simbólico).`);
+    try {
+      fromFile = JSON.parse(await readFile(path, 'utf8'));
+    } catch {
+      throw new ConfigError(`${INTAKE_LIMITS_FILE} não é um JSON válido.`);
+    }
+  }
+  try {
+    resolveIntakeLimits(fromFile);
+  } catch (error) {
+    throw new ConfigError(`${INTAKE_LIMITS_FILE}: ${error.message}`);
+  }
+  // O ambiente já foi conferido em loadConfig; a soma só troca valores válidos.
+  return resolveIntakeLimits({ ...fromFile, ...envOverrides });
 }

@@ -22,6 +22,10 @@ infraestrutura entra no repositório, que é público.
 | `hooks/pre-commit` | trava local que recusa PDF/áudio/`local/` e termos privados antes do commit (instalação: veja "Desenvolvimento local") |
 | `README.md` | este guia |
 
+Fora deste diretório, `scripts/import-courses.js` (com o trabalhador
+`scripts/course-import-worker.js`) importa cursos no Pi a partir do laptop — veja
+"Importar vários cursos do laptop".
+
 Layout padrão:
 
 ```
@@ -31,6 +35,8 @@ Layout padrão:
 /var/lib/groovegoblin        diretório de dados (usuário do serviço, 0700)
   entrada/<id-do-curso>/     arquivos que você copia (PDF/MP3/WAV/ZIP)
   blobs/ objects/ private/ backups/ tmp/
+  import-backups/<rodada>/   cópia do instantâneo de cada importação (só com o importador)
+  material/                  opcional: sua árvore de material (o importador só lê)
 ```
 
 ## Antes de começar
@@ -194,6 +200,201 @@ sudo chown -R groovegoblin:groovegoblin /var/lib/groovegoblin/entrada
 ```
 
 Vídeos continuam no site do curso: o app não baixa nem guarda vídeo.
+
+## Importar vários cursos do laptop
+
+Quando o material já está no Pi numa pasta **com subpastas** (do jeito que foi
+baixado) e os mapas/catálogos estão no laptop, um comando faz a importação
+inteira por ssh, curso a curso: conversão, cópia plana para
+`entrada/<id-do-curso>/`, scan e relatório.
+
+```bash
+chmod 600 local/course-import.json
+node scripts/import-courses.js --manifest local/course-import.json           # plano: só confere, não grava nada
+node scripts/import-courses.js --manifest local/course-import.json --apply   # importa
+```
+
+Sem `--apply` o comando só faz a pré-checagem e mostra o plano. Rodar de novo é
+seguro: o que já está igual não é refeito.
+
+O material pode ficar **fora** do diretório de dados (ex.: `/srv/material-dos-cursos`)
+ou numa árvore **própria dentro dele** (ex.: `/var/lib/groovegoblin/material`).
+O importador nunca escreve na pasta de material.
+
+### Pré-requisitos
+
+- ssh do laptop para o Pi por chave (o comando usa `BatchMode=yes`: nunca pede senha);
+- `sudo -n` sem senha para o `node` no Pi. O trabalhador roda como root porque lê
+  `/etc/groovegoblin/groove.env` (0600 do root) e grava os arquivos da pasta de
+  entrada com o dono do serviço;
+- o serviço no ar (`/api/health` respondendo em loopback);
+- se o material fica dentro do diretório de dados: `fs.protected_hardlinks=1`
+  no Pi (padrão do Raspberry Pi OS; confira com `sysctl fs.protected_hardlinks`).
+  O dono do diretório de dados é o serviço, e o trabalhador roda como root: sem
+  essa proteção do kernel, a importação recusa ler dali;
+- espaço livre: a cópia para `entrada/` ocupa o tamanho do material; o
+  instantâneo e a cópia dele, cada um, aproximadamente o tamanho do que já está
+  guardado no servidor. A pré-checagem para se não couberem as cópias; a cópia do
+  instantâneo é conferida logo depois dele, antes de qualquer escrita nos dados;
+- de preferência, o mesmo commit no Pi e no laptop. O laptop converte cada mapa
+  com o conversor dele só para saber o resultado esperado; se o Pi converter
+  diferente, o curso é regravado a cada rodada (com CAS, sem perda) e o resumo
+  avisa.
+
+### Manifesto (privado, fora do repositório)
+
+```json
+{
+  "format": "groovegoblin-course-import-manifest/1",
+  "deployEnv": "deploy.env",
+  "deploymentResult": "resultado-do-deploy.json",
+  "remote": {
+    "sshTarget": "usuario@pi-groove",
+    "materialRoot": "/srv/material-dos-cursos"
+  },
+  "outputDir": "private",
+  "invalidNames": "fail",
+  "courses": [
+    { "map": "mapas/curso-exemplo.json", "catalog": "mapas/exercicios-exemplo.json", "materialFolder": "curso-exemplo", "courseId": "curso-de-exemplo" },
+    { "map": "mapas/outro-curso.json", "catalog": null, "materialFolder": "outro-curso", "includeProgress": false }
+  ]
+}
+```
+
+Caminhos relativos do laptop (`deployEnv`, `deploymentResult`, `outputDir`,
+`map`, `catalog`) são relativos à pasta do manifesto. Manifesto, `deployEnv` e
+`deploymentResult` precisam estar com `chmod 600`.
+
+| Campo | O que é |
+|---|---|
+| `deployEnv` | opcional; arquivo `CHAVE=valor` (nunca executado) com `SSH_TARGET`, `SSH_HOST_KEY_ALIAS`, `NODE_BIN`, `ENV_FILE`, `APP_DIR`, `DATA_DIR`, `SERVICE_USER`, `SERVICE_HOST`, `SERVICE_PORT`, `MATERIAL_DIR` |
+| `deploymentResult` | opcional; JSON do deploy com `nodeBin`, `envFile`, `appDir`, `dataDir`, `serviceUser`, `appPort`, `materialDir` |
+| `remote` | opcional; os mesmos campos pelo nome (`sshTarget`, `sshHostKeyAlias`, `nodeBin`, `envFile`, `appDir`, `dataDir`, `serviceUser`, `serviceHost`, `servicePort`, `materialRoot`). Ganha das outras fontes; se `deployEnv` e `deploymentResult` discordarem num campo, o comando para e pede a decisão aqui |
+| `outputDir` | pasta dos arquivos de saída (padrão `local/private`); recusada se cair num lugar versionado do checkout |
+| `invalidNames` | `"fail"` (padrão) ou `"skip"`. Arquivo da pasta de material com nome que a pasta de entrada não aceita (começa com ponto, como `.DS_Store`; tem `::`, barra invertida, caractere de controle, espaço nas pontas ou passa de 240 bytes): com `"fail"` a pré-checagem para e lista os caminhos no resultado; com `"skip"` segue sem eles e os lista do mesmo jeito |
+| `courses[].map` | mapa do curso (JSON) |
+| `courses[].catalog` | catálogo de exercícios (lista JSON) ou `null` — **obrigatório e explícito**: sem ele o servidor reaproveitaria o catálogo guardado, que pode ser de outro curso |
+| `courses[].materialFolder` | pasta do material **no Pi**: relativa a `materialRoot` ou absoluta. Com `materialRoot` configurado, precisa ficar dentro dele (também depois de resolver links). Dentro do diretório de dados só vale uma árvore própria: nunca o próprio diretório de dados (nem uma pasta que o contenha) nem nada sob `entrada/`, `blobs/`, `objects/`, `docs/`, `private/`, `backups/`, `tmp/` ou `import-backups/` |
+| `courses[].courseId` | opcional, recomendado: o id esperado. O id sai do título do mapa; se o título mudar, o comando para antes de conectar, em vez de criar um segundo curso |
+| `courses[].includeProgress` | `true`/`false`, ou omitido: segue o que já está no servidor (o curso guardado com progresso continua com progresso). Veja "Progresso" abaixo |
+
+Obrigatórios depois de juntar as fontes: `sshTarget`, `nodeBin` e `serviceUser`.
+`envFile` tem como padrão `/etc/groovegoblin/groove.env`. Porta, endereço,
+diretório de dados, login e origem pública são lidos no Pi, do próprio
+`groove.env`; os que você informar no laptop só servem para conferência (se
+divergirem, nada é feito). Nenhum valor desses entra no repositório.
+
+### O que acontece no `--apply`
+
+1. **Pré-checagem, sem escrita**: ambiente do serviço, health, dono do diretório
+   de dados, cada pasta de material (confinada como na tabela acima, conferida
+   também pelo caminho real; lida recursivamente sem seguir link simbólico, e
+   cada arquivo é conferido pelo descritor aberto, não só pelo nome), plano de
+   cópia, limites da pasta de entrada, espaço livre e uma conversão a seco
+   (`dryRun`) de cada mapa no servidor. Qualquer problema aqui para tudo, e nada
+   foi alterado.
+2. **Instantâneo de segurança** pela API (`POST /api/backups`, o mesmo do
+   `update.sh`), antes da primeira escrita, e **cópia independente** dele em
+   `<diretório de dados>/import-backups/<rodada>/` (dono do serviço, 0600). O
+   instantâneo da API é o diário: uma segunda rodada no mesmo dia, o `update.sh`
+   ou o agendador o substituem, e a rotação apaga os antigos — a cópia não.
+3. Para cada curso, em ordem:
+   - **conversão**: se o documento guardado já é idêntico ao esperado, nada é
+     gravado (nem o mapa privado); senão, conversão pela mesma rota do servidor
+     com `expectedRev` (CAS) — se o curso mudou desde a pré-checagem, para sem
+     sobrescrever — e, logo em seguida, as **aulas assistidas** que o servidor
+     já tinha voltam ao documento (veja "Progresso"). `courseStates` (anotações
+     etc.) e os vínculos nunca são regravados pela conversão;
+   - **cópia plana** para `entrada/<id-do-curso>/`: **todo arquivo comum** da
+     pasta de material, cópia de verdade dos bytes (nunca link), dono do serviço,
+     modo 0600, hash conferido. Os originais só são lidos. Arquivo fora dos
+     formatos do app (`.txt`, vídeo…) também é copiado e aparece no relatório do
+     scan como não casado (`unsupported`). Link simbólico e arquivo especial não
+     são copiados e ficam listados no resultado; nome inválido segue
+     `invalidNames`. Mesmo nome com mesmo conteúdo entra uma vez; mesmo nome com
+     conteúdo diferente ganha um sufixo determinístico `nome (123456).pdf` (o
+     casamento por nome ignora esse sufixo) e a colisão fica registrada. Nada
+     que já está na pasta é sobrescrito, com uma exceção: a cópia antiga **de
+     mesmo conteúdo** que está ligada por link físico (por exemplo ao original)
+     ou com dono/modo diferente de serviço/0600 é **trocada por uma cópia nova**
+     (temporário + rename). O arquivo antigo nunca recebe chmod/chown — o
+     original ligado a ele continua exatamente como estava. Outros arquivos da
+     pasta de entrada não são tocados (só contados no resumo);
+   - **scan** (`POST …/materials/scan`) e **reposição dos vínculos anteriores**: o
+     scan troca o vínculo de um material quando acha outro arquivo para ele; o
+     importador devolve todo vínculo que existia antes (inclusive os manuais),
+     a não ser que o blob dele tenha sumido;
+   - **relatório** (`GET …/materials`).
+
+O mapa e o catálogo vão para o armazenamento privado do servidor pela própria
+conversão. O servidor guarda **um** mapa e **um** catálogo: depois de importar
+vários cursos, fica o do último curso convertido.
+
+### Progresso
+
+A conversão grava no documento do curso o progresso histórico do mapa
+(`includeProgress: true`) ou nenhum. Para não apagar o que você marcou no app,
+logo depois dela o importador une, com CAS, as aulas que o servidor já marcava
+como assistidas (primeiro, na ordem em que estavam) às do mapa. Só cai a marca
+de uma aula que não existe mais no mapa novo (o formato do curso não aceita
+referência quebrada); o plano mostra quantas cairiam antes do `--apply`, e o
+resultado lista os ids. A segunda rodada reconhece a união como igual e não
+regrava nada.
+
+Consequência da união: uma aula que o mapa marca como assistida volta a ficar
+marcada a cada rodada com `includeProgress: true`. Para não trazer mais o
+progresso do mapa, use `includeProgress: false` — o que o servidor já tem
+continua.
+
+Se a rodada falhar entre a conversão e a reposição (raro: o app gravou o curso
+quatro vezes seguidas, ou a conexão caiu), o resultado traz `watchedBefore` com
+as aulas de antes, e elas estão no instantâneo e na cópia dele.
+
+### Cópia do instantâneo de cada rodada
+
+`<diretório de dados>/import-backups/<rodada>/groovegoblin-<data>.ndjson.gz` é o
+estado de antes daquela importação. Para voltar a ele:
+
+```bash
+sudo /opt/groovegoblin/deploy/restore.sh --backup /var/lib/groovegoblin/import-backups/<rodada>/groovegoblin-<data>.ndjson.gz
+```
+
+A restauração não mexe em `entrada/` (a pasta não entra em instantâneo). Essas
+cópias não entram na rotação: apague à mão as rodadas que não precisar mais.
+
+### Saída
+
+No terminal, só contagens por número de ordem (`curso 2/6`): seções, aulas,
+exercícios (e quantos têm receita), materiais disponíveis/total, faltando, não
+casados, cópias, colisões, vínculos repostos. Nada de host, caminho, login, id ou
+nome de arquivo.
+
+Na pasta de saída, os dois com modo 0600:
+
+- `course-import-<carimbo>.log`: tudo o que o ssh e o trabalhador escreveram,
+  inclusive erro de conexão;
+- `course-import-<carimbo>.json`: o resultado. Para conferir uma segunda rodada,
+  compare `remote.courses[].after` (`course.rev`/`course.digest`,
+  `attachments.digest`, `report.digest`, `courseStates.unchanged`) e
+  `local.courses[].expected` (digests do curso esperado, do mapa e do catálogo;
+  no Pi, `expected.mergedDigest` é o esperado já com a união do progresso).
+  A segunda rodada esperada: conversão `unchanged`, 0 cópias, 0 trocas, mesmos
+  digests. Também ficam lá `backup.archive` (caminho relativo, tamanho e sha256
+  da cópia do instantâneo), `source.skippedPaths`, `source.invalidNames` e
+  `progress` por curso.
+
+Código de saída: 0 ok, 1 falha (no ssh ou no Pi), 2 configuração recusada.
+
+### Limites da pasta de entrada
+
+A pré-checagem usa os limites efetivos do Pi: os padrões do servidor, por cima o
+`<diretório de dados>/intake-limits.json` e por cima as variáveis
+`GROOVE_INTAKE_*` do `groove.env` — e mostra o resultado no resumo. Pasta que
+passaria do número de arquivos ou do tamanho total para tudo antes de gravar.
+ZIP maior que o limite é copiado mesmo assim e aparece no relatório como "grande
+demais"; depois de aumentar o limite **e reiniciar o serviço** (o servidor lê os
+limites só na subida), rode o importador de novo: nada é recopiado e o scan abre
+os ZIPs.
 
 ## Cópias de segurança
 
@@ -436,6 +637,10 @@ sudo /opt/groovegoblin/deploy/update.sh
 curl -fsS -H "Tailscale-User-Login: usuario@example.org" http://127.0.0.1:5173/api/backup -o backup.ndjson.gz
 sudo /opt/groovegoblin/deploy/restore.sh --latest
 sudo /opt/groovegoblin/deploy/restore.sh --backup /home/usuario/backup.ndjson.gz
+
+# importar cursos a partir do laptop (plano, depois de verdade)
+node scripts/import-courses.js --manifest local/course-import.json
+node scripts/import-courses.js --manifest local/course-import.json --apply
 
 # ver o serviço e o que está publicado
 systemctl status groovegoblin --no-pager

@@ -9,6 +9,7 @@ import { scheduleDailyBackups } from './backup.js';
 import { staticSecurityHeaders } from './http.js';
 import { createStaticHandler } from './static.js';
 import { openStore } from './store.js';
+import { loadIntakeLimits } from './config.js';
 
 const API_REQUEST_TIMEOUT_MS = 30 * 60 * 1000; // upload de 200 MiB por Wi-Fi lento
 
@@ -28,6 +29,8 @@ export async function startGrooveServer(config, { now = () => new Date(), log = 
   const store = api
     ? await openStore({ dataDir: api.dataDir, guardRoots: [projectRoot, config.staticRoot], now, minFreeBytes: api.minFreeBytes })
     : null;
+  // Depois do openStore: o data dir já foi conferido (fora do repositório, marcado).
+  const intakeLimits = api ? await loadIntakeLimits(api.dataDir, api.intakeLimits ?? {}) : null;
   const serveStatic = createStaticHandler({ root: config.staticRoot, projectRoot, basePath: config.basePath, hsts: api?.mode === 'tailscale', apiEnabled: Boolean(api) });
   // Os fallbacks 400/404 do app saem com os MESMOS cabeçalhos de segurança do
   // estático (e HSTS no modo tailscale); nada de CSP duplicada.
@@ -61,6 +64,7 @@ export async function startGrooveServer(config, { now = () => new Date(), log = 
       basePath: config.basePath,
       maxBlobBytes: api.maxBlobBytes,
       backupKeep: api.backupKeep,
+      intakeLimits,
       mode: api.mode,
       version: packageVersion(projectRoot),
       log,
